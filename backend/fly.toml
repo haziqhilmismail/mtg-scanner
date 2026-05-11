@@ -1,0 +1,43 @@
+# Fly.io config for the MTG Pasar Malam Scanner backend.
+#
+# Replace the `app` name below the first time you run `fly launch` — Fly will
+# also overwrite this file with one tailored to the org/region you pick.
+# Singapore (`sin`) is the closest region to Malaysia.
+
+app = "mtg-scanner-backend"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Storage paths are baked into config.py via BACKEND_ROOT/data, which is
+  # /app/data inside the container. The volume below mounts there.
+  PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # `auto_stop_machines = false` keeps the machine warm — no cold-start delay
+  # when the user opens the app after lunch. Fly hobby tier allows this.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 50
+    soft_limit = 25
+
+# Persistent volume for SQLite + scan images + post images + CK pricelist
+# cache + jwt_secret.txt. Without this, every deploy wipes the database.
+# Create it once with: `fly volumes create mtg_data --region sin --size 1`
+[[mounts]]
+  source = "mtg_data"
+  destination = "/app/data"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

@@ -1,0 +1,26 @@
+# Local Python state
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Local config — secrets must come from Fly's env (flyctl secrets set ...).
+.env
+.env.local
+
+# Local data that should NEVER ship in the image — the Fly volume mounted at
+# /app/data is the source of truth in production.
+data/app.db
+data/app.db-*
+data/scans/
+data/posts/
+data/ck_pricelist.json
+data/jwt_secret.txt
+
+# Misc
+.git/
+.gitignore
+*.log
+.DS_Store

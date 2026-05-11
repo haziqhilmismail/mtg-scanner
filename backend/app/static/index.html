@@ -1,0 +1,2619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pasar Malam MTG Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --paper: #fbf9f4;
+    --surface: #ffffff;
+    --surface-2: #f7f4ec;
+    --ink: #1c1c1c;
+    --ink-soft: #4a4641;
+    --rule: #d9d2c3;
+    --rule-strong: #1c1c1c;
+    --accent: #b8442a;
+    --accent-soft: #f3d6cc;
+    --gold: #c89b3c;
+    --gold-soft: #f5e6c0;
+    --green: #2f6b3c;
+    --warn: #b8442a;
+    --shadow-sm: 0 1px 2px rgba(28,28,28,.05);
+    --shadow: 0 2px 8px rgba(28,28,28,.06), 0 1px 2px rgba(28,28,28,.04);
+    --shadow-lg: 0 12px 36px rgba(28,28,28,.1), 0 2px 8px rgba(28,28,28,.05);
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --radius-xl: 22px;
+    --radius-pill: 999px;
+  }
+  [data-theme="dark"] {
+    --bg: #14161a;
+    --paper: #1d2026;
+    --surface: #262a31;
+    --surface-2: #1f2329;
+    --ink: #ece6da;
+    --ink-soft: #968e83;
+    --rule: #34383f;
+    --rule-strong: #ece6da;
+    --accent: #e07555;
+    --accent-soft: #4a2c24;
+    --gold: #d6ae5c;
+    --gold-soft: #4d3f1f;
+    --green: #5a9d6a;
+    --warn: #e07555;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow: 0 2px 8px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.3);
+    --shadow-lg: 0 12px 36px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Fraunces', Georgia, serif;
+    line-height: 1.45; min-height: 100vh;
+    transition: background 0.18s ease, color 0.18s ease;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 24px 80px; }
+
+  /* ---------- Masthead ---------- */
+  header.masthead {
+    display: grid; grid-template-columns: 1fr auto;
+    align-items: end; gap: 16px;
+    padding: 14px 0 18px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 28px;
+  }
+  .masthead h1 {
+    font-size: clamp(28px, 4.5vw, 48px);
+    font-weight: 800; letter-spacing: -0.02em; margin: 0; line-height: 1;
+  }
+  .masthead .sub {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em;
+    color: var(--ink-soft); font-family: 'JetBrains Mono', monospace;
+    margin-top: 6px;
+  }
+  .header-controls {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .icon-btn {
+    width: 38px; height: 38px; padding: 0;
+    border: 1px solid var(--rule); background: var(--surface); color: var(--ink);
+    border-radius: var(--radius-pill);
+    cursor: pointer; font-size: 16px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .icon-btn:hover {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  .lang-toggle {
+    display: inline-flex; padding: 0; overflow: hidden;
+    border: 1px solid var(--rule); border-radius: var(--radius-pill);
+    background: var(--surface);
+    height: 38px;
+  }
+  .lang-toggle button {
+    border: 0; background: transparent; color: var(--ink);
+    padding: 0 14px; cursor: pointer; height: 100%;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .lang-toggle button.active {
+    background: var(--ink); color: var(--paper);
+  }
+  .lang-toggle button:hover:not(.active) {
+    background: var(--surface-2);
+  }
+
+  /* ---------- Top tabs (Scanner | Checklist) ---------- */
+  .top-tabs {
+    display: flex; gap: 4px; align-items: center;
+    margin-bottom: 22px;
+    padding: 4px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-sm);
+    width: fit-content;
+  }
+  .top-tabs button {
+    background: transparent; color: var(--ink-soft);
+    border: 0; padding: 8px 18px;
+    border-radius: var(--radius-pill);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .top-tabs button:hover:not(.active) { color: var(--ink); background: var(--surface-2); }
+  .top-tabs button.active {
+    background: var(--ink); color: var(--paper);
+  }
+  .top-tabs .soon {
+    font-family: 'JetBrains Mono', monospace; font-size: 8px;
+    padding: 2px 6px; margin-left: 6px;
+    background: var(--gold-soft); color: var(--ink-soft);
+    border-radius: var(--radius-pill); letter-spacing: 0.1em;
+  }
+  .view-section { display: none; }
+  .view-section.active { display: block; }
+  .checklist-empty {
+    padding: 80px 24px; text-align: center;
+    background: var(--paper); border: 1px dashed var(--rule);
+    border-radius: var(--radius-lg);
+    color: var(--ink-soft);
+    font-family: 'Fraunces', Georgia, serif;
+  }
+  .checklist-empty .icon {
+    font-size: 48px; margin-bottom: 12px; line-height: 1;
+    color: var(--ink-soft);
+  }
+  .checklist-empty .headline {
+    font-size: 20px; font-weight: 600; margin-bottom: 6px; color: var(--ink);
+  }
+  .checklist-empty .sub {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+  }
+
+  /* ---------- Panels ---------- */
+  .panel {
+    background: var(--paper); border: 1px solid var(--rule);
+    box-shadow: var(--shadow); padding: 22px;
+    margin-bottom: 22px;
+    border-radius: var(--radius-lg);
+  }
+  .panel h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em;
+    margin: 0 0 16px; font-family: 'JetBrains Mono', monospace; font-weight: 700;
+    color: var(--ink-soft); border-bottom: 1px solid var(--rule); padding-bottom: 10px;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .panel h2 .step-num {
+    color: var(--accent); font-weight: 800;
+  }
+
+  /* ---------- Drop zone ---------- */
+  .drop {
+    border: 2px dashed var(--rule); padding: 44px 24px; text-align: center;
+    background: var(--surface-2); cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    user-select: none;
+    border-radius: var(--radius-lg);
+  }
+  .drop:hover { transform: translateY(-1px); border-color: var(--ink-soft); }
+  .drop.dragover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-2px); }
+  .drop p { margin: 0; font-size: 14px; color: var(--ink-soft); pointer-events: none; }
+  .drop strong { color: var(--ink); font-size: 16px; display: block; margin-bottom: 4px; pointer-events: none; }
+
+  /* ---------- Settings ---------- */
+  .settings {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;
+  }
+  .settings label {
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em;
+    font-family: 'JetBrains Mono', monospace; color: var(--ink-soft);
+  }
+  .settings input, .settings select {
+    font-family: 'JetBrains Mono', monospace; font-size: 16px;
+    padding: 10px 12px; border: 1px solid var(--rule);
+    background: var(--surface); color: var(--ink);
+    border-radius: var(--radius);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .settings input:focus, .settings select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .checkbox-group {
+    display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px;
+  }
+  .checkbox-row {
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+
+  /* ---------- Buttons ---------- */
+  button, .btn {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    padding: 10px 18px; border: 1px solid var(--ink);
+    background: var(--ink); color: var(--paper); cursor: pointer;
+    transition: transform 0.1s ease, background 0.12s ease, box-shadow 0.12s ease;
+    border-radius: var(--radius);
+    font-weight: 700;
+  }
+  button:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+  button:active { transform: translateY(0); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+  button.ghost {
+    background: var(--surface); color: var(--ink); border-color: var(--rule);
+  }
+  button.accent {
+    background: var(--accent); border-color: var(--accent);
+    color: white;
+  }
+
+  /* ---------- Status ---------- */
+  .status {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--ink-soft); margin-top: 14px;
+  }
+  .status.error { color: var(--warn); }
+  .health-badge {
+    display: inline-block; padding: 3px 10px; margin-left: 8px;
+    border: 1px solid var(--rule); border-radius: var(--radius-pill);
+    background: var(--surface);
+    font-size: 11px;
+  }
+  .health-badge.ok { background: var(--surface-2); border-color: var(--green); color: var(--green); }
+  .health-badge.warn { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- Loading dots ---------- */
+  .loading::after {
+    content: ''; display: inline-block; width: 1.4em; text-align: left;
+    animation: dots 1.2s steps(4, end) infinite;
+  }
+  @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+  /* ---------- Tab strip ---------- */
+  .review-head {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--rule); padding-bottom: 10px; margin-bottom: 16px;
+  }
+  .review-head h2 {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.2em;
+    color: var(--ink-soft); margin: 0; padding: 0; border: 0;
+  }
+  .review-head .step-num { color: var(--accent); font-weight: 800; }
+
+  .tab-strip {
+    display: flex; gap: 10px;
+    overflow-x: auto; overflow-y: hidden;
+    padding: 4px 2px 12px;
+    margin-bottom: 18px;
+    scrollbar-width: thin;
+  }
+  .tab-strip::-webkit-scrollbar { height: 8px; }
+  .tab-strip::-webkit-scrollbar-track { background: transparent; }
+  .tab-strip::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
+
+  .tab {
+    flex: 0 0 auto;
+    display: grid; grid-template-columns: 56px 1fr; gap: 10px;
+    align-items: stretch;
+    padding: 8px 14px 8px 8px;
+    border: 1px solid var(--rule); background: var(--surface);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+    min-width: 200px; max-width: 280px;
+    position: relative;
+  }
+  .tab:hover {
+    border-color: var(--ink-soft);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+  }
+  .tab.active {
+    border-color: var(--accent); border-width: 2px;
+    background: var(--accent-soft);
+    box-shadow: var(--shadow);
+  }
+  .tab .tab-thumb {
+    width: 56px; height: 56px;
+    border-radius: var(--radius-sm);
+    background: var(--ink); object-fit: cover;
+    display: block;
+  }
+  .tab .tab-thumb.placeholder {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--paper); font-size: 18px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .tab .tab-meta {
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 4px; min-width: 0;
+  }
+  .tab .tab-name {
+    font-family: 'Fraunces', Georgia, serif; font-size: 13px; font-weight: 600;
+    line-height: 1.2;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--ink);
+  }
+  .tab .tab-status {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--ink-soft);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab .tab-status .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--ink-soft);
+  }
+  .tab .tab-status.scanning .dot { background: var(--gold); animation: pulse-dot 1.2s ease-in-out infinite; }
+  .tab .tab-status.done .dot { background: var(--green); }
+  .tab .tab-status.error .dot { background: var(--warn); }
+  .tab .tab-status.warn .dot { background: var(--gold); }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+
+  /* ---------- Batch view ---------- */
+  .batch-image {
+    border: 1px solid var(--rule); background: var(--paper);
+    padding: 22px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+  .batch-image-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 18px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap; gap: 8px;
+  }
+  .batch-image-head .name { font-weight: 600; font-size: 18px; }
+  .batch-image-head .meta {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.12em;
+  }
+  .batch-body {
+    display: grid; grid-template-columns: minmax(280px, 1fr) 2fr; gap: 24px;
+  }
+  @media (max-width: 800px) { .batch-body { grid-template-columns: 1fr; } }
+
+  /* Preview */
+  .preview-cell { display: flex; justify-content: flex-start; align-items: flex-start; }
+  .preview-wrap {
+    position: relative; display: inline-block;
+    max-width: 100%; max-height: 65vh;
+    border: 1px solid var(--rule); background: #000;
+    border-radius: var(--radius);
+    overflow: hidden;
+    line-height: 0;
+  }
+  .preview-wrap img {
+    display: block;
+    max-height: 65vh; max-width: 100%;
+    width: auto; height: auto;
+  }
+  .preview-wrap svg {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%; pointer-events: none;
+  }
+  .corner-rect { fill: rgba(184,68,42,.08); stroke: var(--accent); stroke-width: 4; stroke-dasharray: 8 6; }
+  .corner-rect.foil { fill: rgba(200,155,60,.12); stroke: var(--gold); }
+  .corner-num-bg { fill: var(--ink); stroke: white; stroke-width: 4; }
+  .corner-num { font-family: 'JetBrains Mono', monospace; fill: var(--paper); font-weight: 800; }
+
+  /* ---------- Card list ---------- */
+  .card-list {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 14px;
+  }
+  .card-row {
+    border: 1px solid var(--rule); padding: 14px; background: var(--surface);
+    display: flex; gap: 12px; position: relative;
+    border-radius: var(--radius);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .card-row:hover { box-shadow: var(--shadow-sm); }
+  .card-row.foil {
+    background: linear-gradient(135deg, var(--gold-soft) 0%, var(--surface) 65%);
+  }
+  .card-row.overridden {
+    box-shadow: inset 4px 0 0 var(--accent);
+  }
+  .card-row .num {
+    position: absolute; top: -10px; left: -10px;
+    background: var(--ink); color: var(--paper);
+    width: 26px; height: 26px;
+    border-radius: var(--radius-pill);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    border: 2px solid var(--paper);
+    box-shadow: var(--shadow-sm);
+  }
+  .card-row .remove-btn {
+    position: absolute; top: -10px; right: -10px;
+    width: 26px; height: 26px;
+    background: var(--surface); color: var(--ink-soft);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-pill);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700;
+    cursor: pointer; padding: 0; line-height: 1;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    box-shadow: var(--shadow-sm);
+    z-index: 2;
+  }
+  .card-row .remove-btn:hover {
+    background: var(--accent); color: white; border-color: var(--accent);
+    transform: rotate(90deg);
+  }
+  .removed-strip {
+    margin-top: 14px; padding: 12px 14px;
+    background: var(--surface-2); border: 1px dashed var(--rule);
+    border-radius: var(--radius);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-soft); letter-spacing: 0.06em;
+  }
+  .removed-strip .label {
+    text-transform: uppercase; font-weight: 700; letter-spacing: 0.14em;
+  }
+  .removed-strip .restore-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: var(--radius-pill);
+    cursor: pointer; color: var(--ink);
+    font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 11px;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  .removed-strip .restore-chip:hover {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  .removed-strip .restore-all {
+    margin-left: auto;
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+    padding: 5px 12px;
+    text-transform: uppercase; letter-spacing: 0.14em; font-size: 10px;
+    border-radius: var(--radius-pill);
+  }
+  .removed-strip .restore-all:hover { background: var(--accent); border-color: var(--accent); }
+
+  /* Comparison thumbnails (photo crop + matched printing) */
+  .compare {
+    display: flex; flex-direction: column; gap: 8px;
+    flex-shrink: 0; width: 78px;
+  }
+  .compare .compare-cell {
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .compare img,
+  .compare .placeholder {
+    width: 78px; aspect-ratio: 488 / 680;
+    border: 1px solid var(--rule); background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    display: block; object-fit: cover;
+  }
+  .compare .placeholder {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-soft); font-size: 18px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .compare .lbl {
+    font-family: 'JetBrains Mono', monospace; font-size: 8px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-soft);
+    text-align: center;
+  }
+  .compare img { cursor: zoom-in; transition: border-color 0.12s ease; }
+  .compare img:hover { border-color: var(--accent); }
+
+  /* Zoom overlay (click a thumbnail to enlarge) */
+  .zoom-modal {
+    position: fixed; inset: 0; z-index: 200;
+    display: none; align-items: center; justify-content: center;
+    padding: 32px;
+  }
+  .zoom-modal.open { display: flex; }
+  .zoom-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(28,28,28,.85);
+    backdrop-filter: blur(4px);
+    cursor: zoom-out;
+  }
+  .zoom-image {
+    position: relative; z-index: 1;
+    max-width: min(900px, 96vw);
+    max-height: 92vh;
+    border: 2px solid var(--paper);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    cursor: zoom-out;
+    object-fit: contain;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+  }
+  .zoom-caption {
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    z-index: 2;
+    background: var(--ink); color: var(--paper);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.16em;
+    padding: 8px 16px; border-radius: var(--radius-pill);
+    pointer-events: none;
+  }
+
+  .card-row .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .card-row .title {
+    font-size: 15px; font-weight: 600; line-height: 1.2;
+    word-break: break-word;
+  }
+  .card-row .title a {
+    color: inherit; text-decoration: none;
+    border-bottom: 1px dotted var(--ink-soft);
+    transition: color 0.12s ease, border-color 0.12s ease;
+  }
+  .card-row .title a:hover {
+    color: var(--accent); border-bottom: 1px solid var(--accent);
+  }
+  .card-row .title .ext-icon {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500;
+    color: var(--ink-soft); margin-left: 5px;
+    vertical-align: 0.05em;
+  }
+  .card-row .title a:hover .ext-icon { color: var(--accent); }
+
+  /* Version display — prominent set badge + full set name */
+  .version-line {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap; margin-top: 1px;
+  }
+  .set-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 11px;
+    background: var(--ink); color: var(--paper);
+    border-radius: var(--radius-pill);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+  .set-badge .cn {
+    color: var(--gold); font-weight: 700;
+  }
+  .set-badge .rarity {
+    width: 6px; height: 6px; border-radius: 50%;
+    margin-right: 2px;
+  }
+  .set-badge .rarity.common { background: #999; }
+  .set-badge .rarity.uncommon { background: #c0c0c0; }
+  .set-badge .rarity.rare { background: var(--gold); }
+  .set-badge .rarity.mythic { background: var(--accent); }
+  .set-badge .rarity.special { background: #b16edc; }
+  .set-name {
+    font-family: 'Fraunces', Georgia, serif; font-size: 12px;
+    color: var(--ink-soft); font-style: italic;
+    line-height: 1.2;
+  }
+
+  .price-line { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-soft); }
+
+  .price-block { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .price-myr { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); font-size: 19px; line-height: 1; }
+  .price-myr.foil { color: var(--gold); }
+  .price-myr.struck { color: var(--ink-soft); text-decoration: line-through; font-size: 13px; font-weight: 400; }
+  .override-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    padding: 3px 6px 3px 10px;
+    background: var(--accent); color: white;
+    border-radius: var(--radius-pill);
+  }
+  .override-pill button {
+    all: unset; cursor: pointer;
+    width: 14px; height: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.22); color: white;
+    font-size: 11px; font-weight: 700;
+    border-radius: var(--radius-pill);
+  }
+  .override-pill button:hover { background: rgba(255,255,255,.4); }
+
+  .subtotal {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-soft); letter-spacing: 0.06em;
+  }
+  .subtotal strong { color: var(--ink); font-weight: 700; }
+
+  .source-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    padding: 2px 7px; margin-right: 4px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    border-radius: var(--radius-pill);
+    font-weight: 700;
+  }
+  .source-tag.ck { background: var(--green); color: white; }
+  .source-tag.tcg { background: var(--ink-soft); color: var(--paper); }
+  .source-tag.none { background: var(--warn); color: white; }
+  .source-tag.manual { background: var(--gold); color: var(--ink); }
+
+  .conf {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .conf.low { color: var(--warn); }
+
+  .row-controls {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .toggle {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    padding: 5px 12px; border: 1px solid var(--rule);
+    background: var(--surface); color: var(--ink); cursor: pointer;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    font-weight: 700;
+    border-radius: var(--radius-pill);
+  }
+  .toggle.active {
+    background: var(--gold); color: #1c1c1c; border-color: var(--gold);
+  }
+
+  /* Quantity stepper + multiplier stepper share a pill style */
+  .qty-row, .mult-row {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--ink-soft);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-pill);
+    padding: 2px 4px 2px 10px;
+    background: var(--surface);
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .mult-row.set {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .mult-row .mult-clear {
+    width: 22px; height: 22px; padding: 0;
+    border: 0; cursor: pointer;
+    background: transparent; color: var(--accent);
+    font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700;
+    border-radius: var(--radius-pill); line-height: 1;
+  }
+  .mult-row .mult-clear:hover { background: var(--accent); color: white; }
+  .mult-input {
+    width: 44px; height: 24px; padding: 0;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700;
+    border: 0; background: transparent; color: var(--ink); text-align: center;
+    -moz-appearance: textfield;
+  }
+  .mult-input::-webkit-outer-spin-button,
+  .mult-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .mult-row.set .mult-input { color: var(--accent); }
+  .qty-btn {
+    width: 24px; height: 24px; padding: 0;
+    border: 0; background: var(--surface-2); color: var(--ink);
+    font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700;
+    cursor: pointer; line-height: 1;
+    border-radius: var(--radius-pill);
+  }
+  .qty-btn:hover { background: var(--ink); color: var(--paper); transform: none; }
+  .qty-input {
+    width: 36px; height: 24px; padding: 0;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700;
+    border: 0; background: transparent; color: var(--ink); text-align: center;
+    -moz-appearance: textfield;
+  }
+  .qty-input::-webkit-outer-spin-button,
+  .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* ---------- ADJUST panel ---------- */
+  .adjust {
+    margin-top: 14px;
+    border-top: 1px dashed var(--rule);
+    padding-top: 12px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .adjust-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.22em; color: var(--ink-soft);
+  }
+  .adjust-block { display: flex; flex-direction: column; gap: 5px; }
+  .adjust-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink);
+  }
+  .adjust-row { display: flex; gap: 6px; align-items: stretch; }
+
+  .price-input-wrap {
+    display: flex; align-items: stretch; flex: 1;
+    border: 1px solid var(--rule); background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .price-input-wrap.set {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  .price-input-wrap.required {
+    border-color: var(--warn);
+    box-shadow: 0 0 0 2px rgba(184,68,42,.18);
+  }
+  .price-input-wrap .prefix {
+    display: inline-flex; align-items: center; padding: 0 10px;
+    background: var(--ink); color: var(--paper);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  .price-input-wrap.set .prefix { background: var(--accent); color: white; }
+  .price-input-wrap.required .prefix { background: var(--warn); color: white; }
+  .price-input-wrap input {
+    flex: 1; min-width: 0; border: 0; outline: none;
+    padding: 8px 10px; background: transparent;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700;
+    color: var(--ink);
+  }
+  .clear-btn {
+    border: 1px solid var(--rule); background: var(--surface); color: var(--ink-soft);
+    width: 32px; padding: 0; cursor: pointer;
+    font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700;
+    border-radius: var(--radius);
+  }
+  .clear-btn:hover { color: white; background: var(--accent); border-color: var(--accent); }
+  .clear-btn:disabled { opacity: 0; pointer-events: none; }
+
+  .relookup-input {
+    flex: 1; min-width: 0;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500;
+    padding: 8px 10px; border: 1px solid var(--rule);
+    background: var(--surface); color: var(--ink); outline: none;
+    border-radius: var(--radius);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .relookup-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .relookup-btn {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    padding: 0 14px; border: 1px solid var(--ink); background: var(--ink);
+    color: var(--paper); cursor: pointer; white-space: nowrap;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    border-radius: var(--radius);
+  }
+  .relookup-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .relookup-btn.busy { background: var(--ink-soft); border-color: var(--ink-soft); }
+  .asis-btn {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+    padding: 0 12px; border: 1px solid var(--ink-soft); background: var(--surface);
+    color: var(--ink); cursor: pointer; white-space: nowrap;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    border-radius: var(--radius);
+  }
+  .asis-btn:hover { background: var(--ink); color: var(--paper); }
+  .asis-btn.urgent {
+    border-color: var(--gold); background: var(--gold); color: #1c1c1c;
+    animation: pulse-gold 1.6s ease-in-out 3;
+  }
+  @keyframes pulse-gold {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(200,155,60,0); }
+    50% { box-shadow: 0 0 0 8px rgba(200,155,60,.3); }
+  }
+
+  .adjust-msg {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    padding-top: 2px; min-height: 14px;
+  }
+  .adjust-msg.ok { color: var(--green); }
+  .adjust-msg.err { color: var(--warn); }
+  .adjust-msg.busy { color: var(--ink-soft); }
+  .adjust-msg .inline-action {
+    margin-left: 6px; padding: 2px 8px;
+    background: var(--ink); color: var(--paper);
+    border: 0; cursor: pointer;
+    font-family: inherit; font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    border-radius: var(--radius-pill);
+  }
+  .adjust-msg .inline-action:hover { background: var(--accent); }
+
+  .adjust-hint {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    color: var(--ink-soft); letter-spacing: 0.04em; line-height: 1.4;
+  }
+
+  /* Manual entries */
+  .card-row.manual {
+    background: linear-gradient(135deg, var(--gold-soft) 0%, var(--surface) 60%);
+    box-shadow: inset 4px 0 0 var(--gold);
+  }
+  .card-row.manual.overridden {
+    box-shadow: inset 4px 0 0 var(--gold), inset 8px 0 0 var(--accent);
+  }
+  .manual-banner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; margin: 4px 0;
+    background: var(--gold); color: #1c1c1c;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    border-radius: var(--radius);
+  }
+  .manual-banner.set {
+    background: var(--gold-soft); color: var(--ink-soft);
+  }
+  .manual-banner .dot { font-size: 14px; line-height: 1; }
+  .price-set-prompt {
+    font-family: 'JetBrains Mono', monospace; font-weight: 700;
+    color: var(--warn); font-size: 14px; letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Browse printings trigger */
+  .printings-btn {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    padding: 8px 14px; border: 1px solid var(--ink);
+    background: var(--surface); color: var(--ink); cursor: pointer;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    display: inline-flex; align-items: center; gap: 8px;
+    border-radius: var(--radius);
+  }
+  .printings-btn:hover { background: var(--ink); color: var(--paper); }
+  .printings-btn .glyph { font-size: 13px; line-height: 1; }
+  .printings-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .printings-btn:disabled:hover { background: var(--surface); color: var(--ink); }
+
+  /* ---------- Totals + actions ---------- */
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .export-warning {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px;
+    background: var(--gold-soft); color: var(--ink);
+    border: 1px solid var(--gold);
+    border-left-width: 4px;
+    border-radius: var(--radius);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500;
+    letter-spacing: 0.04em; line-height: 1.45;
+    margin-top: 14px;
+  }
+  .export-warning .warn-icon {
+    font-size: 16px; line-height: 1.2; flex-shrink: 0; color: var(--accent);
+  }
+  .totals {
+    margin-top: 14px; padding: 14px 18px;
+    background: var(--ink); color: var(--paper);
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-radius: var(--radius-lg);
+    flex-wrap: wrap; gap: 10px;
+  }
+  .totals .big { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+
+  /* ---------- Modal ---------- */
+  .modal {
+    position: fixed; inset: 0; z-index: 100;
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .modal.open { display: flex; }
+  .modal-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(28,28,28,.78);
+    cursor: pointer;
+    backdrop-filter: blur(2px);
+  }
+  .modal-box {
+    position: relative; z-index: 1;
+    background: var(--paper); border: 1px solid var(--rule);
+    width: min(1100px, 100%); max-height: 88vh;
+    display: flex; flex-direction: column;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+  .modal-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 22px; border-bottom: 1px solid var(--rule);
+    background: var(--ink); color: var(--paper);
+  }
+  .modal-title {
+    font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 600;
+    margin: 0; line-height: 1.2;
+  }
+  .modal-title em {
+    font-style: italic; color: var(--gold); font-weight: 800;
+  }
+  .modal-close {
+    all: unset; cursor: pointer; padding: 0;
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px; line-height: 1; color: var(--paper);
+    border-radius: var(--radius-pill);
+    border: 1px solid rgba(255,255,255,.2);
+  }
+  .modal-close:hover { color: var(--ink); background: var(--paper); }
+  .modal-status {
+    padding: 12px 22px; border-bottom: 1px solid var(--rule);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.14em;
+    background: var(--surface-2);
+  }
+  .modal-filter {
+    padding: 12px 22px; border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    display: flex; gap: 10px; align-items: center;
+  }
+  .modal-filter input {
+    flex: 1; padding: 10px 14px;
+    border: 1px solid var(--rule); background: var(--surface);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500;
+    border-radius: var(--radius); outline: none;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .modal-filter input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .modal-filter .clear-filter {
+    padding: 8px 14px; font-size: 11px;
+    background: var(--surface); color: var(--ink-soft);
+    border: 1px solid var(--rule); border-radius: var(--radius);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.12em;
+  }
+  .modal-filter .clear-filter:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .modal-grid {
+    padding: 18px 22px 22px;
+    overflow-y: auto;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 14px;
+    flex: 1;
+  }
+  .printing-card {
+    border: 1px solid var(--rule); background: var(--surface);
+    cursor: pointer;
+    display: flex; flex-direction: column;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .printing-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+  }
+  .printing-card.current {
+    border-color: var(--gold); border-width: 2px;
+  }
+  .printing-card.current::before {
+    content: 'CURRENT';
+    position: absolute; top: 8px; right: 8px; z-index: 2;
+    background: var(--gold); color: #1c1c1c;
+    font-family: 'JetBrains Mono', monospace; font-size: 8px; font-weight: 700;
+    padding: 3px 7px; letter-spacing: 0.14em;
+    border-radius: var(--radius-pill);
+  }
+  .printing-card .img {
+    display: block; width: 100%; aspect-ratio: 488 / 680;
+    background: #111; object-fit: cover;
+  }
+  .printing-card .info {
+    padding: 10px 11px 12px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .printing-card .set-code {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink);
+  }
+  .printing-card .set-name-small {
+    font-family: 'Fraunces', Georgia, serif; font-size: 12px; font-style: italic;
+    color: var(--ink-soft); line-height: 1.25;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .printing-card .price-row {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    margin-top: 4px; display: flex; align-items: center; gap: 4px;
+  }
+  .printing-card .price-row.foil { color: var(--gold); }
+  .printing-card .price-row .src {
+    font-family: 'JetBrains Mono', monospace; font-size: 8px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    padding: 1px 5px; border-radius: var(--radius-pill);
+  }
+  .printing-card .price-row .src.ck { background: var(--green); color: white; }
+  .printing-card .price-row .src.tcg { background: var(--ink-soft); color: var(--paper); }
+  .printing-card .price-row .src.none { background: var(--rule); color: var(--ink-soft); }
+
+  /* ---------- Footer ---------- */
+  footer.foot {
+    margin-top: 60px; padding-top: 16px; border-top: 1px solid var(--rule);
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.14em;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <h1 data-i18n="app_title">Pasar Malam MTG Scanner</h1>
+      <div class="sub" data-i18n="app_sub">v5 · Gemini · CardKingdom retail</div>
+    </div>
+    <div class="header-controls">
+      <div class="lang-toggle" role="tablist" aria-label="Language">
+        <button type="button" data-lang="en" class="active" aria-pressed="true">EN</button>
+        <button type="button" data-lang="ms" aria-pressed="false">MS</button>
+      </div>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">☾</button>
+    </div>
+  </header>
+
+  <nav class="top-tabs" role="tablist" aria-label="Section">
+    <button type="button" data-view="scanner" class="active" data-i18n="nav_scanner">Scanner</button>
+    <button type="button" data-view="checklist" data-i18n="nav_checklist">Checklist<span class="soon" data-i18n="soon">soon</span></button>
+  </nav>
+
+  <div id="view-scanner" class="view-section active">
+
+  <section class="panel">
+    <h2><span class="step-num">1</span><span data-i18n="settings_title">Pricing settings</span></h2>
+    <div class="settings">
+      <label>
+        <span data-i18n="mult_normal">Multiplier · Non-foil</span>
+        <input type="number" id="mult-normal" value="2.8" step="0.1" min="0">
+      </label>
+      <label>
+        <span data-i18n="mult_foil">Multiplier · Foil</span>
+        <input type="number" id="mult-foil" value="3" step="0.1" min="0">
+      </label>
+      <label>
+        <span data-i18n="currency_label">Currency label</span>
+        <input type="text" id="currency-label" value="RM">
+      </label>
+      <label>
+        <span data-i18n="label_position">Label position (export)</span>
+        <select id="label-position">
+          <option value="bottom" data-i18n="pos_bottom" selected>Bottom of card</option>
+          <option value="top" data-i18n="pos_top">Top of card</option>
+          <option value="center" data-i18n="pos_center">Center of card</option>
+        </select>
+      </label>
+      <label>
+        <span data-i18n="foil_style">Foil indicator</span>
+        <select id="foil-style">
+          <option value="gold" data-i18n="foil_style_gold" selected>Gold price pill</option>
+          <option value="suffix" data-i18n="foil_style_suffix">Append F to price</option>
+        </select>
+      </label>
+      <label>
+        <span data-i18n="round_prices">Round prices</span>
+        <select id="rounding">
+          <option value="none" data-i18n="round_none">No rounding</option>
+          <option value="nearest_0.5" data-i18n="round_n50">Nearest 0.50</option>
+          <option value="up_0.5" data-i18n="round_u50">Round UP to 0.50</option>
+          <option value="down_0.5" data-i18n="round_d50">Round DOWN to 0.50</option>
+          <option value="nearest_1" data-i18n="round_n1">Nearest 1.00</option>
+          <option value="up_1" data-i18n="round_u1" selected>Round UP to 1.00</option>
+          <option value="down_1" data-i18n="round_d1">Round DOWN to 1.00</option>
+        </select>
+      </label>
+      <label>
+        <span data-i18n="min_price">Minimum price</span>
+        <input type="number" id="min-price" value="1" step="0.5" min="0">
+      </label>
+    </div>
+    <div class="checkbox-group">
+      <label class="checkbox-row">
+        <input type="checkbox" id="show-currency" checked>
+        <span data-i18n="show_currency">Show currency label (RM)</span>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="show-cents">
+        <span data-i18n="show_cents">Show cents (.00)</span>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="show-outlines">
+        <span data-i18n="show_outlines">Show card outlines in export</span>
+      </label>
+    </div>
+    <p class="status">
+      <span data-i18n="formula_hint">Final price = retail USD × multiplier, then rounded with a minimum floor.</span>
+      <span id="ck-status" class="health-badge" data-i18n="ck_checking">CK: checking…</span>
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2><span class="step-num">2</span><span data-i18n="upload_title">Upload images</span></h2>
+    <div class="drop" id="drop">
+      <strong data-i18n="drop_strong">Drop or tap to add photos</strong>
+      <p data-i18n="drop_sub">Multiple images at once · JPEG / PNG / HEIC</p>
+    </div>
+    <input type="file" id="file-input" multiple accept="image/*" style="display:none">
+    <div class="status" id="upload-status"></div>
+  </section>
+
+  <section id="batch-section" style="display:none;">
+    <div class="review-head">
+      <h2><span class="step-num">3</span><span data-i18n="review_title">Review &amp; export</span></h2>
+      <span class="meta" id="batch-counter"></span>
+    </div>
+    <div class="tab-strip" id="tab-strip"></div>
+    <div id="active-batch-container"></div>
+  </section>
+
+  </div><!-- /#view-scanner -->
+
+  <div id="view-checklist" class="view-section">
+    <div class="checklist-empty">
+      <div class="icon">▤</div>
+      <div class="headline" data-i18n="checklist_empty_headline">Checklist coming soon</div>
+      <div class="sub" data-i18n="checklist_empty_sub">Track listed cards · buyers · payments · drop-offs</div>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <span data-i18n="footer_left">Detection: Gemini · Pricing: CardKingdom retail (refreshed daily) · Fallback: TCGplayer market via Scryfall</span>
+    <span data-i18n="footer_right">Not affiliated with Wizards of the Coast</span>
+  </footer>
+</div>
+
+<div class="zoom-modal" id="zoom-modal" aria-hidden="true">
+  <div class="zoom-backdrop" data-zoom-close></div>
+  <img class="zoom-image" id="zoom-image" src="" alt="" data-zoom-close>
+  <div class="zoom-caption" id="zoom-caption"></div>
+</div>
+
+<div class="modal" id="printings-modal" aria-hidden="true">
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="printings-modal-title">
+    <div class="modal-head">
+      <h3 id="printings-modal-title" class="modal-title"><span data-i18n="modal_all_printings">All printings of</span> <em></em></h3>
+      <button class="modal-close" type="button" data-modal-close aria-label="Close">×</button>
+    </div>
+    <div class="modal-status" data-i18n="modal_loading">Loading…</div>
+    <div class="modal-filter" id="printings-filter-row" style="display:none">
+      <input type="text" id="printings-filter" data-i18n-placeholder="printings_filter_placeholder" placeholder="Filter by set name or code…">
+      <button type="button" class="clear-filter" id="printings-filter-clear" data-i18n="clear">Clear</button>
+    </div>
+    <div class="modal-grid"></div>
+  </div>
+</div>
+
+<script>
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const fmt2 = (n) => n == null || isNaN(n) ? '—' : Number(n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+// ---------- i18n ----------
+const STRINGS = {
+  en: {
+    app_title: 'Pasar Malam MTG Scanner',
+    app_sub: 'v5 · Gemini · CardKingdom retail',
+    nav_scanner: 'Scanner',
+    nav_checklist: 'Checklist',
+    soon: 'soon',
+    checklist_empty_headline: 'Checklist coming soon',
+    checklist_empty_sub: 'Track listed cards · buyers · payments · drop-offs',
+    settings_title: 'Pricing settings',
+    mult_normal: 'Multiplier · Non-foil',
+    mult_foil: 'Multiplier · Foil',
+    currency_label: 'Currency label',
+    label_position: 'Label position (export)',
+    pos_bottom: 'Bottom of card',
+    pos_top: 'Top of card',
+    pos_center: 'Center of card',
+    foil_style: 'Foil indicator',
+    foil_style_gold: 'Gold price pill',
+    foil_style_suffix: 'Append F to price',
+    round_prices: 'Round prices',
+    round_none: 'No rounding',
+    round_n50: 'Nearest 0.50',
+    round_u50: 'Round UP to 0.50',
+    round_d50: 'Round DOWN to 0.50',
+    round_n1: 'Nearest 1.00',
+    round_u1: 'Round UP to 1.00',
+    round_d1: 'Round DOWN to 1.00',
+    min_price: 'Minimum price',
+    show_currency: 'Show currency label (RM)',
+    show_cents: 'Show cents (.00)',
+    show_outlines: 'Show card outlines in export',
+    formula_hint: 'Final price = retail USD × multiplier, then rounded with a minimum floor.',
+    ck_checking: 'CK: checking…',
+    ck_loaded: 'CK: {n} cards loaded',
+    ck_error: 'CK: error — using TCGplayer fallback',
+    ck_not_loaded: 'CK: not loaded',
+    ck_unreachable: 'CK: server unreachable',
+    upload_title: 'Upload images',
+    drop_strong: 'Drop, paste, or tap to add photos',
+    drop_sub: 'Multiple at once · JPEG / PNG / HEIC · Ctrl/⌘+V to paste from clipboard',
+    drop_no_images: 'No image files found in drop.',
+    review_title: 'Review & export',
+    scanning: 'Scanning with Gemini',
+    error: 'Error',
+    unknown_error: 'Unknown error',
+    server_returned: 'Server returned {code}: {body}',
+    unknown_card: '(unknown)',
+    no_set_match: '(no set match)',
+    manual_entry_meta: '(manual entry · not on Scryfall)',
+    user_entered_name: 'user-entered name',
+    total: 'TOTAL',
+    cards: 'cards',
+    unique: 'unique',
+    need_price: 'need price',
+    export_btn: 'Export image with prices',
+    export_warning: 'Double-check every card\'s version and price before exporting — auto-detection isn\'t always accurate.',
+    remove_card: 'Remove from export',
+    removed_label: 'REMOVED',
+    restore_card: 'Restore',
+    restore_all: 'Restore all',
+    adjust: 'Adjust',
+    price_required: 'Price · REQUIRED',
+    price_override: 'Price override (per card)',
+    wrong_printing: 'Wrong printing? Pick the exact version',
+    browse_printings: 'Browse all printings',
+    wrong_card: 'Wrong card? Search again',
+    find: 'Find',
+    looking_up: 'Looking up…',
+    use_asis: 'Use as-is',
+    type_card_name: 'Type the correct card name…',
+    relookup_hint: 'Enter searches Scryfall · "Use as-is" skips lookup, you set the price',
+    qty: 'QTY',
+    mult: 'MULT',
+    mult_clear_title: 'Reset multiplier to global default',
+    foil_on: '✓ FOIL',
+    foil_off: '◯ NON-FOIL',
+    zoom_photo: 'Photo from your image',
+    zoom_match: 'Matched printing',
+    matched: 'Matched',
+    scryfall_failed: 'Scryfall lookup failed',
+    override_pill: 'OVERRIDE',
+    manual_pill: 'MANUAL',
+    manual_set_price: 'Manual entry — set price below',
+    manual_price_set: 'Manual entry · price set',
+    set_price_prompt: '⚠ Set price ↓',
+    auto_price: 'auto: {n}',
+    enter_your_price: 'enter your price',
+    msg_type_name_first: 'Type a card name first',
+    msg_type_name_then_asis: 'Type a name first, then click Use as-is',
+    msg_searching: 'Searching Scryfall…',
+    msg_not_found: 'Not on Scryfall. Sure the name is right? You can also',
+    msg_use_asis_action: 'Use as-is →',
+    msg_updated: '✓ Updated → {name}',
+    msg_now_manual: '✓ Now manual — set price below',
+    msg_lookup_failed: 'Lookup failed: {err}',
+    modal_all_printings: 'All printings of',
+    modal_loading_from: 'Loading printings from Scryfall…',
+    modal_no_printings: 'No printings found for that name',
+    modal_count_summary: '{n} printings · {ck} on CardKingdom · click any to select',
+    modal_count_summary_singular: '1 printing · {ck} on CardKingdom · click to select',
+    modal_count_filtered: 'Showing {shown} of {total} printings · click any to select',
+    modal_count_filtered_none: 'No matches · clear filter or try a different term',
+    printings_filter_placeholder: 'Filter by set name or code…',
+    clear: 'Clear',
+    modal_no_normal: 'no normal price',
+    modal_foil_label: 'FOIL USD',
+    modal_switched: '✓ Switched to {name}',
+    view_on_ck: 'View on CardKingdom',
+    view_on_scryfall: 'View on Scryfall',
+    footer_left: 'Detection: Gemini · Pricing: CardKingdom retail (refreshed daily) · Fallback: TCGplayer market via Scryfall',
+    footer_right: 'Not affiliated with Wizards of the Coast',
+    tab_status_scanning: 'scanning…',
+    tab_status_done_one: '1 card',
+    tab_status_done: '{n} cards',
+    tab_status_warn: '{n} cards · {w} need price',
+    tab_status_error: 'error',
+    batch_counter: '{cur} / {total}',
+    add_more: 'Add more',
+    rarity_common: 'Common',
+    rarity_uncommon: 'Uncommon',
+    rarity_rare: 'Rare',
+    rarity_mythic: 'Mythic',
+    rarity_special: 'Special',
+    photo_label: 'PHOTO',
+    match_label: 'MATCH',
+  },
+  ms: {
+    app_title: 'Pengimbas Kad MTG Pasar Malam',
+    app_sub: 'v5 · Gemini · Harga CardKingdom',
+    nav_scanner: 'Pengimbas',
+    nav_checklist: 'Senarai Semak',
+    soon: 'akan datang',
+    checklist_empty_headline: 'Senarai semak akan datang',
+    checklist_empty_sub: 'Jejak kad disenaraikan · pembeli · pembayaran · serahan',
+    settings_title: 'Tetapan harga',
+    mult_normal: 'Pengganda · Bukan foil',
+    mult_foil: 'Pengganda · Foil',
+    currency_label: 'Label mata wang',
+    label_position: 'Kedudukan label (eksport)',
+    pos_bottom: 'Bawah kad',
+    pos_top: 'Atas kad',
+    pos_center: 'Tengah kad',
+    foil_style: 'Penunjuk foil',
+    foil_style_gold: 'Tanda harga emas',
+    foil_style_suffix: 'Tambah F pada harga',
+    round_prices: 'Pembulatan harga',
+    round_none: 'Tiada pembulatan',
+    round_n50: 'Terhampir 0.50',
+    round_u50: 'Bulatkan NAIK ke 0.50',
+    round_d50: 'Bulatkan TURUN ke 0.50',
+    round_n1: 'Terhampir 1.00',
+    round_u1: 'Bulatkan NAIK ke 1.00',
+    round_d1: 'Bulatkan TURUN ke 1.00',
+    min_price: 'Harga minimum',
+    show_currency: 'Tunjuk label mata wang (RM)',
+    show_cents: 'Tunjuk sen (.00)',
+    show_outlines: 'Tunjuk garisan kad pada eksport',
+    formula_hint: 'Harga akhir = USD runcit × pengganda, dibulatkan dengan harga minimum.',
+    ck_checking: 'CK: menyemak…',
+    ck_loaded: 'CK: {n} kad dimuat',
+    ck_error: 'CK: ralat — guna TCGplayer',
+    ck_not_loaded: 'CK: tidak dimuat',
+    ck_unreachable: 'CK: pelayan tidak dicapai',
+    upload_title: 'Muat naik gambar',
+    drop_strong: 'Lepaskan, tampal, atau ketuk untuk muat naik gambar',
+    drop_sub: 'Banyak gambar serentak · JPEG / PNG / HEIC · Ctrl/⌘+V untuk tampal',
+    drop_no_images: 'Tiada fail gambar dalam lepasan.',
+    review_title: 'Semak & eksport',
+    scanning: 'Mengimbas dengan Gemini',
+    error: 'Ralat',
+    unknown_error: 'Ralat tidak diketahui',
+    server_returned: 'Pelayan jawab {code}: {body}',
+    unknown_card: '(tidak diketahui)',
+    no_set_match: '(tiada padanan set)',
+    manual_entry_meta: '(masukan manual · tiada di Scryfall)',
+    user_entered_name: 'nama dimasukkan pengguna',
+    total: 'JUMLAH',
+    cards: 'kad',
+    unique: 'unik',
+    need_price: 'perlu harga',
+    export_btn: 'Eksport gambar dengan harga',
+    export_warning: 'Semak versi dan harga setiap kad sebelum eksport — pengesanan automatik tidak selalu tepat.',
+    remove_card: 'Buang dari eksport',
+    removed_label: 'DIBUANG',
+    restore_card: 'Pulihkan',
+    restore_all: 'Pulihkan semua',
+    adjust: 'Laras',
+    price_required: 'Harga · DIPERLUKAN',
+    price_override: 'Ganti harga (per kad)',
+    wrong_printing: 'Versi salah? Pilih versi tepat',
+    browse_printings: 'Lihat semua versi',
+    wrong_card: 'Kad salah? Cari semula',
+    find: 'Cari',
+    looking_up: 'Mencari…',
+    use_asis: 'Guna nama ini',
+    type_card_name: 'Taipkan nama kad yang betul…',
+    relookup_hint: 'Tekan Enter untuk cari Scryfall · "Guna nama ini" abaikan carian, anda set harga',
+    qty: 'KUANT',
+    mult: 'PNGD',
+    mult_clear_title: 'Set semula pengganda kepada lalai global',
+    foil_on: '✓ FOIL',
+    foil_off: '◯ BIASA',
+    zoom_photo: 'Foto dari gambar anda',
+    zoom_match: 'Versi padanan',
+    matched: 'Padan',
+    scryfall_failed: 'Carian Scryfall gagal',
+    override_pill: 'GANTI',
+    manual_pill: 'MANUAL',
+    manual_set_price: 'Masukan manual — set harga di bawah',
+    manual_price_set: 'Masukan manual · harga ditetapkan',
+    set_price_prompt: '⚠ Set harga ↓',
+    auto_price: 'auto: {n}',
+    enter_your_price: 'masukkan harga anda',
+    msg_type_name_first: 'Taipkan nama kad dahulu',
+    msg_type_name_then_asis: 'Taipkan nama dahulu, kemudian klik Guna nama ini',
+    msg_searching: 'Mencari di Scryfall…',
+    msg_not_found: 'Tiada di Scryfall. Pasti nama betul? Boleh juga',
+    msg_use_asis_action: 'Guna nama ini →',
+    msg_updated: '✓ Dikemaskini → {name}',
+    msg_now_manual: '✓ Manual sekarang — set harga di bawah',
+    msg_lookup_failed: 'Carian gagal: {err}',
+    modal_all_printings: 'Semua versi',
+    modal_loading_from: 'Memuat versi dari Scryfall…',
+    modal_no_printings: 'Tiada versi ditemui untuk nama itu',
+    modal_count_summary: '{n} versi · {ck} di CardKingdom · klik untuk pilih',
+    modal_count_summary_singular: '1 versi · {ck} di CardKingdom · klik untuk pilih',
+    modal_count_filtered: 'Memaparkan {shown} daripada {total} versi · klik untuk pilih',
+    modal_count_filtered_none: 'Tiada padanan · padam tapis atau cuba istilah lain',
+    printings_filter_placeholder: 'Tapis ikut nama set atau kod…',
+    clear: 'Padam',
+    modal_no_normal: 'tiada harga biasa',
+    modal_foil_label: 'FOIL USD',
+    modal_switched: '✓ Bertukar ke {name}',
+    view_on_ck: 'Lihat di CardKingdom',
+    view_on_scryfall: 'Lihat di Scryfall',
+    footer_left: 'Pengesanan: Gemini · Harga: CardKingdom (kemas kini harian) · Sandaran: TCGplayer melalui Scryfall',
+    footer_right: 'Tiada kaitan dengan Wizards of the Coast',
+    tab_status_scanning: 'mengimbas…',
+    tab_status_done_one: '1 kad',
+    tab_status_done: '{n} kad',
+    tab_status_warn: '{n} kad · {w} perlu harga',
+    tab_status_error: 'ralat',
+    batch_counter: '{cur} / {total}',
+    add_more: 'Tambah lagi',
+    rarity_common: 'Common',
+    rarity_uncommon: 'Uncommon',
+    rarity_rare: 'Rare',
+    rarity_mythic: 'Mythic',
+    rarity_special: 'Special',
+    photo_label: 'FOTO',
+    match_label: 'PADAN',
+  },
+};
+
+function t(key, vars) {
+  let s = (STRINGS[state.lang] && STRINGS[state.lang][key]) || STRINGS.en[key] || key;
+  if (vars) for (const k of Object.keys(vars)) s = s.split('{' + k + '}').join(vars[k]);
+  return s;
+}
+
+function applyTranslations() {
+  $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $$('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+  $$('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  document.documentElement.lang = state.lang;
+}
+
+// ---------- State ----------
+const state = {
+  multNormal: 2.8,
+  multFoil: 3,
+  currencyLabel: 'RM',
+  labelPosition: 'bottom',
+  showOutlines: false,
+  showCurrency: true,
+  showCents: false,
+  rounding: 'up_1',
+  minPrice: 1,
+  foilStyle: 'gold',  // 'gold' = gold pill on export | 'suffix' = "F" appended to price
+  batches: [],
+  activeBatchId: null,
+  lang: localStorage.getItem('mtg.lang') || 'en',
+  theme: localStorage.getItem('mtg.theme') || 'light',
+};
+
+// ---------- Theme ----------
+function setTheme(theme) {
+  state.theme = theme;
+  document.documentElement.dataset.theme = theme;
+  $('#theme-toggle').textContent = theme === 'dark' ? '☀' : '☾';
+  $('#theme-toggle').title = theme === 'dark' ? 'Switch to light' : 'Switch to dark';
+  localStorage.setItem('mtg.theme', theme);
+}
+setTheme(state.theme);
+$('#theme-toggle').addEventListener('click', () => {
+  setTheme(state.theme === 'dark' ? 'light' : 'dark');
+});
+
+// ---------- Lang ----------
+function setLang(lang) {
+  state.lang = lang;
+  localStorage.setItem('mtg.lang', lang);
+  $$('.lang-toggle button').forEach(b => {
+    const isActive = b.dataset.lang === lang;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+  applyTranslations();
+  rerenderAll();
+}
+$$('.lang-toggle button').forEach(b => {
+  b.addEventListener('click', () => setLang(b.dataset.lang));
+});
+setLang(state.lang);
+
+// ---------- Top-level view tabs (Scanner | Checklist) ----------
+function setView(view) {
+  state.view = view;
+  localStorage.setItem('mtg.view', view);
+  $$('.top-tabs button').forEach(b => {
+    const active = b.dataset.view === view;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  $$('.view-section').forEach(s => {
+    s.classList.toggle('active', s.id === 'view-' + view);
+  });
+}
+$$('.top-tabs button').forEach(b => {
+  b.addEventListener('click', () => setView(b.dataset.view));
+});
+setView(localStorage.getItem('mtg.view') || 'scanner');
+
+// ---------- Helpers ----------
+function applyRounding(price) {
+  let p = Number(price) || 0;
+  const mode = state.rounding;
+  if (mode !== 'none') {
+    const [direction, stepStr] = mode.split('_');
+    const step = parseFloat(stepStr);
+    if (direction === 'up') p = Math.ceil(p / step) * step;
+    else if (direction === 'down') p = Math.floor(p / step) * step;
+    else p = Math.round(p / step) * step;
+  }
+  if (p < state.minPrice) p = state.minPrice;
+  return p;
+}
+
+function formatMyr(price) {
+  const decimals = state.showCents ? 2 : 0;
+  const n = Number(price);
+  if (isNaN(n)) {
+    return state.showCurrency ? `${state.currencyLabel} —` : '—';
+  }
+  const formatted = n.toLocaleString(undefined, {
+    minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+  });
+  return state.showCurrency ? `${state.currencyLabel}${formatted}` : formatted;
+}
+
+function readSettings() {
+  state.multNormal = parseFloat($('#mult-normal').value) || 0;
+  state.multFoil = parseFloat($('#mult-foil').value) || 0;
+  state.currencyLabel = $('#currency-label').value || '';
+  state.labelPosition = $('#label-position').value;
+  state.showOutlines = $('#show-outlines').checked;
+  state.showCurrency = $('#show-currency').checked;
+  state.showCents = $('#show-cents').checked;
+  state.rounding = $('#rounding').value;
+  state.minPrice = parseFloat($('#min-price').value) || 0;
+  state.foilStyle = $('#foil-style').value || 'gold';
+}
+
+function formatMyrWithFoil(price, isFoil) {
+  const base = formatMyr(price);
+  if (isFoil && state.foilStyle === 'suffix') return base + 'F';
+  return base;
+}
+
+// Scryfall serves multiple image sizes for the same card; the `image_url` we
+// store is "normal" (488px). Bump it to "large" (672px) for the zoom view so
+// the enlarged image is sharp instead of upscaled.
+function upgradeScryfallImage(url) {
+  if (!url) return url;
+  return url.replace('/normal/', '/large/').replace('/small/', '/large/');
+}
+
+['#mult-normal','#mult-foil','#currency-label','#label-position','#show-outlines',
+ '#show-currency','#show-cents','#rounding','#min-price','#foil-style'].forEach(sel => {
+  $(sel).addEventListener('input', () => { readSettings(); rerenderAll(); });
+  $(sel).addEventListener('change', () => { readSettings(); rerenderAll(); });
+});
+readSettings();
+
+async function checkHealth() {
+  try {
+    const r = await fetch('/api/health');
+    const j = await r.json();
+    const el = $('#ck-status');
+    el.classList.remove('ok', 'warn');
+    if (j.cardkingdom_cards) {
+      el.textContent = t('ck_loaded', { n: j.cardkingdom_cards.toLocaleString() });
+      el.classList.add('ok');
+    } else if (j.cardkingdom_error) {
+      el.textContent = t('ck_error');
+      el.classList.add('warn');
+    } else {
+      el.textContent = t('ck_not_loaded');
+    }
+  } catch {
+    $('#ck-status').textContent = t('ck_unreachable');
+  }
+}
+checkHealth();
+
+// ---------- Upload ----------
+const drop = $('#drop');
+const fileInput = $('#file-input');
+
+drop.addEventListener('click', e => { e.preventDefault(); fileInput.click(); });
+
+let dragCounter = 0;
+drop.addEventListener('dragenter', e => {
+  e.preventDefault(); e.stopPropagation();
+  dragCounter++; drop.classList.add('dragover');
+});
+drop.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+drop.addEventListener('dragleave', e => {
+  e.preventDefault(); e.stopPropagation();
+  dragCounter--;
+  if (dragCounter <= 0) { dragCounter = 0; drop.classList.remove('dragover'); }
+});
+drop.addEventListener('drop', e => {
+  e.preventDefault(); e.stopPropagation();
+  dragCounter = 0; drop.classList.remove('dragover');
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files && e.target.files.length) handleFiles(e.target.files);
+  e.target.value = '';
+});
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+
+// Ctrl/⌘+V paste — accept images from the clipboard. Only intercepts when the
+// clipboard actually has image files, so plain-text paste into the re-lookup
+// or override inputs still works normally.
+document.addEventListener('paste', e => {
+  if (!e.clipboardData) return;
+  const items = e.clipboardData.items;
+  if (!items || !items.length) return;
+  const files = [];
+  for (const item of items) {
+    if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
+      const blob = item.getAsFile();
+      if (!blob) continue;
+      // Give pasted images unique, recognizable names so each tab is distinct
+      const ext = (blob.type.split('/')[1] || 'png').split('+')[0];
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      let renamed;
+      try {
+        renamed = new File([blob], `pasted-${stamp}.${ext}`, { type: blob.type });
+      } catch {
+        renamed = blob; // Older browsers without File constructor
+      }
+      files.push(renamed);
+    }
+  }
+  if (!files.length) return;
+  e.preventDefault();
+  // Brief visual confirmation on the drop zone
+  drop.classList.add('dragover');
+  setTimeout(() => drop.classList.remove('dragover'), 240);
+  handleFiles(files);
+});
+
+async function handleFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+  if (!files.length) { $('#upload-status').textContent = t('drop_no_images'); return; }
+  $('#upload-status').textContent = '';
+  $('#batch-section').style.display = 'block';
+
+  for (const file of files) {
+    const id = 'b' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const batch = {
+      id, filename: file.name, status: 'scanning', response: null,
+      isFoil: [], priceOverride: [], quantity: [], multOverride: [],
+      relookupBusy: [], relookupMsg: [], removed: [],
+    };
+    state.batches.push(batch);
+    if (!state.activeBatchId) state.activeBatchId = id;
+    renderTabs();
+    renderActiveBatch();
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const resp = await fetch('/api/scan', { method: 'POST', body: fd });
+      if (!resp.ok) {
+        const t2 = await resp.text();
+        throw new Error(t('server_returned', { code: resp.status, body: t2.slice(0, 160) }));
+      }
+      const data = await resp.json();
+      batch.response = data;
+      batch.isFoil = data.cards.map(c => !!(c.gemini && c.gemini.is_foil));
+      batch.priceOverride = data.cards.map(() => null);
+      batch.quantity = data.cards.map(() => 1);
+      batch.multOverride = data.cards.map(() => null);
+      batch.relookupBusy = data.cards.map(() => false);
+      batch.relookupMsg = data.cards.map(() => null);
+      batch.removed = data.cards.map(() => false);
+      batch.status = 'done';
+    } catch (err) {
+      batch.status = 'error'; batch.error = err.message;
+    }
+    renderTabs();
+    if (state.activeBatchId === batch.id) renderActiveBatch();
+  }
+}
+
+// ---------- Render: tabs + active batch ----------
+function rerenderAll() {
+  renderTabs();
+  renderActiveBatch();
+}
+
+function setActiveBatch(id) {
+  state.activeBatchId = id;
+  renderTabs();
+  renderActiveBatch();
+  // Smoothly scroll the tab into view if needed
+  const tab = document.querySelector(`[data-tab-id="${id}"]`);
+  if (tab) tab.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+}
+
+function batchSummary(batch) {
+  if (batch.status === 'scanning') return { status: 'scanning', text: t('tab_status_scanning') };
+  if (batch.status === 'error') return { status: 'error', text: t('tab_status_error') };
+  const cards = batch.response ? batch.response.cards : [];
+  // Count visible (non-removed) cards and any needs-price entries among them
+  let n = 0;
+  let needs = 0;
+  cards.forEach((c, i) => {
+    if (batch.removed && batch.removed[i]) return;
+    n++;
+    const sel = c.candidates[0] || {};
+    const o = batch.priceOverride[i];
+    const hasOverride = o != null && o !== '';
+    if (sel._manual && !hasOverride) needs++;
+  });
+  if (needs > 0) return { status: 'warn', text: t('tab_status_warn', { n, w: needs }) };
+  if (n === 1) return { status: 'done', text: t('tab_status_done_one') };
+  return { status: 'done', text: t('tab_status_done', { n }) };
+}
+
+function renderTabs() {
+  const strip = $('#tab-strip');
+  if (!strip) return;
+  if (!state.batches.length) {
+    strip.innerHTML = '';
+    $('#batch-counter').textContent = '';
+    return;
+  }
+  strip.innerHTML = state.batches.map(b => {
+    const summary = batchSummary(b);
+    const isActive = b.id === state.activeBatchId;
+    const thumbHtml = b.response && b.response.image_b64
+      ? `<img class="tab-thumb" src="${b.response.image_b64}" alt="">`
+      : `<div class="tab-thumb placeholder">…</div>`;
+    return `
+      <div class="tab ${isActive ? 'active' : ''}" data-tab-id="${b.id}">
+        ${thumbHtml}
+        <div class="tab-meta">
+          <div class="tab-name">${escapeHtml(b.filename)}</div>
+          <div class="tab-status ${summary.status}"><span class="dot"></span>${escapeHtml(summary.text)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  $$('[data-tab-id]', strip).forEach(el => {
+    el.addEventListener('click', () => setActiveBatch(el.dataset.tabId));
+  });
+  // Counter "2 / 5"
+  if (state.activeBatchId) {
+    const idx = state.batches.findIndex(b => b.id === state.activeBatchId);
+    if (idx >= 0) {
+      $('#batch-counter').textContent = t('batch_counter', { cur: idx + 1, total: state.batches.length });
+    }
+  }
+}
+
+function renderActiveBatch() {
+  const container = $('#active-batch-container');
+  if (!container) return;
+  const batch = state.batches.find(b => b.id === state.activeBatchId);
+  if (!batch) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'batch-image';
+  wrap.id = 'active-' + batch.id;
+  container.appendChild(wrap);
+  renderBatch(batch, wrap);
+}
+
+function renderBatch(batch, el) {
+  if (!el) {
+    el = document.getElementById('active-' + batch.id);
+    if (!el) return;
+  }
+
+  if (batch.status === 'scanning') {
+    el.innerHTML = `
+      <div class="batch-image-head">
+        <span class="name">${escapeHtml(batch.filename)}</span>
+        <span class="meta loading">${t('scanning')}</span>
+      </div>`;
+    return;
+  }
+  if (batch.status === 'error') {
+    el.innerHTML = `
+      <div class="batch-image-head">
+        <span class="name">${escapeHtml(batch.filename)}</span>
+        <span class="meta" style="color: var(--warn);">${t('error')}</span>
+      </div>
+      <p class="status error">${escapeHtml(batch.error || t('unknown_error'))}</p>`;
+    return;
+  }
+
+  const data = batch.response;
+  const cards = data.cards;
+
+  let total = 0;
+  let totalQty = 0;
+  const cardData = cards.map((c, origIdx) => {
+    const sel = c.candidates[0] || {};
+    const isManual = !!sel._manual;
+    const isFoil = batch.isFoil[origIdx];
+    const removed = !!batch.removed[origIdx];
+    const usd = isFoil ? (sel.usd_foil || sel.usd || 0) : (sel.usd || 0);
+    const globalMult = isFoil ? state.multFoil : state.multNormal;
+    const multRaw = batch.multOverride[origIdx];
+    const hasMultOverride = multRaw != null && multRaw !== '' && !isNaN(parseFloat(multRaw));
+    const mult = hasMultOverride ? parseFloat(multRaw) : globalMult;
+    const autoPrice = applyRounding(usd * mult);
+    const qty = Math.max(1, parseInt(batch.quantity[origIdx]) || 1);
+    const overrideRaw = batch.priceOverride[origIdx];
+    const hasOverride = overrideRaw != null && overrideRaw !== '';
+    const needsPrice = isManual && !hasOverride;
+    const unitPrice = hasOverride ? (parseFloat(overrideRaw) || 0)
+                    : isManual ? NaN
+                    : autoPrice;
+    const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
+    if (!removed) { total += lineTotal; totalQty += qty; }
+    const source = isManual ? 'manual'
+                  : (isFoil ? (sel.price_source_foil || 'none') : (sel.price_source_normal || 'none'));
+    return { c, sel, origIdx, removed, isFoil, isManual, needsPrice, usd, mult, globalMult, hasMultOverride, autoPrice, qty, unitPrice, hasOverride, lineTotal, source };
+  });
+
+  const visibleCardData = cardData.filter(cd => !cd.removed);
+  const removedCardData = cardData.filter(cd => cd.removed);
+
+  const W = data.width, H = data.height;
+  // SVG markers: a uniform square centered on each card's bbox.
+  // Gemini returns an axis-aligned bbox that varies wildly depending on the card's
+  // orientation/distance — rotated cards get tall/wide rectangles that don't match
+  // the card's actual edges. Drawing a square sized off the smaller bbox dimension
+  // gives a consistent, easy-to-scan marker that still sits where the card is.
+  const polys = visibleCardData.map(cd => {
+    const [x, y, w, h] = cd.c.bbox;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    // Side = ~70% of the smaller bbox dimension — fits comfortably inside the
+    // visible card border regardless of orientation
+    const side = Math.max(40, Math.min(w, h) * 0.7);
+    const sx = cx - side / 2;
+    const sy = cy - side / 2;
+    const radius = side * 0.18; // rounded corners
+    const r = Math.max(22, side * 0.28); // number badge
+    const fontSize = Math.round(r * 1.3);
+    return `
+      <rect x="${sx}" y="${sy}" width="${side}" height="${side}"
+            rx="${radius}" ry="${radius}"
+            class="corner-rect ${cd.isFoil ? 'foil' : ''}"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" class="corner-num-bg"/>
+      <text x="${cx}" y="${cy + r * 0.38}" text-anchor="middle"
+            class="corner-num" style="font-size:${fontSize}px">${cd.origIdx + 1}</text>
+    `;
+  }).join('');
+
+  const visibleCount = visibleCardData.length;
+  const needsPriceCount = visibleCardData.filter(cd => cd.needsPrice).length;
+  let totalLabel = `${t('total')} · ${totalQty} ${t('cards')}`;
+  if (totalQty !== visibleCount) {
+    totalLabel = `${t('total')} · ${totalQty} ${t('cards')} (${visibleCount} ${t('unique')})`;
+  }
+  if (needsPriceCount > 0) {
+    totalLabel += ` · ${needsPriceCount} ${t('need_price')}`;
+  }
+
+  // Removed strip: small chips so the user can restore individual cards or all
+  const removedStripHtml = removedCardData.length === 0 ? '' : `
+    <div class="removed-strip">
+      <span class="label">${t('removed_label')} · ${removedCardData.length}</span>
+      ${removedCardData.map(cd => `
+        <button class="restore-chip" type="button" data-restore="${cd.origIdx}" title="${escapeHtml(cd.sel.name || '')}">
+          #${cd.origIdx + 1} ↶
+        </button>
+      `).join('')}
+      <button class="restore-all" type="button" data-restore-all="${batch.id}">${t('restore_all')}</button>
+    </div>
+  `;
+
+  const headerCount = visibleCount === cards.length
+    ? `${cards.length} ${t('cards')}`
+    : `${visibleCount} / ${cards.length} ${t('cards')}`;
+
+  el.innerHTML = `
+    <div class="batch-image-head">
+      <span class="name">${escapeHtml(batch.filename)}</span>
+      <span class="meta">${headerCount} · ${W}×${H}</span>
+    </div>
+    <div class="batch-body">
+      <div class="preview-cell">
+        <div class="preview-wrap">
+          <img src="${data.image_b64}" alt="">
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${polys}</svg>
+        </div>
+      </div>
+      <div>
+        <div class="card-list">
+          ${visibleCardData.map(cd => renderCardRow(batch, cd.origIdx, cd)).join('')}
+        </div>
+        ${removedStripHtml}
+        <div class="totals">
+          <span>${totalLabel}</span>
+        </div>
+        <div class="export-warning">
+          <span class="warn-icon">⚠</span>
+          <span>${t('export_warning')}</span>
+        </div>
+        <div class="actions">
+          <button class="accent" data-export="${batch.id}">${t('export_btn')}</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  bindRowHandlers(batch, el);
+  const expBtn = el.querySelector('[data-export]');
+  if (expBtn) expBtn.addEventListener('click', () => exportImage(batch, visibleCardData));
+}
+
+function bindRowHandlers(batch, el) {
+  $$('[data-foil-toggle]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.foilToggle);
+      batch.isFoil[i] = !batch.isFoil[i];
+      renderTabs();
+      renderActiveBatch();
+    });
+  });
+  $$('[data-price-override]', el).forEach(inp => {
+    inp.addEventListener('change', () => {
+      const i = parseInt(inp.dataset.priceOverride);
+      const v = inp.value.trim();
+      batch.priceOverride[i] = (v === '' ? null : v);
+      renderTabs();
+      renderActiveBatch();
+    });
+  });
+  $$('[data-clear-override]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.clearOverride);
+      batch.priceOverride[i] = null;
+      renderTabs();
+      renderActiveBatch();
+    });
+  });
+  $$('[data-qty]', el).forEach(inp => {
+    inp.addEventListener('change', () => {
+      const i = parseInt(inp.dataset.qty);
+      const v = Math.max(1, parseInt(inp.value) || 1);
+      batch.quantity[i] = v;
+      renderActiveBatch();
+    });
+  });
+  $$('[data-qty-step]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const [iStr, deltaStr] = btn.dataset.qtyStep.split(':');
+      const i = parseInt(iStr);
+      const delta = parseInt(deltaStr);
+      const cur = Math.max(1, parseInt(batch.quantity[i]) || 1);
+      batch.quantity[i] = Math.max(1, cur + delta);
+      renderActiveBatch();
+    });
+  });
+  $$('[data-relookup-input]', el).forEach(inp => {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const i = parseInt(inp.dataset.relookupInput);
+        relookup(batch, i, inp.value);
+      }
+    });
+  });
+  $$('[data-relookup]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.relookup);
+      const inp = el.querySelector(`[data-relookup-input="${i}"]`);
+      relookup(batch, i, inp ? inp.value : '');
+    });
+  });
+  $$('[data-asis]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.asis);
+      const inp = el.querySelector(`[data-relookup-input="${i}"]`);
+      useAsIs(batch, i, inp ? inp.value : '');
+    });
+  });
+  $$('[data-printings]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.printings);
+      openPrintings(batch, i);
+    });
+  });
+
+  $$('[data-mult]', el).forEach(inp => {
+    inp.addEventListener('change', () => {
+      const i = parseInt(inp.dataset.mult);
+      const v = inp.value.trim();
+      const parsed = parseFloat(v);
+      const isFoil = batch.isFoil[i];
+      const globalMult = isFoil ? state.multFoil : state.multNormal;
+      // If empty or matches global default, treat as no override
+      if (v === '' || isNaN(parsed) || Math.abs(parsed - globalMult) < 1e-9) {
+        batch.multOverride[i] = null;
+      } else {
+        batch.multOverride[i] = parsed;
+      }
+      renderActiveBatch();
+    });
+  });
+  $$('[data-mult-step]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const [iStr, deltaStr] = btn.dataset.multStep.split(':');
+      const i = parseInt(iStr);
+      const delta = parseFloat(deltaStr);
+      const isFoil = batch.isFoil[i];
+      const globalMult = isFoil ? state.multFoil : state.multNormal;
+      const cur = batch.multOverride[i] != null ? parseFloat(batch.multOverride[i]) : globalMult;
+      const next = Math.max(0, +(cur + delta).toFixed(2));
+      batch.multOverride[i] = Math.abs(next - globalMult) < 1e-9 ? null : next;
+      renderActiveBatch();
+    });
+  });
+  $$('[data-mult-clear]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.multClear);
+      batch.multOverride[i] = null;
+      renderActiveBatch();
+    });
+  });
+
+  $$('[data-zoom-src]', el).forEach(img => {
+    img.addEventListener('click', () => {
+      openZoom(img.dataset.zoomSrc, img.dataset.zoomCaption || '');
+    });
+  });
+
+  $$('[data-remove]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.remove);
+      batch.removed[i] = true;
+      renderTabs();
+      renderActiveBatch();
+    });
+  });
+  $$('[data-restore]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.restore);
+      batch.removed[i] = false;
+      renderTabs();
+      renderActiveBatch();
+    });
+  });
+  $$('[data-restore-all]', el).forEach(btn => {
+    btn.addEventListener('click', () => {
+      batch.removed = batch.removed.map(() => false);
+      renderTabs();
+      renderActiveBatch();
+    });
+  });
+}
+
+function renderTitleLink(cd) {
+  const name = cd.sel.name || t('unknown_card');
+  const safeName = escapeHtml(name);
+  if (cd.isManual) return safeName;
+  const primaryCk = cd.isFoil ? cd.sel.ck_url_foil : cd.sel.ck_url_normal;
+  const altCk = cd.isFoil ? cd.sel.ck_url_normal : cd.sel.ck_url_foil;
+  const ck = primaryCk || altCk || '';
+  const url = ck || cd.sel.scryfall_uri || '';
+  if (!url) return safeName;
+  const tip = ck ? t('view_on_ck') : t('view_on_scryfall');
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="${tip}">${safeName}<span class="ext-icon">↗</span></a>`;
+}
+
+function rarityKeyFromSel(rarity) {
+  const r = (rarity || '').toLowerCase();
+  if (r === 'common' || r === 'uncommon' || r === 'rare' || r === 'mythic') return r;
+  if (r) return 'special';
+  return '';
+}
+
+function renderCardRow(batch, i, cd) {
+  const lookupFailed = cd.sel && cd.sel._lookup_failed;
+  const rarity = rarityKeyFromSel(cd.sel.rarity);
+  const setStr = cd.isManual ? t('manual_entry_meta')
+                : cd.sel.set ? `${cd.sel.set} · #${cd.sel.collector_number || '?'}`
+                : t('no_set_match');
+  const sourceTag = cd.source === 'cardkingdom' ? '<span class="source-tag ck">CK</span>'
+                  : cd.source === 'tcgplayer' ? '<span class="source-tag tcg">TCG</span>'
+                  : cd.source === 'manual' ? `<span class="source-tag manual">${t('manual_pill')}</span>`
+                  : '<span class="source-tag none">no price</span>';
+
+  // Comparison thumbnails: photo crop + matched Scryfall image, click to zoom
+  const matchImg = cd.sel.image_url || '';
+  const compareBlock = `
+    <div class="compare">
+      <div class="compare-cell">
+        <img src="${cd.c.crop_b64}" alt="" loading="lazy"
+             data-zoom-src="${cd.c.crop_b64}" data-zoom-caption="${escapeHtml(t('zoom_photo'))}">
+        <div class="lbl">${t('photo_label')}</div>
+      </div>
+      <div class="compare-cell match">
+        ${matchImg
+          ? `<img src="${escapeHtml(matchImg)}" alt="" loading="lazy"
+                  data-zoom-src="${escapeHtml(upgradeScryfallImage(matchImg))}" data-zoom-caption="${escapeHtml(t('zoom_match'))}">`
+          : `<div class="placeholder">?</div>`}
+        <div class="lbl">${t('match_label')}</div>
+      </div>
+    </div>
+  `;
+
+  // Version line: bold pill with set code + collector number, then italic set name
+  let versionLine = '';
+  if (cd.isManual) {
+    versionLine = `<div class="version-line"><span class="set-name">${escapeHtml(setStr)}</span></div>`;
+  } else if (cd.sel.set) {
+    const setCode = (cd.sel.set || '').toUpperCase();
+    const cn = cd.sel.collector_number || '?';
+    const setName = cd.sel.set_name || '';
+    const rarityDot = rarity ? `<span class="rarity ${rarity}" title="${t('rarity_' + rarity)}"></span>` : '';
+    versionLine = `
+      <div class="version-line">
+        <span class="set-badge">
+          ${rarityDot}${escapeHtml(setCode)}
+          <span class="cn">#${escapeHtml(cn)}</span>
+        </span>
+        ${setName ? `<span class="set-name">${escapeHtml(setName)}</span>` : ''}
+      </div>
+    `;
+  } else {
+    versionLine = `<div class="version-line"><span class="set-name">${escapeHtml(setStr)}</span></div>`;
+  }
+
+  // Price block — gold class only when style is 'gold'; "F" suffix when style is 'suffix'
+  const useGold = cd.isFoil && state.foilStyle === 'gold';
+  const priceClass = useGold ? 'foil' : '';
+  let priceBlock;
+  if (cd.needsPrice) {
+    priceBlock = `<div class="price-block"><span class="price-set-prompt">${t('set_price_prompt')}</span></div>`;
+  } else if (cd.hasOverride) {
+    const struck = cd.isManual ? '' : `<span class="price-myr struck">${formatMyrWithFoil(cd.autoPrice, cd.isFoil)}</span>`;
+    priceBlock = `
+      <div class="price-block">
+        ${struck}
+        <span class="price-myr ${priceClass}">${formatMyrWithFoil(cd.unitPrice, cd.isFoil)}</span>
+        <span class="override-pill">
+          ${cd.isManual ? t('manual_pill') : t('override_pill')}
+          <button type="button" data-clear-override="${i}" aria-label="Clear">×</button>
+        </span>
+      </div>`;
+  } else {
+    priceBlock = `<div class="price-block"><span class="price-myr ${priceClass}">${formatMyrWithFoil(cd.unitPrice, cd.isFoil)}</span></div>`;
+  }
+
+  const subtotalLine = (cd.qty > 1 && !cd.needsPrice)
+    ? `<div class="subtotal">× ${cd.qty} = <strong>${formatMyrWithFoil(cd.lineTotal, cd.isFoil)}</strong></div>`
+    : '';
+
+  const overrideValue = cd.hasOverride ? batch.priceOverride[i] : '';
+  let overrideClass = 'price-input-wrap';
+  if (cd.needsPrice) overrideClass += ' required';
+  else if (cd.hasOverride) overrideClass += ' set';
+
+  const msg = batch.relookupMsg[i];
+  let msgHtml = '<div class="adjust-msg">&nbsp;</div>';
+  if (msg) {
+    const actionHtml = msg.action
+      ? `<button class="inline-action" type="button" data-asis="${i}">${escapeHtml(msg.action)}</button>`
+      : '';
+    msgHtml = `<div class="adjust-msg ${msg.type}">${escapeHtml(msg.text)}${actionHtml}</div>`;
+  }
+
+  const busy = batch.relookupBusy[i];
+  const relookupBtnText = busy ? t('looking_up') : t('find');
+  const relookupBtnClass = busy ? 'relookup-btn busy' : 'relookup-btn';
+  const asisUrgent = msg && msg.type === 'err' && !cd.isManual;
+  const currentName = cd.sel.name || '';
+
+  let manualBanner = '';
+  if (cd.isManual) {
+    manualBanner = cd.hasOverride
+      ? `<div class="manual-banner set"><span class="dot">●</span> ${t('manual_price_set')}</div>`
+      : `<div class="manual-banner"><span class="dot">⚠</span> ${t('manual_set_price')}</div>`;
+  }
+
+  const rowClasses = ['card-row'];
+  if (cd.isFoil) rowClasses.push('foil');
+  if (cd.hasOverride) rowClasses.push('overridden');
+  if (cd.isManual) rowClasses.push('manual');
+
+  const matchLine = cd.isManual
+    ? ''
+    : `<div class="conf ${lookupFailed ? 'low' : ''}">${lookupFailed ? t('scryfall_failed') : t('matched')}</div>`;
+
+  const priceLine = cd.isManual
+    ? `<div class="price-line">${sourceTag}<span style="color:var(--ink-soft)">${t('user_entered_name')}</span></div>`
+    : `<div class="price-line">${sourceTag}USD ${fmt2(cd.usd)} × ${cd.mult}</div>`;
+
+  return `
+    <div class="${rowClasses.join(' ')}">
+      <div class="num">${i+1}</div>
+      <button class="remove-btn" type="button" data-remove="${i}"
+              title="${t('remove_card')}" aria-label="${t('remove_card')}">×</button>
+      ${compareBlock}
+      <div class="info">
+        <div class="title">${renderTitleLink(cd)}</div>
+        ${versionLine}
+        ${priceLine}
+        ${manualBanner}
+        ${priceBlock}
+        ${subtotalLine}
+        ${matchLine}
+
+        <div class="row-controls">
+          <div class="qty-row">
+            <span>${t('qty')}</span>
+            <button class="qty-btn" data-qty-step="${i}:-1" aria-label="−">−</button>
+            <input class="qty-input" type="number" min="1" step="1" value="${cd.qty}" data-qty="${i}">
+            <button class="qty-btn" data-qty-step="${i}:1" aria-label="+">+</button>
+          </div>
+          <div class="mult-row ${cd.hasMultOverride ? 'set' : ''}">
+            <span>${t('mult')}</span>
+            <button class="qty-btn" data-mult-step="${i}:-0.1" aria-label="−">−</button>
+            <input class="mult-input" type="number" min="0" step="0.1"
+                   value="${cd.mult.toFixed(1)}" data-mult="${i}"
+                   title="${cd.hasMultOverride ? `override (global: ${cd.globalMult})` : `global default`}">
+            <button class="qty-btn" data-mult-step="${i}:0.1" aria-label="+">+</button>
+            ${cd.hasMultOverride
+              ? `<button class="mult-clear" type="button" data-mult-clear="${i}" title="${t('mult_clear_title')}" aria-label="Clear">×</button>`
+              : ''}
+          </div>
+          <button class="toggle ${cd.isFoil ? 'active' : ''}" data-foil-toggle="${i}">${cd.isFoil ? t('foil_on') : t('foil_off')}</button>
+        </div>
+
+        <div class="adjust">
+          <div class="adjust-title">${t('adjust')}</div>
+
+          <div class="adjust-block">
+            <label class="adjust-label" for="po-${batch.id}-${i}">${cd.needsPrice ? t('price_required') : t('price_override')}</label>
+            <div class="adjust-row">
+              <div class="${overrideClass}">
+                <span class="prefix">${escapeHtml(state.currencyLabel || 'RM')}</span>
+                <input type="number" inputmode="decimal" step="0.5" min="0"
+                       id="po-${batch.id}-${i}"
+                       placeholder="${cd.isManual ? t('enter_your_price') : t('auto_price', { n: fmt2(cd.autoPrice) })}"
+                       value="${overrideValue}"
+                       data-price-override="${i}"
+                       ${cd.needsPrice ? 'autofocus' : ''}>
+              </div>
+              <button class="clear-btn" type="button" data-clear-override="${i}"
+                      ${cd.hasOverride ? '' : 'disabled'} title="Clear">×</button>
+            </div>
+          </div>
+
+          <div class="adjust-block">
+            <label class="adjust-label">${t('wrong_printing')}</label>
+            <div class="adjust-row">
+              <button class="printings-btn" type="button" data-printings="${i}"
+                      ${cd.isManual || !(cd.sel.name) ? 'disabled' : ''}>
+                <span class="glyph">▦</span> ${t('browse_printings')}
+              </button>
+            </div>
+          </div>
+
+          <div class="adjust-block">
+            <label class="adjust-label" for="rl-${batch.id}-${i}">${t('wrong_card')}</label>
+            <div class="adjust-row">
+              <input class="relookup-input" type="text"
+                     id="rl-${batch.id}-${i}"
+                     placeholder="${t('type_card_name')}"
+                     value="${escapeHtml(currentName)}"
+                     data-relookup-input="${i}"
+                     ${busy ? 'disabled' : ''}>
+              <button class="${relookupBtnClass}" type="button" data-relookup="${i}" ${busy ? 'disabled' : ''}>${relookupBtnText}</button>
+              <button class="asis-btn ${asisUrgent ? 'urgent' : ''}" type="button" data-asis="${i}" ${busy ? 'disabled' : ''}>${t('use_asis')}</button>
+            </div>
+            ${msgHtml}
+            <div class="adjust-hint">${t('relookup_hint')}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ---------- Re-lookup ----------
+function useAsIs(batch, i, rawName) {
+  const name = (rawName || '').trim();
+  if (!name) {
+    batch.relookupMsg[i] = { type: 'err', text: t('msg_type_name_then_asis') };
+    renderActiveBatch();
+    return;
+  }
+  batch.response.cards[i].candidates[0] = {
+    scryfall_id: '', name,
+    set: '', set_name: '', collector_number: '', rarity: '',
+    usd: 0, usd_foil: 0,
+    image_url: '', scryfall_uri: '',
+    price_source_normal: 'manual', price_source_foil: 'manual',
+    ck_url_normal: '', ck_url_foil: '',
+    _lookup_failed: false, _manual: true,
+  };
+  batch.priceOverride[i] = null;
+  batch.relookupBusy[i] = false;
+  batch.relookupMsg[i] = { type: 'ok', text: t('msg_now_manual') };
+  renderTabs();
+  renderActiveBatch();
+  setTimeout(() => {
+    const el = document.getElementById(`po-${batch.id}-${i}`);
+    if (el) { el.focus(); el.select && el.select(); }
+  }, 50);
+}
+
+async function relookup(batch, i, rawName) {
+  const name = (rawName || '').trim();
+  if (!name) {
+    batch.relookupMsg[i] = { type: 'err', text: t('msg_type_name_first') };
+    renderActiveBatch();
+    return;
+  }
+  if (batch.relookupBusy[i]) return;
+
+  batch.relookupBusy[i] = true;
+  batch.relookupMsg[i] = { type: 'busy', text: t('msg_searching') };
+  renderActiveBatch();
+
+  try {
+    const fd = new FormData();
+    fd.append('payload', JSON.stringify({ name }));
+    const r = await fetch('/api/relookup', { method: 'POST', body: fd });
+    if (!r.ok) {
+      batch.relookupBusy[i] = false;
+      batch.relookupMsg[i] = {
+        type: 'err',
+        text: t('msg_not_found'),
+        action: t('msg_use_asis_action'),
+      };
+      renderActiveBatch();
+      return;
+    }
+    const summary = await r.json();
+    summary._lookup_failed = false;
+    batch.response.cards[i].candidates[0] = summary;
+    batch.priceOverride[i] = null;
+    batch.relookupBusy[i] = false;
+    batch.relookupMsg[i] = { type: 'ok', text: t('msg_updated', { name: summary.name }) };
+    renderTabs();
+    renderActiveBatch();
+    setTimeout(() => {
+      if (batch.relookupMsg[i] && batch.relookupMsg[i].type === 'ok') {
+        batch.relookupMsg[i] = null;
+        renderActiveBatch();
+      }
+    }, 2500);
+  } catch (e) {
+    batch.relookupBusy[i] = false;
+    batch.relookupMsg[i] = { type: 'err', text: t('msg_lookup_failed', { err: e.message }) };
+    renderActiveBatch();
+  }
+}
+
+// ---------- Export ----------
+async function exportImage(batch, cardData) {
+  const data = batch.response;
+  const cardsPayload = cardData.map((cd) => {
+    let unitLabel = formatMyr(cd.unitPrice);
+    if (cd.isFoil && state.foilStyle === 'suffix') unitLabel += 'F';
+    const label = cd.qty > 1 ? `${unitLabel} ×${cd.qty}` : unitLabel;
+    return {
+      bbox: cd.c.bbox,
+      // Gold pill only when user picked the gold style; suffix style uses normal black pill
+      is_foil: cd.isFoil && state.foilStyle === 'gold',
+      label_override: label,
+    };
+  });
+  const fd = new FormData();
+  fd.append('payload', JSON.stringify({
+    image_id: data.image_id, cards: cardsPayload,
+    show_outlines: state.showOutlines,
+    label_position: state.labelPosition,
+  }));
+  const resp = await fetch('/api/export', { method: 'POST', body: fd });
+  if (!resp.ok) { alert('Export failed: ' + resp.status); return; }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = batch.filename.replace(/\.[^.]+$/, '') + '_priced.png';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- Printings modal ----------
+const printingsModal = $('#printings-modal');
+let _modalCtx = null;
+let _modalPrintings = [];
+
+function openModal() {
+  printingsModal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal() {
+  printingsModal.classList.remove('open');
+  document.body.style.overflow = '';
+  _modalCtx = null;
+  _modalPrintings = [];
+}
+printingsModal.addEventListener('click', e => {
+  if (e.target.closest('[data-modal-close]')) closeModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && printingsModal.classList.contains('open')) closeModal();
+});
+
+async function openPrintings(batch, i) {
+  const sel = batch.response.cards[i].candidates[0] || {};
+  const name = (sel.name || '').trim();
+  if (!name) return;
+
+  _modalCtx = { batch, i, currentSid: sel.scryfall_id || '' };
+  _modalPrintings = [];
+
+  const titleEm = printingsModal.querySelector('.modal-title em');
+  const status = printingsModal.querySelector('.modal-status');
+  const grid = printingsModal.querySelector('.modal-grid');
+  const filterRow = $('#printings-filter-row');
+  const filterInput = $('#printings-filter');
+  titleEm.textContent = name;
+  status.textContent = t('modal_loading_from');
+  grid.innerHTML = '';
+  filterRow.style.display = 'none';
+  filterInput.value = '';
+  openModal();
+
+  try {
+    const fd = new FormData();
+    fd.append('payload', JSON.stringify({ name }));
+    const r = await fetch('/api/printings', { method: 'POST', body: fd });
+    if (!r.ok) {
+      status.textContent = r.status === 404 ? t('modal_no_printings') : `Error ${r.status}`;
+      return;
+    }
+    const data = await r.json();
+    const printings = data.printings || [];
+    _modalPrintings = printings;
+    if (!printings.length) { status.textContent = t('modal_no_printings'); return; }
+
+    // Show filter row when there's enough variety to make narrowing useful
+    if (printings.length >= 8) filterRow.style.display = '';
+    renderPrintingsGrid('');
+    filterInput.focus();
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+  }
+}
+
+function renderPrintingsGrid(query) {
+  const status = printingsModal.querySelector('.modal-status');
+  const grid = printingsModal.querySelector('.modal-grid');
+  const total = _modalPrintings.length;
+  const q = (query || '').trim().toLowerCase();
+  const filtered = q
+    ? _modalPrintings.filter(p =>
+        ((p.set_name || '').toLowerCase().includes(q)) ||
+        ((p.set || '').toLowerCase().includes(q)) ||
+        ((p.collector_number || '').toLowerCase().includes(q)))
+    : _modalPrintings;
+
+  const ckCount = filtered.filter(p => p.price_source_normal === 'cardkingdom' || p.price_source_foil === 'cardkingdom').length;
+  if (filtered.length === 0) {
+    status.textContent = t('modal_count_filtered_none');
+  } else if (q) {
+    status.textContent = t('modal_count_filtered', { shown: filtered.length, total });
+  } else {
+    status.textContent = total === 1
+      ? t('modal_count_summary_singular', { ck: ckCount })
+      : t('modal_count_summary', { n: total, ck: ckCount });
+  }
+
+  const currentSid = (_modalCtx && _modalCtx.currentSid) || '';
+  grid.innerHTML = filtered.map(p => {
+    // Use the original index in _modalPrintings so selectPrinting() still works after filtering
+    const idx = _modalPrintings.indexOf(p);
+    return renderPrintingCard(p, idx, p.scryfall_id === currentSid);
+  }).join('');
+
+  Array.from(grid.querySelectorAll('[data-printing-pick]')).forEach(el => {
+    el.addEventListener('click', () => selectPrinting(parseInt(el.dataset.printingPick)));
+  });
+}
+
+// Wire filter input once
+$('#printings-filter').addEventListener('input', e => renderPrintingsGrid(e.target.value));
+$('#printings-filter-clear').addEventListener('click', () => {
+  const inp = $('#printings-filter');
+  inp.value = '';
+  renderPrintingsGrid('');
+  inp.focus();
+});
+
+function renderPrintingCard(p, idx, isCurrent) {
+  const usd = p.usd || 0;
+  const usdFoil = p.usd_foil || 0;
+  const srcN = p.price_source_normal;
+  const srcF = p.price_source_foil;
+  const tag = src => src === 'cardkingdom' ? '<span class="src ck">CK</span>'
+                   : src === 'tcgplayer' ? '<span class="src tcg">TCG</span>'
+                   : '<span class="src none">—</span>';
+  const setName = p.set_name || '';
+  const setCode = (p.set || '?').toUpperCase();
+  const cn = p.collector_number || '?';
+  const img = p.image_url || '';
+  const priceNormal = usd > 0
+    ? `<div class="price-row">${tag(srcN)}USD ${fmt2(usd)}</div>`
+    : `<div class="price-row" style="color:var(--ink-soft)">${tag('none')}${t('modal_no_normal')}</div>`;
+  const priceFoil = usdFoil > 0
+    ? `<div class="price-row foil">${tag(srcF)}${t('modal_foil_label')} ${fmt2(usdFoil)}</div>`
+    : '';
+  return `
+    <div class="printing-card ${isCurrent ? 'current' : ''}" data-printing-pick="${idx}">
+      ${img
+        ? `<img class="img" src="${escapeHtml(img)}" alt="" loading="lazy">`
+        : `<div class="img"></div>`}
+      <div class="info">
+        <div class="set-code">${escapeHtml(setCode)} · #${escapeHtml(cn)}</div>
+        <div class="set-name-small">${escapeHtml(setName)}</div>
+        ${priceNormal}
+        ${priceFoil}
+      </div>
+    </div>
+  `;
+}
+
+function selectPrinting(idx) {
+  if (!_modalCtx) return;
+  const printing = _modalPrintings[idx];
+  if (!printing) return;
+  const { batch, i } = _modalCtx;
+  printing._lookup_failed = false;
+  printing._manual = false;
+  batch.response.cards[i].candidates[0] = printing;
+  batch.priceOverride[i] = null;
+  batch.relookupMsg[i] = { type: 'ok', text: t('modal_switched', { name: printing.set_name || printing.set }) };
+  closeModal();
+  renderTabs();
+  renderActiveBatch();
+  setTimeout(() => {
+    if (batch.relookupMsg[i] && batch.relookupMsg[i].type === 'ok') {
+      batch.relookupMsg[i] = null;
+      renderActiveBatch();
+    }
+  }, 2500);
+}
+
+// ---------- Zoom overlay ----------
+const zoomModal = $('#zoom-modal');
+const zoomImage = $('#zoom-image');
+const zoomCaption = $('#zoom-caption');
+
+function openZoom(src, caption) {
+  if (!src) return;
+  zoomImage.src = src;
+  zoomCaption.textContent = caption || '';
+  zoomCaption.style.display = caption ? '' : 'none';
+  zoomModal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeZoom() {
+  zoomModal.classList.remove('open');
+  zoomImage.src = '';
+  // Don't clobber printings-modal scroll lock
+  if (!printingsModal.classList.contains('open')) {
+    document.body.style.overflow = '';
+  }
+}
+zoomModal.addEventListener('click', e => {
+  if (e.target.closest('[data-zoom-close]')) closeZoom();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && zoomModal.classList.contains('open')) closeZoom();
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>
