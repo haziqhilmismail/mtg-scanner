@@ -29,7 +29,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+from pillow_heif import register_heif_opener
 from slowapi import Limiter, _rate_limit_exceeded_handler
+
+# iPhone uploads are HEIC by default; register once at import time so every
+# Image.open() in the app (scan, overlay, …) can decode them transparently.
+register_heif_opener()
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -77,15 +82,15 @@ async def lifespan(_app: FastAPI):
                 default_mult_foil=3.0,
             ))
             await s.commit()
-            print(f"[startup] Seeded solo user id={settings.solo_user_id}")
+            print(f"[startup] Seeded solo user id={settings.solo_user_id}", flush=True)
 
     # 3) Kick off CK pricelist load
     try:
         idx = await get_ck_index()
-        print(f"[startup] CK index ready: {idx.matched_scryfall_count} cards")
+        print(f"[startup] CK index ready: {idx.matched_scryfall_count} cards", flush=True)
     except Exception as e:
-        print(f"[startup] WARNING — CK index failed to load: {e}")
-        print("[startup] Server will start anyway; falling back to TCGplayer prices.")
+        print(f"[startup] WARNING — CK index failed to load: {e}", flush=True)
+        print("[startup] Server will start anyway; falling back to TCGplayer prices.", flush=True)
     yield
 
 
