@@ -30,6 +30,7 @@ export function DemoScan({ t }: { t: T }) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [boxesVisible, setBoxesVisible] = useState(0);
   const timers = useRef<number[]>([]);
+  const cards = DEMO_CARDS;
 
   const clearTimers = useCallback(() => {
     timers.current.forEach((t) => window.clearTimeout(t));
@@ -74,7 +75,7 @@ export function DemoScan({ t }: { t: T }) {
   const phaseLabel = phaseToLabel(phase, t);
   const progress = phaseToProgress(phase);
   const showResults = phase === 'done';
-  const total = DEMO_CARDS.reduce((s, c) => s + c.rmPrice, 0);
+  const total = cards.reduce((s, c) => s + c.rmPrice, 0);
 
   return (
     <div className="demo-scan">
@@ -87,11 +88,10 @@ export function DemoScan({ t }: { t: T }) {
             preserveAspectRatio="xMidYMid slice"
             aria-hidden="true"
           >
-            {DEMO_CARDS.map((c, i) => (
+            {cards.map((c, i) => (
               <BoxOutline
                 key={c.id}
                 card={c}
-                index={i}
                 visible={i < boxesVisible}
                 priced={phase === 'pricing' || phase === 'done'}
               />
@@ -121,11 +121,11 @@ export function DemoScan({ t }: { t: T }) {
 
         <div className={`demo-results ${showResults ? 'is-open' : ''}`} aria-hidden={!showResults}>
           <div className="demo-results-head">
-            <span className="demo-results-pill">{t('lp_scan_results_pill', { n: DEMO_CARDS.length })}</span>
+            <span className="demo-results-pill">{t('lp_scan_results_pill', { n: cards.length })}</span>
             <span className="demo-results-total">{t('lp_scan_results_total', { n: total })}</span>
           </div>
           <ul className="demo-card-list">
-            {DEMO_CARDS.map((c, i) => (
+            {cards.map((c, i) => (
               <li
                 key={c.id}
                 className={`demo-card-row ${c.foil ? 'is-foil' : ''}`}
@@ -137,8 +137,15 @@ export function DemoScan({ t }: { t: T }) {
                     {c.name}
                     {c.foil && <span className="demo-card-foil">FOIL</span>}
                   </div>
-                  <div className="demo-card-meta">
-                    {c.setName} · #{c.collectorNumber} · {c.rarity}
+                  <div className="version-line demo-version-line">
+                    <span className="set-badge">
+                      <span className={`rarity ${c.rarity}`} />
+                      {c.setCode.toUpperCase()}
+                      <span className="cn">#{c.collectorNumber}</span>
+                    </span>
+                    {c.setName ? (
+                      <span className="set-name demo-set-name" title={c.setName}>{c.setName}</span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="demo-card-price">
@@ -169,12 +176,10 @@ export function DemoScan({ t }: { t: T }) {
 
 function BoxOutline({
   card,
-  index,
   visible,
   priced,
 }: {
   card: DemoCard;
-  index: number;
   visible: boolean;
   priced: boolean;
 }) {
@@ -182,7 +187,7 @@ function BoxOutline({
   // animate dashoffset from full→0 to draw the box on.
   const perim = 2 * (card.bbox.w + card.bbox.h);
   return (
-    <g className={`demo-bbox ${visible ? 'is-on' : ''} ${priced ? 'is-priced' : ''}`}>
+    <g className={`demo-bbox ${visible ? 'is-on' : ''} ${priced ? 'is-priced' : ''} ${card.foil ? 'is-foil' : ''}`}>
       <rect
         x={card.bbox.x}
         y={card.bbox.y}
@@ -194,19 +199,11 @@ function BoxOutline({
         strokeDasharray={perim}
         strokeDashoffset={visible ? 0 : perim}
       />
-      {/* Outer <g> owns positioning; CSS transforms hit the inner <g> so they
-          can't clobber the SVG translate attribute. */}
-      <g transform={`translate(${card.bbox.x + 20} ${card.bbox.y + 20})`}>
-        <g className="demo-bbox-badge">
-          <circle r="22" cx="22" cy="22" />
-          <text x="22" y="29" textAnchor="middle">{index + 1}</text>
-        </g>
-      </g>
       {priced && (
         <g transform={`translate(${card.bbox.x + card.bbox.w / 2} ${card.bbox.y + card.bbox.h / 2})`}>
           <g className="demo-bbox-price">
-            <rect x="-72" y="-26" width="144" height="52" rx="26" ry="26" />
-            <text y="10" textAnchor="middle">RM {card.rmPrice}{card.foil ? 'F' : ''}</text>
+            <rect x="-170" y="-70" width="340" height="140" rx="70" ry="70" />
+            <text y="30" textAnchor="middle">RM{card.rmPrice}</text>
           </g>
         </g>
       )}

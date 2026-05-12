@@ -2595,12 +2595,33 @@ img.zoomable:hover {
 }
 .landing-header {
   width: 100%; max-width: 1240px;
-  display: flex; justify-content: flex-end; align-items: center;
+  display: flex; justify-content: flex-end; align-items: center; gap: 8px;
   margin-bottom: clamp(10px, 1.5vw, 20px);
 }
 /* Compact the toggle in the landing context — the in-app Header keeps 38px. */
 .landing-lang { height: 30px; }
 .landing-lang button { padding: 0 11px; font-size: 10px; }
+.landing-theme { width: 30px; height: 30px; font-size: 14px; }
+.landing-footer {
+  width: 100%; max-width: 1240px;
+  margin-top: clamp(24px, 4vw, 48px);
+  padding-top: clamp(16px, 2vw, 24px);
+  border-top: 1px solid var(--rule);
+  display: flex; justify-content: center;
+}
+.landing-footer-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--ink-soft);
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  text-decoration: none;
+  padding: 6px 14px; border-radius: var(--radius-pill);
+  border: 1px solid var(--rule);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.landing-footer-link:hover {
+  color: var(--ink); border-color: var(--ink-soft); background: var(--surface);
+}
+.landing-footer-icon { width: 16px; height: 16px; fill: currentColor; }
 .landing-grid {
   width: 100%; max-width: 1240px;
   margin: auto 0;
@@ -2813,52 +2834,39 @@ img.zoomable:hover {
 .demo-bbox-rect {
   fill: transparent;
   stroke: #ffffff;
-  stroke-width: 7;
+  stroke-width: 19;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.55));
   transition: stroke-dashoffset 0.7s ease-out;
-}
-.demo-bbox-badge {
-  opacity: 0;
-  transform-origin: 22px 22px;
-  transform: scale(0.4);
-  transition: opacity 0.3s ease 0.5s, transform 0.35s cubic-bezier(0.34,1.56,0.64,1) 0.5s;
-}
-.demo-bbox.is-on .demo-bbox-badge {
-  opacity: 1;
-  transform: scale(1);
-}
-.demo-bbox-badge circle {
-  fill: var(--accent);
-  stroke: #ffffff;
-  stroke-width: 4;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
-}
-.demo-bbox-badge text {
-  fill: #ffffff;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 24px;
-  font-weight: 800;
-  paint-order: stroke;
 }
 .demo-bbox-price {
   opacity: 0;
   transform: translateY(8px);
   transition: opacity 0.4s ease, transform 0.4s ease;
+  filter: drop-shadow(0 8px 12px rgba(0,0,0,0.45));
 }
 .demo-bbox.is-priced .demo-bbox-price {
   opacity: 1;
   transform: translateY(0);
 }
+/* Default (non-foil) pill matches price_overlay.py: near-black bg, white text. */
 .demo-bbox-price rect {
-  fill: var(--gold);
-  stroke: var(--ink);
-  stroke-width: 3;
+  fill: rgb(20, 20, 20);
+  stroke: none;
 }
 .demo-bbox-price text {
-  fill: var(--ink);
-  font-family: 'Fraunces', serif;
-  font-size: 26px;
+  fill: #ffffff;
+  font-family: 'DejaVu Sans', 'Liberation Sans', 'Arial Bold', Arial, sans-serif;
+  font-size: 90px;
   font-weight: 800;
+}
+/* Foil pill: gold bg, dark text, gold highlight stroke. */
+.demo-bbox.is-foil .demo-bbox-price rect {
+  fill: rgb(240, 195, 50);
+  stroke: rgb(255, 230, 130);
+  stroke-width: 4;
+}
+.demo-bbox.is-foil .demo-bbox-price text {
+  fill: rgb(25, 20, 10);
 }
 
 /* Idle-state CTA: huge play overlay */
@@ -3010,6 +3018,12 @@ img.zoomable:hover {
   font-size: 10px; letter-spacing: 0.04em;
   color: var(--ink-soft);
   text-transform: capitalize;
+}
+/* Keep set-badge + set-name on one row; truncate the name when it's long. */
+.demo-version-line { flex-wrap: nowrap; min-width: 0; }
+.demo-set-name {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .demo-card-price { text-align: right; }
 .demo-card-rm {
