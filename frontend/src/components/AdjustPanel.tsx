@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CardRowData, RelookupMsg, Settings } from '../types.ts';
-import { fmt2 } from '../utils.ts';
+import { applyRounding, fmt2 } from '../utils.ts';
 
 interface Props {
   cd: CardRowData;
@@ -27,14 +27,54 @@ export function AdjustPanel({
     setNameInput(cd.sel.name || '');
   }, [cd.sel.name, cd.sel.scryfall_id]);
 
-  // Price input — controlled, syncs to external clears/overrides
-  const overrideValue = cd.hasOverride
-    ? (isFinite(cd.unitPrice) ? String(cd.unitPrice) : '')
-    : '';
-  const [priceInput, setPriceInput] = useState(overrideValue);
+  // Price input — controlled. The literal text in the box is `priceInput`;
+  // what unit that text is in is `priceMode`. The stored override
+  // (`cd.priceOverride`) is *always* the final RM, regardless of how it was
+  // entered. Mode is sticky — it only resets when the card changes, never
+  // because typing caused the stored override to update.
+  //   - 'rm'  → input is the final RM; stored verbatim (no rounding)
+  //   - 'usd' → input is a USD price; stored as applyRounding(usd × mult)
+  const [priceInput, setPriceInput] = useState(
+    cd.hasOverride && isFinite(cd.unitPrice) ? String(cd.unitPrice) : '',
+  );
+  const [priceMode, setPriceMode] = useState<'rm' | 'usd'>('rm');
+
+  // Reset both when the user selects a different card.
   useEffect(() => {
-    setPriceInput(overrideValue);
-  }, [overrideValue]);
+    setPriceInput(cd.hasOverride && isFinite(cd.unitPrice) ? String(cd.unitPrice) : '');
+    setPriceMode('rm');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cd.origIdx]);
+
+  // If something outside the panel clears the override (e.g. the × button
+  // or restoring a removed card), wipe the input too — but don't sync on
+  // value changes, since that would clobber the USD value the user is typing.
+  useEffect(() => {
+    if (!cd.hasOverride) setPriceInput('');
+  }, [cd.hasOverride]);
+
+  const commitPrice = (rawInput: string, mode: 'rm' | 'usd') => {
+    const trimmed = rawInput.trim();
+    if (trimmed === '') { onPriceChange(null); return; }
+    if (mode === 'usd') {
+      const usd = parseFloat(trimmed);
+      if (isNaN(usd)) return;
+      const rm = applyRounding(usd * cd.mult, settings);
+      onPriceChange(String(rm));
+    } else {
+      onPriceChange(trimmed);
+    }
+  };
+
+  // Toggling mode clears the input + the stored override, so the value the
+  // user types next is interpreted as the new unit and nothing carries over
+  // from the previous mode.
+  const switchMode = (newMode: 'rm' | 'usd') => {
+    if (newMode === priceMode) return;
+    setPriceMode(newMode);
+    setPriceInput('');
+    onPriceChange(null);
+  };
 
   let priceWrapClass = 'price-input-wrap';
   if (cd.needsPrice) priceWrapClass += ' required';
@@ -51,18 +91,44 @@ export function AdjustPanel({
           {cd.needsPrice ? t('price_required') : t('price_override')}
         </label>
         <div className="adjust-row">
+          <div className="price-mode-toggle" role="group" aria-label={t('price_mode_label')}>
+            <button
+              type="button"
+              className={`mode-btn ${priceMode === 'rm' ? 'active' : ''}`}
+              onClick={() => switchMode('rm')}
+              title={t('price_mode_rm_title')}
+            >RM</button>
+            <button
+              type="button"
+              className={`mode-btn ${priceMode === 'usd' ? 'active' : ''}`}
+              onClick={() => switchMode('usd')}
+              title={t('price_mode_usd_title')}
+            >USD</button>
+          </div>
           <div className={priceWrapClass}>
-            <span className="prefix">{settings.currencyLabel || 'RM'}</span>
+            <span className="prefix">{priceMode === 'usd' ? 'USD' : (settings.currencyLabel || 'RM')}</span>
             <input
-              type="number" inputMode="decimal" step="0.5" min="0"
-              placeholder={cd.isManual ? t('enter_your_price') : t('auto_price', { n: fmt2(cd.autoPrice) })}
+              /* type="text" + inputMode="decimal" gets us the numeric keyboard
+                 on mobile without the desktop spinner buttons, and — crucial
+                 here — kills the trackpad/wheel side-scroll changing the value. */
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]*"
+              placeholder={
+                priceMode === 'usd'
+                  ? t('enter_usd_price')
+                  : cd.isManual
+                    ? t('enter_your_price')
+                    : t('auto_price', { n: fmt2(cd.autoPrice) })
+              }
               value={priceInput}
               autoFocus={cd.needsPrice}
               onChange={e => {
-                const v = e.target.value;
-                setPriceInput(v);
-                const trimmed = v.trim();
-                onPriceChange(trimmed === '' ? null : trimmed);
+                // Strip everything except digits and a single decimal point;
+                // commits the cleaned value in the active mode.
+                const cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                setPriceInput(cleaned);
+                commitPrice(cleaned, priceMode);
               }}
             />
           </div>

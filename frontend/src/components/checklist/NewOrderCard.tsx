@@ -17,6 +17,7 @@ export function NewOrderCard({ buyers, listings, initialListingId, onCreated, on
   const active = listings.filter(l => l.status === 'active');
   const [fbName, setFbName] = useState('');
   const [fbUrl, setFbUrl] = useState('');
+  const [phone, setPhone] = useState('');
   // Seed the first item from the prefilled listing if one was passed in (clicked
   // "+ Order" from the stock panel), otherwise default to the first active listing.
   const seedId = initialListingId ?? active[0]?.id ?? 0;
@@ -63,10 +64,13 @@ export function NewOrderCard({ buyers, listings, initialListingId, onCreated, on
     setBusy(true);
     try {
       await ordersApi.create({
-        // Always send the FB name + URL — backend will look up an existing buyer
-        // by case-insensitive name or create a new one
+        // Always send the FB name + URL + phone — backend will look up an
+        // existing buyer by case-insensitive name or create a new one. Phone
+        // and URL are only written back if the existing record's field is
+        // null (won't overwrite stored data).
         buyer_fb_name: fbName.trim(),
         buyer_fb_url: fbUrl.trim() || (matchedBuyer?.fb_url ?? null),
+        buyer_phone: phone.trim() || (matchedBuyer?.phone ?? null),
         items,
         dropoff_method: dropoffMethod.trim() || null,
         dropoff_address: dropoffAddress.trim() || null,
@@ -112,6 +116,18 @@ export function NewOrderCard({ buyers, listings, initialListingId, onCreated, on
               : t('ck_buyer_url_placeholder_default')}
             value={fbUrl}
             onChange={e => setFbUrl(e.target.value)}
+          />
+        </label>
+        <label>
+          <span>{t('ck_buyer_phone')}</span>
+          <input
+            type="tel"
+            inputMode="tel"
+            placeholder={matchedBuyer?.phone
+              ? t('ck_buyer_phone_placeholder_existing', { phone: matchedBuyer.phone })
+              : t('ck_buyer_phone_placeholder_default')}
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
           />
         </label>
       </div>

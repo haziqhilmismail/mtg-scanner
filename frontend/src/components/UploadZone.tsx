@@ -114,6 +114,7 @@ export function UploadZone({ onFiles, t }: Props) {
       >
         <strong>{t('drop_strong')}</strong>
         <p>{t('drop_sub')}</p>
+        <p className="drop-photo-tip">{t('drop_photo_tip')}</p>
       </div>
       <input
         ref={inputRef}

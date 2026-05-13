@@ -75,8 +75,13 @@ export interface ExportPayload {
   image_id: string;
   cards: Array<{
     bbox: [number, number, number, number];
+    corners?: [number, number][];  // 4-point quad (TL,TR,BR,BL) when classical-refined
     is_foil: boolean;
     label_override: string;
+    // Per-card pill offset in source-image pixels, set by dragging the pill in
+    // the preview. Both fields default to 0 when undefined.
+    pill_dx?: number;
+    pill_dy?: number;
   }>;
   show_outlines: boolean;
   label_position: 'top' | 'bottom' | 'center';

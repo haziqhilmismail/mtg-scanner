@@ -263,6 +263,12 @@ body {
 .drop.dragover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-2px); }
 .drop p { margin: 0; font-size: 14px; color: var(--ink-soft); pointer-events: none; }
 .drop strong { color: var(--ink); font-size: 16px; display: block; margin-bottom: 4px; pointer-events: none; }
+.drop .drop-photo-tip {
+  margin-top: 8px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  font-style: normal; letter-spacing: 0.04em;
+  color: var(--gold);
+}
 
 /* Settings */
 .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
@@ -341,10 +347,25 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   overflow-x: auto; overflow-y: hidden;
   padding: 4px 2px 12px;
   margin-bottom: 18px;
+  /* Firefox */
   scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
 }
-.tab-strip::-webkit-scrollbar { height: 8px; }
-.tab-strip::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
+.tab-strip::-webkit-scrollbar { height: 10px; }
+.tab-strip::-webkit-scrollbar-track {
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  margin: 0 4px;
+}
+.tab-strip::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border: 2px solid var(--surface-2);
+  border-radius: var(--radius-pill);
+  transition: background 0.15s ease;
+}
+.tab-strip::-webkit-scrollbar-thumb:hover { background: var(--ink-soft); }
+.tab-strip::-webkit-scrollbar-thumb:active { background: var(--accent); }
+.tab-strip:hover { scrollbar-color: var(--ink-soft) transparent; }
 .tab {
   flex: 0 0 auto;
   display: grid; grid-template-columns: 56px 1fr; gap: 10px;
@@ -426,7 +447,45 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 .batch-body { display: grid; grid-template-columns: minmax(280px, 1fr) 2fr; gap: 24px; }
 @media (max-width: 800px) { .batch-body { grid-template-columns: 1fr; } }
 
-.preview-cell { display: flex; justify-content: flex-start; align-items: flex-start; }
+.preview-cell {
+  display: flex; flex-direction: column; gap: 8px;
+  justify-content: flex-start; align-items: flex-start;
+}
+.preview-expand-row {
+  display: flex; justify-content: center;
+  width: 100%; margin-top: 4px;
+}
+.preview-expand-btn {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 6px 14px; border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: var(--surface); color: var(--ink); cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.preview-expand-btn:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+.preview-tip {
+  width: 100%; margin: 0;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.preview-info-banner {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--radius);
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 12px; line-height: 1.45;
+  color: var(--ink);
+}
+.preview-info-banner span[aria-hidden] { color: var(--gold); font-weight: 700; margin-right: 4px; }
+
 .preview-wrap {
   position: relative; display: inline-block;
   max-width: 100%; max-height: 65vh;
@@ -439,27 +498,103 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   width: auto; height: auto;
 }
 .preview-wrap svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-.preview-wrap.zoomable { cursor: zoom-in; }
-.preview-wrap.zoomable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.corner-rect { fill: rgba(184,68,42,.08); stroke: var(--accent); stroke-width: 4; stroke-dasharray: 8 6; }
-.corner-rect.foil { fill: rgba(200,155,60,.12); stroke: var(--gold); }
+
+/* Expanded mode: the cell escapes its flow and fills the viewport so dragging
+   the price pill onto a card is easier to do precisely. `inset: 36px` leaves
+   a visible gutter of the page around the cell so the box feels like a
+   contained modal rather than a fullscreen takeover. */
+.preview-cell.expanded {
+  position: fixed; inset: 36px; z-index: 200;
+  background: var(--paper);
+  border: 1px solid var(--rule); border-radius: var(--radius-lg);
+  padding: 14px;
+  box-shadow: var(--shadow-lg);
+  /* Don't clip the close button that pokes out of the corner. */
+  overflow: visible;
+}
+
+/* Big close button — anchored to the *outer* cell border, popping out at the
+   top-right corner like a macOS-style window close. Half-outside the cell so
+   it visually attaches to the box edge, not the image inside. */
+.preview-close-btn {
+  position: absolute; top: -18px; right: -18px; z-index: 1;
+  width: 48px; height: 48px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 800;
+  line-height: 1;
+  border: 1px solid var(--rule); background: var(--surface); color: var(--ink);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+.preview-close-btn:hover {
+  background: var(--accent); color: white; border-color: var(--accent);
+}
+.preview-close-btn:active { transform: scale(0.96); }
+.preview-close-btn:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.preview-cell.expanded .preview-wrap {
+  max-width: 100%; max-height: calc(100vh - 90px);
+  flex: 1; width: 100%;
+  display: flex; justify-content: center; align-items: center;
+}
+.preview-cell.expanded .preview-wrap img {
+  max-width: 100%; max-height: calc(100vh - 90px);
+  width: auto; height: auto;
+}
 .card-outline {
   fill: rgba(184, 68, 42, 0.06);
   stroke: var(--accent);
   stroke-width: 6;
-  stroke-dasharray: 18 10;
+  stroke-linejoin: round;
   opacity: 0.95;
-  animation: scan-march 1.6s linear infinite;
 }
 .card-outline.foil {
   stroke: var(--gold);
   fill: rgba(200, 155, 60, 0.08);
 }
-@keyframes scan-march {
-  to { stroke-dashoffset: -28; }
+
+/* Draggable price pill — preview the exported overlay and let the user pull
+   it onto the card when the bbox drifted. Geometry mirrors price_overlay.py. */
+.preview-pill { cursor: grab; pointer-events: auto; touch-action: none; }
+.preview-pill.is-dragging { cursor: grabbing; }
+.preview-pill rect {
+  fill: rgb(20, 20, 20);
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 2;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
 }
-.corner-num-bg { fill: var(--ink); stroke: white; stroke-width: 4; }
-.corner-num { font-family: 'JetBrains Mono', monospace; fill: var(--paper); font-weight: 800; }
+.preview-pill text {
+  fill: #ffffff;
+  font-family: 'DejaVu Sans', 'Liberation Sans', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 800;
+  pointer-events: none;
+  user-select: none;
+}
+.preview-pill.foil rect {
+  fill: rgb(240, 195, 50);
+  stroke: rgba(255, 230, 130, 0.9);
+}
+.preview-pill.foil text { fill: rgb(25, 20, 10); }
+.preview-pill.is-dragging rect { stroke: var(--accent); stroke-width: 4; }
+
+.preview-pill-reset { cursor: pointer; pointer-events: auto; }
+.preview-pill-reset circle {
+  fill: var(--paper);
+  stroke: var(--ink-soft);
+  stroke-width: 2;
+}
+.preview-pill-reset text {
+  fill: var(--ink-soft);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  pointer-events: none;
+  user-select: none;
+}
+.preview-pill-reset:hover circle { fill: var(--accent); stroke: var(--accent); }
+.preview-pill-reset:hover text { fill: white; }
 
 /* ---------- Finalize block (post + add-all + export at the bottom) ---------- */
 .finalize-block {
@@ -699,6 +834,7 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 }
 
 .price-line { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-soft); }
+.price-line .price-line-raw { color: var(--gold); font-weight: 700; margin-left: 4px; }
 .price-block { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .price-myr { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); font-size: 19px; line-height: 1; }
 .price-myr.foil { color: var(--gold); }
@@ -731,15 +867,23 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   border-radius: var(--radius-pill); font-weight: 700;
 }
 .source-tag.ck { background: var(--green); color: white; }
-.source-tag.tcg { background: var(--ink-soft); color: var(--paper); }
 .source-tag.none { background: var(--warn); color: white; }
 .source-tag.manual { background: var(--gold); color: var(--ink); }
 
 .conf {
   font-family: 'JetBrains Mono', monospace; font-size: 9px;
   color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.1em;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .conf.low { color: var(--warn); }
+.name-source-pill {
+  display: inline-flex; align-items: center;
+  padding: 1px 7px; border-radius: var(--radius-pill);
+  font-family: 'JetBrains Mono', monospace; font-size: 8px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+.name-source-pill.phash { color: var(--gold); }
 .row-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 
 .toggle {
@@ -815,26 +959,42 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 .adjust-row { display: flex; gap: 6px; align-items: stretch; }
 
 .price-input-wrap {
-  display: flex; align-items: stretch; flex: 1;
+  display: flex; align-items: center; flex: 1;
   border: 1px solid var(--rule); background: var(--surface);
   border-radius: var(--radius); overflow: hidden;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
+.price-input-wrap:focus-within {
+  border-color: var(--ink-soft);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
+}
 .price-input-wrap.set { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .price-input-wrap.required { border-color: var(--warn); box-shadow: 0 0 0 2px rgba(184,68,42,.18); }
+/* Currency label sits inline with the input — soft monospace caps in muted
+   ink, no background chip. Tracks the state colours used by the wrap border. */
 .price-input-wrap .prefix {
-  display: inline-flex; align-items: center; padding: 0 10px;
-  background: var(--ink); color: var(--paper);
-  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
-  letter-spacing: 0.08em;
+  display: inline-flex; align-items: center;
+  padding: 0 4px 0 12px;
+  background: transparent; color: var(--ink-soft);
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  user-select: none;
 }
-.price-input-wrap.set .prefix { background: var(--accent); color: white; }
-.price-input-wrap.required .prefix { background: var(--warn); color: white; }
+.price-input-wrap.set .prefix { color: var(--accent); }
+.price-input-wrap.required .prefix { color: var(--warn); }
 .price-input-wrap input {
   flex: 1; min-width: 0; border: 0; outline: none;
-  padding: 8px 10px; background: transparent;
+  padding: 9px 10px 9px 6px; background: transparent;
   font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700;
   color: var(--ink);
+  /* Hide native number-input spinner — matches .qty-input / .mult-input */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.price-input-wrap input::-webkit-outer-spin-button,
+.price-input-wrap input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .clear-btn {
   border: 1px solid var(--rule); background: var(--surface); color: var(--ink-soft);
@@ -844,6 +1004,21 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 }
 .clear-btn:hover { color: white; background: var(--accent); border-color: var(--accent); }
 .clear-btn:disabled { opacity: 0; pointer-events: none; }
+
+/* USD/RM toggle next to the override input */
+.price-mode-toggle {
+  display: inline-flex; align-items: stretch;
+  border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--surface); overflow: hidden;
+  flex-shrink: 0;
+}
+.price-mode-toggle .mode-btn {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+  padding: 0 10px; background: transparent; color: var(--ink-soft);
+  border: 0; cursor: pointer; letter-spacing: 0.08em;
+}
+.price-mode-toggle .mode-btn.active { background: var(--ink); color: var(--paper); }
+.price-mode-toggle .mode-btn:not(.active):hover { color: var(--ink); }
 
 .relookup-input {
   flex: 1; min-width: 0;
@@ -1027,6 +1202,17 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 14px; flex: 1;
 }
+.modal-more { padding: 0 22px 22px; display: flex; justify-content: center; }
+.modal-more-btn {
+  appearance: none; cursor: pointer;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--rule); border-radius: var(--radius-pill);
+  padding: 8px 18px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.modal-more-btn:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .printing-card {
   border: 1px solid var(--rule); background: var(--surface);
   cursor: pointer;
@@ -1047,7 +1233,7 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 }
 .printing-card .img {
   display: block; width: 100%; aspect-ratio: 488 / 680;
-  background: #111; object-fit: cover;
+  background: #111; object-fit: contain;
 }
 .printing-card .info { padding: 10px 11px 12px; display: flex; flex-direction: column; gap: 4px; }
 .printing-card .set-code {
@@ -1070,7 +1256,6 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   padding: 1px 5px; border-radius: var(--radius-pill);
 }
 .printing-card .price-row .src.ck { background: var(--green); color: white; }
-.printing-card .price-row .src.tcg { background: var(--ink-soft); color: var(--paper); }
 .printing-card .price-row .src.none { background: var(--rule); color: var(--ink-soft); }
 
 /* Zoom modal */
@@ -1309,6 +1494,45 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 }
 .kan-card .buyer .name a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--ink-soft); }
 .kan-card .buyer .name a:hover { color: var(--accent); border-color: var(--accent); }
+.kan-card .buyer .name .buyer-phone {
+  display: block; margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+  letter-spacing: 0.06em; color: var(--ink-soft);
+  border-bottom: 0;
+}
+.kan-card .buyer .name .buyer-phone:hover { color: var(--accent); }
+
+/* ---------- Delivery-proof photo (On credit + Done columns) ---------- */
+.kan-card .delivery-photo {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed var(--rule);
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.kan-card .delivery-photo.empty {
+  border-top: 1px dashed var(--rule);
+  justify-content: flex-start;
+}
+.kan-card .delivery-photo .dp-add {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 6px 12px;
+}
+.kan-card .delivery-photo .dp-thumb {
+  width: 80px; height: 80px; object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule);
+  cursor: zoom-in;
+  flex-shrink: 0;
+}
+.kan-card .delivery-photo .dp-actions {
+  display: flex; flex-direction: column; gap: 4px; flex: 1;
+}
+.kan-card .delivery-photo .dp-btn {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  padding: 4px 8px; text-align: left;
+  letter-spacing: 0.06em;
+}
+.kan-card .delivery-photo .dp-remove { color: var(--accent); }
 .kan-card .total {
   font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700;
   color: var(--accent); white-space: nowrap;

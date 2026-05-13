@@ -3,6 +3,7 @@ import { ordersApi, type Buyer, type Listing, type Order } from '../../api/check
 import { useDialog } from '../DialogProvider.tsx';
 import { useImageZoom } from '../ImageZoomProvider.tsx';
 import { upgradeScryfallImage } from '../../utils.ts';
+import { DeliveryPhotoWidget } from './DeliveryPhotoWidget.tsx';
 
 type T = (k: string, vars?: Record<string, string | number>) => string;
 
@@ -199,10 +200,15 @@ function GroupedCard({ orders, column, buyers, listings, reload, onUngroup, t }:
   const shown = allImages.slice(0, 5);
   const extra = allImages.length - shown.length;
 
-  const buyerNode = buyer?.fb_url ? (
-    <a href={buyer.fb_url} target="_blank" rel="noreferrer">{buyer.fb_name}</a>
-  ) : (
-    <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: orders[0].buyer_id })}</span>
+  const buyerNode = (
+    <>
+      {buyer?.fb_url
+        ? <a href={buyer.fb_url} target="_blank" rel="noreferrer">{buyer.fb_name}</a>
+        : <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: orders[0].buyer_id })}</span>}
+      {buyer?.phone ? (
+        <a className="buyer-phone" href={`tel:${buyer.phone.replace(/\s+/g, '')}`}>{buyer.phone}</a>
+      ) : null}
+    </>
   );
 
   const zoom = useImageZoom();
@@ -290,10 +296,15 @@ function OrderCard({ order, column, buyers, listings, reload, t }: {
   const shown = itemImages.slice(0, 4);
   const extra = itemImages.length - shown.length;
 
-  const buyerNode = buyer?.fb_url ? (
-    <a href={buyer.fb_url} target="_blank" rel="noreferrer">{buyer.fb_name}</a>
-  ) : (
-    <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: order.buyer_id })}</span>
+  const buyerNode = (
+    <>
+      {buyer?.fb_url
+        ? <a href={buyer.fb_url} target="_blank" rel="noreferrer">{buyer.fb_name}</a>
+        : <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: order.buyer_id })}</span>}
+      {buyer?.phone ? (
+        <a className="buyer-phone" href={`tel:${buyer.phone.replace(/\s+/g, '')}`}>{buyer.phone}</a>
+      ) : null}
+    </>
   );
 
   return (
@@ -332,6 +343,10 @@ function OrderCard({ order, column, buyers, listings, reload, t }: {
         <span>{new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
         {order.dropoff_method ? <span>· {order.dropoff_method}</span> : null}
       </div>
+
+      {!cancelled && (column === 'credit' || column === 'done') ? (
+        <DeliveryPhotoWidget order={order} onChange={reload} t={t} />
+      ) : null}
 
       {!cancelled && (
         <>

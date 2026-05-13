@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchPrintings } from '../api.ts';
 import type { Candidate } from '../types.ts';
-import { fmt2 } from '../utils.ts';
+import { fmt2, smallScryfallImage } from '../utils.ts';
 
 interface Props {
   open: boolean;
@@ -12,11 +12,15 @@ interface Props {
   t: (k: string, vars?: Record<string, string | number>) => string;
 }
 
+const PAGE_SIZE = 30;
+
 export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, t }: Props) {
   const [printings, setPrintings] = useState<Candidate[]>([]);
   const [status, setStatus] = useState<string>('');
   const [filter, setFilter] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  // Cap rendered cards to PAGE_SIZE at a time; resets when filter or list changes.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // Load printings on open
   useEffect(() => {
@@ -61,6 +65,14 @@ export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, 
       (p.collector_number || '').toLowerCase().includes(q),
     );
   }, [printings, filter]);
+
+  // Reset the page window any time the visible list shrinks/grows (new fetch,
+  // new filter). Otherwise an old large visibleCount would render too many
+  // items the next time the modal opens.
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [filter, printings]);
+
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const remaining = Math.max(0, filtered.length - visible.length);
 
   // Update status text based on filter state
   useEffect(() => {
@@ -112,7 +124,7 @@ export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, 
           </div>
         )}
         <div className="modal-grid">
-          {filtered.map(p => (
+          {visible.map(p => (
             <PrintingCard
               key={`${p.scryfall_id || p.set + p.collector_number}`}
               p={p}
@@ -122,6 +134,17 @@ export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, 
             />
           ))}
         </div>
+        {remaining > 0 && (
+          <div className="modal-more">
+            <button
+              type="button"
+              className="modal-more-btn"
+              onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
+            >
+              {t('modal_show_more', { n: Math.min(PAGE_SIZE, remaining), left: remaining })}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -137,8 +160,7 @@ function PrintingCard({
 }) {
   const tag = (src: string) =>
     src === 'cardkingdom' ? <span className="src ck">CK</span>
-      : src === 'tcgplayer' ? <span className="src tcg">TCG</span>
-        : <span className="src none">—</span>;
+      : <span className="src none">—</span>;
 
   return (
     <div
@@ -146,7 +168,17 @@ function PrintingCard({
       onClick={onPick}
     >
       {p.image_url
-        ? <img className="img" src={p.image_url} alt="" loading="lazy" />
+        ? (
+          <img
+            className="img"
+            src={smallScryfallImage(p.image_url)}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width={146}
+            height={204}
+          />
+        )
         : <div className="img" />}
       <div className="info">
         <div className="set-code">

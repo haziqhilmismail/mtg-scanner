@@ -158,6 +158,10 @@ export interface Order {
   dropoff_method: string | null;
   dropoff_address: string | null;
   notes: string | null;
+  // Optional delivery-proof photo metadata. Bytes are fetched via
+  // ordersApi.deliveryPhotoUrl(id) — auth via ?token=... query string.
+  has_delivery_photo: boolean;
+  delivery_photo_uploaded_at: string | null;
   items: OrderItem[];
   created_at: string;
   updated_at: string;
@@ -172,9 +176,12 @@ export interface OrderItemPayload {
 export interface OrderCreatePayload {
   // Provide either `buyer_id` (existing buyer) or `buyer_fb_name` (lookup-or-create).
   // Backend resolves it to an existing buyer by case-insensitive FB name, or creates one.
+  // `buyer_fb_url` and `buyer_phone` are written back onto the buyer only when
+  // the stored field is still null — they don't overwrite existing data.
   buyer_id?: number;
   buyer_fb_name?: string;
   buyer_fb_url?: string | null;
+  buyer_phone?: string | null;
   items: OrderItemPayload[];
   dropoff_method?: string | null;
   dropoff_address?: string | null;
@@ -234,6 +241,20 @@ export const ordersApi = {
   markDelivered: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-delivered`),
   cancel: (id: number) => json<Order>('POST', `/api/orders/${id}/cancel`),
   restore: (id: number) => json<Order>('POST', `/api/orders/${id}/restore`),
+  uploadDeliveryPhoto: (id: number, image: File) =>
+    postMultipart<Order>(`/api/orders/${id}/delivery-photo`, { image }),
+  deleteDeliveryPhoto: (id: number) =>
+    json<void>('DELETE', `/api/orders/${id}/delivery-photo`),
+  // <img src=...> compatible URL with the session JWT in the query string.
+  // A cache-busting `v=` is appended so a freshly uploaded photo replaces the
+  // cached version in the browser without a hard refresh.
+  deliveryPhotoUrl: (id: number, version?: string | null) => {
+    const t = authToken.get();
+    const params: string[] = [];
+    if (t) params.push(`token=${encodeURIComponent(t)}`);
+    if (version) params.push(`v=${encodeURIComponent(version)}`);
+    return `/api/orders/${id}/delivery-photo${params.length ? `?${params.join('&')}` : ''}`;
+  },
 };
 
 // ---------- Posts ----------

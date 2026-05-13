@@ -52,15 +52,18 @@ export function RowControls({
           }}
         />
         <button type="button" className="qty-btn" onClick={() => onMultStep(0.1)} aria-label="+">+</button>
-        {cd.hasMultOverride ? (
-          <button
-            type="button"
-            className="mult-clear"
-            title={t('mult_clear_title')}
-            aria-label="Clear"
-            onClick={onMultClear}
-          >×</button>
-        ) : null}
+        {/* Always render so the row width is constant — otherwise toggling an
+            override widens the row by ~28px and bumps the foil button to the
+            next line via flex-wrap on .row-controls. */}
+        <button
+          type="button"
+          className="mult-clear"
+          title={t('mult_clear_title')}
+          aria-label="Clear"
+          onClick={onMultClear}
+          tabIndex={cd.hasMultOverride ? 0 : -1}
+          style={cd.hasMultOverride ? undefined : { visibility: 'hidden' }}
+        >×</button>
       </div>
       <button
         type="button"
