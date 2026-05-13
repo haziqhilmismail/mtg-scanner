@@ -56,6 +56,22 @@ class Order(Base, TimestampMixin):
 
     notes: Mapped[str | None] = mapped_column(Text)
 
+    # Optional on-disk delivery-proof photo for delivered orders ("dropped off")
+    # — uploaded after the user actually hands the cards over, served via
+    # `/api/orders/{id}/delivery-photo`. Bytes live at `data/orders/{id}.bin`,
+    # the column stores the absolute path so we can move the data dir later
+    # without rewriting rows. Cleared by the delete endpoint.
+    delivery_photo_path: Mapped[str | None] = mapped_column(String(512))
+    delivery_photo_mime: Mapped[str | None] = mapped_column(String(64))
+    delivery_photo_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def has_delivery_photo(self) -> bool:
+        """Derived from `delivery_photo_path`. Exposed in `OrderRead` so the
+        frontend can show the thumbnail affordance without a separate HEAD
+        request."""
+        return bool(self.delivery_photo_path)
+
     user: Mapped["User"] = relationship(back_populates="orders")
     buyer: Mapped["Buyer"] = relationship(back_populates="orders")
     items: Mapped[list["OrderItem"]] = relationship(

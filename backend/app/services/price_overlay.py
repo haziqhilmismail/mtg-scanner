@@ -39,8 +39,15 @@ def render_overlay(
     image_bytes : original photo bytes
     cards : list of dicts with keys:
         - bbox : [x, y, w, h] in pixel coordinates
+        - corners : optional [[x,y], [x,y], [x,y], [x,y]] 4-point polygon
+                    (TL, TR, BR, BL). When present, the outline follows the
+                    card's actual tilt instead of the axis-aligned rectangle.
         - label : string to render
         - is_foil : bool
+        - pill_dx : optional int pixel offset added to the pill X (lets the
+                    frontend drag the pill into the right spot per-card so
+                    border-detection wonkiness doesn't ruin the export)
+        - pill_dy : optional int pixel offset added to the pill Y
     show_outlines : if True, draws a thin outline around each card
     label_position : "bottom" | "top" | "center"
 
@@ -70,16 +77,23 @@ def render_overlay(
 
     for c in cards:
         raw_x, raw_y, raw_w, raw_h = c["bbox"]
+        corners = c.get("corners")
         label = (c.get("label") or "").strip()
         is_foil = bool(c.get("is_foil", False))
 
         # Outline shows the *raw* detection so the user sees what Gemini actually found.
+        # When a 4-point quad is available (classical-refined), draw a polygon so the
+        # outline follows the card's tilt instead of an axis-aligned rectangle.
         if show_outlines:
             line_color = (220, 170, 30, 220) if is_foil else (50, 180, 100, 220)
-            fg_draw.rectangle(
-                [raw_x, raw_y, raw_x + raw_w, raw_y + raw_h],
-                outline=line_color, width=line_width,
-            )
+            if corners and len(corners) == 4:
+                pts = [(int(px), int(py)) for px, py in corners]
+                fg_draw.polygon(pts, outline=line_color, width=line_width)
+            else:
+                fg_draw.rectangle(
+                    [raw_x, raw_y, raw_x + raw_w, raw_y + raw_h],
+                    outline=line_color, width=line_width,
+                )
 
         if not label:
             continue
@@ -121,6 +135,14 @@ def render_overlay(
             rect_y = y2 - rect_h * 2 // 3
 
         rect_x = card_cx - rect_w // 2
+
+        # Per-card drag offset from the frontend preview. Lets the user pull
+        # the pill onto the card when bbox detection drifted — applied before
+        # clamping so a big drag can still pull the pill back into frame.
+        pill_dx = int(c.get("pill_dx") or 0)
+        pill_dy = int(c.get("pill_dy") or 0)
+        rect_x += pill_dx
+        rect_y += pill_dy
 
         # Clamp inside image
         rect_x = max(4, min(W - rect_w - 4, rect_x))

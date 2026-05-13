@@ -23,6 +23,28 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
 
+    # Optional classical (PIL + numpy + scipy) bbox refiner. When enabled,
+    # /api/scan still asks Gemini for names+sets, but tightens each card's
+    # bbox using the classical detector if it confidently locates the card.
+    # Falls back to Gemini's bbox on noisy photos.
+    use_classical_bbox: bool = True
+
+    # Optional offline card identification via perceptual hashing. When enabled
+    # and the pHash index has been built (scripts/build_phash_index.py →
+    # data/phash_index.npz), /api/scan hashes each cropped card and tries to
+    # name it locally. Confident matches (distance ≤ phash_distance_threshold)
+    # skip the Gemini call entirely; unconfident crops still need Gemini.
+    use_local_card_id: bool = False
+    phash_index_path: str = str(DATA_DIR / "phash_index.npz")
+    # Out of 64 bits. Distances much above ~10 land in the noise floor for a
+    # 48k-entry index (random cards happen to be that close), so we keep the
+    # absolute cap conservative AND require a margin to top-2 (below).
+    phash_distance_threshold: int = 12
+    # Top-1 must beat top-2 by at least this many bits to count as confident.
+    # Filters out tied / cluster-of-similar matches that would otherwise
+    # produce false-positive names.
+    phash_distance_margin: int = 3
+
     # Database — SQLite by default, swap to a postgres URL when going multi-user
     database_url: str = f"sqlite+aiosqlite:///{DATA_DIR / 'app.db'}"
 
