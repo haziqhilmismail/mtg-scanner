@@ -47,6 +47,7 @@ class OrderUpdate(BaseModel):
     status: OrderStatus | None = None
     paid_at: datetime | None = None
     delivered_at: datetime | None = None
+    archived_at: datetime | None = None
     dropoff_method: str | None = None
     dropoff_address: str | None = None
     notes: str | None = None
@@ -60,6 +61,7 @@ class OrderRead(BaseModel):
     status: OrderStatus
     paid_at: datetime | None
     delivered_at: datetime | None
+    archived_at: datetime | None
     total_myr: Decimal
     dropoff_method: str | None
     dropoff_address: str | None

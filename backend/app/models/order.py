@@ -56,6 +56,13 @@ class Order(Base, TimestampMixin):
 
     notes: Mapped[str | None] = mapped_column(Text)
 
+    # Nullable archive marker — once a Done order is no longer interesting on
+    # the day-to-day kanban (e.g. delivered + paid weeks ago), the user can
+    # archive it. Archived orders are excluded from the default list endpoint
+    # so the kanban stays focused; an opt-in `include_archived=true` query
+    # surfaces them for the Archived section UI.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     # Optional on-disk delivery-proof photo for delivered orders ("dropped off")
     # — uploaded after the user actually hands the cards over, served via
     # `/api/orders/{id}/delivery-photo`. Bytes live at `data/orders/{id}.bin`,

@@ -50,14 +50,22 @@ async def _load_order(db, order_id: int, user_id: int) -> Order:
 
 
 @router.get("", response_model=list[OrderRead])
-async def list_orders(db: DbSession, user_id: CurrentUserId) -> list[Order]:
-    """List orders newest first, each with its line items."""
+async def list_orders(
+    db: DbSession,
+    user_id: CurrentUserId,
+    include_archived: bool = Query(False, description="Include archived orders in the result"),
+) -> list[Order]:
+    """List orders newest first, each with its line items. Archived orders
+    are excluded by default so the kanban stays focused — opt in via
+    `?include_archived=true` to fetch them for the Archived section UI."""
     q = (
         select(Order)
         .where(Order.user_id == user_id)
         .options(selectinload(Order.items))
         .order_by(Order.created_at.desc())
     )
+    if not include_archived:
+        q = q.where(Order.archived_at.is_(None))
     return list((await db.execute(q)).scalars().all())
 
 
@@ -209,6 +217,26 @@ async def restore_order(order_id: int, db: DbSession, user_id: CurrentUserId) ->
     if order.status != OrderStatus.cancelled:
         return await _load_order(db, order.id, user_id)
     order.status = OrderStatus.claimed
+    await db.flush()
+    return await _load_order(db, order.id, user_id)
+
+
+@router.post("/{order_id}/archive", response_model=OrderRead)
+async def archive_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+    """Stamp `archived_at` so the order drops out of the default kanban list.
+    Idempotent — re-archiving keeps the original timestamp."""
+    order = await _load_order(db, order_id, user_id)
+    if order.archived_at is None:
+        order.archived_at = datetime.now(timezone.utc)
+        await db.flush()
+    return await _load_order(db, order.id, user_id)
+
+
+@router.post("/{order_id}/unarchive", response_model=OrderRead)
+async def unarchive_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+    """Clear `archived_at` so the order returns to the kanban."""
+    order = await _load_order(db, order_id, user_id)
+    order.archived_at = None
     await db.flush()
     return await _load_order(db, order.id, user_id)
 
