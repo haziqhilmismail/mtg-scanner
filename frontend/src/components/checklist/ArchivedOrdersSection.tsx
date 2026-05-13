@@ -6,44 +6,50 @@ import { useImageZoom } from '../ImageZoomProvider.tsx';
 type T = (k: string, vars?: Record<string, string | number>) => string;
 
 interface Props {
-  orders: Order[];          // pass all orders; we'll filter cancelled here
+  orders: Order[];          // pass all orders; we'll filter archived here
   buyers: Buyer[];
   listings: Listing[];
   reload: () => void;
   t: T;
 }
 
-// Standalone "trash bin" section that lives at the bottom of the checklist
-// page. Surfaces every cancelled order with a one-click Restore so they aren't
-// hidden inside the kanban any more.
-export function CancelledOrdersSection({ orders, buyers, listings, reload, t }: Props) {
+/**
+ * Collapsible "Archived" section at the bottom of the checklist. Surfaces
+ * every order with a non-null `archived_at` so they aren't lost in the DB —
+ * the user can review past completed orders or un-archive ones they want
+ * back on the kanban.
+ *
+ * Mirrors `CancelledOrdersSection`'s look and feel; the only behavioural
+ * difference is the action (Unarchive vs Restore) and the badge.
+ */
+export function ArchivedOrdersSection({ orders, buyers, listings, reload, t }: Props) {
   const dialog = useDialog();
-  const cancelled = orders.filter(o => o.status === 'cancelled');
-  if (cancelled.length === 0) return null;
+  const archived = orders.filter(o => o.archived_at != null);
+  if (archived.length === 0) return null;
 
-  const restore = async (id: number) => {
-    try { await ordersApi.restore(id); reload(); }
+  const unarchive = async (id: number) => {
+    try { await ordersApi.unarchive(id); reload(); }
     catch (e) { await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message }); }
   };
 
   return (
-    <details className="stock-panel cancelled-panel">
+    <details className="stock-panel archived-panel">
       <summary>
-        <span className="cancelled-mark">✕</span>
-        {t('ck_cancelled_header')}
-        <span className="count">{cancelled.length}</span>
+        <span className="archived-mark">▼</span>
+        {t('ck_archived_header')}
+        <span className="count">{archived.length}</span>
         <span className="spacer" />
-        <span className="sub-hint">{t('ck_cancelled_subhint')}</span>
+        <span className="sub-hint">{t('ck_archived_subhint')}</span>
       </summary>
       <div className="body">
         <div className="cancelled-grid">
-          {cancelled.map(o => (
-            <CancelledCard
+          {archived.map(o => (
+            <ArchivedCard
               key={o.id}
               order={o}
               buyers={buyers}
               listings={listings}
-              onRestore={() => restore(o.id)}
+              onUnarchive={() => unarchive(o.id)}
               t={t}
             />
           ))}
@@ -53,11 +59,11 @@ export function CancelledOrdersSection({ orders, buyers, listings, reload, t }: 
   );
 }
 
-function CancelledCard({ order, buyers, listings, onRestore, t }: {
+function ArchivedCard({ order, buyers, listings, onUnarchive, t }: {
   order: Order;
   buyers: Buyer[];
   listings: Listing[];
-  onRestore: () => void;
+  onUnarchive: () => void;
   t: T;
 }) {
   const zoom = useImageZoom();
@@ -68,6 +74,9 @@ function CancelledCard({ order, buyers, listings, onRestore, t }: {
     .filter(Boolean) as string[];
   const shown = imgs.slice(0, 3);
   const more = imgs.length - shown.length;
+  const archivedDate = order.archived_at
+    ? new Date(order.archived_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
 
   return (
     <div className="cancelled-card">
@@ -88,16 +97,18 @@ function CancelledCard({ order, buyers, listings, onRestore, t }: {
           {t(totalItems === 1 ? 'ck_cancelled_summary' : 'ck_cancelled_summary_plural', { unique: order.items.length, qty: totalItems })} · <strong style={{ color: 'var(--ink)' }}>RM{order.total_myr}</strong>
         </div>
         <div>
-          <span className="badge cancelled">{t('ck_status_cancelled')}</span>
+          <span className="badge archived">{t('ck_status_archived')}</span>
         </div>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-          color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2,
-        }}>
-          {new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-        </div>
+        {archivedDate ? (
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+            color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2,
+          }}>
+            {t('ck_archived_on', { date: archivedDate })}
+          </div>
+        ) : null}
         <div style={{ marginTop: 8 }}>
-          <button type="button" className="ghost" onClick={onRestore}>{t('ck_restore_order')}</button>
+          <button type="button" className="ghost" onClick={onUnarchive}>{t('ck_unarchive_order')}</button>
         </div>
       </div>
       <div className="images">

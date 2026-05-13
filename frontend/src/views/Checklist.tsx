@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { buyersApi, listingsApi, ordersApi, postsApi, type Buyer, type Listing, type Order, type Post } from '../api/checklist.ts';
-import { CancelledOrdersSection } from '../components/checklist/CancelledOrdersSection.tsx';
+import { ArchivedOrdersSection } from '../components/checklist/ArchivedOrdersSection.tsx';
 import { ListingsView } from '../components/checklist/ListingsView.tsx';
 import { NewOrderCard } from '../components/checklist/NewOrderCard.tsx';
 import { OrderKanban } from '../components/checklist/OrderKanban.tsx';
@@ -32,9 +32,11 @@ export function Checklist({ t }: Props) {
       const [b, l, o, p] = await Promise.all([
         buyersApi.list(),
         listingsApi.list(),
-        ordersApi.list(),
-        // include archived so PostsView can offer un-archive; selectors that
-        // shouldn't show archived filter them out themselves.
+        // include archived orders too — the Archived section needs them, and
+        // the kanban filters them out via the archived_at field.
+        ordersApi.list(true),
+        // include archived posts so PostsView can offer un-archive; selectors
+        // that shouldn't show archived filter them out themselves.
         postsApi.list(true),
       ]);
       setBuyers(b);
@@ -51,7 +53,10 @@ export function Checklist({ t }: Props) {
   useEffect(() => { reload(); }, [reload]);
 
   const activeListings = listings.filter(l => l.status === 'active');
-  const activeOrders = orders.filter(o => o.status !== 'cancelled');
+  // Kanban shows orders that are neither cancelled nor archived. Archived
+  // ones live in the Archived section at the bottom of the page.
+  const activeOrders = orders.filter(o => o.status !== 'cancelled' && o.archived_at == null);
+  const kanbanOrders = orders.filter(o => o.archived_at == null);
 
   return (
     <div>
@@ -100,9 +105,10 @@ export function Checklist({ t }: Props) {
         </div>
       ) : (
         <>
-          {/* Kanban — the daily workflow surface */}
+          {/* Kanban — the daily workflow surface. Archived orders are filtered
+              out (they live in ArchivedOrdersSection below). */}
           <OrderKanban
-            orders={orders}
+            orders={kanbanOrders}
             buyers={buyers}
             listings={listings}
             reload={reload}
@@ -156,15 +162,19 @@ export function Checklist({ t }: Props) {
             </div>
           </details>
 
-          {/* Cancelled orders — separated to the bottom of the page so they
-              don't pollute the active kanban view. */}
-          <CancelledOrdersSection
+          {/* Archived orders — finished sales the user explicitly moved out
+              of the kanban. Collapsed by default; click to expand. */}
+          <ArchivedOrdersSection
             orders={orders}
             buyers={buyers}
             listings={listings}
             reload={reload}
             t={t}
           />
+          {/* Cancelled orders intentionally hide from the UI — the × button
+              cancels (DB row stays for audit) but there's no surface for
+              browsing/restoring them. The Cancelled section was removed for
+              kanban focus; restore via direct DB if ever needed. */}
         </>
       )}
     </div>
