@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ordersApi, type Buyer, type Listing, type OrderItemPayload } from '../../api/checklist.ts';
+import { BuyerNamePicker } from './BuyerNamePicker.tsx';
 
 interface Props {
   buyers: Buyer[];
@@ -22,15 +23,8 @@ export function NewOrderCard({ buyers, listings, initialListingId, onCreated, on
   // "+ Order" from the stock panel), otherwise default to the first active listing.
   const seedId = initialListingId ?? active[0]?.id ?? 0;
   const [items, setItems] = useState<OrderItemPayload[]>([{ listing_id: seedId, qty: 1 }]);
-  const fbNameRef = useRef<HTMLInputElement>(null);
-
-  // When the form opens with a prefilled listing, jump straight to the buyer
-  // field so the user can start typing without scrolling/clicking.
-  useEffect(() => {
-    if (initialListingId) {
-      fbNameRef.current?.focus();
-    }
-  }, [initialListingId]);
+  // BuyerNamePicker autoFocuses its own input on mount, so we don't need a
+  // separate ref-based focus dance when initialListingId is provided.
   const [dropoffMethod, setDropoffMethod] = useState<string>('dropoff');
   // Default drop-off location — user's regular spot for handing cards over
   const [dropoffAddress, setDropoffAddress] = useState<string>('Cards and Hobbies');
@@ -86,26 +80,24 @@ export function NewOrderCard({ buyers, listings, initialListingId, onCreated, on
     <div className="new-order-card">
       <div className="head">{t('ck_new_order_title')}</div>
 
-      <datalist id="buyer-names">
-        {buyers.map(b => (
-          <option key={b.id} value={b.fb_name} />
-        ))}
-      </datalist>
-
       <div className="form-grid">
         <label>
           <span>{t('ck_buyer_fb_name')}</span>
-          <input
-            ref={fbNameRef}
-            autoFocus
-            list="buyer-names"
-            placeholder={t('ck_buyer_name_placeholder')}
+          <BuyerNamePicker
+            buyers={buyers}
             value={fbName}
-            onChange={e => setFbName(e.target.value)}
-            style={!fbName.trim() ? {
-              borderColor: 'var(--warn)',
-              boxShadow: '0 0 0 3px rgba(184,68,42,.18)',
-            } : undefined}
+            onChange={setFbName}
+            onPick={(b) => {
+              // Picking an existing buyer is an explicit "use their data"
+              // signal — overwrite both fields with whatever the buyer
+              // record has so the user sees exactly what's on file. Empty
+              // record fields stay empty (no clobbering with empty string).
+              setFbUrl(b.fb_url ?? '');
+              setPhone(b.phone ?? '');
+            }}
+            placeholder={t('ck_buyer_name_placeholder')}
+            required
+            t={t}
           />
         </label>
         <label>

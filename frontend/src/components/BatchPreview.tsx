@@ -97,6 +97,12 @@ export function BatchPreview({
   // pointer-up.
   const [liveOffset, setLiveOffset] = useState<Record<number, PillOffset>>({});
   const [expanded, setExpanded] = useState(false);
+  // Modal dimensions follow the image's aspect ratio so a portrait phone
+  // photo gets a portrait modal and a landscape scan gets a landscape modal.
+  // Capped at ~85% viewport so it doesn't feel like a fullscreen takeover;
+  // we don't scale beyond the image's native size so small photos stay
+  // small instead of getting blown up and blurry.
+  const [modalSize, setModalSize] = useState<{ w: number; h: number } | null>(null);
 
   // ESC closes the expanded view
   useEffect(() => {
@@ -119,6 +125,36 @@ export function BatchPreview({
       document.body.style.overflow = prev;
     };
   }, [expanded]);
+
+  // Recompute modal size whenever expand toggles or the viewport changes.
+  // `chrome` reserves vertical space for the tip + price-info banner that
+  // live below the image inside the cell; `padding` is the cell's own padding.
+  useEffect(() => {
+    if (!expanded) { setModalSize(null); return; }
+    const compute = () => {
+      const padding = 28;   // .preview-cell.expanded { padding: 14px } × 2
+      const chrome = 130;   // expand-row (when collapsed it's hidden but space
+                             // is reserved) + tip line + info banner gap+height
+      const maxW = window.innerWidth * 0.9;
+      const maxH = window.innerHeight * 0.9;
+      const availForImageW = Math.max(200, maxW - padding);
+      const availForImageH = Math.max(200, maxH - chrome - padding);
+      const scale = Math.min(
+        availForImageW / width,
+        availForImageH / height,
+        1,  // never upscale beyond native — keeps small photos crisp
+      );
+      const imgW = width * scale;
+      const imgH = height * scale;
+      setModalSize({
+        w: Math.round(imgW + padding),
+        h: Math.round(imgH + chrome + padding),
+      });
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, [expanded, width, height]);
 
   // Convert a CSS-pixel delta to image-viewBox pixels. The SVG itself can be
   // larger than the rendered image content when `preserveAspectRatio="meet"`
@@ -179,7 +215,12 @@ export function BatchPreview({
   };
 
   return (
-    <div className={`preview-cell${expanded ? ' expanded' : ''}`}>
+    <div
+      className={`preview-cell${expanded ? ' expanded' : ''}`}
+      style={expanded && modalSize
+        ? { width: modalSize.w, height: modalSize.h }
+        : undefined}
+    >
       {expanded ? (
         <button
           type="button"

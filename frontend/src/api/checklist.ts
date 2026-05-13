@@ -154,6 +154,7 @@ export interface Order {
   status: OrderStatus;
   paid_at: string | null;
   delivered_at: string | null;
+  archived_at: string | null;
   total_myr: string;
   dropoff_method: string | null;
   dropoff_address: string | null;
@@ -232,7 +233,8 @@ export const listingsApi = {
 
 // ---------- Orders ----------
 export const ordersApi = {
-  list: () => json<Order[]>('GET', '/api/orders'),
+  list: (includeArchived = false) =>
+    json<Order[]>('GET', `/api/orders${includeArchived ? '?include_archived=true' : ''}`),
   create: (payload: OrderCreatePayload) => json<Order>('POST', '/api/orders', payload),
   get: (id: number) => json<Order>('GET', `/api/orders/${id}`),
   update: (id: number, payload: { status?: OrderStatus; paid_at?: string | null; delivered_at?: string | null; dropoff_method?: string | null; dropoff_address?: string | null; notes?: string | null }) =>
@@ -241,6 +243,8 @@ export const ordersApi = {
   markDelivered: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-delivered`),
   cancel: (id: number) => json<Order>('POST', `/api/orders/${id}/cancel`),
   restore: (id: number) => json<Order>('POST', `/api/orders/${id}/restore`),
+  archive: (id: number) => json<Order>('POST', `/api/orders/${id}/archive`),
+  unarchive: (id: number) => json<Order>('POST', `/api/orders/${id}/unarchive`),
   uploadDeliveryPhoto: (id: number, image: File) =>
     postMultipart<Order>(`/api/orders/${id}/delivery-photo`, { image }),
   deleteDeliveryPhoto: (id: number) =>

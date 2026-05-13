@@ -1,8 +1,9 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { ordersApi, type Buyer, type Listing, type Order } from '../../api/checklist.ts';
 import { useDialog } from '../DialogProvider.tsx';
 import { useImageZoom } from '../ImageZoomProvider.tsx';
 import { upgradeScryfallImage } from '../../utils.ts';
+import { BuyerPhoneEditor } from './BuyerPhoneEditor.tsx';
 import { DeliveryPhotoWidget } from './DeliveryPhotoWidget.tsx';
 
 type T = (k: string, vars?: Record<string, string | number>) => string;
@@ -56,11 +57,14 @@ async function moveOrderTo(order: Order, target: KanColumn): Promise<Order> {
 
 // Compact bar of "→ Column" buttons. Skips the current column. Used by both
 // OrderCard and GroupedCard so the move targets are the same shape everywhere.
-function ColumnMoveBar({ current, onMove, t, label }: {
+// `extraPills` are appended after the move pills inside the same bar — used by
+// the Done column to add an Archive pill that matches the move-pill size.
+function ColumnMoveBar({ current, onMove, t, label, extraPills }: {
   current: KanColumn;
   onMove: (target: KanColumn) => void | Promise<void>;
   t: T;
   label?: string;
+  extraPills?: ReactNode;
 }) {
   return (
     <div className="col-move-bar">
@@ -74,21 +78,43 @@ function ColumnMoveBar({ current, onMove, t, label }: {
           title={t('ck_move_to', { col: t(c.titleKey) })}
         >→ {t(c.titleKey)}</button>
       ))}
+      {extraPills}
     </div>
   );
 }
 
 export function OrderKanban({ orders, buyers, listings, reload, t }: Props) {
-  // Groups stay collapsed by default; users can expand a buyer's group via "Ungroup"
-  // and collapse it back via the "regroup" footer that appears on the individual cards.
-  // Key shape: `${column}:${buyer_id}`. Doesn't persist across refresh — fresh sessions
-  // default to grouped for at-a-glance clarity.
-  const [ungrouped, setUngrouped] = useState<Set<string>>(new Set());
-  const toggleUngroup = (key: string) => {
-    setUngrouped(prev => {
+  // Grouping is tracked by *individual order IDs* in this Set — not by
+  // buyer:column key. That means moving an order between columns doesn't
+  // auto-join any existing group: only orders the user explicitly added stay
+  // grouped. A buyer-column's "in-group" orders bundle into one GroupedCard
+  // when there are 2+; everything else renders as individual cards.
+  //
+  // Persisted to localStorage so deliberate bundles survive refresh.
+  const [groupedIds, setGroupedIds] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem('mtg.checklist.grouped_order_ids');
+      if (raw) return new Set(JSON.parse(raw) as number[]);
+    } catch { /* corrupted JSON or storage disabled — start clean */ }
+    return new Set();
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('mtg.checklist.grouped_order_ids', JSON.stringify([...groupedIds]));
+    } catch { /* quota or disabled — ignore */ }
+  }, [groupedIds]);
+
+  const addToGroup = (ids: number[]) => {
+    setGroupedIds(prev => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  };
+  const removeFromGroup = (ids: number[]) => {
+    setGroupedIds(prev => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
       return next;
     });
   };
@@ -99,7 +125,8 @@ export function OrderKanban({ orders, buyers, listings, reload, t }: Props) {
   for (const o of orders) {
     const c = classify(o);
     if (c !== 'cancelled') byColumn[c].push(o);
-    // Cancelled orders are rendered by CancelledOrdersSection at the bottom of the page.
+    // Cancelled orders are excluded from the kanban entirely — no Cancelled
+    // section any more; the DB rows stay for audit but aren't surfaced in UI.
   }
 
   return (
@@ -128,43 +155,66 @@ export function OrderKanban({ orders, buyers, listings, reload, t }: Props) {
                 }}>{t(col.subKey)}</div>
               ) : Array.from(byBuyer.entries()).map(([buyerId, group]) => {
                 const groupKey = `${col.key}:${buyerId}`;
-                const expanded = ungrouped.has(groupKey);
-                // Single-order groups always render as a single card
+                // Partition by Set membership. Need 2+ in-group to form a
+                // GroupedCard; a lone "in-group" order is effectively
+                // un-bundled — render it as an OrderCard like the others.
+                const inGroup = group.filter(o => groupedIds.has(o.id));
+                const outGroup = group.filter(o => !groupedIds.has(o.id));
+                const hasBundle = inGroup.length >= 2;
+
+                // Single-order buyer:column → just one card, no group affordance.
                 if (group.length === 1) {
                   return <OrderCard key={group[0].id} order={group[0]} column={col.key} buyers={buyers} listings={listings} reload={reload} t={t} />;
                 }
-                // Expanded — render each individually, with a regroup footer at the end
-                if (expanded) {
-                  const buyer = buyers.find(b => b.id === buyerId);
-                  const buyerName = buyer?.fb_name ?? t('ck_buyer_anon', { id: buyerId });
-                  return (
-                    <Fragment key={groupKey}>
-                      {group.map(o => (
-                        <OrderCard key={o.id} order={o} column={col.key} buyers={buyers} listings={listings} reload={reload} t={t} />
-                      ))}
+
+                const buyer = buyers.find(b => b.id === buyerId);
+                const buyerName = buyer?.fb_name ?? t('ck_buyer_anon', { id: buyerId });
+
+                // Top CTA: when no bundle yet AND 2+ ungrouped orders, offer
+                // to group them all at once (most common workflow).
+                const showGroupAllCta = !hasBundle && outGroup.length >= 2;
+
+                return (
+                  <Fragment key={groupKey}>
+                    {showGroupAllCta ? (
                       <button
                         type="button"
-                        className="regroup-btn"
-                        onClick={() => toggleUngroup(groupKey)}
-                        title={t('ck_regroup_title', { name: buyerName, n: group.length })}
+                        className="group-cta-btn"
+                        onClick={() => addToGroup(outGroup.map(o => o.id))}
+                        title={t('ck_group_cta_title', { name: buyerName, n: outGroup.length })}
                       >
-                        {t('ck_regroup', { name: buyerName, n: group.length })}
+                        {t('ck_group_cta', { name: buyerName, n: outGroup.length })}
                       </button>
-                    </Fragment>
-                  );
-                }
-                // Collapsed grouped card
-                return (
-                  <GroupedCard
-                    key={groupKey}
-                    orders={group}
-                    column={col.key}
-                    buyers={buyers}
-                    listings={listings}
-                    reload={reload}
-                    onUngroup={() => toggleUngroup(groupKey)}
-                    t={t}
-                  />
+                    ) : null}
+
+                    {hasBundle ? (
+                      <GroupedCard
+                        orders={inGroup}
+                        column={col.key}
+                        buyers={buyers}
+                        listings={listings}
+                        reload={reload}
+                        onUngroup={() => removeFromGroup(inGroup.map(o => o.id))}
+                        t={t}
+                      />
+                    ) : null}
+
+                    {outGroup.map(o => (
+                      <OrderCard
+                        key={o.id}
+                        order={o}
+                        column={col.key}
+                        buyers={buyers}
+                        listings={listings}
+                        reload={reload}
+                        t={t}
+                        // Show "+ Add to group" only when a sibling bundle
+                        // exists for this same buyer:column.
+                        onAddToGroup={hasBundle ? () => addToGroup([o.id]) : undefined}
+                        groupBuyerName={hasBundle ? buyerName : undefined}
+                      />
+                    ))}
+                  </Fragment>
                 );
               })}
             </div>
@@ -200,32 +250,75 @@ function GroupedCard({ orders, column, buyers, listings, reload, onUngroup, t }:
   const shown = allImages.slice(0, 5);
   const extra = allImages.length - shown.length;
 
-  const buyerNode = (
-    <>
-      {buyer?.fb_url
-        ? <a href={buyer.fb_url} target="_blank" rel="noreferrer">{buyer.fb_name}</a>
-        : <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: orders[0].buyer_id })}</span>}
-      {buyer?.phone ? (
-        <a className="buyer-phone" href={`tel:${buyer.phone.replace(/\s+/g, '')}`}>{buyer.phone}</a>
-      ) : null}
-    </>
-  );
+  const buyerNode = buyer?.fb_url
+    ? <a href={buyer.fb_url} target="_blank" rel="noreferrer">{buyer.fb_name}</a>
+    : <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: orders[0].buyer_id })}</span>;
 
   const zoom = useImageZoom();
   const oldestDate = new Date(Math.min(...orders.map(o => new Date(o.created_at).getTime())))
     .toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  // Cards default to compact — buyer + thumbnails + move bar only. Click the
+  // "More ▾" toggle to reveal the order summary, the meta line, the
+  // delivery-photo widget, and the bulk action buttons.
+  const [expanded, setExpanded] = useState(false);
+  // Buyer-edit form lives next to the phone (always visible pencil), so it
+  // works in both collapsed and expanded states.
+  const [editingBuyer, setEditingBuyer] = useState(false);
 
   return (
-    <div className="kan-card kan-group">
+    <div className={`kan-card kan-group${expanded ? ' is-expanded' : ' is-collapsed'}`}>
+      <button
+        type="button"
+        className="kan-cancel-x icon-x"
+        onClick={async () => {
+          const ok = await dialog.confirm({
+            title: t('ck_cancel_group_title'),
+            message: t('ck_cancel_group_msg', { n: orders.length }),
+            okLabel: t('ck_cancel_group_btn'),
+            destructive: true,
+          });
+          if (!ok) return;
+          try {
+            for (const o of orders) await ordersApi.cancel(o.id);
+            reload();
+          } catch (e) { showError(e); }
+        }}
+        title={t('ck_cancel_group_title')}
+        aria-label={t('ck_cancel_group_title')}
+      >✕</button>
       <div className="buyer">
         <div className="name">{buyerNode}</div>
         <div className="total">RM{totalMyr.toFixed(2)}</div>
       </div>
 
-      <div className="group-meta">
-        <span className="count">×{orders.length}</span>
-        <span>{t(totalItems === 1 ? 'ck_group_orders_cards' : 'ck_group_orders_cards_plural', { n: totalItems })}</span>
+      {/* Phone + edit-buyer pencil row. Same position in both collapsed and
+          expanded states; the pencil triggers the inline editor regardless. */}
+      <div className="kan-phone-row">
+        {buyer?.phone ? (
+          <a
+            className="buyer-phone card-phone"
+            href={`tel:${buyer.phone.replace(/\s+/g, '')}`}
+            onPointerDown={e => e.stopPropagation()}
+          >{buyer.phone}</a>
+        ) : (
+          <span className="buyer-phone card-phone no-phone">{t('ck_no_phone')}</span>
+        )}
+        <button
+          type="button"
+          className="phone-edit-btn pencil"
+          onClick={() => setEditingBuyer(true)}
+          title={t('ck_buyer_edit_title')}
+          aria-label={t('ck_buyer_edit_title')}
+        >✎</button>
       </div>
+      <BuyerPhoneEditor
+        buyer={buyer}
+        buyers={buyers}
+        editing={editingBuyer}
+        onEditingChange={setEditingBuyer}
+        onChange={reload}
+        t={t}
+      />
 
       {shown.length > 0 ? (
         <div className="items">
@@ -245,10 +338,6 @@ function GroupedCard({ orders, column, buyers, listings, reload, onUngroup, t }:
         </div>
       ) : null}
 
-      <div className="meta">
-        {t(orders.length === 1 ? 'ck_group_oldest' : 'ck_group_oldest_plural', { n: orders.length, date: oldestDate })}
-      </div>
-
       <ColumnMoveBar
         current={column}
         t={t}
@@ -259,27 +348,76 @@ function GroupedCard({ orders, column, buyers, listings, reload, onUngroup, t }:
             reload();
           } catch (e) { showError(e); }
         }}
+        extraPills={column === 'done' ? (
+          <button
+            type="button"
+            className="col-move-pill archive"
+            onClick={async () => {
+              try {
+                for (const o of orders) await ordersApi.archive(o.id);
+                reload();
+              } catch (e) { showError(e); }
+            }}
+            title={t('ck_archive_group_title')}
+          >{t('ck_archive_group')}</button>
+        ) : null}
       />
 
-      <div className="actions">
-        <button
-          type="button"
-          className="ghost"
-          onClick={onUngroup}
-          title={t('ck_ungroup_title')}
-        >{t('ck_ungroup')}</button>
-      </div>
+      {expanded ? (
+        <>
+          {/* BuyerPhoneEditor is rendered above next to the phone pencil so
+              the trigger stays visible in both states. */}
+          <div className="group-meta">
+            <span className="count">×{orders.length}</span>
+            <span>{t(totalItems === 1 ? 'ck_group_orders_cards' : 'ck_group_orders_cards_plural', { n: totalItems })}</span>
+          </div>
+          <div className="meta">
+            {t(orders.length === 1 ? 'ck_group_oldest' : 'ck_group_oldest_plural', { n: orders.length, date: oldestDate })}
+          </div>
+          {/* Shared delivery-proof photo across the whole group. Upload fans
+              out to every order; if the user ungroups later the photo is
+              already on each one, so individual cards can be moved/exported
+              without losing the proof. */}
+          <DeliveryPhotoWidget orders={orders} onChange={reload} t={t} />
+          <div className="actions">
+            <button
+              type="button"
+              className="ghost ungroup-full"
+              onClick={onUngroup}
+              title={t('ck_ungroup_title')}
+            >{t('ck_ungroup')}</button>
+          </div>
+        </>
+      ) : null}
+
+      <button
+        type="button"
+        className="kan-expand-toggle"
+        onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
+        title={expanded ? t('ck_card_collapse_title') : t('ck_card_expand_title')}
+      >
+        {expanded ? `▴ ${t('ck_card_less')}` : `▾ ${t('ck_card_more')}`}
+      </button>
     </div>
   );
 }
 
-function OrderCard({ order, column, buyers, listings, reload, t }: {
+function OrderCard({
+  order, column, buyers, listings, reload, t,
+  onAddToGroup, groupBuyerName,
+}: {
   order: Order;
   column: KanColumn;
   buyers: Buyer[];
   listings: Listing[];
   reload: () => void;
   t: T;
+  // When set, this order is an ungrouped sibling of an existing GroupedCard
+  // for the same buyer in the same column. Renders a "+ Add to group" pill
+  // so the user can include it without re-grouping the whole column.
+  onAddToGroup?: () => void;
+  groupBuyerName?: string;
 }) {
   const dialog = useDialog();
   const zoom = useImageZoom();
@@ -296,23 +434,70 @@ function OrderCard({ order, column, buyers, listings, reload, t }: {
   const shown = itemImages.slice(0, 4);
   const extra = itemImages.length - shown.length;
 
-  const buyerNode = (
-    <>
-      {buyer?.fb_url
-        ? <a href={buyer.fb_url} target="_blank" rel="noreferrer">{buyer.fb_name}</a>
-        : <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: order.buyer_id })}</span>}
-      {buyer?.phone ? (
-        <a className="buyer-phone" href={`tel:${buyer.phone.replace(/\s+/g, '')}`}>{buyer.phone}</a>
-      ) : null}
-    </>
-  );
+  const buyerNode = buyer?.fb_url
+    ? <a href={buyer.fb_url} target="_blank" rel="noreferrer">{buyer.fb_name}</a>
+    : <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: order.buyer_id })}</span>;
+
+  // Default collapsed — buyer + phone + thumbnails + move bar only. Toggle
+  // reveals the items summary, meta line, delivery photo, and the per-order
+  // cancel button.
+  const [expanded, setExpanded] = useState(false);
+  // Buyer-edit form. Trigger lives next to the phone, always visible.
+  const [editingBuyer, setEditingBuyer] = useState(false);
 
   return (
-    <div className="kan-card">
+    <div className={`kan-card${expanded ? ' is-expanded' : ' is-collapsed'}`}>
+      {!cancelled && (
+        <button
+          type="button"
+          className="kan-cancel-x icon-x"
+          onClick={async () => {
+            const ok = await dialog.confirm({
+              title: t('ck_cancel_order_title'),
+              message: t('ck_cancel_order_msg'),
+              okLabel: t('ck_cancel_order'),
+              destructive: true,
+            });
+            if (!ok) return;
+            try { await ordersApi.cancel(order.id); reload(); }
+            catch (e) { showError(e); }
+          }}
+          title={t('ck_cancel_order_title')}
+          aria-label={t('ck_cancel_order_title')}
+        >✕</button>
+      )}
       <div className="buyer">
         <div className="name">{buyerNode}</div>
         <div className="total">RM{order.total_myr}</div>
       </div>
+
+      {/* Phone + edit-buyer pencil row — same position in both states. */}
+      <div className="kan-phone-row">
+        {buyer?.phone ? (
+          <a
+            className="buyer-phone card-phone"
+            href={`tel:${buyer.phone.replace(/\s+/g, '')}`}
+            onPointerDown={e => e.stopPropagation()}
+          >{buyer.phone}</a>
+        ) : (
+          <span className="buyer-phone card-phone no-phone">{t('ck_no_phone')}</span>
+        )}
+        <button
+          type="button"
+          className="phone-edit-btn pencil"
+          onClick={() => setEditingBuyer(true)}
+          title={t('ck_buyer_edit_title')}
+          aria-label={t('ck_buyer_edit_title')}
+        >✎</button>
+      </div>
+      <BuyerPhoneEditor
+        buyer={buyer}
+        buyers={buyers}
+        editing={editingBuyer}
+        onEditingChange={setEditingBuyer}
+        onChange={reload}
+        t={t}
+      />
 
       {shown.length > 0 ? (
         <div className="items">
@@ -332,44 +517,66 @@ function OrderCard({ order, column, buyers, listings, reload, t }: {
         </div>
       ) : null}
 
-      <div className="summary">
-        {order.items.slice(0, 4).map(i =>
-          i.qty > 1 ? `${i.qty}× ${i.name_snapshot}` : i.name_snapshot,
-        ).join(' · ')}
-        {order.items.length > 4 ? ` · +${order.items.length - 4} more` : ''}
-      </div>
-
-      <div className="meta">
-        <span>{new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-        {order.dropoff_method ? <span>· {order.dropoff_method}</span> : null}
-      </div>
-
-      {!cancelled && (column === 'credit' || column === 'done') ? (
-        <DeliveryPhotoWidget order={order} onChange={reload} t={t} />
-      ) : null}
-
       {!cancelled && (
-        <>
-          <ColumnMoveBar
-            current={column}
-            t={t}
-            onMove={async (target) => {
-              try { await moveOrderTo(order, target); reload(); }
-              catch (e) { showError(e); }
-            }}
-          />
-          <div className="actions">
+        <ColumnMoveBar
+          current={column}
+          t={t}
+          onMove={async (target) => {
+            try { await moveOrderTo(order, target); reload(); }
+            catch (e) { showError(e); }
+          }}
+          extraPills={column === 'done' ? (
             <button
               type="button"
-              className="ghost cancel"
+              className="col-move-pill archive"
               onClick={async () => {
-                try { await ordersApi.cancel(order.id); reload(); }
+                try { await ordersApi.archive(order.id); reload(); }
                 catch (e) { showError(e); }
               }}
-            >{t('ck_cancel_order')}</button>
-          </div>
-        </>
+              title={t('ck_archive_order_title')}
+            >{t('ck_archive_order')}</button>
+          ) : null}
+        />
       )}
+
+      {expanded ? (
+        <>
+          {/* Editor trigger lives next to the phone above, always visible. */}
+          <div className="summary">
+            {order.items.slice(0, 4).map(i =>
+              i.qty > 1 ? `${i.qty}× ${i.name_snapshot}` : i.name_snapshot,
+            ).join(' · ')}
+            {order.items.length > 4 ? ` · +${order.items.length - 4} more` : ''}
+          </div>
+          <div className="meta">
+            <span>{new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+            {order.dropoff_method ? <span>· {order.dropoff_method}</span> : null}
+          </div>
+          {!cancelled ? (
+            <DeliveryPhotoWidget orders={[order]} onChange={reload} t={t} />
+          ) : null}
+          {!cancelled && onAddToGroup ? (
+            <div className="actions">
+              <button
+                type="button"
+                className="ghost add-to-group"
+                onClick={onAddToGroup}
+                title={t('ck_add_to_group_title', { name: groupBuyerName ?? '' })}
+              >{t('ck_add_to_group')}</button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      <button
+        type="button"
+        className="kan-expand-toggle"
+        onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
+        title={expanded ? t('ck_card_collapse_title') : t('ck_card_expand_title')}
+      >
+        {expanded ? `▴ ${t('ck_card_less')}` : `▾ ${t('ck_card_more')}`}
+      </button>
     </div>
   );
 }
