@@ -55,7 +55,6 @@ function computePillAnchor(
     cardH = bh;
     cardW = cardH * CARD;
   }
-  const x = cxBox - cardW / 2;
   const y = cyBox - cardH / 2;
   const y2 = y + cardH;
 
