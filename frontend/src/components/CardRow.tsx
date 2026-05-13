@@ -58,10 +58,13 @@ export function CardRow({
     : cd.source === 'manual' ? <span className="source-tag manual">{t('manual_pill')}</span>
       : <span className="source-tag none">no price</span>;
 
-  const subtotalLine = (cd.qty > 1 && !cd.needsPrice) ? (
-    <div className="subtotal">
+  // Rendered inline inside `.price-block` (passed as the `extra` prop on
+  // PriceBlock below) so toggling qty 1↔N doesn't add/remove a vertical line
+  // and shift the row controls beneath it.
+  const subtotalInline = (cd.qty > 1 && !cd.needsPrice) ? (
+    <span className="subtotal">
       × {cd.qty} = <strong>{formatMyrWithFoil(cd.lineTotal, cd.isFoil, settings)}</strong>
-    </div>
+    </span>
   ) : null;
 
   // Only surface the pHash "local match" pill. Gemini is the default naming
@@ -153,8 +156,13 @@ export function CardRow({
         <VersionBadge cd={cd} t={t} />
         {priceLine}
         {manualBanner}
-        <PriceBlock cd={cd} settings={settings} t={t} onClearOverride={onClearOverride} />
-        {subtotalLine}
+        <PriceBlock
+          cd={cd}
+          settings={settings}
+          t={t}
+          onClearOverride={onClearOverride}
+          extra={subtotalInline}
+        />
         {matchLine}
 
         <RowControls
