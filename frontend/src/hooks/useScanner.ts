@@ -6,7 +6,7 @@ import {
   scanImage,
   type SavedScan,
 } from '../api.ts';
-import type { Batch, Candidate, RelookupMsg } from '../types.ts';
+import type { Batch, Candidate, PillOffset, RelookupMsg } from '../types.ts';
 import { generateBatchId } from '../utils.ts';
 
 // Per-card UI state is persisted to localStorage under `mtg.batchstate.{scanId}`.
@@ -18,6 +18,8 @@ interface PersistedBatchState {
   quantity: number[];
   multOverride: (number | null)[];
   removed: boolean[];
+  // Optional — older saves predate this field; we tolerate undefined.
+  pillOffset?: (PillOffset | null)[];
 }
 
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
@@ -30,6 +32,7 @@ function persistBatch(b: Batch) {
     quantity: b.quantity,
     multOverride: b.multOverride,
     removed: b.removed,
+    pillOffset: b.pillOffset,
   };
   try {
     localStorage.setItem(STATE_KEY(b.scanId), JSON.stringify(payload));
@@ -73,6 +76,11 @@ function batchFromSavedScan(saved: SavedScan): Batch {
     quantity: persisted?.quantity ?? new Array(n).fill(1),
     multOverride: persisted?.multOverride ?? new Array(n).fill(null),
     removed: persisted?.removed ?? new Array(n).fill(false),
+    // Length-match the array length even when reloading from older saves
+    // that didn't have this field at all.
+    pillOffset: (persisted?.pillOffset && persisted.pillOffset.length === n)
+      ? persisted.pillOffset
+      : new Array(n).fill(null),
     relookupBusy: new Array(n).fill(false),
     relookupMsg: new Array(n).fill(null),
   };
@@ -113,7 +121,7 @@ export function useScanner() {
   useEffect(() => {
     for (const b of batches) {
       if (b.status !== 'done' || !b.scanId) continue;
-      const fingerprint = JSON.stringify([b.isFoil, b.priceOverride, b.quantity, b.multOverride, b.removed]);
+      const fingerprint = JSON.stringify([b.isFoil, b.priceOverride, b.quantity, b.multOverride, b.removed, b.pillOffset]);
       if (lastPersistedRef.current.get(b.id) === fingerprint) continue;
       persistBatch(b);
       lastPersistedRef.current.set(b.id, fingerprint);
@@ -148,7 +156,7 @@ export function useScanner() {
         status: 'scanning',
         response: null,
         isFoil: [], priceOverride: [], quantity: [],
-        multOverride: [], removed: [],
+        multOverride: [], removed: [], pillOffset: [],
         relookupBusy: [], relookupMsg: [],
       };
       setBatches(prev => [...prev, stub]);
@@ -169,6 +177,7 @@ export function useScanner() {
           quantity: resp.cards.map(c => Math.max(1, c.gemini?.quantity || 1)),
           multOverride: new Array(n).fill(null),
           removed: new Array(n).fill(false),
+          pillOffset: new Array(n).fill(null),
           relookupBusy: new Array(n).fill(false),
           relookupMsg: new Array(n).fill(null),
         });
@@ -249,6 +258,12 @@ export function useScanner() {
   const setRemoved = useCallback(
     (batchId: string, idx: number, removed: boolean) =>
       updateCardArray(batchId, 'removed', idx, removed),
+    [updateCardArray],
+  );
+
+  const setPillOffset = useCallback(
+    (batchId: string, idx: number, offset: PillOffset | null) =>
+      updateCardArray(batchId, 'pillOffset', idx, offset),
     [updateCardArray],
   );
 
@@ -391,6 +406,7 @@ export function useScanner() {
     setMultOverride,
     stepMult,
     setRemoved,
+    setPillOffset,
     restoreAll,
     relookupByName,
     useAsIs,

@@ -55,9 +55,8 @@ export function CardRow({
   onBrowsePrintings, onFind, onUseAsIs,
 }: Props) {
   const sourceTag = cd.source === 'cardkingdom' ? <span className="source-tag ck">CK</span>
-    : cd.source === 'tcgplayer' ? <span className="source-tag tcg">TCG</span>
-      : cd.source === 'manual' ? <span className="source-tag manual">{t('manual_pill')}</span>
-        : <span className="source-tag none">no price</span>;
+    : cd.source === 'manual' ? <span className="source-tag manual">{t('manual_pill')}</span>
+      : <span className="source-tag none">no price</span>;
 
   const subtotalLine = (cd.qty > 1 && !cd.needsPrice) ? (
     <div className="subtotal">
@@ -65,12 +64,30 @@ export function CardRow({
     </div>
   ) : null;
 
+  // Only surface the pHash "local match" pill. Gemini is the default naming
+  // path, so a "named by Gemini" pill carries no useful signal — and the user
+  // explicitly asked to drop it.
+  const nameConfidence = cd.card.name_confidence;
+  const namePill = cd.card.name_source === 'phash' ? (
+    <span
+      className="name-source-pill phash"
+      title={t('name_phash_tip', { d: nameConfidence ?? 0 })}
+    >
+      {`◉ ${t('name_phash')} (${nameConfidence ?? '?'})`}
+    </span>
+  ) : null;
+
   const matchLine = cd.isManual ? null : (
     <div className={`conf ${cd.sel._lookup_failed ? 'low' : ''}`}>
       {cd.sel._lookup_failed ? t('scryfall_failed') : t('matched')}
+      {namePill}
     </div>
   );
 
+  // For non-manual cards with a CK price, show the raw multiplication result
+  // (USD × mult = RM raw, *before* rounding). The rounded final RM is already
+  // shown as the big number by PriceBlock — no need to repeat it here.
+  const rawMyr = cd.usd * cd.mult;
   const priceLine = cd.isManual ? (
     <div className="price-line">
       {sourceTag}<span style={{ color: 'var(--ink-soft)' }}>{t('user_entered_name')}</span>
@@ -78,6 +95,7 @@ export function CardRow({
   ) : (
     <div className="price-line">
       {sourceTag}USD {fmt2(cd.usd)} × {cd.mult}
+      {cd.usd > 0 ? <span className="price-line-raw"> = RM {fmt2(rawMyr)}</span> : null}
     </div>
   );
 

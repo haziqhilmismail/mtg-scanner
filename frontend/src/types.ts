@@ -9,7 +9,7 @@ export type LabelPosition = 'top' | 'bottom' | 'center';
 export type FoilStyle = 'gold' | 'suffix';
 export type Lang = 'en' | 'ms';
 export type Theme = 'light' | 'dark';
-export type PriceSource = 'cardkingdom' | 'tcgplayer' | 'none' | 'manual';
+export type PriceSource = 'cardkingdom' | 'none' | 'manual';
 
 export interface Settings {
   multNormal: number;
@@ -71,6 +71,16 @@ export interface DetectedCard {
   bbox: [number, number, number, number]; // [x, y, w, h]
   corners: [number, number][];
   crop_b64: string;
+  // Which pipeline produced the bbox. Gemini always does the *naming*; the
+  // optional classical detector can refine the box when it confidently
+  // matches a card-shaped blob (see backend/services/classical_detector.py).
+  bbox_source?: 'classical' | 'gemini';
+  // Which pipeline NAMED the card. 'phash' means the local perceptual-hash
+  // index matched the crop without calling Gemini; 'gemini' means the cloud
+  // model named it. Tied to backend USE_LOCAL_CARD_ID.
+  name_source?: 'phash' | 'gemini';
+  // Hamming distance (0..64) when name_source is 'phash'. Lower = better.
+  name_confidence?: number | null;
   gemini: GeminiHint;
   candidates: Candidate[];
 }
@@ -89,6 +99,15 @@ export interface RelookupMsg {
   action?: string;
 }
 
+// Per-card draggable pill offset. The pill default position is derived from
+// the bbox + the global label-position setting; this offset (in source image
+// pixels) is added on top so the user can pull the pill onto the card when
+// the detector's bbox drifted. Null means no override (use the default).
+export interface PillOffset {
+  dx: number;
+  dy: number;
+}
+
 export interface Batch {
   id: string;
   scanId: number | null;          // backend Scan.id once saved — null while scanning
@@ -102,6 +121,7 @@ export interface Batch {
   quantity: number[];
   multOverride: (number | null)[];
   removed: boolean[];
+  pillOffset: (PillOffset | null)[];
   relookupBusy: boolean[];
   relookupMsg: (RelookupMsg | null)[];
 }
@@ -125,4 +145,5 @@ export interface CardRowData {
   hasOverride: boolean;
   lineTotal: number;
   source: PriceSource;
+  pillOffset: PillOffset | null;
 }

@@ -22,11 +22,29 @@ export function applyRounding(price: number, settings: Settings): number {
   return p;
 }
 
+// Format a numeric price as a display string.
+//
+// - `showCents: true`  → always 2 decimals ("RM21.00")
+// - `showCents: false` → smart decimals:
+//     - integer values render without decimals ("RM21")
+//     - values with actual cents preserve them ("RM20.97")
+//
+// The smart-decimals behaviour matters for *user overrides*: when the user
+// types `20.97`, they want to see `RM20.97`, not `RM21`. Auto-rounded prices
+// from `applyRounding` end up as integers under the default `up_1` rounding
+// so they still render cleanly without cents.
 export function formatMyr(price: number, settings: Settings): string {
-  const decimals = settings.showCents ? 2 : 0;
   const n = Number(price);
   if (isNaN(n)) {
     return settings.showCurrency ? `${settings.currencyLabel} —` : '—';
+  }
+  let decimals: number;
+  if (settings.showCents) {
+    decimals = 2;
+  } else {
+    // Round to the nearest cent to absorb tiny FP noise (e.g. 1.0000000001).
+    const rounded = Math.round(n * 100) / 100;
+    decimals = Number.isInteger(rounded) ? 0 : 2;
   }
   const formatted = n.toLocaleString(undefined, {
     minimumFractionDigits: decimals,
@@ -45,6 +63,14 @@ export function formatMyrWithFoil(price: number, isFoil: boolean, settings: Sett
 export function upgradeScryfallImage(url: string): string {
   if (!url) return url;
   return url.replace('/normal/', '/large/').replace('/small/', '/large/');
+}
+
+// For dense grids (the printings modal) prefer the small variant — 146x204
+// JPEGs are ~30KB vs 125KB for normal, which avoids stutter when a card has
+// 50+ printings.
+export function smallScryfallImage(url: string): string {
+  if (!url) return url;
+  return url.replace('/normal/', '/small/').replace('/large/', '/small/');
 }
 
 export function generateBatchId(): string {

@@ -70,6 +70,7 @@ export function ActiveBatchView({
         isFoil, isManual, needsPrice,
         usd, mult, globalMult, hasMultOverride,
         autoPrice, qty, unitPrice, hasOverride, lineTotal, source,
+        pillOffset: batch.pillOffset?.[origIdx] ?? null,
       };
     });
   }, [batch, settings]);
@@ -216,8 +217,11 @@ export function ActiveBatchView({
         const label = cd.qty > 1 ? `${unitLabel} ×${cd.qty}` : unitLabel;
         return {
           bbox: cd.card.bbox,
+          corners: cd.card.corners,
           is_foil: cd.isFoil && settings.foilStyle === 'gold',
           label_override: label,
+          pill_dx: cd.pillOffset?.dx,
+          pill_dy: cd.pillOffset?.dy,
         };
       }),
     };
@@ -246,8 +250,11 @@ export function ActiveBatchView({
           width={data.width}
           height={data.height}
           visibleCards={visible}
-          onZoom={onZoom}
-          zoomCaption={batch.filename}
+          settings={settings}
+          onPillOffsetChange={(idx, offset) =>
+            scanner.setPillOffset(batch.id, idx, offset)
+          }
+          t={t}
         />
         <div>
           <div className="bulk-bar">
