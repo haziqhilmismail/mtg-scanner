@@ -18,6 +18,7 @@ import asyncio
 import base64
 import json
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 
@@ -48,8 +49,10 @@ from .routers import buyers as buyers_router
 from .routers import listings as listings_router
 from .routers import orders as orders_router
 from .routers import posts as posts_router
+from .services import local_card_id
 from .services.cardkingdom_prices import get_index as get_ck_index
-from .services.gemini_scanner import get_client, scan_image
+from .services.classical_detector import detect_card_quads, iou_xywh, perspective_warp
+from .services.gemini_scanner import CardDetection, get_client, scan_image
 from .services.price_overlay import render_overlay
 from .services.scryfall_lookup import (
     HEADERS as SCRYFALL_HEADERS,
@@ -90,7 +93,22 @@ async def lifespan(_app: FastAPI):
         print(f"[startup] CK index ready: {idx.matched_scryfall_count} cards", flush=True)
     except Exception as e:
         print(f"[startup] WARNING — CK index failed to load: {e}", flush=True)
-        print("[startup] Server will start anyway; falling back to TCGplayer prices.", flush=True)
+        print("[startup] Server will start anyway; cards will be unpriced until CK comes back.", flush=True)
+
+    # 4) Optional: load the local pHash card-ID index.
+    # Build it once with scripts/build_phash_index.py — the .npz lives on the
+    # Fly volume so it survives restarts. We don't crash on missing index;
+    # the scan path falls back to Gemini-only naming when get_index() is None.
+    if settings.use_local_card_id:
+        phash_path = Path(settings.phash_index_path)
+        if phash_path.exists():
+            try:
+                pidx = await asyncio.to_thread(local_card_id.load_index, phash_path)
+                print(f"[startup] pHash index ready: {len(pidx)} entries", flush=True)
+            except Exception as e:
+                print(f"[startup] WARNING — pHash index failed to load: {e}", flush=True)
+        else:
+            print(f"[startup] pHash enabled but {phash_path} missing — run scripts/build_phash_index.py", flush=True)
     yield
 
 
@@ -131,6 +149,11 @@ async def health():
         out["cardkingdom_cards"] = idx.matched_scryfall_count
     except Exception as e:
         out["cardkingdom_error"] = str(e)
+    pidx = local_card_id.get_index()
+    out["phash_enabled"] = bool(settings.use_local_card_id)
+    out["phash_loaded"] = pidx is not None
+    if pidx is not None:
+        out["phash_entries"] = len(pidx)
     return out
 
 
@@ -179,7 +202,10 @@ def _preview_b64(pil: Image.Image) -> str:
 
 
 def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
-    """Merge CK prices/URLs into a Scryfall summary. CK becomes primary, TCG falls back."""
+    """Merge CK prices/URLs into a Scryfall summary. CK is the *only* price
+    source — no Scryfall/TCG fallback. If CK has no entry, the card is priced
+    at 0 with `price_source_*` = "none" so the UI can flag it for a manual
+    override."""
     if not summary:
         return None
     sid = summary.get("scryfall_id", "")
@@ -189,11 +215,6 @@ def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
         "in_stock_normal": False, "in_stock_foil": False,
         "url_normal": "", "url_foil": "",
     }
-    tcg_normal = summary.get("usd", 0.0) or 0.0
-    tcg_foil = summary.get("usd_foil", 0.0) or 0.0
-
-    primary_normal = ck["retail_normal"] if ck["retail_normal"] else tcg_normal
-    primary_foil = ck["retail_foil"] if ck["retail_foil"] else tcg_foil
 
     def _ck_full_url(path: str) -> str:
         if not path:
@@ -201,10 +222,10 @@ def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
         return "https://www.cardkingdom.com/" + path.lstrip("/")
 
     summary = {**summary}
-    summary["usd"] = primary_normal or 0.0
-    summary["usd_foil"] = primary_foil or 0.0
-    summary["price_source_normal"] = "cardkingdom" if ck["retail_normal"] else ("tcgplayer" if tcg_normal else "none")
-    summary["price_source_foil"] = "cardkingdom" if ck["retail_foil"] else ("tcgplayer" if tcg_foil else "none")
+    summary["usd"] = ck["retail_normal"] or 0.0
+    summary["usd_foil"] = ck["retail_foil"] or 0.0
+    summary["price_source_normal"] = "cardkingdom" if ck["retail_normal"] else "none"
+    summary["price_source_foil"] = "cardkingdom" if ck["retail_foil"] else "none"
     summary["ck_retail_normal"] = ck["retail_normal"]
     summary["ck_retail_foil"] = ck["retail_foil"]
     summary["ck_buy_normal"] = ck["buy_normal"]
@@ -213,8 +234,6 @@ def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
     summary["ck_in_stock_foil"] = ck["in_stock_foil"]
     summary["ck_url_normal"] = _ck_full_url(ck.get("url_normal", ""))
     summary["ck_url_foil"] = _ck_full_url(ck.get("url_foil", ""))
-    summary["tcg_usd"] = tcg_normal
-    summary["tcg_usd_foil"] = tcg_foil
     return summary
 
 
@@ -245,18 +264,126 @@ async def scan(
 
     W, H = pil.size
 
-    try:
-        detections = scan_image(norm_bytes, mime_type="image/jpeg")
-    except Exception as e:
-        raise HTTPException(500, f"Gemini call failed: {e}")
+    # ---------- Step 1: classical bbox + quad detection (cheap, no API call) ----------
+    # The classical detector finds tight, card-shaped blobs in the photo and
+    # returns both the axis-aligned bbox (for IoU matching against Gemini)
+    # and a 4-corner quad following the card edges (for the polygon outline).
+    # It runs first so we can hash each crop locally before deciding whether
+    # we need Gemini.
+    classical_boxes: list[tuple[int, int, int, int]] = []
+    classical_quads: list[list[list[int]]] = []
+    if settings.use_classical_bbox:
+        try:
+            for bbox, quad in detect_card_quads(norm_bytes):
+                classical_boxes.append(bbox)
+                classical_quads.append(quad)
+        except Exception as e:
+            print(f"[scan] classical detector failed: {e}", flush=True)
 
-    summaries = await lookup_all(detections)
+    # ---------- Step 2: local pHash identification per classical box ----------
+    # If the index is loaded, hash each classical crop and look it up. A
+    # confident match (Hamming ≤ threshold) names the card without Gemini.
+    #
+    # The crop is *perspective-warped* via the quad (see notebook §27/§28):
+    # the index was built from upright Scryfall images, and even a small tilt
+    # in the photo shifts the hash by 6–10 bits — enough to flip top-1 to a
+    # neighbour. Warping the quad flat puts the card in the same orientation
+    # as the index. Empirically this took clean-photo top-1 from 1/4 to 4/4
+    # with zero false positives.
+    phash_results: list[local_card_id.Candidate | None] = [None] * len(classical_boxes)
+    if settings.use_local_card_id and local_card_id.get_index() is not None and classical_boxes:
+        idx = local_card_id.get_index()
+        thresh = settings.phash_distance_threshold
+        margin = settings.phash_distance_margin
+        pil_rgb = pil.convert("RGB")
+        for ci, (cx, cy, cw, ch) in enumerate(classical_boxes):
+            try:
+                warped = perspective_warp(pil_rgb, classical_quads[ci])
+            except Exception as e:
+                # Numerical edge cases in the 8-coeff solve fall back to the
+                # axis-aligned crop so pHash still has a chance.
+                print(f"[scan] perspective warp failed (card {ci}): {e}", flush=True)
+                warped = pil_rgb.crop((cx, cy, cx + cw, cy + ch))
+            h = local_card_id.hash_pil(warped)
+            # top_k=2 so we can require a margin between #1 and #2. At ~48k
+            # entries the bottom of the distance distribution is noisy —
+            # a tied or near-tied top-1 means we don't actually know which
+            # card it is, even if the absolute distance is small.
+            cands = idx.search(h, top_k=2)
+            if not cands or cands[0].distance > thresh:
+                continue
+            if len(cands) >= 2 and (cands[1].distance - cands[0].distance) < margin:
+                continue
+            phash_results[ci] = cands[0]
 
-    ck_index = await get_ck_index()
-    summaries = [_enrich_with_ck(s, ck_index) for s in summaries]
+    # ---------- Step 3: Gemini fallback ----------
+    # Skip Gemini entirely only when classical found ≥1 card AND pHash named
+    # every one of them confidently. Any miss → call Gemini for the whole
+    # image so cards classical missed are still detected.
+    need_gemini = not (classical_boxes and all(r is not None for r in phash_results))
+    gemini_detections: list[CardDetection] = []
+    if need_gemini:
+        try:
+            gemini_detections = scan_image(norm_bytes, mime_type="image/jpeg")
+        except Exception as e:
+            # If pHash got SOME of the cards we can still ship a partial result
+            # rather than 500; otherwise bail.
+            if not any(r is not None for r in phash_results):
+                raise HTTPException(500, f"Gemini call failed: {e}")
+            print(f"[scan] Gemini call failed, continuing with pHash only: {e}", flush=True)
+            gemini_detections = []
 
-    cards_out = []
-    for i, (det, sf) in enumerate(zip(detections, summaries)):
+    # ---------- Step 4: assemble unified detection list ----------
+    # Per detection we track: a CardDetection (drives Scryfall lookup),
+    # the pixel bbox, where the bbox came from, where the name came from,
+    # and the pHash distance if applicable.
+    def _classical_box_to_norm(box: tuple[int, int, int, int]) -> list[int]:
+        cx, cy, cw, ch = box
+        return [
+            max(0, min(1000, int(cy / H * 1000))),
+            max(0, min(1000, int(cx / W * 1000))),
+            max(0, min(1000, int((cy + ch) / H * 1000))),
+            max(0, min(1000, int((cx + cw) / W * 1000))),
+        ]
+
+    @dataclass
+    class _Resolved:
+        det: CardDetection
+        bbox_px: tuple[int, int, int, int]  # (x, y, w, h)
+        corners: list[list[int]] | None  # 4-point quad (TL,TR,BR,BL), None for Gemini-only
+        bbox_source: str
+        name_source: str
+        name_confidence: int | None  # Hamming distance for phash; None for gemini
+
+    resolved: list[_Resolved] = []
+    classical_consumed: list[bool] = [False] * len(classical_boxes)
+
+    # 4a) pHash-named entries — bbox comes from classical (tight by construction)
+    for ci, cand in enumerate(phash_results):
+        if cand is None:
+            continue
+        cx, cy, cw, ch = classical_boxes[ci]
+        det = CardDetection(
+            name=cand.name,
+            set_code=cand.set,
+            collector_number=cand.collector_number,
+            is_foil=False,  # pHash can't tell — user toggles
+            quantity=1,
+            box_2d=_classical_box_to_norm(classical_boxes[ci]),
+        )
+        resolved.append(_Resolved(
+            det=det,
+            bbox_px=(cx, cy, cw, ch),
+            corners=classical_quads[ci],
+            bbox_source="classical",
+            name_source="phash",
+            name_confidence=cand.distance,
+        ))
+        classical_consumed[ci] = True
+
+    # 4b) Gemini-named entries — for each Gemini detection, refine bbox by
+    # matching to any *remaining* classical box (same logic as before).
+    for det in gemini_detections:
         try:
             ymin, xmin, ymax, xmax = det.box_2d
         except (ValueError, TypeError):
@@ -271,15 +398,65 @@ async def scan(
         if x2 <= x or y2 <= y:
             x, y, x2, y2 = 0, 0, W, H
 
+        bbox_source = "gemini"
+        matched_quad: list[list[int]] | None = None
+        if classical_boxes:
+            gemini_xywh = (x, y, x2 - x, y2 - y)
+            # Match against ALL classical boxes — including ones pHash already
+            # named. If we matched a pHash-named box, drop this Gemini
+            # detection as a duplicate; otherwise refine using the unconsumed
+            # classical bbox + mark it consumed. Skipping pHash-consumed boxes
+            # here would let Gemini's near-duplicate detection slip through as
+            # a second entry for the same card.
+            best_iou, best_idx = 0.0, -1
+            for ci, cb in enumerate(classical_boxes):
+                cur = iou_xywh(gemini_xywh, cb)
+                if cur > best_iou:
+                    best_iou, best_idx = cur, ci
+            if best_idx >= 0 and best_iou >= 0.4:
+                if phash_results[best_idx] is not None:
+                    # pHash already named this classical box → its entry wins,
+                    # this Gemini one is a duplicate.
+                    continue
+                if classical_consumed[best_idx]:
+                    # Already consumed by an earlier Gemini detection in this
+                    # loop — also a duplicate. Drop it.
+                    continue
+                cx, cy, cw, ch = classical_boxes[best_idx]
+                x, y = cx, cy
+                x2, y2 = cx + cw, cy + ch
+                classical_consumed[best_idx] = True
+                bbox_source = "classical"
+                matched_quad = classical_quads[best_idx]
+
+        resolved.append(_Resolved(
+            det=det,
+            bbox_px=(x, y, x2 - x, y2 - y),
+            corners=matched_quad,
+            bbox_source=bbox_source,
+            name_source="gemini",
+            name_confidence=None,
+        ))
+
+    # ---------- Step 5: Scryfall lookup + CK enrichment ----------
+    summaries = await lookup_all([r.det for r in resolved])
+    ck_index = await get_ck_index()
+    summaries = [_enrich_with_ck(s, ck_index) for s in summaries]
+
+    # ---------- Step 6: pack output ----------
+    cards_out = []
+    for i, (r, sf) in enumerate(zip(resolved, summaries)):
+        x, y, w, h = r.bbox_px
+        x2, y2 = x + w, y + h
         crop_b64 = _make_thumb_b64(pil, x, y, x2, y2)
 
         if sf is None:
             sf = {
                 "scryfall_id": "",
-                "name": det.name or "(unknown)",
-                "set": (det.set_code or "").upper(),
+                "name": r.det.name or "(unknown)",
+                "set": (r.det.set_code or "").upper(),
                 "set_name": "",
-                "collector_number": det.collector_number or "",
+                "collector_number": r.det.collector_number or "",
                 "rarity": "",
                 "usd": 0.0, "usd_foil": 0.0,
                 "image_url": "",
@@ -289,17 +466,25 @@ async def scan(
                 "price_source_foil": "none",
             }
 
+        # Real min-area-quad when the classical detector matched this card;
+        # otherwise an axis-aligned rectangle as a graceful fallback so the
+        # frontend can always treat `corners` as a 4-point polygon.
+        corners = r.corners or [[x, y], [x2, y], [x2, y2], [x, y2]]
+
         cards_out.append({
             "id": i,
-            "bbox": [x, y, x2 - x, y2 - y],
-            "corners": [[x, y], [x2, y], [x2, y2], [x, y2]],
+            "bbox": [x, y, w, h],
+            "corners": corners,
             "crop_b64": crop_b64,
+            "bbox_source": r.bbox_source,
+            "name_source": r.name_source,
+            "name_confidence": r.name_confidence,
             "gemini": {
-                "name": det.name,
-                "set_code": det.set_code,
-                "collector_number": det.collector_number,
-                "is_foil": det.is_foil,
-                "quantity": det.quantity,
+                "name": r.det.name,
+                "set_code": r.det.set_code,
+                "collector_number": r.det.collector_number,
+                "is_foil": r.det.is_foil,
+                "quantity": r.det.quantity,
             },
             "candidates": [sf],
         })
@@ -574,10 +759,25 @@ async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId
         bbox = c.get("bbox")
         if not bbox or len(bbox) != 4:
             continue
+        corners = c.get("corners")
+        if not (isinstance(corners, list) and len(corners) == 4
+                and all(isinstance(p, list) and len(p) == 2 for p in corners)):
+            corners = None
+        try:
+            pill_dx = int(c.get("pill_dx") or 0)
+        except (TypeError, ValueError):
+            pill_dx = 0
+        try:
+            pill_dy = int(c.get("pill_dy") or 0)
+        except (TypeError, ValueError):
+            pill_dy = 0
         cards.append({
             "bbox": bbox,
+            "corners": corners,
             "label": c.get("label_override") or c.get("label") or "",
             "is_foil": bool(c.get("is_foil", False)),
+            "pill_dx": pill_dx,
+            "pill_dy": pill_dy,
         })
 
     show_outlines = bool(data.get("show_outlines", False))

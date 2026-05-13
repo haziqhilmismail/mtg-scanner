@@ -2,16 +2,38 @@
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from ..config import DATA_DIR, settings
 from ..deps import CurrentUserId, DbSession
 from ..models import Buyer, Listing, Order, OrderItem, OrderStatus
 from ..schemas import OrderCreate, OrderRead, OrderUpdate
+from ..services.auth_service import decode_session_token
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
+
+# ---------- Delivery-proof photo helpers ----------
+# Same on-disk layout as posts: bytes live at data/orders/{id}.bin and the
+# orders row stores the absolute path so the data dir can be relocated
+# without rewriting rows. The image bytes are served at GET .../delivery-photo
+# behind a ?token= query param (browsers don't send Authorization on <img>).
+
+ORDERS_PHOTO_DIR = DATA_DIR / "orders"
+ORDERS_PHOTO_DIR.mkdir(exist_ok=True)
+
+ALLOWED_PHOTO_MIME = {
+    "image/jpeg", "image/jpg", "image/png", "image/webp",
+    "image/heic", "image/heif", "image/gif",
+}
+MAX_PHOTO_BYTES = 8 * 1024 * 1024  # 8 MiB
+
+
+def _order_photo_path(order_id: int) -> Path:
+    return ORDERS_PHOTO_DIR / f"{order_id}.bin"
 
 
 async def _load_order(db, order_id: int, user_id: int) -> Order:
@@ -42,13 +64,18 @@ async def list_orders(db: DbSession, user_id: CurrentUserId) -> list[Order]:
 async def _resolve_buyer(db, user_id: int, payload: OrderCreate) -> Buyer:
     """Look up an existing buyer by id or by FB name (case-insensitive), or create
     a new one if a name was provided. Raises 400/404 with a helpful message otherwise."""
+    phone = (payload.buyer_phone or "").strip() or None
+
     if payload.buyer_id:
         buyer = await db.get(Buyer, payload.buyer_id)
         if not buyer or buyer.user_id != user_id:
             raise HTTPException(404, "Buyer not found")
-        # If a URL was supplied alongside the id, keep buyer record up-to-date
+        # If extra info was supplied alongside the id, fill in fields that
+        # are still empty on the existing buyer (don't overwrite stored data).
         if payload.buyer_fb_url and not buyer.fb_url:
             buyer.fb_url = payload.buyer_fb_url
+        if phone and not buyer.phone:
+            buyer.phone = phone
         return buyer
 
     name = (payload.buyer_fb_name or "").strip()
@@ -67,12 +94,15 @@ async def _resolve_buyer(db, user_id: int, payload: OrderCreate) -> Buyer:
     if existing:
         if payload.buyer_fb_url and not existing.fb_url:
             existing.fb_url = payload.buyer_fb_url
+        if phone and not existing.phone:
+            existing.phone = phone
         return existing
 
     new_buyer = Buyer(
         user_id=user_id,
         fb_name=name,
         fb_url=(payload.buyer_fb_url or None),
+        phone=phone,
     )
     db.add(new_buyer)
     await db.flush()
@@ -181,3 +211,89 @@ async def restore_order(order_id: int, db: DbSession, user_id: CurrentUserId) ->
     order.status = OrderStatus.claimed
     await db.flush()
     return await _load_order(db, order.id, user_id)
+
+
+# ---------- Delivery-proof photo endpoints ----------
+# UI uses these to attach a photo of the cards being handed over for any
+# delivered order (paid+delivered "Done", or delivered-only "On credit").
+# The order itself doesn't *require* a photo — it's an optional record the
+# user keeps for their own peace of mind / dispute resolution.
+
+
+@router.post("/{order_id}/delivery-photo", response_model=OrderRead)
+async def upload_delivery_photo(
+    order_id: int,
+    db: DbSession,
+    user_id: CurrentUserId,
+    image: UploadFile = File(...),
+) -> Order:
+    """Upload (or replace) the delivery-proof photo for an order. The order
+    doesn't need to be delivered yet — the frontend gates which cards show
+    the upload affordance, but the backend doesn't enforce that so we don't
+    create chicken-and-egg problems when the photo is taken before
+    `mark-delivered` fires."""
+    order = await _load_order(db, order_id, user_id)
+    if image.content_type and image.content_type not in ALLOWED_PHOTO_MIME:
+        raise HTTPException(400, f"Unsupported image type: {image.content_type}")
+    raw = await image.read()
+    if len(raw) > MAX_PHOTO_BYTES:
+        raise HTTPException(413, "Image too large (max 8 MB)")
+    if not raw:
+        raise HTTPException(400, "Empty image upload")
+    path = _order_photo_path(order.id)
+    path.write_bytes(raw)
+    order.delivery_photo_path = str(path)
+    order.delivery_photo_mime = image.content_type or "application/octet-stream"
+    order.delivery_photo_uploaded_at = datetime.now(timezone.utc)
+    await db.flush()
+    return await _load_order(db, order.id, user_id)
+
+
+@router.get("/{order_id}/delivery-photo")
+async def get_delivery_photo(
+    order_id: int,
+    db: DbSession,
+    token: str | None = Query(default=None),
+) -> Response:
+    """Serve the delivery-proof photo. Auth handled inline via ?token=... so
+    `<img src=...>` can fetch it (no Authorization header support). Mirrors
+    the posts image endpoint."""
+    if settings.auth_enabled:
+        if not token:
+            raise HTTPException(401, "Missing token query parameter")
+        user_id = decode_session_token(token)
+        if user_id is None:
+            raise HTTPException(401, "Invalid or expired token")
+    else:
+        user_id = settings.solo_user_id
+
+    order = await db.get(Order, order_id)
+    if not order or order.user_id != user_id:
+        raise HTTPException(404, "Order not found")
+    if not order.delivery_photo_path:
+        raise HTTPException(404, "No delivery photo attached")
+    p = Path(order.delivery_photo_path)
+    if not p.exists():
+        raise HTTPException(404, "Image file missing")
+    return Response(
+        content=p.read_bytes(),
+        media_type=order.delivery_photo_mime or "application/octet-stream",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
+
+
+@router.delete("/{order_id}/delivery-photo", status_code=204)
+async def delete_delivery_photo(
+    order_id: int, db: DbSession, user_id: CurrentUserId,
+) -> None:
+    order = await _load_order(db, order_id, user_id)
+    if order.delivery_photo_path:
+        try:
+            Path(order.delivery_photo_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+    order.delivery_photo_path = None
+    order.delivery_photo_mime = None
+    order.delivery_photo_uploaded_at = None
+    await db.flush()
+

@@ -1,43 +1,35 @@
-# Fly.io config for the MTG Pasar Malam Scanner backend.
+# fly.toml app configuration file generated for mtg-scanner-backend on 2026-05-11T16:42:04+08:00
 #
-# Replace the `app` name below the first time you run `fly launch` — Fly will
-# also overwrite this file with one tailored to the org/region you pick.
-# Singapore (`sin`) is the closest region to Malaysia.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "mtg-scanner-backend"
-primary_region = "sin"
+app = 'mtg-scanner-backend'
+primary_region = 'sin'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  # Storage paths are baked into config.py via BACKEND_ROOT/data, which is
-  # /app/data inside the container. The volume below mounts there.
-  PORT = "8000"
+  PORT = '8000'
+
+[[mounts]]
+  source = 'mtg_data'
+  destination = '/app/data'
 
 [http_service]
   internal_port = 8000
   force_https = true
-  # `auto_stop_machines = false` keeps the machine warm — no cold-start delay
-  # when the user opens the app after lunch. Fly hobby tier allows this.
-  auto_stop_machines = false
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
   [http_service.concurrency]
-    type = "requests"
+    type = 'requests'
     hard_limit = 50
     soft_limit = 25
 
-# Persistent volume for SQLite + scan images + post images + CK pricelist
-# cache + jwt_secret.txt. Without this, every deploy wipes the database.
-# Create it once with: `fly volumes create mtg_data --region sin --size 1`
-[[mounts]]
-  source = "mtg_data"
-  destination = "/app/data"
-
 [[vm]]
-  cpu_kind = "shared"
+  cpu_kind = 'shared'
   cpus = 1
   memory_mb = 512

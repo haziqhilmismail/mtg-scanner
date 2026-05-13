@@ -28,11 +28,13 @@ class OrderItemRead(BaseModel):
 
 class OrderCreate(BaseModel):
     # Either pass `buyer_id` to use an existing buyer, OR `buyer_fb_name` to
-    # lookup-or-create by FB name (case-insensitive). `buyer_fb_url` is optional
-    # extra info applied to the buyer record (overwrites existing if provided).
+    # lookup-or-create by FB name (case-insensitive). `buyer_fb_url` and
+    # `buyer_phone` are optional — written onto the buyer row if it's new, or
+    # filled in on an existing buyer whose field is still null.
     buyer_id: int | None = None
     buyer_fb_name: str | None = None
     buyer_fb_url: str | None = None
+    buyer_phone: str | None = None
     items: list[OrderItemCreate] = Field(..., min_length=1)
     dropoff_method: str | None = None
     dropoff_address: str | None = None
@@ -62,6 +64,11 @@ class OrderRead(BaseModel):
     dropoff_method: str | None
     dropoff_address: str | None
     notes: str | None
+    # Delivery-proof photo metadata (bytes served separately to keep this
+    # JSON small + cacheable; the bool tells the UI whether to show the
+    # thumbnail or the "upload photo" affordance).
+    has_delivery_photo: bool = False
+    delivery_photo_uploaded_at: datetime | None = None
     items: list[OrderItemRead]
     created_at: datetime
     updated_at: datetime

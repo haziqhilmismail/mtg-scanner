@@ -18,10 +18,10 @@ We download once at startup, cache to disk, refresh every 24h.
 """
 
 import asyncio
-import json
 import time
 
 import aiohttp
+import ijson
 
 from ..config import DATA_DIR
 
@@ -92,12 +92,15 @@ class CKPriceIndex:
             except Exception as e:
                 if not CACHE_FILE.exists():
                     raise RuntimeError(f"Couldn't download CK pricelist and no cache exists: {e}")
-                print(f"[cardkingdom] download failed ({e}); using existing cache")
+                print(f"[cardkingdom] download failed ({e}); using existing cache", flush=True)
 
-        self._build_from_cache()
+        # Heavy: the 65MB JSON balloons to ~250MB of transient Python objects
+        # if parsed with json.load. ijson streams it product-by-product, keeping
+        # peak memory roughly bounded by the final index size (~50MB).
+        await asyncio.to_thread(self._build_from_cache)
 
     async def _download(self) -> None:
-        print(f"[cardkingdom] downloading {CK_PRICELIST_URL} ...")
+        print(f"[cardkingdom] downloading {CK_PRICELIST_URL} ...", flush=True)
         timeout = aiohttp.ClientTimeout(total=120)
         headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
         async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
@@ -110,53 +113,71 @@ class CKPriceIndex:
                         f.write(chunk)
                 tmp.replace(CACHE_FILE)
         size_mb = CACHE_FILE.stat().st_size / 1e6
-        print(f"[cardkingdom] downloaded {size_mb:.1f} MB to {CACHE_FILE}")
+        print(f"[cardkingdom] downloaded {size_mb:.1f} MB to {CACHE_FILE}", flush=True)
+
+    def _iter_products(self, f):
+        """Yield products one at a time, handling both JSON shapes:
+        either `{"data": [...]}` or a bare top-level array."""
+        # Peek the first non-whitespace byte to choose the right ijson path.
+        # Binary-mode reads return bytes, so compare against bytes.
+        prefix = b""
+        while True:
+            ch = f.read(1)
+            if not ch:
+                return
+            if ch.isspace():
+                continue
+            prefix = ch
+            break
+        f.seek(0)
+        path = "data.item" if prefix == b"{" else "item"
+        yield from ijson.items(f, path, use_float=True)
 
     def _build_from_cache(self) -> None:
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        products = data.get("data", []) if isinstance(data, dict) else data
-        self.product_count = len(products)
-
         index: dict[str, dict] = {}
-        for p in products:
-            sid = (p.get("scryfall_id") or "").strip()
-            if not sid:
-                continue
-            price = _to_float(p.get("price_retail"))
-            buy = _to_float(p.get("price_buy"))
-            qty = _to_int(p.get("qty_retail"))
-            is_foil = _is_truthy(p.get("is_foil"))
+        product_count = 0
+        # Open in binary mode — ijson prefers bytes and avoids the text-mode
+        # decode buffer pulling the whole file into memory.
+        with open(CACHE_FILE, "rb") as f:
+            for p in self._iter_products(f):
+                product_count += 1
+                sid = (p.get("scryfall_id") or "").strip()
+                if not sid:
+                    continue
+                price = _to_float(p.get("price_retail"))
+                buy = _to_float(p.get("price_buy"))
+                qty = _to_int(p.get("qty_retail"))
+                is_foil = _is_truthy(p.get("is_foil"))
 
-            entry = index.setdefault(sid, {
-                "normal": None, "foil": None,
-                "normal_buy": None, "foil_buy": None,
-                "normal_qty": 0, "foil_qty": 0,
-                "url_normal": "", "url_foil": "",
-            })
-            key = "foil" if is_foil else "normal"
-            qty_key = key + "_qty"
-            buy_key = key + "_buy"
-            url_key = "url_" + key
-            url = (p.get("url") or "").strip()
-            # First-seen URL wins (variants for the same is_foil share product page)
-            if url and not entry[url_key]:
-                entry[url_key] = url
-            # If a card has multiple SKUs (different conditions), keep the entry
-            # whose qty_retail is highest — that's the canonical NM listing.
-            # (CK's pricelist usually has one row per is_foil per scryfall_id, but defensive.)
-            if price > 0 and qty >= entry[qty_key]:
-                entry[key] = price
-                entry[qty_key] = qty
-                if buy > 0:
-                    entry[buy_key] = buy
+                entry = index.setdefault(sid, {
+                    "normal": None, "foil": None,
+                    "normal_buy": None, "foil_buy": None,
+                    "normal_qty": 0, "foil_qty": 0,
+                    "url_normal": "", "url_foil": "",
+                })
+                key = "foil" if is_foil else "normal"
+                qty_key = key + "_qty"
+                buy_key = key + "_buy"
+                url_key = "url_" + key
+                url = (p.get("url") or "").strip()
+                # First-seen URL wins (variants for the same is_foil share product page)
+                if url and not entry[url_key]:
+                    entry[url_key] = url
+                # If a card has multiple SKUs (different conditions), keep the entry
+                # whose qty_retail is highest — that's the canonical NM listing.
+                # (CK's pricelist usually has one row per is_foil per scryfall_id, but defensive.)
+                if price > 0 and qty >= entry[qty_key]:
+                    entry[key] = price
+                    entry[qty_key] = qty
+                    if buy > 0:
+                        entry[buy_key] = buy
 
         self.prices = index
+        self.product_count = product_count
         self.matched_scryfall_count = len(index)
         self.last_loaded = time.time()
         print(f"[cardkingdom] indexed {self.matched_scryfall_count} unique scryfall_ids "
-              f"from {self.product_count} products")
+              f"from {self.product_count} products", flush=True)
 
     def lookup(self, scryfall_id: str) -> dict:
         """
