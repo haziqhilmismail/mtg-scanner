@@ -1,6 +1,7 @@
 """SQLAlchemy schema. Importing this package registers every model on Base.metadata."""
 
 from .base import Base, TimestampMixin
+from .bug_event import BugEvent
 from .buyer import Buyer
 from .listing import Listing, ListingStatus
 from .order import Order, OrderStatus
@@ -14,6 +15,7 @@ from .user import User
 __all__ = [
     "Base",
     "TimestampMixin",
+    "BugEvent",
     "Buyer",
     "Listing",
     "ListingStatus",

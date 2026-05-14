@@ -84,9 +84,24 @@ class Settings(BaseSettings):
             return [item.strip() for item in s.split(",") if item.strip()]
         return v
 
+    # Bug reporter → Telegram. Both blank = capture to DB only, skip the push.
+    # Get a token from @BotFather, DM the bot once, then visit
+    #   https://api.telegram.org/bot<TOKEN>/getUpdates
+    # to read off your chat_id.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    # Identical bug fingerprints within this window only notify once. DB rows
+    # are still written every time so the audit log stays complete; only the
+    # Telegram push is throttled.
+    bug_notify_window_minutes: int = 10
+
     @property
     def auth_enabled(self) -> bool:
         return bool(self.google_client_id)
+
+    @property
+    def telegram_enabled(self) -> bool:
+        return bool(self.telegram_bot_token and self.telegram_chat_id)
 
     @property
     def allowed_emails_set(self) -> set[str]:

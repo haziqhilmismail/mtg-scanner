@@ -45,10 +45,12 @@ from .db import async_session_factory
 from .deps import CurrentUserId, DbSession
 from .models import Scan, User
 from .routers import auth as auth_router
+from .routers import bugs as bugs_router
 from .routers import buyers as buyers_router
 from .routers import listings as listings_router
 from .routers import orders as orders_router
 from .routers import posts as posts_router
+from .services import bug_reporter
 from .services import local_card_id
 from .services.cardkingdom_prices import get_index as get_ck_index
 from .services.classical_detector import detect_card_quads, iou_xywh, perspective_warp
@@ -793,9 +795,32 @@ async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId
 
 # Auth + checklist routers
 app.include_router(auth_router.router)
+app.include_router(bugs_router.router)
 app.include_router(buyers_router.router)
 app.include_router(listings_router.router)
 app.include_router(orders_router.router)
 app.include_router(posts_router.router)
+
+
+# Global handler for *unexpected* exceptions only. FastAPI's built-in
+# HTTPException handler runs before this, so explicit 4xx / 429s / 401s
+# bypass bug reporting (they're expected error responses). Anything that
+# reaches here is something a route handler didn't anticipate.
+@app.exception_handler(Exception)
+async def _capture_unexpected(request: Request, exc: Exception):
+    import traceback
+    from fastapi.responses import JSONResponse  # local import: cold-path
+
+    # Still surface the traceback in logs (`fly logs`) — installing this
+    # handler suppresses Starlette's default stderr print, so we restore it.
+    traceback.print_exception(type(exc), exc, exc.__traceback__)
+    try:
+        await bug_reporter.report_exception(request, exc)
+    except Exception as report_err:  # never let the reporter mask the real bug
+        print(f"[bug-reporter] capture failed: {report_err}", flush=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
