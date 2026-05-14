@@ -44,7 +44,14 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body {
+  margin: 0; padding: 0;
+  /* Defensive: any single element that accidentally exceeds viewport width
+     (long unbroken URL, runaway grid item, etc.) would otherwise scroll the
+     whole page sideways on phones. `clip` doesn't establish a containing
+     block the way `hidden` does, so it's safe to set globally. */
+  overflow-x: clip;
+}
 body {
   background: var(--bg); color: var(--ink);
   font-family: 'Fraunces', Georgia, serif;
@@ -52,6 +59,10 @@ body {
   transition: background 0.18s ease, color 0.18s ease;
 }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 24px 80px; }
+@media (max-width: 480px) {
+  /* Reclaim 16px of horizontal space on phones — every pixel counts at 360px. */
+  .wrap { padding: 22px 14px 64px; }
+}
 
 /* Masthead */
 .masthead {
@@ -1500,11 +1511,13 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 .kan-card .buyer {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 .kan-card .buyer .name {
   font-family: 'Fraunces', Georgia, serif; font-size: 14px; font-weight: 600;
   line-height: 1.2;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1 1 auto;
 }
 .kan-card .buyer .name a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--ink-soft); }
 .kan-card .buyer .name a:hover { color: var(--accent); border-color: var(--accent); }
@@ -2258,7 +2271,7 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 }
 .post-card > header {
   display: grid;
-  grid-template-columns: 96px 1fr auto;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
   gap: 14px; padding: 14px;
   align-items: flex-start;
   background: var(--surface);
@@ -2275,11 +2288,13 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   border-radius: var(--radius);
   font-size: 28px; color: var(--ink-soft);
 }
+.post-card > header .meta { min-width: 0; }
 .post-card > header .meta h4 {
   margin: 0 0 4px;
   font-family: 'Fraunces', serif;
   font-size: 18px; font-weight: 600;
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
 .post-card > header .meta .fb-link {
   display: inline-block;
@@ -2288,14 +2303,16 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   border-bottom: 1px dotted var(--accent);
   margin-bottom: 6px;
   word-break: break-all;
+  max-width: 100%;
 }
 .post-card > header .meta .fb-link:hover { color: var(--ink); border-color: var(--ink); }
 .post-card > header .meta .note {
   margin: 6px 0 0; font-size: 13px; color: var(--ink); line-height: 1.5;
   max-width: 60ch;
+  overflow-wrap: anywhere;
 }
 .post-card > header .meta .stats {
-  display: flex; gap: 8px; align-items: center;
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
   margin-top: 8px;
   font-family: 'JetBrains Mono', monospace; font-size: 11px;
   color: var(--ink); letter-spacing: 0.06em;
@@ -2304,6 +2321,31 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   display: flex; flex-direction: column; gap: 6px; align-items: stretch;
 }
 .post-card > header .actions button { font-size: 10px; padding: 6px 10px; white-space: nowrap; }
+
+/* Mobile: stack the header. Image sits inline-left next to title; actions
+   become a horizontal wrap row below the meta block so 4-6 ghost buttons
+   no longer force a 3-column grid wider than the phone. */
+@media (max-width: 600px) {
+  .post-card > header {
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-areas: "left meta" "actions actions";
+    gap: 12px; padding: 12px;
+  }
+  .post-card > header .left { grid-area: left; }
+  .post-card > header .meta { grid-area: meta; }
+  .post-card > header .actions {
+    grid-area: actions;
+    flex-direction: row; flex-wrap: wrap; gap: 6px;
+    align-items: stretch;
+  }
+  .post-card > header .actions button { flex: 1 1 auto; min-width: 0; }
+  .post-card > header .left img,
+  .post-card > header .left .placeholder {
+    width: 64px; height: 64px;
+    font-size: 22px;
+  }
+  .post-card > header .meta h4 { font-size: 16px; }
+}
 
 .post-toggle {
   width: 100%;
@@ -3117,13 +3159,17 @@ img.zoomable:hover {
   align-items: start;
 }
 @media (max-width: 960px) {
-  .landing-grid { grid-template-columns: 1fr; }
+  /* `1fr` alone defaults to minmax(auto, 1fr) — auto = content min-size,
+     which means a wide child (long word, oversized SVG) can blow the
+     column past viewport width. minmax(0, 1fr) lets the column shrink. */
+  .landing-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 .landing-pitch {
   display: flex; flex-direction: column;
   gap: 22px;
   max-width: 540px;
+  min-width: 0;
 }
 .landing-mark {
   font-family: 'Fraunces', serif;
@@ -3134,11 +3180,12 @@ img.zoomable:hover {
 .landing-title {
   font-family: 'Fraunces', serif;
   font-weight: 800;
-  font-size: clamp(30px, 4.5vw, 46px);
+  font-size: clamp(28px, 7vw, 46px);
   line-height: 1.05;
   letter-spacing: -0.01em;
   margin: 0;
   color: var(--ink);
+  overflow-wrap: break-word;
 }
 .landing-tagline {
   font-family: 'Fraunces', serif;
@@ -3215,6 +3262,7 @@ img.zoomable:hover {
 .landing-demo {
   display: flex; flex-direction: column; gap: 10px;
   align-self: stretch;
+  min-width: 0;
 }
 .landing-demo-frame {
   background: var(--paper);
@@ -3277,6 +3325,12 @@ img.zoomable:hover {
   padding: 18px;
   background: var(--surface);
   min-height: 460px;
+}
+@media (max-width: 480px) {
+  .landing-demo-body { padding: 12px; min-height: 380px; }
+  .landing-demo-bar { gap: 8px; padding: 8px 10px; }
+  .landing-demo-tab { padding: 5px 9px; font-size: 10px; }
+  .landing-demo-badge { font-size: 9px; padding: 3px 7px; letter-spacing: 0.1em; }
 }
 .landing-demo-foot {
   font-family: 'JetBrains Mono', monospace;
@@ -3665,3 +3719,20 @@ img.zoomable:hover {
   color: var(--ink-soft);
   text-align: center;
 }
+
+.error-boundary {
+  max-width: 520px;
+  margin: 80px auto;
+  padding: 28px 32px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.error-boundary h2 {
+  margin: 0 0 12px;
+  font-family: 'Fraunces', serif;
+  color: var(--accent);
+}
+.error-boundary p { margin: 6px 0; color: var(--ink); }
+.error-boundary .hint { color: var(--ink-soft); font-size: 13px; margin-bottom: 18px; }
