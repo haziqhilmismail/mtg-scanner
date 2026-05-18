@@ -260,6 +260,17 @@ async def scan(
     except Exception:
         pass
 
+    # Cap working resolution. The client-side downscale (api.ts) handles JPEG /
+    # PNG / WebP but silently falls through on HEIC because non-Safari browsers
+    # can't decode it via createImageBitmap — Chrome uploads land here at the
+    # full 12 MP. A 12 MP PIL RGB bitmap is ~36 MB, plus Sobel + base64-for-
+    # Gemini + thumbnail buffers, and a couple of sequential scans on a 512 MB
+    # Fly VM blow the budget. Thumbnailing here bounds peak memory regardless
+    # of what the client sent.
+    SCAN_MAX_EDGE = 2000
+    if max(pil.size) > SCAN_MAX_EDGE:
+        pil.thumbnail((SCAN_MAX_EDGE, SCAN_MAX_EDGE), Image.LANCZOS)
+
     norm_buf = BytesIO()
     pil.convert("RGB").save(norm_buf, format="JPEG", quality=92)
     norm_bytes = norm_buf.getvalue()
@@ -514,13 +525,18 @@ async def scan(
     )
     db.add(scan_row)
     await db.flush()  # need id before writing file path
+    # Save the normalized JPEG (downscaled + EXIF-corrected) rather than the
+    # raw upload. Three reasons: (1) saved bytes now match the W/H + polygon
+    # coords returned by /api/scan, so frontend rendering and /api/export stay
+    # consistent; (2) _IMAGE_CACHE doesn't hold multi-MB HEIC blobs; (3) export
+    # decodes a small JPEG instead of re-decoding HEIC every time.
     image_path = SCANS_DIR / f"{scan_row.id}.bin"
-    image_path.write_bytes(raw)
+    image_path.write_bytes(norm_bytes)
     scan_row.image_path = str(image_path)
     await db.flush()
 
     image_id = str(scan_row.id)
-    _cache_put(image_id, raw)
+    _cache_put(image_id, norm_bytes)
 
     return {
         "image_id": image_id,
