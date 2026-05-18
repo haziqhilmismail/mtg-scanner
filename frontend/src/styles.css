@@ -299,6 +299,12 @@ body {
   outline: none; border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+.round-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.round-controls select { flex: 1 1 auto; min-width: 110px; }
+.round-controls-to {
+  font-size: 11px; letter-spacing: 0.14em; color: var(--ink-soft);
+  text-transform: lowercase;
+}
 .checkbox-group { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; }
 .checkbox-row {
   display: flex; align-items: center; gap: 8px;

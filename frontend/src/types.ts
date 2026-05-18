@@ -1,9 +1,7 @@
 // API + state types shared across components.
 
-export type RoundingMode =
-  | 'none'
-  | 'nearest_0.5' | 'up_0.5' | 'down_0.5'
-  | 'nearest_1' | 'up_1' | 'down_1';
+export type RoundDirection = 'none' | 'up' | 'down' | 'nearest';
+export type RoundStep = 0.1 | 0.5 | 1;
 
 export type LabelPosition = 'top' | 'bottom' | 'center';
 export type FoilStyle = 'gold' | 'suffix';
@@ -19,9 +17,15 @@ export interface Settings {
   showOutlines: boolean;
   showCurrency: boolean;
   showCents: boolean;
-  rounding: RoundingMode;
+  // Two-axis rounding: pick direction first, then the step. Direction 'none'
+  // disables rounding entirely (step is ignored).
+  roundDirection: RoundDirection;
+  roundStep: RoundStep;
   minPrice: number;
   foilStyle: FoilStyle;
+  // Multiplier on the auto-scaled label font (preview pill + exported PNG).
+  // Base font is max(22, min(W,H) × 0.03) — this scales that result.
+  labelFontScale: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -32,9 +36,11 @@ export const DEFAULT_SETTINGS: Settings = {
   showOutlines: false,
   showCurrency: true,
   showCents: false,
-  rounding: 'up_1',
+  roundDirection: 'up',
+  roundStep: 1,
   minPrice: 1,
   foilStyle: 'gold',
+  labelFontScale: 1,
 };
 
 export interface Candidate {

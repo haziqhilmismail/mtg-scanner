@@ -1,4 +1,5 @@
 import type { CardRowData } from '../types.ts';
+import { useDecimalInput } from '../hooks/useDecimalInput.ts';
 
 interface Props {
   cd: CardRowData;
@@ -18,6 +19,15 @@ export function RowControls({
   onMultChange, onMultStep, onMultClear,
   onFoilToggle,
 }: Props) {
+  // Local string state so the user can type a "." without it getting eaten
+  // mid-keystroke. Empty box → null = "use global default", matches the
+  // pre-refactor behaviour exactly.
+  const multInput = useDecimalInput(cd.mult, (v) => {
+    if (v === null) onMultChange(null);
+    else if (Math.abs(v - cd.globalMult) < 1e-9) onMultChange(null);
+    else onMultChange(v);
+  });
+
   return (
     <div className="row-controls">
       <div className="qty-row">
@@ -25,7 +35,7 @@ export function RowControls({
         <button type="button" className="qty-btn" onClick={() => onQtyStep(-1)} aria-label="−">−</button>
         <input
           className="qty-input"
-          type="number" min="1" step="1"
+          type="text" inputMode="numeric" pattern="[0-9]*"
           value={cd.qty}
           onChange={e => onQtyChange(parseInt(e.target.value) || 1)}
         />
@@ -36,20 +46,10 @@ export function RowControls({
         <button type="button" className="qty-btn" onClick={() => onMultStep(-0.1)} aria-label="−">−</button>
         <input
           className="mult-input"
-          type="number" min="0" step="0.1"
-          value={cd.mult.toFixed(1)}
+          type="text" inputMode="decimal"
+          value={multInput.text}
           title={cd.hasMultOverride ? `override (global: ${cd.globalMult})` : 'global default'}
-          onChange={e => {
-            const v = e.target.value.trim();
-            const parsed = parseFloat(v);
-            if (v === '' || isNaN(parsed)) {
-              onMultChange(null);
-            } else if (Math.abs(parsed - cd.globalMult) < 1e-9) {
-              onMultChange(null);
-            } else {
-              onMultChange(parsed);
-            }
-          }}
+          onChange={e => multInput.onChange(e.target.value)}
         />
         <button type="button" className="qty-btn" onClick={() => onMultStep(0.1)} aria-label="+">+</button>
         {/* Always render so the row width is constant — otherwise toggling an

@@ -53,6 +53,7 @@ function computePillAnchor(
   imageW: number,
   imageH: number,
   labelPosition: 'top' | 'bottom' | 'center',
+  fontScale: number,
 ): { cx: number; cy: number; rectW: number; rectH: number } {
   const [bx, by, bw, bh] = bbox;
   const CARD = 488 / 680;
@@ -70,8 +71,8 @@ function computePillAnchor(
   const y = cyBox - cardH / 2;
   const y2 = y + cardH;
 
-  // Same formulas as price_overlay.py
-  const baseFont = Math.max(22, Math.floor(Math.min(imageW, imageH) * 0.03));
+  // Same formulas as price_overlay.py. fontScale is the user setting (1.0 default).
+  const baseFont = Math.max(22, Math.floor(Math.min(imageW, imageH) * 0.03 * fontScale));
   const padX = Math.max(12, Math.floor(baseFont / 2));
   const padY = Math.max(8, Math.floor(baseFont / 3));
   // DejaVu Sans Bold runs ~0.6em per char; approximation for rect width
@@ -476,7 +477,7 @@ export function BatchPreview({
             const label = pillLabelFor(cd, settings);
             if (!label) return null;
             const anchor = computePillAnchor(
-              cd.card.bbox, label, width, height, settings.labelPosition,
+              cd.card.bbox, label, width, height, settings.labelPosition, settings.labelFontScale,
             );
             const offset = liveOffset[cd.origIdx] ?? cd.pillOffset ?? { dx: 0, dy: 0 };
             const cx = anchor.cx + offset.dx;
@@ -485,7 +486,7 @@ export function BatchPreview({
             const py = cy - anchor.rectH / 2;
             const r = anchor.rectH / 2;
             const isDragging = dragState?.origIdx === cd.origIdx;
-            const baseFont = Math.max(22, Math.floor(Math.min(width, height) * 0.03));
+            const baseFont = Math.max(22, Math.floor(Math.min(width, height) * 0.03 * settings.labelFontScale));
             const isOffset = offset.dx !== 0 || offset.dy !== 0;
             return (
               <g key={`pill-${cd.origIdx}`}>
