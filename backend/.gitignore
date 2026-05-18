@@ -12,6 +12,7 @@ venv/
 # Local data — the Fly volume mounted at /app/data is the production source of truth
 data/*.db
 data/*.db-journal
+data/*.db.tmp
 data/ck_pricelist.json
 data/scans/
 data/posts/

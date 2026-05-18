@@ -1,7 +1,7 @@
 """
 cardkingdom_prices.py
 ---------------------
-Maintains an in-memory index of CardKingdom retail prices keyed by Scryfall ID.
+SQLite-backed index of CardKingdom retail prices keyed by Scryfall ID.
 
 CardKingdom publishes their full singles pricelist as a public JSON endpoint:
   https://api.cardkingdom.com/api/v2/pricelist
@@ -12,12 +12,23 @@ It refreshes about once a day. Each product entry includes:
   - price_buy : CK's buylist (buy) price as a string
   - is_foil : "0" or "1" string
   - qty_retail : how many they have for sale
-  - name, edition, etc
+  - name, edition, url, etc
 
-We download once at startup, cache to disk, refresh every 24h.
+We download once at startup, cache the raw JSON to disk, then build a compact
+SQLite cache (`data/ck_index.db`) which is the actual lookup target. The old
+implementation held a ~95k-entry Python dict resident (~400 MB anon-rss thanks
+to Python's per-string + per-dict overhead and allocator fragmentation), which
+left no headroom on a 512 MB Fly VM — a single concurrent scan would OOM. The
+SQLite cache keeps the working set on disk and the resident footprint to a few MB.
+
+Refresh policy: the JSON cache TTL is 24h. On startup, if `ck_index.db` is at
+least as new as the JSON, we just open it (milliseconds) — no re-parse. The
+sqlite rebuild only runs when the JSON is fresher (i.e. we just downloaded a new
+one, or someone hit /api/refresh-ck).
 """
 
 import asyncio
+import sqlite3
 import time
 
 import aiohttp
@@ -28,6 +39,7 @@ from ..config import DATA_DIR
 CK_PRICELIST_URL = "https://api.cardkingdom.com/api/v2/pricelist"
 CACHE_DIR = DATA_DIR
 CACHE_FILE = CACHE_DIR / "ck_pricelist.json"
+DB_FILE = CACHE_DIR / "ck_index.db"
 CACHE_TTL_SECONDS = 24 * 3600  # refresh once per day
 
 USER_AGENT = "MTGPasarMalamScanner/2.1"
@@ -61,23 +73,60 @@ def _is_truthy(v) -> bool:
     return False
 
 
+_SCHEMA = """
+PRAGMA journal_mode = OFF;
+PRAGMA synchronous = OFF;
+PRAGMA temp_store = MEMORY;
+CREATE TABLE ck_prices (
+    scryfall_id  TEXT    NOT NULL,
+    is_foil      INTEGER NOT NULL,
+    price_retail REAL,
+    price_buy    REAL,
+    qty_retail   INTEGER NOT NULL DEFAULT 0,
+    url          TEXT    NOT NULL DEFAULT '',
+    PRIMARY KEY (scryfall_id, is_foil)
+) WITHOUT ROWID;
+"""
+
+# Mirrors the in-memory rule from the old dict implementation: within the same
+# (scryfall_id, is_foil), the SKU with the highest qty_retail wins. The first
+# non-empty URL observed wins (variants for the same is_foil share a product page).
+_UPSERT_SQL = """
+INSERT INTO ck_prices (scryfall_id, is_foil, price_retail, price_buy, qty_retail, url)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(scryfall_id, is_foil) DO UPDATE SET
+  price_retail = CASE WHEN excluded.qty_retail >= qty_retail AND excluded.price_retail > 0
+                      THEN excluded.price_retail ELSE price_retail END,
+  price_buy    = CASE WHEN excluded.qty_retail >= qty_retail AND excluded.price_retail > 0 AND excluded.price_buy > 0
+                      THEN excluded.price_buy    ELSE price_buy    END,
+  qty_retail   = CASE WHEN excluded.qty_retail >= qty_retail AND excluded.price_retail > 0
+                      THEN excluded.qty_retail   ELSE qty_retail   END,
+  url          = CASE WHEN url = '' THEN excluded.url ELSE url END
+"""
+
+
+_EMPTY_LOOKUP = {
+    "retail_normal": None, "retail_foil": None,
+    "buy_normal": None, "buy_foil": None,
+    "in_stock_normal": False, "in_stock_foil": False,
+    "url_normal": "", "url_foil": "",
+}
+
+
 class CKPriceIndex:
     def __init__(self):
-        # scryfall_id -> {"normal": float|None, "foil": float|None,
-        #                 "normal_buy": float|None, "foil_buy": float|None,
-        #                 "normal_qty": int, "foil_qty": int}
-        self.prices: dict[str, dict] = {}
+        self._conn: sqlite3.Connection | None = None
         self.last_loaded: float = 0
         self.product_count: int = 0
         self.matched_scryfall_count: int = 0
 
     async def ensure_loaded(self, force: bool = False) -> None:
-        if self.prices and not force:
+        if self._conn is not None and not force:
             return
         await self.refresh(force=force)
 
     async def refresh(self, force: bool = False) -> None:
-        """Download (if needed) and rebuild the index."""
+        """Download (if needed) and (re)build the sqlite index."""
         CACHE_DIR.mkdir(exist_ok=True)
 
         need_download = force or not CACHE_FILE.exists()
@@ -94,10 +143,16 @@ class CKPriceIndex:
                     raise RuntimeError(f"Couldn't download CK pricelist and no cache exists: {e}")
                 print(f"[cardkingdom] download failed ({e}); using existing cache", flush=True)
 
-        # Heavy: the 65MB JSON balloons to ~250MB of transient Python objects
-        # if parsed with json.load. ijson streams it product-by-product, keeping
-        # peak memory roughly bounded by the final index size (~50MB).
-        await asyncio.to_thread(self._build_from_cache)
+        # Skip-rebuild shortcut: if the sqlite is at least as new as the json
+        # (and we're not forcing), just open the existing DB. This is the common
+        # case on machine restart and turns a multi-second rebuild into a sub-ms
+        # file open.
+        if not force and DB_FILE.exists() and CACHE_FILE.exists() \
+                and DB_FILE.stat().st_mtime >= CACHE_FILE.stat().st_mtime:
+            await asyncio.to_thread(self._open_existing)
+            return
+
+        await asyncio.to_thread(self._build_sqlite)
 
     async def _download(self) -> None:
         print(f"[cardkingdom] downloading {CK_PRICELIST_URL} ...", flush=True)
@@ -106,7 +161,6 @@ class CKPriceIndex:
         async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
             async with session.get(CK_PRICELIST_URL) as resp:
                 resp.raise_for_status()
-                # Stream to disk to avoid holding the whole thing in memory
                 tmp = CACHE_FILE.with_suffix(".tmp")
                 with open(tmp, "wb") as f:
                     async for chunk in resp.content.iter_chunked(1024 * 1024):
@@ -118,8 +172,8 @@ class CKPriceIndex:
     def _iter_products(self, f):
         """Yield products one at a time, handling both JSON shapes:
         either `{"data": [...]}` or a bare top-level array."""
-        # Peek the first non-whitespace byte to choose the right ijson path.
-        # Binary-mode reads return bytes, so compare against bytes.
+        # Peek the first non-whitespace byte. Binary-mode reads return bytes,
+        # so compare against bytes.
         prefix = b""
         while True:
             ch = f.read(1)
@@ -133,51 +187,92 @@ class CKPriceIndex:
         path = "data.item" if prefix == b"{" else "item"
         yield from ijson.items(f, path, use_float=True)
 
-    def _build_from_cache(self) -> None:
-        index: dict[str, dict] = {}
-        product_count = 0
-        # Open in binary mode — ijson prefers bytes and avoids the text-mode
-        # decode buffer pulling the whole file into memory.
-        with open(CACHE_FILE, "rb") as f:
-            for p in self._iter_products(f):
-                product_count += 1
-                sid = (p.get("scryfall_id") or "").strip()
-                if not sid:
-                    continue
-                price = _to_float(p.get("price_retail"))
-                buy = _to_float(p.get("price_buy"))
-                qty = _to_int(p.get("qty_retail"))
-                is_foil = _is_truthy(p.get("is_foil"))
-
-                entry = index.setdefault(sid, {
-                    "normal": None, "foil": None,
-                    "normal_buy": None, "foil_buy": None,
-                    "normal_qty": 0, "foil_qty": 0,
-                    "url_normal": "", "url_foil": "",
-                })
-                key = "foil" if is_foil else "normal"
-                qty_key = key + "_qty"
-                buy_key = key + "_buy"
-                url_key = "url_" + key
-                url = (p.get("url") or "").strip()
-                # First-seen URL wins (variants for the same is_foil share product page)
-                if url and not entry[url_key]:
-                    entry[url_key] = url
-                # If a card has multiple SKUs (different conditions), keep the entry
-                # whose qty_retail is highest — that's the canonical NM listing.
-                # (CK's pricelist usually has one row per is_foil per scryfall_id, but defensive.)
-                if price > 0 and qty >= entry[qty_key]:
-                    entry[key] = price
-                    entry[qty_key] = qty
-                    if buy > 0:
-                        entry[buy_key] = buy
-
-        self.prices = index
-        self.product_count = product_count
-        self.matched_scryfall_count = len(index)
+    def _open_existing(self) -> None:
+        """Open the existing on-disk sqlite cache and refresh stats. Used when
+        the DB is already at least as new as the json — no rebuild needed."""
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False, isolation_level=None)
+        try:
+            (total,) = conn.execute("SELECT COUNT(*) FROM ck_prices").fetchone()
+            (unique,) = conn.execute("SELECT COUNT(DISTINCT scryfall_id) FROM ck_prices").fetchone()
+        except sqlite3.DatabaseError:
+            conn.close()
+            # Corrupt or schema-mismatched — fall back to a full rebuild.
+            DB_FILE.unlink(missing_ok=True)
+            self._build_sqlite()
+            return
+        old = self._conn
+        self._conn = conn
+        self.product_count = total
+        self.matched_scryfall_count = unique
         self.last_loaded = time.time()
-        print(f"[cardkingdom] indexed {self.matched_scryfall_count} unique scryfall_ids "
-              f"from {self.product_count} products", flush=True)
+        # Old conn (if any) becomes garbage; refcount-close lets in-flight
+        # lookups finish before the handle is released.
+        del old
+        print(f"[cardkingdom] opened sqlite cache: {unique} unique scryfall_ids "
+              f"({total} rows)", flush=True)
+
+    def _build_sqlite(self) -> None:
+        """Stream-parse the JSON cache into a fresh sqlite file, atomically
+        replace the live DB, then swap the read connection. Peak memory is
+        bounded by the insert batch (~5k tuples) + SQLite's tiny page cache."""
+        tmp_path = DB_FILE.with_suffix(".db.tmp")
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+        build_conn = sqlite3.connect(tmp_path, isolation_level=None)
+        product_count = 0
+        try:
+            build_conn.executescript(_SCHEMA)
+            build_conn.execute("BEGIN")
+
+            batch: list[tuple] = []
+            BATCH = 5000
+            with open(CACHE_FILE, "rb") as f:
+                for p in self._iter_products(f):
+                    product_count += 1
+                    sid = (p.get("scryfall_id") or "").strip()
+                    if not sid:
+                        continue
+                    price = _to_float(p.get("price_retail"))
+                    buy = _to_float(p.get("price_buy"))
+                    qty = _to_int(p.get("qty_retail"))
+                    is_foil = 1 if _is_truthy(p.get("is_foil")) else 0
+                    url = (p.get("url") or "").strip()
+                    batch.append((sid, is_foil, price, buy, qty, url))
+                    if len(batch) >= BATCH:
+                        build_conn.executemany(_UPSERT_SQL, batch)
+                        batch.clear()
+            if batch:
+                build_conn.executemany(_UPSERT_SQL, batch)
+                batch.clear()
+            build_conn.execute("COMMIT")
+
+            (unique_count,) = build_conn.execute(
+                "SELECT COUNT(DISTINCT scryfall_id) FROM ck_prices"
+            ).fetchone()
+            (row_count,) = build_conn.execute(
+                "SELECT COUNT(*) FROM ck_prices"
+            ).fetchone()
+        except Exception:
+            build_conn.close()
+            tmp_path.unlink(missing_ok=True)
+            raise
+        build_conn.close()
+
+        # Atomic swap on POSIX. Touch mtime so the freshness check vs the JSON
+        # cache is monotonic even if the rename inherited an older mtime.
+        tmp_path.replace(DB_FILE)
+        DB_FILE.touch(exist_ok=True)
+
+        read_conn = sqlite3.connect(DB_FILE, check_same_thread=False, isolation_level=None)
+        old = self._conn
+        self._conn = read_conn
+        self.product_count = product_count
+        self.matched_scryfall_count = unique_count
+        self.last_loaded = time.time()
+        del old  # refcount-close; safe vs in-flight lookups holding the prior ref
+        print(f"[cardkingdom] indexed {unique_count} unique scryfall_ids "
+              f"from {product_count} products ({row_count} rows, sqlite)", flush=True)
 
     def lookup(self, scryfall_id: str) -> dict:
         """
@@ -189,26 +284,27 @@ class CKPriceIndex:
             "buy_foil":     float | None,
             "in_stock_normal": bool,
             "in_stock_foil":   bool,
+            "url_normal":   str,
+            "url_foil":     str,
           }
         """
-        entry = self.prices.get(scryfall_id)
-        if not entry:
-            return {
-                "retail_normal": None, "retail_foil": None,
-                "buy_normal": None, "buy_foil": None,
-                "in_stock_normal": False, "in_stock_foil": False,
-                "url_normal": "", "url_foil": "",
-            }
-        return {
-            "retail_normal": entry["normal"],
-            "retail_foil":   entry["foil"],
-            "buy_normal":    entry["normal_buy"],
-            "buy_foil":      entry["foil_buy"],
-            "in_stock_normal": (entry["normal_qty"] or 0) > 0,
-            "in_stock_foil":   (entry["foil_qty"] or 0) > 0,
-            "url_normal":    entry.get("url_normal") or "",
-            "url_foil":      entry.get("url_foil") or "",
-        }
+        if not scryfall_id or self._conn is None:
+            return dict(_EMPTY_LOOKUP)
+        rows = self._conn.execute(
+            "SELECT is_foil, price_retail, price_buy, qty_retail, url "
+            "FROM ck_prices WHERE scryfall_id = ?",
+            (scryfall_id,),
+        ).fetchall()
+        if not rows:
+            return dict(_EMPTY_LOOKUP)
+        result = dict(_EMPTY_LOOKUP)
+        for is_foil, price, buy, qty, url in rows:
+            side = "foil" if is_foil else "normal"
+            result[f"retail_{side}"] = price if price and price > 0 else None
+            result[f"buy_{side}"] = buy if buy and buy > 0 else None
+            result[f"in_stock_{side}"] = (qty or 0) > 0
+            result[f"url_{side}"] = url or ""
+        return result
 
 
 # Module-level singleton
