@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { addToChecklist, exportImage } from '../api.ts';
+import { addToChecklist, exportImage, frameCard } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
@@ -254,6 +254,10 @@ export function ActiveBatchView({
           onPillOffsetChange={(idx, offset) =>
             scanner.setPillOffset(batch.id, idx, offset)
           }
+          onFrameCard={batch.scanId != null ? async (corners, skipIdentify) => {
+            const newCard = await frameCard(batch.scanId!, corners, skipIdentify);
+            scanner.appendFramedCard(batch.id, newCard);
+          } : undefined}
           t={t}
         />
         <div>

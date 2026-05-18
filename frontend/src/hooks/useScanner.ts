@@ -6,7 +6,7 @@ import {
   scanImage,
   type SavedScan,
 } from '../api.ts';
-import type { Batch, Candidate, PillOffset, RelookupMsg } from '../types.ts';
+import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg } from '../types.ts';
 import { generateBatchId } from '../utils.ts';
 
 // Per-card UI state is persisted to localStorage under `mtg.batchstate.{scanId}`.
@@ -23,6 +23,47 @@ interface PersistedBatchState {
 }
 
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
+
+// Tombstones: scan IDs the user has asked to delete but whose backend DELETE
+// hasn't been confirmed yet. Survives reload so a refresh-mid-clear can't
+// cause deleted scans to reappear, and so the unsent deletes get retried.
+const TOMBSTONE_KEY = 'mtg.scan_tombstones';
+
+function readTombstones(): Set<number> {
+  try {
+    const raw = localStorage.getItem(TOMBSTONE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((n): n is number => typeof n === 'number'));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeTombstones(s: Set<number>) {
+  try {
+    if (s.size === 0) localStorage.removeItem(TOMBSTONE_KEY);
+    else localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(Array.from(s)));
+  } catch {
+    // quota / disabled — best effort
+  }
+}
+
+function addTombstones(ids: number[]) {
+  if (!ids.length) return;
+  const s = readTombstones();
+  ids.forEach(id => s.add(id));
+  writeTombstones(s);
+}
+
+function removeTombstones(ids: number[]) {
+  if (!ids.length) return;
+  const s = readTombstones();
+  let changed = false;
+  ids.forEach(id => { if (s.delete(id)) changed = true; });
+  if (changed) writeTombstones(s);
+}
 
 function persistBatch(b: Batch) {
   if (!b.scanId) return;
@@ -101,9 +142,31 @@ export function useScanner() {
     fetchScans().then(
       saved => {
         if (cancelled) return;
+
+        // Honour tombstones: scans the user previously deleted but whose
+        // backend DELETE never confirmed (e.g. refresh-mid-clear, backend
+        // --reload kicked in, network blip). Filter them out of the UI and
+        // fire the DELETE again so they're actually gone next time.
+        const tombstones = readTombstones();
+        const serverIds = new Set(saved.map(s => s.scan_id));
+
+        const stillAlive = Array.from(tombstones).filter(id => serverIds.has(id));
+        stillAlive.forEach(id => {
+          apiDeleteScan(id).then(
+            () => removeTombstones([id]),
+            () => { /* keep tombstone; retried next mount */ },
+          );
+        });
+
+        // GC tombstones for IDs the server no longer has (the previous
+        // DELETE actually succeeded, we just never got to clear them).
+        const orphanTombstones = Array.from(tombstones).filter(id => !serverIds.has(id));
+        removeTombstones(orphanTombstones);
+
+        const alive = saved.filter(s => !tombstones.has(s.scan_id));
         // Reverse so newest is at the END of the array (matches "append on upload" UX);
         // pick the most-recent as active.
-        const ordered = [...saved].reverse();
+        const ordered = [...alive].reverse();
         const seeded = ordered.map(batchFromSavedScan);
         setBatches(seeded);
         setActiveBatchId(seeded[seeded.length - 1]?.id ?? null);
@@ -147,21 +210,32 @@ export function useScanner() {
   );
 
   const addFiles = useCallback(async (files: File[]) => {
-    for (const file of files) {
-      const id = generateBatchId();
-      const stub: Batch = {
-        id,
-        scanId: null,
-        filename: file.name,
-        status: 'scanning',
-        response: null,
-        isFoil: [], priceOverride: [], quantity: [],
-        multOverride: [], removed: [], pillOffset: [],
-        relookupBusy: [], relookupMsg: [],
-      };
-      setBatches(prev => [...prev, stub]);
-      setActiveBatchId(id);
+    if (!files.length) return;
+    // Front-load every dropped file as a 'scanning' stub so the tab strip
+    // shows all N immediately. Without this, sequential awaits below mean
+    // file N+1's tab only appears once N finishes, which looks like
+    // "only 1 file uploaded" to the user.
+    const queued = files.map(file => ({
+      file,
+      id: generateBatchId(),
+    }));
+    const stubs: Batch[] = queued.map(({ file, id }) => ({
+      id,
+      scanId: null,
+      filename: file.name,
+      status: 'scanning',
+      response: null,
+      isFoil: [], priceOverride: [], quantity: [],
+      multOverride: [], removed: [], pillOffset: [],
+      relookupBusy: [], relookupMsg: [],
+    }));
+    setBatches(prev => [...prev, ...stubs]);
+    // Activate the first newly-queued tab once. Bumping activeBatchId on
+    // every iteration retriggers BatchTabStrip's scrollIntoView and drags
+    // the strip around as each scan finishes.
+    setActiveBatchId(queued[0].id);
 
+    for (const { file, id } of queued) {
       try {
         const resp = await scanImage(file);
         const n = resp.cards.length;
@@ -267,6 +341,36 @@ export function useScanner() {
     [updateCardArray],
   );
 
+  // Append a user-framed card (from the framing tool in BatchPreview's expand
+  // mode). Pushes onto every parallel array so indices stay aligned. Seeded
+  // foil=false, qty=1 unless the backend hint says otherwise.
+  const appendFramedCard = useCallback((batchId: string, card: DetectedCard) => {
+    setBatches(prev =>
+      prev.map(b => {
+        if (b.id !== batchId || !b.response) return b;
+        const cards = [...b.response.cards, card];
+        const sel = card.candidates[0];
+        const isManual = !!sel?._manual;
+        return {
+          ...b,
+          response: { ...b.response, cards },
+          isFoil: [...b.isFoil, card.gemini?.is_foil ?? false],
+          // Manual stubs have no auto-price; UI flags via the existing
+          // _manual banner and forces a price override.
+          priceOverride: [...b.priceOverride, null],
+          quantity: [...b.quantity, Math.max(1, card.gemini?.quantity || 1)],
+          multOverride: [...b.multOverride, null],
+          removed: [...b.removed, false],
+          pillOffset: [...b.pillOffset, null],
+          relookupBusy: [...b.relookupBusy, false],
+          relookupMsg: [...b.relookupMsg, isManual
+            ? { type: 'err', text: 'no match — type a name to look it up', action: 'use as-is' }
+            : null],
+        } satisfies Batch;
+      }),
+    );
+  }, []);
+
   const restoreAll = useCallback((batchId: string) => {
     setBatches(prev =>
       prev.map(b => (b.id === batchId ? { ...b, removed: b.removed.map(() => false) } : b)),
@@ -360,16 +464,20 @@ export function useScanner() {
 
   const clearAll = useCallback(async () => {
     const toDelete = batches.filter(b => b.scanId).map(b => b.scanId as number);
+    // Persist intent BEFORE firing DELETEs so a refresh-mid-clear can't
+    // cause cleared scans to reappear on next rehydration.
+    addTombstones(toDelete);
     setBatches([]);
     setActiveBatchId(null);
-    for (const sid of toDelete) {
-      try {
-        localStorage.removeItem(STATE_KEY(sid));
-        await apiDeleteScan(sid);
-      } catch {
-        // ignore; backend or storage may already be gone
-      }
-    }
+    toDelete.forEach(sid => {
+      try { localStorage.removeItem(STATE_KEY(sid)); } catch { /* ignore */ }
+    });
+    // Parallel deletes — much faster than the previous sequential await chain,
+    // and per-request failures don't block the rest. Survivors stay tombstoned
+    // and get retried by the rehydration effect on the next mount.
+    const results = await Promise.allSettled(toDelete.map(sid => apiDeleteScan(sid)));
+    const succeeded = toDelete.filter((_, i) => results[i].status === 'fulfilled');
+    removeTombstones(succeeded);
   }, [batches]);
 
   const removeBatch = useCallback(async (id: string) => {
@@ -381,11 +489,14 @@ export function useScanner() {
       return remaining[0]?.id ?? null;
     });
     if (b?.scanId) {
+      const sid = b.scanId;
+      addTombstones([sid]);
+      try { localStorage.removeItem(STATE_KEY(sid)); } catch { /* ignore */ }
       try {
-        localStorage.removeItem(STATE_KEY(b.scanId));
-        await apiDeleteScan(b.scanId);
+        await apiDeleteScan(sid);
+        removeTombstones([sid]);
       } catch {
-        // Backend may already be gone; ignore
+        // Tombstone persists; rehydration effect will retry on next mount.
       }
     }
   }, [batches]);
@@ -407,6 +518,7 @@ export function useScanner() {
     stepMult,
     setRemoved,
     setPillOffset,
+    appendFramedCard,
     restoreAll,
     relookupByName,
     useAsIs,

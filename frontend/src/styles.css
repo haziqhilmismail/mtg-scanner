@@ -611,6 +611,135 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 .preview-pill-reset:hover circle { fill: var(--accent); stroke: var(--accent); }
 .preview-pill-reset:hover text { fill: white; }
 
+/* ---------- Framing tool ---------- */
+/* User-driven "fix-it" overlay for cards the detector merged or missed.
+   Lives inside the expanded preview only — the user needs room to draw cleanly. */
+.preview-expand-hint {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  margin-left: 10px;
+  align-self: center;
+}
+.frame-toolbar {
+  position: absolute; bottom: 18px; left: 50%; z-index: 2;
+  transform: translateX(-50%);
+  display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  justify-content: center;
+  padding: 6px 10px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  /* Stay inside the photo without hugging either side edge. */
+  max-width: calc(100% - 36px);
+}
+.frame-toolbar-btn {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--accent); color: white; cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.frame-toolbar-btn:hover { background: var(--ink); border-color: var(--ink); }
+.frame-toolbar-btn.ghost {
+  background: var(--surface); color: var(--ink); border-color: var(--rule);
+}
+.frame-toolbar-btn.ghost:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.frame-toolbar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.frame-toolbar-hint {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 13px; color: var(--ink); font-style: italic;
+}
+.frame-toolbar-aspect {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-soft); cursor: pointer; user-select: none;
+}
+.frame-toolbar-aspect input { accent-color: var(--accent); cursor: pointer; }
+
+/* Capture rect — invisible overlay that catches the user's drag. Only
+   present while the framing tool is active so it doesn't block pill drag. */
+.preview-cell.framing .preview-wrap { cursor: crosshair; }
+.frame-capture {
+  fill: transparent;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.frame-drawn {
+  fill: rgba(184, 68, 42, 0.18);
+  stroke: var(--accent);
+  stroke-width: 10;
+  stroke-dasharray: 18 10;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+  pointer-events: none;
+  /* Drop-shadow filter on an SVG element keeps the glow on the stroke itself
+     so it reads on dim photos and bright tabletops alike. */
+  filter: drop-shadow(0 0 8px rgba(184, 68, 42, 0.55));
+  animation: frame-march 1.4s linear infinite;
+}
+.frame-drawn.is-submitting {
+  stroke: var(--gold);
+  fill: rgba(200, 155, 60, 0.22);
+  filter: drop-shadow(0 0 10px rgba(240, 195, 50, 0.6));
+}
+@keyframes frame-march {
+  to { stroke-dashoffset: -56; }
+}
+
+/* Action bar floats just below the drawn rect, horizontally centered on it. */
+.frame-action-bar {
+  position: absolute; z-index: 3;
+  transform: translate(-50%, 0);
+  display: inline-flex; gap: 6px; align-items: center;
+  padding: 4px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+}
+.frame-action-confirm,
+.frame-action-cancel {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  border: none; border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.frame-action-confirm {
+  padding: 7px 16px;
+  background: var(--accent); color: white;
+}
+.frame-action-confirm:hover:not(:disabled) { background: var(--ink); }
+.frame-action-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+/* "Add blank" — secondary path next to Identify. Ghost so it reads as
+   "advanced option" without competing visually with the primary action. */
+.frame-action-manual {
+  padding: 7px 14px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--rule);
+}
+.frame-action-manual:hover:not(:disabled) { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.frame-action-manual:disabled { opacity: 0.5; cursor: not-allowed; }
+.frame-action-cancel {
+  width: 30px; height: 30px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface); color: var(--ink);
+  font-size: 14px;
+}
+.frame-action-cancel:hover:not(:disabled) { background: var(--accent); color: white; }
+.frame-action-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+.frame-action-error {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+  color: var(--warn); padding: 0 8px;
+}
+
 /* ---------- Finalize block (post + add-all + export at the bottom) ---------- */
 .finalize-block {
   margin-top: 16px;
@@ -891,14 +1020,6 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .conf.low { color: var(--warn); }
-.name-source-pill {
-  display: inline-flex; align-items: center;
-  padding: 1px 7px; border-radius: var(--radius-pill);
-  font-family: 'JetBrains Mono', monospace; font-size: 8px; font-weight: 700;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  border: 1px solid currentColor;
-}
-.name-source-pill.phash { color: var(--gold); }
 .row-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 
 .toggle {
