@@ -217,16 +217,6 @@ def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
         "in_stock_normal": False, "in_stock_foil": False,
         "url_normal": "", "url_foil": "",
     }
-    # Fallback: when Scryfall returned an id CK doesn't recognise (common for
-    # reprint / promo sets where the two services disagree on canonical ids),
-    # retry on (name, set_name). The CK row exists, we just need the second key.
-    if ck["retail_normal"] is None and ck["retail_foil"] is None:
-        nm = (summary.get("name") or "").strip()
-        ed = (summary.get("set_name") or "").strip()
-        if nm and ed:
-            fallback = ck_index.lookup_by_name_edition(nm, ed)
-            if fallback["retail_normal"] is not None or fallback["retail_foil"] is not None:
-                ck = fallback
 
     def _ck_full_url(path: str) -> str:
         if not path:
