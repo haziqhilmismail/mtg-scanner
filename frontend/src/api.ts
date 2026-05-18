@@ -36,9 +36,64 @@ export async function deleteScan(id: number): Promise<void> {
   if (!r.ok) throw new Error(`deleteScan failed: ${r.status}`);
 }
 
+// Phone photos are usually 12 MP (~4032×3024). Gemini bills per ~768px image
+// tile, the backend's classical detector materialises several float32/int32
+// arrays at full resolution (Sobel gx/gy, label image), and the upload itself
+// is multi-MB on phone data — all three hurt. Cards stay easily detectable at
+// 2000 px on the long edge. We resize before POST: saves Gemini tokens, cuts
+// backend memory pressure on the 512 MB Fly VM, and shrinks the upload.
+//
+// HEIC: createImageBitmap works on Safari/iOS (the main pasar-malam path) and
+// fails on Chrome/Firefox/Edge. On failure we silently pass the original
+// through — the backend's pillow-heif still handles it.
+const SCAN_MAX_EDGE = 2000;
+const SCAN_JPEG_QUALITY = 0.92;
+
+async function downscaleForScan(file: File): Promise<File> {
+  // Tiny files (FB-pasted images, already-downscaled crops) skip the round-trip.
+  if (file.size < 500 * 1024) return file;
+
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch {
+    return file;
+  }
+
+  const longest = Math.max(bitmap.width, bitmap.height);
+  if (longest <= SCAN_MAX_EDGE) {
+    bitmap.close();
+    return file;
+  }
+
+  const scale = SCAN_MAX_EDGE / longest;
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close();
+    return file;
+  }
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', SCAN_JPEG_QUALITY);
+  });
+  if (!blob) return file;
+
+  const base = file.name.replace(/\.[^.]+$/, '') || 'scan';
+  return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
+}
+
 export async function scanImage(file: File): Promise<ScanResponse> {
+  const upload = await downscaleForScan(file);
   const fd = new FormData();
-  fd.append('image', file);
+  fd.append('image', upload);
   const r = await fetch('/api/scan', { method: 'POST', body: fd, headers: authHeaders() });
   if (!r.ok) {
     const t = await r.text();
