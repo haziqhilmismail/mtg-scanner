@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Gemini
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3-flash-preview"
 
     # Optional classical (PIL + numpy + scipy) bbox refiner. When enabled,
     # /api/scan still asks Gemini for names+sets, but tightens each card's
