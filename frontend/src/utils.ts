@@ -10,13 +10,15 @@ export function fmt2(n: number | null | undefined): string {
 
 export function applyRounding(price: number, settings: Settings): number {
   let p = Number(price) || 0;
-  const mode = settings.rounding;
-  if (mode !== 'none') {
-    const [direction, stepStr] = mode.split('_');
-    const step = parseFloat(stepStr);
-    if (direction === 'up') p = Math.ceil(p / step) * step;
-    else if (direction === 'down') p = Math.floor(p / step) * step;
-    else p = Math.round(p / step) * step;
+  const dir = settings.roundDirection;
+  if (dir !== 'none') {
+    const step = settings.roundStep;
+    // Multiply / divide via inverse to dodge FP noise on 0.1 / 0.5 steps —
+    // 0.1 + 0.2 === 0.30000000000000004, etc.
+    const inv = 1 / step;
+    if (dir === 'up') p = Math.ceil(p * inv) / inv;
+    else if (dir === 'down') p = Math.floor(p * inv) / inv;
+    else p = Math.round(p * inv) / inv;
   }
   if (p < settings.minPrice) p = settings.minPrice;
   return p;

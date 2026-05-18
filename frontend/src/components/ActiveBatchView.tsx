@@ -221,6 +221,7 @@ export function ActiveBatchView({
       image_id: data.image_id,
       show_outlines: settings.showOutlines,
       label_position: settings.labelPosition,
+      font_scale: settings.labelFontScale,
       cards: visible.map(cd => {
         // Suffix mode bakes "F" into the label; gold mode leaves it off and the pill renders gold.
         const unitLabel = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);

@@ -1,5 +1,6 @@
 import type { Health } from '../api.ts';
-import type { LabelPosition, FoilStyle, RoundingMode, Settings } from '../types.ts';
+import type { LabelPosition, FoilStyle, RoundDirection, RoundStep, Settings } from '../types.ts';
+import { useDecimalInput } from '../hooks/useDecimalInput.ts';
 
 interface Props {
   settings: Settings;
@@ -9,6 +10,11 @@ interface Props {
 }
 
 export function SettingsPanel({ settings, update, t, health }: Props) {
+  // Decimal inputs need local string state so typing "2." doesn't get
+  // round-tripped through Number and lose the trailing dot. Empty box → 0.
+  const multNormal = useDecimalInput(settings.multNormal, v => update('multNormal', v ?? 0));
+  const multFoil = useDecimalInput(settings.multFoil, v => update('multFoil', v ?? 0));
+  const minPrice = useDecimalInput(settings.minPrice, v => update('minPrice', v ?? 0));
   let healthBadge = (
     <span className="health-badge">{t('ck_checking')}</span>
   );
@@ -36,17 +42,17 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
         <label>
           <span>{t('mult_normal')}</span>
           <input
-            type="number" step="0.1" min="0"
-            value={settings.multNormal}
-            onChange={e => update('multNormal', parseFloat(e.target.value) || 0)}
+            type="text" inputMode="decimal"
+            value={multNormal.text}
+            onChange={e => multNormal.onChange(e.target.value)}
           />
         </label>
         <label>
           <span>{t('mult_foil')}</span>
           <input
-            type="number" step="0.1" min="0"
-            value={settings.multFoil}
-            onChange={e => update('multFoil', parseFloat(e.target.value) || 0)}
+            type="text" inputMode="decimal"
+            value={multFoil.text}
+            onChange={e => multFoil.onChange(e.target.value)}
           />
         </label>
         <label>
@@ -80,26 +86,50 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
         </label>
         <label>
           <span>{t('round_prices')}</span>
-          <select
-            value={settings.rounding}
-            onChange={e => update('rounding', e.target.value as RoundingMode)}
-          >
-            <option value="none">{t('round_none')}</option>
-            <option value="nearest_0.5">{t('round_n50')}</option>
-            <option value="up_0.5">{t('round_u50')}</option>
-            <option value="down_0.5">{t('round_d50')}</option>
-            <option value="nearest_1">{t('round_n1')}</option>
-            <option value="up_1">{t('round_u1')}</option>
-            <option value="down_1">{t('round_d1')}</option>
-          </select>
+          <div className="round-controls">
+            <select
+              value={settings.roundDirection}
+              onChange={e => update('roundDirection', e.target.value as RoundDirection)}
+            >
+              <option value="none">{t('round_none')}</option>
+              <option value="up">{t('round_dir_up')}</option>
+              <option value="down">{t('round_dir_down')}</option>
+              <option value="nearest">{t('round_dir_nearest')}</option>
+            </select>
+            {settings.roundDirection !== 'none' ? (
+              <>
+                <span className="round-controls-to">{t('round_to')}</span>
+                <select
+                  value={settings.roundStep}
+                  onChange={e => update('roundStep', parseFloat(e.target.value) as RoundStep)}
+                >
+                  <option value="0.1">{t('round_step_10c')}</option>
+                  <option value="0.5">{t('round_step_50c')}</option>
+                  <option value="1">{t('round_step_1')}</option>
+                </select>
+              </>
+            ) : null}
+          </div>
         </label>
         <label>
           <span>{t('min_price')}</span>
           <input
-            type="number" step="0.5" min="0"
-            value={settings.minPrice}
-            onChange={e => update('minPrice', parseFloat(e.target.value) || 0)}
+            type="text" inputMode="decimal"
+            value={minPrice.text}
+            onChange={e => minPrice.onChange(e.target.value)}
           />
+        </label>
+        <label>
+          <span>{t('label_font_size')}</span>
+          <select
+            value={settings.labelFontScale}
+            onChange={e => update('labelFontScale', parseFloat(e.target.value))}
+          >
+            <option value="0.85">{t('font_scale_small')}</option>
+            <option value="1">{t('font_scale_default')}</option>
+            <option value="1.25">{t('font_scale_large')}</option>
+            <option value="1.5">{t('font_scale_xlarge')}</option>
+          </select>
         </label>
       </div>
       <div className="checkbox-group">

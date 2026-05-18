@@ -140,6 +140,8 @@ export interface ExportPayload {
   }>;
   show_outlines: boolean;
   label_position: 'top' | 'bottom' | 'center';
+  // Multiplier on the auto-scaled base font size (default 1.0).
+  font_scale?: number;
 }
 
 // Minimal payload to add a scanned card to the checklist. The full schema lives
