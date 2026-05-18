@@ -245,7 +245,8 @@ export function useScanner() {
           status: 'done',
           scanId,
           response: resp,
-          isFoil: resp.cards.map(() => false),
+          // Seed foil from Gemini's per-card guess. User can still toggle.
+          isFoil: resp.cards.map(c => !!c.gemini?.is_foil),
           priceOverride: new Array(n).fill(null),
           // Seed quantity from Gemini's stack-detection hint (capped at 1+); user can adjust per row
           quantity: resp.cards.map(c => Math.max(1, c.gemini?.quantity || 1)),

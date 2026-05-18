@@ -125,7 +125,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     modal_foil_label: 'FOIL USD',
     modal_switched: '✓ Switched to {name}',
     view_on_ck: 'View on CardKingdom',
-    view_on_scryfall: 'View on Scryfall',
+    search_on_ck: 'Search on CardKingdom',
 
     remove_card: 'Remove from export',
     removed_label: 'REMOVED',
@@ -636,7 +636,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     modal_foil_label: 'FOIL USD',
     modal_switched: '✓ Bertukar ke {name}',
     view_on_ck: 'Lihat di CardKingdom',
-    view_on_scryfall: 'Lihat di Scryfall',
+    search_on_ck: 'Cari di CardKingdom',
 
     remove_card: 'Buang dari eksport',
     removed_label: 'DIBUANG',
