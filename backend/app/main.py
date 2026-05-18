@@ -318,22 +318,25 @@ async def scan(
                 continue
             phash_results[ci] = cands[0]
 
-    # ---------- Step 3: Gemini fallback ----------
-    # Skip Gemini entirely only when classical found ≥1 card AND pHash named
-    # every one of them confidently. Any miss → call Gemini for the whole
-    # image so cards classical missed are still detected.
-    need_gemini = not (classical_boxes and all(r is not None for r in phash_results))
+    # ---------- Step 3: Gemini for detection + naming-fallback ----------
+    # Always call Gemini. The classical detector can under-detect (finds 1 of 4
+    # cards when 3 share a busy background), and we can't tell from this side
+    # whether it caught everything. The reconciliation step below de-dupes any
+    # Gemini detections that overlap a pHash-named classical box.
+    # If pHash already named every classical box confidently we still call —
+    # the only "wasted" work is one extra Gemini round-trip on photos where
+    # classical happened to find every card. That's worth it to never silently
+    # drop cards classical missed.
     gemini_detections: list[CardDetection] = []
-    if need_gemini:
-        try:
-            gemini_detections = scan_image(norm_bytes, mime_type="image/jpeg")
-        except Exception as e:
-            # If pHash got SOME of the cards we can still ship a partial result
-            # rather than 500; otherwise bail.
-            if not any(r is not None for r in phash_results):
-                raise HTTPException(500, f"Gemini call failed: {e}")
-            print(f"[scan] Gemini call failed, continuing with pHash only: {e}", flush=True)
-            gemini_detections = []
+    try:
+        gemini_detections = scan_image(norm_bytes, mime_type="image/jpeg")
+    except Exception as e:
+        # If pHash got SOME of the cards we can still ship a partial result
+        # rather than 500; otherwise bail.
+        if not any(r is not None for r in phash_results):
+            raise HTTPException(500, f"Gemini call failed: {e}")
+        print(f"[scan] Gemini call failed, continuing with pHash only: {e}", flush=True)
+        gemini_detections = []
 
     # ---------- Step 4: assemble unified detection list ----------
     # Per detection we track: a CardDetection (drives Scryfall lookup),
@@ -524,6 +527,174 @@ async def scan(
         "scan_id": scan_row.id,
         **response_payload,
     }
+
+
+@app.post("/api/scans/{scan_id}/frame-card")
+@limiter.limit("30/minute")
+async def frame_card(
+    request: Request,
+    scan_id: int,
+    db: DbSession,
+    user_id: CurrentUserId,
+    payload: str = Form(...),
+):
+    """User-drawn frame around a card the detector missed (typically two
+    cards merged into one bbox). Body: {corners: [[x,y]*4]} in source-image
+    pixels, TL/TR/BR/BL order. Perspective-warps the region flat, pHashes it
+    against the local index. Confident match → fully-named card with CK
+    pricing. No match → "manual" stub the user renames via the existing
+    relookup flow. Appended to the scan's stored cards JSON so it survives
+    refresh."""
+    scan_row = await db.get(Scan, scan_id)
+    if not scan_row or scan_row.user_id != user_id:
+        raise HTTPException(404, "Scan not found")
+
+    try:
+        data = json.loads(payload)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON in 'payload'")
+
+    corners = data.get("corners")
+    if not (isinstance(corners, list) and len(corners) == 4
+            and all(isinstance(p, list) and len(p) == 2 for p in corners)):
+        raise HTTPException(400, "Missing/invalid 'corners' — need 4 [x,y] points")
+    try:
+        corners_int = [[int(round(p[0])), int(round(p[1]))] for p in corners]
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Corners must be numeric")
+
+    # Load image from cache → disk fallback.
+    raw: bytes | None = _IMAGE_CACHE.get(str(scan_id))
+    if raw is None and scan_row.image_path:
+        p = Path(scan_row.image_path)
+        if p.exists():
+            raw = p.read_bytes()
+            _cache_put(str(scan_id), raw)
+    if raw is None:
+        raise HTTPException(404, "Original image bytes missing — re-upload")
+
+    try:
+        pil = Image.open(BytesIO(raw))
+        pil.load()
+        from PIL import ImageOps
+        try:
+            pil = ImageOps.exif_transpose(pil)
+        except Exception:
+            pass
+    except Exception:
+        raise HTTPException(400, "Could not decode original image")
+
+    W, H = pil.size
+    # Clamp corners inside the image and compute an axis-aligned bbox for
+    # thumbnail + storage. The pHash warp uses the raw quad regardless.
+    clamped = [
+        [max(0, min(W, x)), max(0, min(H, y))]
+        for x, y in corners_int
+    ]
+    xs = [p[0] for p in clamped]
+    ys = [p[1] for p in clamped]
+    x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+    if x1 - x0 < 16 or y1 - y0 < 16:
+        raise HTTPException(400, "Frame is too small")
+
+    skip_identify = bool(data.get("skip_identify", False))
+
+    pil_rgb = pil.convert("RGB")
+
+    # pHash via the perspective-warped crop. Same gate as /api/scan — absolute
+    # threshold AND top-2 margin — so a low-confidence local match falls
+    # through to "manual" rather than naming the wrong card.
+    # `skip_identify` bypasses the lookup entirely — the user has signalled
+    # they'll fill the card in by hand via the row's edit controls.
+    matched: local_card_id.Candidate | None = None
+    if not skip_identify and settings.use_local_card_id and local_card_id.get_index() is not None:
+        idx = local_card_id.get_index()
+        thresh = settings.phash_distance_threshold
+        margin = settings.phash_distance_margin
+        try:
+            warped = perspective_warp(pil_rgb, clamped)
+        except Exception as e:
+            print(f"[frame-card] warp failed: {e}", flush=True)
+            warped = pil_rgb.crop((x0, y0, x1, y1))
+        try:
+            h = local_card_id.hash_pil(warped)
+            cands = idx.search(h, top_k=2)
+            if cands and cands[0].distance <= thresh:
+                if len(cands) < 2 or (cands[1].distance - cands[0].distance) >= margin:
+                    matched = cands[0]
+        except Exception as e:
+            print(f"[frame-card] phash search failed: {e}", flush=True)
+
+    crop_b64 = _make_thumb_b64(pil, x0, y0, x1, y1)
+
+    # Build the card record. Two flavours: pHash-named (full Scryfall + CK)
+    # or manual stub (user types the name via existing relookup).
+    if matched is not None:
+        det = CardDetection(
+            name=matched.name,
+            set_code=matched.set,
+            collector_number=matched.collector_number,
+            is_foil=False,
+            quantity=1,
+            box_2d=[
+                max(0, min(1000, int(y0 / H * 1000))),
+                max(0, min(1000, int(x0 / W * 1000))),
+                max(0, min(1000, int(y1 / H * 1000))),
+                max(0, min(1000, int(x1 / W * 1000))),
+            ],
+        )
+        summaries = await lookup_all([det])
+        ck_index = await get_ck_index()
+        sf = _enrich_with_ck(summaries[0] if summaries else None, ck_index)
+        gemini_hint = {
+            "name": det.name, "set_code": det.set_code,
+            "collector_number": det.collector_number,
+            "is_foil": False, "quantity": 1,
+        }
+        name_source = "phash"
+        name_confidence = matched.distance
+    else:
+        sf = {
+            "scryfall_id": "",
+            "name": "",
+            "set": "", "set_name": "", "collector_number": "", "rarity": "",
+            "usd": 0.0, "usd_foil": 0.0,
+            "image_url": "", "scryfall_uri": "",
+            "_lookup_failed": True,
+            "_manual": True,
+            "price_source_normal": "manual",
+            "price_source_foil": "manual",
+        }
+        gemini_hint = {
+            "name": "", "set_code": "", "collector_number": "",
+            "is_foil": False, "quantity": 1,
+        }
+        name_source = "gemini"  # nothing named it; UI shows the manual banner
+        name_confidence = None
+
+    existing_payload = dict(scan_row.gemini_raw or {})
+    existing_cards = list(existing_payload.get("cards") or [])
+    new_id = (max((c.get("id", -1) for c in existing_cards), default=-1) + 1)
+
+    new_card = {
+        "id": new_id,
+        "bbox": [x0, y0, x1 - x0, y1 - y0],
+        "corners": clamped,
+        "crop_b64": crop_b64,
+        "bbox_source": "user",
+        "name_source": name_source,
+        "name_confidence": name_confidence,
+        "gemini": gemini_hint,
+        "candidates": [sf],
+    }
+    existing_cards.append(new_card)
+    existing_payload["cards"] = existing_cards
+    # JSON column — reassign to mark the field dirty (SQLAlchemy doesn't
+    # detect in-place dict mutations).
+    scan_row.gemini_raw = existing_payload
+    await db.flush()
+
+    return new_card
 
 
 @app.get("/api/scans")
