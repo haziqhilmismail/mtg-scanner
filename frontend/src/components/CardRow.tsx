@@ -29,15 +29,22 @@ interface Props {
   onUseAsIs: (name: string) => void;
 }
 
+function ckSearchUrl(name: string): string {
+  return `https://www.cardkingdom.com/catalog/search?search=${encodeURIComponent(name)}`;
+}
+
 function renderTitleLink(cd: CardRowData, t: Props['t']) {
   const name = cd.sel.name || t('unknown_card');
   if (cd.isManual) return name;
   const primaryCk = cd.isFoil ? cd.sel.ck_url_foil : cd.sel.ck_url_normal;
   const altCk = cd.isFoil ? cd.sel.ck_url_normal : cd.sel.ck_url_foil;
   const ck = primaryCk || altCk || '';
-  const url = ck || cd.sel.scryfall_uri || '';
+  // CK product page if we have one, otherwise CK search by name. Never link to
+  // Scryfall — this app is for selling, and the link is to help the user view
+  // the SKU on the source-of-truth retailer.
+  const url = ck || (cd.sel.name ? ckSearchUrl(cd.sel.name) : '');
   if (!url) return name;
-  const tip = ck ? t('view_on_ck') : t('view_on_scryfall');
+  const tip = ck ? t('view_on_ck') : t('search_on_ck');
   return (
     <a href={url} target="_blank" rel="noopener noreferrer" title={tip}>
       {name}<span className="ext-icon">↗</span>

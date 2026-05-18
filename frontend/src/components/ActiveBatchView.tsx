@@ -51,14 +51,21 @@ export function ActiveBatchView({
       const multRaw = batch.multOverride[origIdx];
       const hasMultOverride = multRaw != null && !isNaN(multRaw);
       const mult = hasMultOverride ? (multRaw as number) : globalMult;
-      const autoPrice = applyRounding(usd * mult, settings);
       const qty = Math.max(1, batch.quantity[origIdx] || 1);
       const overrideRaw = batch.priceOverride[origIdx];
       const hasOverride = overrideRaw != null && overrideRaw !== '';
-      const needsPrice = isManual && !hasOverride;
+      // CK is the only price source. If the chosen side has no CK row we don't
+      // auto-price — the user must enter manually. Skipping applyRounding here
+      // is what bypasses the RM 1 floor and surfaces "needs price" so we never
+      // ship a fake RM 1 sticker on something we couldn't actually look up.
+      const ckSourceMatched = isFoil
+        ? sel.price_source_foil === 'cardkingdom'
+        : sel.price_source_normal === 'cardkingdom';
+      const autoPrice = ckSourceMatched ? applyRounding(usd * mult, settings) : 0;
+      const needsPrice = !hasOverride && (isManual || !ckSourceMatched);
       const unitPrice = hasOverride
         ? (parseFloat(overrideRaw as string) || 0)
-        : isManual ? NaN : autoPrice;
+        : needsPrice ? NaN : autoPrice;
       const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
       const source = isManual
         ? 'manual'
@@ -124,9 +131,13 @@ export function ActiveBatchView({
       return;
     }
     try {
-      const ck = cd.isFoil
+      const ckDirect = cd.isFoil
         ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
         : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
+      // Fall back to CK search-by-name if there's no direct product URL, so
+      // the saved listing carries *some* CK link rather than going to Scryfall.
+      const ck = ckDirect
+        || (cd.sel.name ? `https://www.cardkingdom.com/catalog/search?search=${encodeURIComponent(cd.sel.name)}` : '');
       const result = await addToChecklist({
         name: cd.sel.name || '(unknown)',
         scryfall_id: cd.sel.scryfall_id || null,
