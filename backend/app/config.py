@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     # Gemini
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3-flash-preview"
+    # Gemini 3 Flash bills "thinking" tokens at the output rate ($3/M), and for
+    # straightforward structured detection the model thinks more than it needs
+    # to. Empirically observed ~2,700 output tokens/scan vs ~700 of actual
+    # response = ~2,000 thinking tokens billable. Cap it. Set to 0 to disable
+    # thinking entirely; higher values trade more $ for more reasoning headroom
+    # on hard cards (foreign printings, foil glare, weird frames). Tune with
+    # the [gemini-usage] log lines in /api/scan output.
+    gemini_thinking_budget: int = 512
 
     # Optional classical (PIL + numpy + scipy) bbox refiner. When enabled,
     # /api/scan still asks Gemini for names+sets, but tightens each card's
