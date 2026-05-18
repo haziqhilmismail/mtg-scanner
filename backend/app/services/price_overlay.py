@@ -34,6 +34,7 @@ def render_overlay(
     cards: list[dict],
     show_outlines: bool = False,
     label_position: str = "bottom",
+    font_scale: float = 1.0,
 ) -> bytes:
     """
     image_bytes : original photo bytes
@@ -50,6 +51,9 @@ def render_overlay(
         - pill_dy : optional int pixel offset added to the pill Y
     show_outlines : if True, draws a thin outline around each card
     label_position : "bottom" | "top" | "center"
+    font_scale : multiplier on the auto-scaled base font size (default 1.0).
+                 Clamped to [0.5, 3.0] so a malformed payload can't blow up
+                 the pill to fill the whole photo.
 
     Returns PNG-encoded bytes.
     """
@@ -64,7 +68,8 @@ def render_overlay(
     fg_layer = Image.new("RGBA", pil.size, (0, 0, 0, 0))
     fg_draw = ImageDraw.Draw(fg_layer)
 
-    base_font_size = max(22, int(min(H, W) * 0.030))
+    scale = max(0.5, min(3.0, float(font_scale or 1.0)))
+    base_font_size = max(22, int(min(H, W) * 0.030 * scale))
     font = _load_font(base_font_size)
 
     line_width = max(2, int(min(H, W) * 0.003))
