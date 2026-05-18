@@ -3,7 +3,7 @@ import { addToChecklist, exportImage, frameCard } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { applyRounding, formatMyrWithFoil } from '../utils.ts';
+import { applyRounding, ckSearchUrl, formatMyrWithFoil } from '../utils.ts';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow } from './CardRow.tsx';
 import { useDialog } from './DialogProvider.tsx';
@@ -136,8 +136,7 @@ export function ActiveBatchView({
         : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
       // Fall back to CK search-by-name if there's no direct product URL, so
       // the saved listing carries *some* CK link rather than going to Scryfall.
-      const ck = ckDirect
-        || (cd.sel.name ? `https://www.cardkingdom.com/catalog/search?search=${encodeURIComponent(cd.sel.name)}` : '');
+      const ck = ckDirect || ckSearchUrl(cd.sel.name || '');
       const result = await addToChecklist({
         name: cd.sel.name || '(unknown)',
         scryfall_id: cd.sel.scryfall_id || null,

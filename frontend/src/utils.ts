@@ -59,6 +59,15 @@ export function formatMyrWithFoil(price: number, isFoil: boolean, settings: Sett
   return base;
 }
 
+// CK's working search URL — matches what their site emits when you submit the
+// top search bar. `?search=header` is CK's "search context" param;
+// `filter[name]=...` is the actual query. Brackets are pre-encoded so any
+// intermediate proxy/normalization sees a stable URL.
+export function ckSearchUrl(name: string): string {
+  if (!name) return '';
+  return `https://www.cardkingdom.com/catalog/search?search=header&filter%5Bname%5D=${encodeURIComponent(name)}`;
+}
+
 // Scryfall stores multiple sizes; for zoom we want the higher-res "large" variant
 export function upgradeScryfallImage(url: string): string {
   if (!url) return url;

@@ -1,5 +1,5 @@
 import type { CardRowData, RelookupMsg, Settings } from '../types.ts';
-import { fmt2, formatMyrWithFoil } from '../utils.ts';
+import { ckSearchUrl, fmt2, formatMyrWithFoil } from '../utils.ts';
 import { CompareImages } from './CompareImages.tsx';
 import { VersionBadge } from './VersionBadge.tsx';
 import { PriceBlock } from './PriceBlock.tsx';
@@ -27,10 +27,6 @@ interface Props {
   onBrowsePrintings: () => void;
   onFind: (name: string) => void;
   onUseAsIs: (name: string) => void;
-}
-
-function ckSearchUrl(name: string): string {
-  return `https://www.cardkingdom.com/catalog/search?search=${encodeURIComponent(name)}`;
 }
 
 function renderTitleLink(cd: CardRowData, t: Props['t']) {
