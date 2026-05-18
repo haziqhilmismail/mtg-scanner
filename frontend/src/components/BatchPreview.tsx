@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { CardRowData, PillOffset, Settings } from '../types.ts';
 import { formatMyrWithFoil } from '../utils.ts';
 
+// Card aspect (width / height). The framing tool's default snap.
+const CARD_ASPECT = 488 / 680;
+
 interface Props {
   imageB64: string;
   width: number;
@@ -11,8 +14,17 @@ interface Props {
   settings: Settings;
   // Commit a new offset for the card at origIdx. Pass null to clear back to default.
   onPillOffsetChange: (origIdx: number, offset: PillOffset | null) => void;
+  // Submit a user-drawn frame to the backend. Returns once the card has been
+  // appended to the batch (or rejects on error). When undefined, the framing
+  // tool is hidden — used while the scan hasn't been saved server-side yet.
+  // `skipIdentify=true` is the "just add a blank row" path; the user fills in
+  // the name via the existing per-row edit controls below the preview.
+  onFrameCard?: (corners: [number, number][], skipIdentify: boolean) => Promise<void>;
   t: (k: string, vars?: Record<string, string | number>) => string;
 }
+
+type FrameStage = 'idle' | 'active' | 'drawing' | 'drawn' | 'submitting';
+interface FrameRect { x1: number; y1: number; x2: number; y2: number }
 
 interface DragState {
   origIdx: number;
@@ -86,6 +98,7 @@ export function BatchPreview({
   imageB64, width, height,
   visibleCards, settings,
   onPillOffsetChange,
+  onFrameCard,
   t,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -96,6 +109,14 @@ export function BatchPreview({
   // pointer-up.
   const [liveOffset, setLiveOffset] = useState<Record<number, PillOffset>>({});
   const [expanded, setExpanded] = useState(false);
+
+  // Framing tool — lets the user draw a rectangle on the photo to identify a
+  // card the detector merged with its neighbour (or missed entirely). Only
+  // available in expanded mode where the user has the space to draw cleanly.
+  const [frameStage, setFrameStage] = useState<FrameStage>('idle');
+  const [frameRect, setFrameRect] = useState<FrameRect | null>(null);
+  const [aspectLocked, setAspectLocked] = useState(true);
+  const [frameError, setFrameError] = useState<string | null>(null);
   // Modal dimensions follow the image's aspect ratio so a portrait phone
   // photo gets a portrait modal and a landscape scan gets a landscape modal.
   // Capped at ~85% viewport so it doesn't feel like a fullscreen takeover;
@@ -103,15 +124,25 @@ export function BatchPreview({
   // small instead of getting blown up and blurry.
   const [modalSize, setModalSize] = useState<{ w: number; h: number } | null>(null);
 
-  // ESC closes the expanded view
+  // ESC: cancel framing first if it's active, otherwise collapse the modal.
+  // The two-step fall-through stops a mid-draw ESC from yanking the user out
+  // of the expanded view — they almost always meant "drop this frame".
   useEffect(() => {
     if (!expanded) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExpanded(false);
+      if (e.key !== 'Escape') return;
+      if (frameStage === 'submitting') return;  // mid-request — don't interrupt
+      if (frameStage !== 'idle') {
+        setFrameStage('idle');
+        setFrameRect(null);
+        setFrameError(null);
+        return;
+      }
+      setExpanded(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [expanded]);
+  }, [expanded, frameStage]);
 
   // Lock body scroll while the preview is expanded — the cell behaves like a
   // modal, so wheeling/trackpad-scrolling inside it shouldn't drift the page
@@ -132,8 +163,7 @@ export function BatchPreview({
     if (!expanded) { setModalSize(null); return; }
     const compute = () => {
       const padding = 28;   // .preview-cell.expanded { padding: 14px } × 2
-      const chrome = 130;   // expand-row (when collapsed it's hidden but space
-                             // is reserved) + tip line + info banner gap+height
+      const chrome = 36;    // .preview-tip line + gap below the image
       const maxW = window.innerWidth * 0.9;
       const maxH = window.innerHeight * 0.9;
       const availForImageW = Math.max(200, maxW - padding);
@@ -213,9 +243,147 @@ export function BatchPreview({
     });
   };
 
+  // --- Framing tool ---
+
+  // Translate client coords to viewBox (source-image) pixels. The SVG uses
+  // preserveAspectRatio="xMidYMid meet" so the rendered image is centered
+  // and one axis can be letterboxed; we back out the actual image rect first.
+  const clientToViewBox = (clientX: number, clientY: number) => {
+    const el = svgRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
+    const containerAspect = rect.width / rect.height;
+    const imageAspect = width / height;
+    let renderedW: number, renderedH: number, offX: number, offY: number;
+    if (containerAspect > imageAspect) {
+      renderedH = rect.height;
+      renderedW = renderedH * imageAspect;
+      offX = (rect.width - renderedW) / 2;
+      offY = 0;
+    } else {
+      renderedW = rect.width;
+      renderedH = renderedW / imageAspect;
+      offX = 0;
+      offY = (rect.height - renderedH) / 2;
+    }
+    const x = (clientX - rect.left - offX) * (width / renderedW);
+    const y = (clientY - rect.top - offY) * (height / renderedH);
+    return {
+      x: Math.max(0, Math.min(width, x)),
+      y: Math.max(0, Math.min(height, y)),
+    };
+  };
+
+  // Apply card-aspect lock to a dragged rectangle. Anchored at (x1,y1); the
+  // second corner snaps so the rect matches CARD_ASPECT while still covering
+  // whichever dimension the user dragged further. Shift override unlocks.
+  const applyAspectLock = (r: FrameRect, locked: boolean): FrameRect => {
+    if (!locked) return r;
+    const dx = r.x2 - r.x1;
+    const dy = r.y2 - r.y1;
+    const sx = dx < 0 ? -1 : 1;
+    const sy = dy < 0 ? -1 : 1;
+    const absW = Math.abs(dx);
+    const absH = Math.abs(dy);
+    // Grow whichever dimension is "smaller" in card units so the rect covers
+    // what the user pointed to instead of shrinking inside the gesture.
+    if (absW / CARD_ASPECT >= absH) {
+      return { ...r, y2: r.y1 + sy * (absW / CARD_ASPECT) };
+    }
+    return { ...r, x2: r.x1 + sx * (absH * CARD_ASPECT) };
+  };
+
+  const onFrameCapturePointerDown = (e: React.PointerEvent<SVGRectElement>) => {
+    if (frameStage !== 'active') return;
+    e.preventDefault();
+    (e.currentTarget as SVGRectElement).setPointerCapture(e.pointerId);
+    const { x, y } = clientToViewBox(e.clientX, e.clientY);
+    setFrameStage('drawing');
+    setFrameRect({ x1: x, y1: y, x2: x, y2: y });
+    setFrameError(null);
+  };
+
+  const onFrameCapturePointerMove = (e: React.PointerEvent<SVGRectElement>) => {
+    if (frameStage !== 'drawing' || !frameRect) return;
+    const { x, y } = clientToViewBox(e.clientX, e.clientY);
+    const next = applyAspectLock(
+      { x1: frameRect.x1, y1: frameRect.y1, x2: x, y2: y },
+      aspectLocked && !e.shiftKey,
+    );
+    setFrameRect(next);
+  };
+
+  const onFrameCapturePointerUp = (e: React.PointerEvent<SVGRectElement>) => {
+    if (frameStage !== 'drawing' || !frameRect) return;
+    (e.currentTarget as SVGRectElement).releasePointerCapture(e.pointerId);
+    const w = Math.abs(frameRect.x2 - frameRect.x1);
+    const h = Math.abs(frameRect.y2 - frameRect.y1);
+    // Anything smaller than ~1% of the image is almost certainly an accidental
+    // click — bounce back to active so the user can try again.
+    if (w < width * 0.02 || h < height * 0.02) {
+      setFrameStage('active');
+      setFrameRect(null);
+      return;
+    }
+    setFrameStage('drawn');
+  };
+
+  const cancelFrame = () => {
+    if (frameStage === 'submitting') return;
+    setFrameStage('idle');
+    setFrameRect(null);
+    setFrameError(null);
+  };
+
+  const submitFrame = async (skipIdentify: boolean) => {
+    if (!onFrameCard || !frameRect || frameStage !== 'drawn') return;
+    const x = Math.min(frameRect.x1, frameRect.x2);
+    const y = Math.min(frameRect.y1, frameRect.y2);
+    const x2 = Math.max(frameRect.x1, frameRect.x2);
+    const y2 = Math.max(frameRect.y1, frameRect.y2);
+    // Axis-aligned quad in TL, TR, BR, BL order — matches what the backend
+    // expects and what classical_detector.perspective_warp consumes.
+    const corners: [number, number][] = [
+      [x, y], [x2, y], [x2, y2], [x, y2],
+    ];
+    setFrameStage('submitting');
+    setFrameError(null);
+    try {
+      await onFrameCard(corners, skipIdentify);
+      setFrameStage('idle');
+      setFrameRect(null);
+    } catch (err) {
+      setFrameError((err as Error).message || t('frame_error_generic'));
+      setFrameStage('drawn');
+    }
+  };
+
+  // Auto-exit framing mode when the user collapses the modal.
+  useEffect(() => {
+    if (!expanded && frameStage !== 'idle') {
+      setFrameStage('idle');
+      setFrameRect(null);
+      setFrameError(null);
+    }
+  }, [expanded, frameStage]);
+
+  // Derived rect for rendering (normalised positive). null when nothing drawn yet.
+  const drawnRect = frameRect && (frameStage === 'drawing' || frameStage === 'drawn' || frameStage === 'submitting')
+    ? {
+      x: Math.min(frameRect.x1, frameRect.x2),
+      y: Math.min(frameRect.y1, frameRect.y2),
+      w: Math.abs(frameRect.x2 - frameRect.x1),
+      h: Math.abs(frameRect.y2 - frameRect.y1),
+    }
+    : null;
+
+  const framingEnabled = expanded && !!onFrameCard;
+  const framingActive = frameStage !== 'idle';
+
   return (
     <div
-      className={`preview-cell${expanded ? ' expanded' : ''}`}
+      className={`preview-cell${expanded ? ' expanded' : ''}${framingActive ? ' framing' : ''}`}
       style={expanded && modalSize
         ? { width: modalSize.w, height: modalSize.h }
         : undefined}
@@ -231,11 +399,64 @@ export function BatchPreview({
       ) : null}
       <div className="preview-wrap">
         <img src={imageB64} alt="" />
+        {framingEnabled ? (
+          <div className="frame-toolbar">
+            {!framingActive ? (
+              <button
+                type="button"
+                className="frame-toolbar-btn"
+                onClick={() => { setFrameStage('active'); setFrameRect(null); setFrameError(null); }}
+                title={t('frame_btn_title')}
+              >＋ {t('frame_btn_label')}</button>
+            ) : (
+              <>
+                <span className="frame-toolbar-hint">
+                  {frameStage === 'active' ? t('frame_hint_draw')
+                    : frameStage === 'drawing' ? t('frame_hint_drawing')
+                    : frameStage === 'submitting' ? t('frame_hint_submitting')
+                    : t('frame_hint_drawn')}
+                </span>
+                <label className="frame-toolbar-aspect">
+                  <input
+                    type="checkbox"
+                    checked={aspectLocked}
+                    onChange={(e) => setAspectLocked(e.target.checked)}
+                    disabled={frameStage === 'submitting'}
+                  />
+                  <span>{t('frame_aspect_lock')}</span>
+                </label>
+                <button
+                  type="button"
+                  className="frame-toolbar-btn ghost"
+                  onClick={cancelFrame}
+                  disabled={frameStage === 'submitting'}
+                >{t('frame_cancel')}</button>
+              </>
+            )}
+          </div>
+        ) : null}
         <svg
           ref={svgRef}
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
         >
+          {framingActive ? (
+            <rect
+              className="frame-capture"
+              x={0} y={0} width={width} height={height}
+              onPointerDown={onFrameCapturePointerDown}
+              onPointerMove={onFrameCapturePointerMove}
+              onPointerUp={onFrameCapturePointerUp}
+              onPointerCancel={onFrameCapturePointerUp}
+            />
+          ) : null}
+          {drawnRect ? (
+            <rect
+              className={`frame-drawn${frameStage === 'submitting' ? ' is-submitting' : ''}`}
+              x={drawnRect.x} y={drawnRect.y}
+              width={drawnRect.w} height={drawnRect.h}
+            />
+          ) : null}
           {visibleCards.map(cd => {
             const [x, y, w, h] = cd.card.bbox;
             const corners = cd.card.corners;
@@ -318,6 +539,57 @@ export function BatchPreview({
             );
           })}
         </svg>
+        {frameStage === 'drawn' || frameStage === 'submitting' ? (() => {
+          if (!drawnRect) return null;
+          // Position the action bar in viewport pixels just under the drawn
+          // rect's bottom edge. We compute the same letterbox transform the
+          // capture rect uses, in reverse — so the bar tracks the rect when
+          // the modal is resized.
+          const el = svgRef.current;
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          const containerAspect = rect.width / rect.height || 1;
+          const imageAspect = width / height || 1;
+          let renderedW: number, renderedH: number, offX: number, offY: number;
+          if (containerAspect > imageAspect) {
+            renderedH = rect.height; renderedW = renderedH * imageAspect;
+            offX = (rect.width - renderedW) / 2; offY = 0;
+          } else {
+            renderedW = rect.width; renderedH = renderedW / imageAspect;
+            offX = 0; offY = (rect.height - renderedH) / 2;
+          }
+          const scaleX = renderedW / width;
+          const scaleY = renderedH / height;
+          const left = offX + (drawnRect.x + drawnRect.w / 2) * scaleX;
+          const top = offY + (drawnRect.y + drawnRect.h) * scaleY + 12;
+          return (
+            <div className="frame-action-bar" style={{ left, top }}>
+              {frameError ? (
+                <span className="frame-action-error">{frameError}</span>
+              ) : null}
+              <button
+                type="button"
+                className="frame-action-confirm"
+                onClick={() => submitFrame(false)}
+                disabled={frameStage === 'submitting'}
+                title={t('frame_confirm_title')}
+              >{frameStage === 'submitting' ? t('frame_submitting') : `✓ ${t('frame_confirm')}`}</button>
+              <button
+                type="button"
+                className="frame-action-manual"
+                onClick={() => submitFrame(true)}
+                disabled={frameStage === 'submitting'}
+                title={t('frame_manual_title')}
+              >{t('frame_manual')}</button>
+              <button
+                type="button"
+                className="frame-action-cancel"
+                onClick={cancelFrame}
+                disabled={frameStage === 'submitting'}
+              >✕</button>
+            </div>
+          );
+        })() : null}
       </div>
       {!expanded ? (
         <div className="preview-expand-row">
@@ -328,12 +600,17 @@ export function BatchPreview({
           >
             {t('preview_expand')}
           </button>
+          {onFrameCard ? (
+            <span className="preview-expand-hint">{t('preview_frame_hint')}</span>
+          ) : null}
         </div>
       ) : null}
       <p className="preview-tip">{t('preview_drag_tip')}</p>
-      <div className="preview-info-banner">
-        <span aria-hidden="true">⏱</span> {t('preview_price_info')}
-      </div>
+      {!expanded ? (
+        <div className="preview-info-banner">
+          <span aria-hidden="true">⏱</span> {t('preview_price_info')}
+        </div>
+      ) : null}
     </div>
   );
 }

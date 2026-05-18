@@ -2,7 +2,7 @@
 // in dev (see vite.config.ts).
 
 import { authHeaders } from './api/auth.ts';
-import type { Candidate, ScanResponse } from './types.ts';
+import type { Candidate, DetectedCard, ScanResponse } from './types.ts';
 
 export interface Health {
   ok: boolean;
@@ -116,6 +116,29 @@ export async function addToChecklist(payload: AddListingPayload): Promise<{ id: 
     throw new Error(`Add to checklist failed: ${r.status} ${t.slice(0, 200)}`);
   }
   return (await r.json()) as { id: number };
+}
+
+// Frame a missed card. User draws a rectangle in BatchPreview expand mode;
+// the backend warps that quad, pHashes it, and returns either a fully-named
+// card (CK-priced) or a manual stub the user will rename.
+//
+// `skipIdentify=true` is the "just add a blank row" path — bypasses pHash and
+// returns an empty manual card the user fills in via the row's edit controls.
+export async function frameCard(
+  scanId: number,
+  corners: [number, number][],
+  skipIdentify = false,
+): Promise<DetectedCard> {
+  const fd = new FormData();
+  fd.append('payload', JSON.stringify({ corners, skip_identify: skipIdentify }));
+  const r = await fetch(`/api/scans/${scanId}/frame-card`, {
+    method: 'POST', body: fd, headers: authHeaders(),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`Frame card failed: ${r.status} ${t.slice(0, 200)}`);
+  }
+  return (await r.json()) as DetectedCard;
 }
 
 export async function exportImage(payload: ExportPayload): Promise<Blob> {

@@ -67,23 +67,9 @@ export function CardRow({
     </span>
   ) : null;
 
-  // Only surface the pHash "local match" pill. Gemini is the default naming
-  // path, so a "named by Gemini" pill carries no useful signal — and the user
-  // explicitly asked to drop it.
-  const nameConfidence = cd.card.name_confidence;
-  const namePill = cd.card.name_source === 'phash' ? (
-    <span
-      className="name-source-pill phash"
-      title={t('name_phash_tip', { d: nameConfidence ?? 0 })}
-    >
-      {`◉ ${t('name_phash')} (${nameConfidence ?? '?'})`}
-    </span>
-  ) : null;
-
   const matchLine = cd.isManual ? null : (
     <div className={`conf ${cd.sel._lookup_failed ? 'low' : ''}`}>
       {cd.sel._lookup_failed ? t('scryfall_failed') : t('matched')}
-      {namePill}
     </div>
   );
 

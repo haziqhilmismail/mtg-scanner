@@ -74,7 +74,9 @@ export interface DetectedCard {
   // Which pipeline produced the bbox. Gemini always does the *naming*; the
   // optional classical detector can refine the box when it confidently
   // matches a card-shaped blob (see backend/services/classical_detector.py).
-  bbox_source?: 'classical' | 'gemini';
+  // 'user' marks a card the user framed by hand in expand mode after the
+  // detector merged or missed it.
+  bbox_source?: 'classical' | 'gemini' | 'user';
   // Which pipeline NAMED the card. 'phash' means the local perceptual-hash
   // index matched the crop without calling Gemini; 'gemini' means the cloud
   // model named it. Tied to backend USE_LOCAL_CARD_ID.
