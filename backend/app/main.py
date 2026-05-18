@@ -971,8 +971,17 @@ async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId
 
     show_outlines = bool(data.get("show_outlines", False))
     label_position = data.get("label_position", "bottom")
+    try:
+        font_scale = float(data.get("font_scale", 1.0) or 1.0)
+    except (TypeError, ValueError):
+        font_scale = 1.0
 
-    png = render_overlay(raw, cards, show_outlines=show_outlines, label_position=label_position)
+    png = render_overlay(
+        raw, cards,
+        show_outlines=show_outlines,
+        label_position=label_position,
+        font_scale=font_scale,
+    )
     return Response(
         content=png,
         media_type="image/png",
