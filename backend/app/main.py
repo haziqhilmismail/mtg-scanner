@@ -162,9 +162,30 @@ async def health():
 @app.post("/api/refresh-ck")
 @limiter.limit("3/hour")  # CK pricelist is ~50MB; don't hammer their CDN
 async def refresh_ck(request: Request):
+    """Force a refresh from CK. 200 only when the download actually ran end
+    to end; 502 if CK couldn't be reached. The previous fire-and-forget
+    behaviour returned 200 even when the underlying download silently
+    failed and the rebuild ran from a week-old cache — see
+    cardkingdom_prices.py for the new contract."""
+    from fastapi.responses import JSONResponse  # local import: cold-path
     idx = await get_ck_index()
-    await idx.refresh(force=True)
-    return {"ok": True, "indexed_cards": idx.matched_scryfall_count}
+    try:
+        await idx.refresh(force=True)
+    except Exception as e:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "ok": False,
+                "download_succeeded": False,
+                "error": str(e),
+                "indexed_cards": idx.matched_scryfall_count,
+            },
+        )
+    return {
+        "ok": True,
+        "download_succeeded": True,
+        "indexed_cards": idx.matched_scryfall_count,
+    }
 
 
 # ---------- Image cache for the export step ----------
