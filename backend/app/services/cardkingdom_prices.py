@@ -19,11 +19,13 @@ we refresh. /api/refresh-ck forces a refresh regardless of age. There is no
 background timer; if the Fly machine stays up for a week and nobody hits the
 refresh endpoint, the cache stays at the boot-time snapshot.
 
-Price field: CK's top-level `price_retail` is the NM list price even when NM
-is out of stock. The real "what a buyer sees on the site" price comes from
-`condition_values.{nm,ex,vg,g}_price` — pick the first one whose `_qty > 0`.
-For older/cheaper cards CK is often out at NM and only stocks lower
-conditions, which would otherwise make our scanner price ~25% too high.
+Price field: we always store the NM-condition price (taken from
+`condition_values.nm_price`, falling back to the top-level `price_retail`
+when condition_values is missing). The seller stocks NM cards themselves
+and uses CK's NM list price as their pricing anchor, so EX/VG fallbacks
+would undercharge them. Worked example: Clout of the Dominus (eve/99) —
+CK is out at NM ($0.99 list) and only stocks EX at $0.79; we still store
+$0.99 because that's what the seller wants to multiply against.
 """
 
 import asyncio
@@ -48,12 +50,6 @@ CACHE_TTL_SECONDS = 24 * 3600
 SCHEMA_VERSION = 2
 
 USER_AGENT = "MTGPasarMalamScanner/2.2"
-
-# CK ships condition grades in this priority. The "displayed price" walks
-# down this list and picks the first one with stock — same behaviour as CK's
-# product pages.
-_CONDITIONS = ("nm", "ex", "vg", "g")
-
 
 def _to_float(v) -> float:
     try:
@@ -83,19 +79,23 @@ def _is_truthy(v) -> bool:
     return False
 
 
-def _pick_displayed_price(p: dict) -> tuple[float, int]:
-    """Mirror CK's website: walk NM → EX → VG → G and return the first
-    condition with stock (price, qty). Falls back to the headline retail
-    fields when every condition shows zero — typically means the SKU is
-    fully out of stock everywhere."""
+def _pick_nm_price(p: dict) -> tuple[float, int]:
+    """Always return CK's NM-condition price + qty.
+
+    We deliberately ignore EX/VG/G fallbacks — the seller stocks NM cards
+    and uses CK's NM list as their pricing anchor, so charging based on
+    CK's currently-stocked-but-lower-grade price would undercut them.
+    qty is `nm_qty` so the in-stock flag downstream reflects "can a buyer
+    actually get this from CK at NM" rather than "any condition is stocked."
+
+    Falls back to the top-level `price_retail` / `qty_retail` only when
+    `condition_values` is missing entirely (a few edge SKUs); the top-level
+    `price_retail` IS the NM list price, so the fallback preserves intent.
+    """
     cv = p.get("condition_values") or {}
-    for cond in _CONDITIONS:
-        qty = _to_int(cv.get(f"{cond}_qty"))
-        if qty <= 0:
-            continue
-        price = _to_float(cv.get(f"{cond}_price"))
-        if price > 0:
-            return price, qty
+    nm_price = _to_float(cv.get("nm_price"))
+    if nm_price > 0:
+        return nm_price, _to_int(cv.get("nm_qty"))
     return _to_float(p.get("price_retail")), _to_int(p.get("qty_retail"))
 
 
@@ -279,7 +279,7 @@ class CKPriceIndex:
                     sid = (p.get("scryfall_id") or "").strip()
                     if not sid:
                         continue
-                    price, qty = _pick_displayed_price(p)
+                    price, qty = _pick_nm_price(p)
                     buy = _to_float(p.get("price_buy"))
                     is_foil = 1 if _is_truthy(p.get("is_foil")) else 0
                     name = (p.get("name") or "").strip()
