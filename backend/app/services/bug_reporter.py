@@ -133,6 +133,16 @@ def _format_push(event: BugEvent) -> str:
     location = " · ".join(where) if where else "(no route)"
     user_line = f"user {event.user_id}" if event.user_id is not None else "anon"
     body = _truncate(event.message, 400) or ""
+
+    # User feedback piggybacks on the bug-reporter endpoint but isn't a bug —
+    # render it with a friendlier prefix + drop the stack frame so the push
+    # reads like "someone said this" instead of "the app exploded".
+    if event.exception_type == "UserFeedback":
+        return "\n".join([
+            f"💬 <b>Feedback</b> · <i>{location}</i> · {user_line}",
+            f"<pre>{_esc(body)}</pre>",
+        ])
+
     head_frame = _top_frame(event.stack)
     lines = [
         f"🚨 <b>[{event.source}]</b> <code>{_esc(event.exception_type)}</code>",
