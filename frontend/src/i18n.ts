@@ -175,6 +175,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     // User feedback modal — opened from the 💬 button in the floating chip.
     // Piggybacks on /api/bug with exception_type=UserFeedback so the
     // Telegram push renders as feedback, not a crash.
+    feedback_btn_label: 'Feedback',
     feedback_open: 'Send feedback',
     feedback_close: 'Close feedback',
     feedback_title: 'Send feedback',
@@ -715,6 +716,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     // Modal maklum balas pengguna — dibuka dari butang 💬 dalam cip apung.
     // Guna /api/bug dengan exception_type=UserFeedback supaya push Telegram
     // dipaparkan sebagai maklum balas, bukan ralat.
+    feedback_btn_label: 'Maklum balas',
     feedback_open: 'Hantar maklum balas',
     feedback_close: 'Tutup',
     feedback_title: 'Hantar maklum balas',
