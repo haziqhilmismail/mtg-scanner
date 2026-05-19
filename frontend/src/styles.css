@@ -814,6 +814,53 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   .scan-post-hint { flex-basis: auto; }
 }
 
+/* New finalize layout — replaces the old numbered .finalize-step rows.
+   Single picker row (label + select + new-post + apply-to-all link), then
+   the action row with Add-all + Export side-by-side (stacks on phones). */
+.finalize-picker-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.finalize-picker-row .scan-post-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--accent);
+}
+.finalize-picker-row button {
+  padding: 6px 12px; font-size: 10px;
+}
+.finalize-action-row {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin-top: 4px;
+}
+.finalize-action-row button {
+  flex: 1 1 0;
+  min-width: 160px;
+}
+@media (max-width: 480px) {
+  .finalize-action-row button { flex: 1 1 100%; }
+}
+/* Top-mounted finalize block — same content as the bottom one, but rendered
+   above the card list. Tighten spacing so it sits flush against the scan
+   preview and leaves room before the foil bulk-bar. */
+.finalize-block-top { margin-top: 0; margin-bottom: 12px; }
+
+/* Text-link-style button (no border, accent colour) — used for the
+   "Apply to all batches" shortcut inside the finalize picker row. */
+.link-btn {
+  background: transparent; border: 0;
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease;
+}
+.link-btn:hover { background: var(--accent-soft); }
+
+
 /* Bulk action bar above card list */
 .bulk-bar {
   display: flex; align-items: center; gap: 10px;
@@ -3248,10 +3295,56 @@ img.zoomable:hover {
   padding: clamp(10px, 1.6vw, 18px) clamp(16px, 5vw, 80px) clamp(20px, 4vw, 56px);
   display: flex; flex-direction: column; align-items: center;
 }
-.landing-header {
-  width: 100%; max-width: 1240px;
-  display: flex; justify-content: flex-end; align-items: center; gap: 8px;
-  margin-bottom: clamp(10px, 1.5vw, 20px);
+/* Floating "back to top" button. Stacks above .float-controls (bottom-right
+   corner). Fades in once the user has scrolled > 1 viewport. Hidden when
+   above the threshold so it doesn't compete with the masthead. */
+.float-back-top {
+  position: fixed;
+  right: clamp(12px, 3vw, 20px);
+  bottom: calc(max(16px, env(safe-area-inset-bottom, 16px)) + 56px);
+  z-index: 5;
+  width: 42px; height: 42px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 10px 30px -16px rgba(0,0,0,0.35), 0 2px 8px -4px rgba(0,0,0,0.15);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease,
+              background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.float-back-top.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.float-back-top:hover {
+  background: var(--ink); color: var(--paper); border-color: var(--ink);
+}
+
+/* Floating display-settings chip: fixed bottom-right, out of the way visually
+   but always reachable regardless of scroll position. Used on the landing
+   (where settings shouldn't compete with the demo) and inside the app shell
+   (where they shouldn't compete with the page title). z-index stays low so
+   any modal overlay covers it. */
+.float-controls {
+  position: fixed;
+  right: clamp(12px, 3vw, 20px);
+  bottom: max(16px, env(safe-area-inset-bottom, 16px));
+  z-index: 5;
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 10px 30px -16px rgba(0,0,0,0.35), 0 2px 8px -4px rgba(0,0,0,0.15);
 }
 /* Compact the toggle in the landing context — the in-app Header keeps 38px. */
 .landing-lang { height: 30px; }

@@ -384,6 +384,20 @@ export function useScanner() {
     [updateCardArray],
   );
 
+  // Swap the entire cards array — used by the per-scan "↻ Refresh prices"
+  // flow, which gets a fully re-enriched cards[] from the backend. Parent
+  // card fields (bbox, corners) are preserved server-side; only candidate
+  // pricing fields change. User overrides (priceOverride / multOverride /
+  // isFoil) live in the batch state, not in `response`, so they survive.
+  const replaceAllCards = useCallback((batchId: string, cards: DetectedCard[]) => {
+    setBatches(prev =>
+      prev.map(b => {
+        if (b.id !== batchId || !b.response) return b;
+        return { ...b, response: { ...b.response, cards } };
+      }),
+    );
+  }, []);
+
   const replaceCandidate = useCallback((batchId: string, idx: number, c: Candidate) => {
     setBatches(prev =>
       prev.map(b => {
@@ -524,6 +538,7 @@ export function useScanner() {
     relookupByName,
     useAsIs,
     replaceCandidate,
+    replaceAllCards,
     setRelookupMsg,
   };
 }

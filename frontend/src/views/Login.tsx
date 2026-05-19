@@ -61,36 +61,6 @@ export function Login({ clientId, onCredential, error, busy }: Props) {
 
   return (
     <div className="landing">
-      <div className="landing-header">
-        <div className="lang-toggle landing-lang" role="tablist" aria-label="Language">
-          <button
-            type="button"
-            className={lang === 'en' ? 'active' : ''}
-            aria-pressed={lang === 'en'}
-            onClick={() => setLang('en')}
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            className={lang === 'ms' ? 'active' : ''}
-            aria-pressed={lang === 'ms'}
-            onClick={() => setLang('ms')}
-          >
-            MS
-          </button>
-        </div>
-        <button
-          className="icon-btn landing-theme"
-          type="button"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? '☀' : '☾'}
-        </button>
-      </div>
-
       <div className="landing-grid">
         <section className="landing-pitch">
           <div className="landing-mark">♠</div>
@@ -178,6 +148,36 @@ export function Login({ clientId, onCredential, error, busy }: Props) {
           <span>github.com/haziqhilmismail</span>
         </a>
       </footer>
+
+      <div className="float-controls" aria-label="Display settings">
+        <div className="lang-toggle landing-lang" role="tablist" aria-label="Language">
+          <button
+            type="button"
+            className={lang === 'en' ? 'active' : ''}
+            aria-pressed={lang === 'en'}
+            onClick={() => setLang('en')}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            className={lang === 'ms' ? 'active' : ''}
+            aria-pressed={lang === 'ms'}
+            onClick={() => setLang('ms')}
+          >
+            MS
+          </button>
+        </div>
+        <button
+          className="icon-btn landing-theme"
+          type="button"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? '☀' : '☾'}
+        </button>
+      </div>
     </div>
   );
 }

@@ -22,15 +22,32 @@ export function Header({
   user, onSignOut,
 }: Props) {
   return (
-    <header className="masthead">
-      <div>
-        <h1>{title}</h1>
-        <div className="sub">
-          {sub} ·{' '}
-          <span className={`health ${healthState ?? ''}`}>{healthLabel}</span>
+    <>
+      <header className="masthead">
+        <div>
+          <h1>{title}</h1>
+          <div className="sub">
+            {sub} ·{' '}
+            <span className={`health ${healthState ?? ''}`}>{healthLabel}</span>
+          </div>
         </div>
-      </div>
-      <div className="header-controls">
+        {user && onSignOut ? (
+          <div className="header-controls">
+            <div className="user-chip" title={user.email}>
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="user-avatar" referrerPolicy="no-referrer" />
+              ) : (
+                <span className="user-avatar placeholder">{(user.name || user.email)[0]?.toUpperCase()}</span>
+              )}
+              <span className="user-name">{user.name || user.email}</span>
+              <button type="button" className="signout-btn" onClick={onSignOut} aria-label="Sign out">
+                Sign out
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </header>
+      <div className="float-controls" aria-label="Display settings">
         <div className="lang-toggle" role="tablist" aria-label="Language">
           <button
             type="button"
@@ -58,20 +75,7 @@ export function Header({
         >
           {theme === 'dark' ? '☀' : '☾'}
         </button>
-        {user && onSignOut ? (
-          <div className="user-chip" title={user.email}>
-            {user.avatar_url ? (
-              <img src={user.avatar_url} alt="" className="user-avatar" referrerPolicy="no-referrer" />
-            ) : (
-              <span className="user-avatar placeholder">{(user.name || user.email)[0]?.toUpperCase()}</span>
-            )}
-            <span className="user-name">{user.name || user.email}</span>
-            <button type="button" className="signout-btn" onClick={onSignOut} aria-label="Sign out">
-              Sign out
-            </button>
-          </div>
-        ) : null}
       </div>
-    </header>
+    </>
   );
 }

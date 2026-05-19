@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { fetchHealth, type Health } from './api.ts';
+import { formatRelativeTime } from './utils.ts';
 import { DialogProvider } from './components/DialogProvider.tsx';
+import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
 import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
 import { TopTabs } from './components/TopTabs.tsx';
@@ -42,7 +44,12 @@ export default function App() {
   const healthLabel = (() => {
     if (!health && !healthErr) return t('ck_checking');
     if (!health && healthErr) return t('ck_unreachable');
-    if (health?.cardkingdom_cards) return t('ck_loaded', { n: health.cardkingdom_cards.toLocaleString() });
+    // When the index loaded successfully, append the refresh-age so users
+    // can decide whether their prices are stale enough to manually refresh.
+    const since = health?.cardkingdom_refreshed_at
+      ? ' · ' + formatRelativeTime(health.cardkingdom_refreshed_at, t)
+      : '';
+    if (health?.cardkingdom_cards) return t('ck_loaded', { n: health.cardkingdom_cards.toLocaleString() }) + since;
     if (health?.cardkingdom_error) return t('ck_error');
     return t('ck_not_loaded');
   })();
@@ -108,6 +115,7 @@ export default function App() {
         <span>{t('footer_right')}</span>
       </footer>
     </div>
+    <FloatingBackToTop />
     </ImageZoomProvider>
     </DialogProvider>
   );

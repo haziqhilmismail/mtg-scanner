@@ -1,4 +1,4 @@
-import type { Settings } from './types.ts';
+import type { Batch, CardRowData, Settings } from './types.ts';
 
 export function fmt2(n: number | null | undefined): string {
   if (n == null || isNaN(n as number)) return '—';
@@ -88,9 +88,71 @@ export function generateBatchId(): string {
   return 'b' + Date.now() + Math.random().toString(36).slice(2, 6);
 }
 
+// Short relative time ("just now", "5m ago", "2h ago", "3d ago"). Used for
+// the CK pricelist freshness chip in the masthead, but generic enough that
+// any other "when was this last updated" indicator can reuse it.
+type TFn = (k: string, vars?: Record<string, string | number>) => string;
+export function formatRelativeTime(epochSeconds: number, t: TFn): string {
+  const diffMs = Date.now() - epochSeconds * 1000;
+  if (diffMs < 0) return t('relative_now');  // clock skew → "just now"
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return t('relative_now');
+  if (diffMin < 60) return t('relative_min', { n: diffMin });
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return t('relative_hr', { n: diffHr });
+  const diffDay = Math.floor(diffHr / 24);
+  return t('relative_day', { n: diffDay });
+}
+
 export function rarityKey(rarity: string | undefined | null): string {
   const r = (rarity || '').toLowerCase();
   if (r === 'common' || r === 'uncommon' || r === 'rare' || r === 'mythic') return r;
   if (r) return 'special';
   return '';
+}
+
+// Derive per-card pricing/quantity/foil rows for a scanned batch. Pure transform —
+// used by ActiveBatchView's render memo AND by Scanner's bulk handlers (which need
+// to run "add to checklist" / "export" against batches that aren't currently active).
+export function computeCardData(batch: Batch, settings: Settings): CardRowData[] {
+  if (!batch.response) return [];
+  return batch.response.cards.map((c, origIdx) => {
+    const sel = c.candidates[0] || ({} as never);
+    const isManual = !!sel._manual;
+    const isFoil = batch.isFoil[origIdx] ?? false;
+    const removed = !!batch.removed[origIdx];
+    const usd = isFoil ? (sel.usd_foil || sel.usd || 0) : (sel.usd || 0);
+    const globalMult = isFoil ? settings.multFoil : settings.multNormal;
+    const multRaw = batch.multOverride[origIdx];
+    const hasMultOverride = multRaw != null && !isNaN(multRaw);
+    const mult = hasMultOverride ? (multRaw as number) : globalMult;
+    const qty = Math.max(1, batch.quantity[origIdx] || 1);
+    const overrideRaw = batch.priceOverride[origIdx];
+    const hasOverride = overrideRaw != null && overrideRaw !== '';
+    // CK is the only price source. If the chosen side has no CK row we don't
+    // auto-price — the user must enter manually. Skipping applyRounding here
+    // is what bypasses the RM 1 floor and surfaces "needs price" so we never
+    // ship a fake RM 1 sticker on something we couldn't actually look up.
+    const ckSourceMatched = isFoil
+      ? sel.price_source_foil === 'cardkingdom'
+      : sel.price_source_normal === 'cardkingdom';
+    const autoPrice = ckSourceMatched ? applyRounding(usd * mult, settings) : 0;
+    const needsPrice = !hasOverride && (isManual || !ckSourceMatched);
+    const unitPrice = hasOverride
+      ? (parseFloat(overrideRaw as string) || 0)
+      : needsPrice ? NaN : autoPrice;
+    const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
+    const source = isManual
+      ? 'manual'
+      : (isFoil
+        ? (sel.price_source_foil || 'none')
+        : (sel.price_source_normal || 'none')) as CardRowData['source'];
+    return {
+      card: c, sel, origIdx, removed,
+      isFoil, isManual, needsPrice,
+      usd, mult, globalMult, hasMultOverride,
+      autoPrice, qty, unitPrice, hasOverride, lineTotal, source,
+      pillOffset: batch.pillOffset?.[origIdx] ?? null,
+    };
+  });
 }

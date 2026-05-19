@@ -49,6 +49,12 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_error: 'CK: error — cards unpriced until CK is back',
     ck_not_loaded: 'CK: not loaded',
     ck_unreachable: 'CK: server unreachable',
+    // Relative time — used to show "CK refreshed 2h ago" alongside the
+    // health label, so users know when prices last got updated.
+    relative_now: 'just now',
+    relative_min: '{n}m ago',
+    relative_hr: '{n}h ago',
+    relative_day: '{n}d ago',
 
     upload_title: 'Upload images',
     drop_strong: 'Drop, paste, or tap to add photos',
@@ -161,6 +167,10 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     scanner_finalize_step3: 'Export the priced overlay and move on',
     scanner_back_to_top: '↑ Back to top',
     scanner_back_to_top_title: 'Scroll to the top to start the next scan',
+
+    // Per-scan price refresh — re-queries CK for this scan's cards
+    scan_refresh_prices: '↻ Refresh prices',
+    scan_refresh_prices_busy: '⟳ Refreshing prices…',
 
     tab_status_scanning: 'scanning…',
     tab_status_done_one: '1 card',
@@ -566,6 +576,12 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_error: 'CK: ralat — tiada harga sehingga CK pulih',
     ck_not_loaded: 'CK: tidak dimuat',
     ck_unreachable: 'CK: pelayan tidak dicapai',
+    // Masa relatif — "CK disegarkan 2j lalu" di sebelah label kesihatan.
+    // Guna huruf berbeza untuk jam (j) dan hari (h) untuk elak keliru.
+    relative_now: 'baru saja',
+    relative_min: '{n}m lalu',
+    relative_hr: '{n}j lalu',
+    relative_day: '{n}h lalu',
 
     upload_title: 'Muat naik gambar',
     drop_strong: 'Lepaskan, tampal, atau ketuk untuk muat naik gambar',
@@ -678,6 +694,10 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     scanner_finalize_step3: 'Eksport overlay berharga dan teruskan',
     scanner_back_to_top: '↑ Kembali ke atas',
     scanner_back_to_top_title: 'Skrol ke atas untuk mulakan imbasan seterusnya',
+
+    // Segarkan harga per-imbasan — pertanya semula CK untuk kad dalam imbasan ini
+    scan_refresh_prices: '↻ Segarkan harga',
+    scan_refresh_prices_busy: '⟳ Menyegarkan harga…',
 
     tab_status_scanning: 'mengimbas…',
     tab_status_done_one: '1 kad',
