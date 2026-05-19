@@ -55,13 +55,16 @@ jobs:
       - name: Upload ck_index.db to Fly + restart
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        # The setup-flyctl action installs the binary as `flyctl`, not `fly`
+        # (the `fly` shorthand is a brew-only convenience). Use the full name
+        # so this stays portable across CI environments.
         run: |
           # SFTP won't overwrite, so drop the existing DB first. The
           # backend keeps the old file pinned in its in-memory connection
           # until restart, so deleting here is safe.
-          fly ssh console -a mtg-scanner-backend -C "rm -f /app/data/ck_index.db"
-          echo "put data/ck_index.db /app/data/ck_index.db" | fly ssh sftp shell -a mtg-scanner-backend
-          fly machine restart -a mtg-scanner-backend
+          flyctl ssh console -a mtg-scanner-backend -C "rm -f /app/data/ck_index.db"
+          echo "put data/ck_index.db /app/data/ck_index.db" | flyctl ssh sftp shell -a mtg-scanner-backend
+          flyctl machine restart -a mtg-scanner-backend
 
       - name: Smoke-check /api/health after restart
         run: |
