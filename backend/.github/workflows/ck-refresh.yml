@@ -1,0 +1,71 @@
+name: Refresh CardKingdom pricelist
+
+# Why this exists:
+#   CK's WAF blocks Fly.io's IP range, so the backend's own /api/refresh-ck
+#   always 502s from prod. GitHub-hosted runners use Microsoft's Azure IPs
+#   (different ASN, not on CK's blocklist), so they can pull the pricelist
+#   normally. This workflow downloads CK, builds ck_index.db with the exact
+#   same code path the backend uses, then SFTPs it onto the Fly volume.
+#
+# Schedule: 02:00 UTC daily (~10:00 MYT) — after CK's daily refresh, before
+# the pasar-malam crowd needs prices. Manually triggerable via the Actions
+# tab if you want fresher data sooner.
+#
+# Required repo secret:
+#   FLY_API_TOKEN  — generate locally with `fly auth token`, paste under
+#                    repo Settings → Secrets and variables → Actions.
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install backend deps
+        # Full requirements.txt because refresh_ck_offline.py imports
+        # cardkingdom_prices.py which transitively pulls pydantic, sqlalchemy,
+        # aiohttp, ijson. Cheaper to install everything than to maintain a
+        # second slim requirements file.
+        run: pip install -r requirements.txt
+
+      - name: Build ck_index.db from CK pricelist
+        run: python scripts/refresh_ck_offline.py
+
+      - name: Verify the DB was written
+        run: |
+          test -f data/ck_index.db || { echo "ck_index.db missing"; exit 1; }
+          ls -lh data/ck_index.db
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Upload ck_index.db to Fly + restart
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # SFTP won't overwrite, so drop the existing DB first. The
+          # backend keeps the old file pinned in its in-memory connection
+          # until restart, so deleting here is safe.
+          fly ssh console -a mtg-scanner-backend -C "rm -f /app/data/ck_index.db"
+          echo "put data/ck_index.db /app/data/ck_index.db" | fly ssh sftp shell -a mtg-scanner-backend
+          fly machine restart -a mtg-scanner-backend
+
+      - name: Smoke-check /api/health after restart
+        run: |
+          # Give the app a few seconds to come up after the restart.
+          sleep 12
+          curl -fsS https://mtg-scanner-backend.fly.dev/api/health \
+            | python -c "import sys,json; h=json.load(sys.stdin); print('cards:', h.get('cardkingdom_cards'), 'refreshed_at:', h.get('cardkingdom_refreshed_at'))"
