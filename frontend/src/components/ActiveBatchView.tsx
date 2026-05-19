@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
-import { addToChecklist, exportImage, frameCard } from '../api.ts';
+import { useMemo, useRef, useState } from 'react';
+import { addToChecklist, frameCard } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { applyRounding, ckSearchUrl, formatMyrWithFoil } from '../utils.ts';
+import { ckSearchUrl, computeCardData } from '../utils.ts';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow } from './CardRow.tsx';
 import { useDialog } from './DialogProvider.tsx';
@@ -19,6 +19,18 @@ interface Props {
   selectedPostId: number | null;
   onSelectPost: (postId: number | null) => void;
   onPostsChanged: () => void;
+  // Lifted from Scanner.tsx so bulk callers can dedupe and so the "added"
+  // badge survives batch-tab switches.
+  addedIdx: Record<number, number>;
+  onMarkAdded: (origIdx: number, listingId: number) => void;
+  // Add-all and export now live in Scanner.tsx so the page-level bulk strip
+  // can replay them against any batch. This component just triggers them.
+  onAddAll: () => Promise<void>;
+  onExport: () => Promise<void>;
+  // Re-queries CK for this scan's cards. Disabled until the batch has a
+  // scanId (server-side save complete). The button manages its own busy
+  // state locally — Scanner.tsx doesn't need a global flag for it.
+  onRefreshPrices: () => Promise<void>;
 }
 
 // Convert a data: URL (the preview the backend returns) into a File so we
@@ -33,54 +45,23 @@ async function dataUrlToFile(dataUrl: string, filename: string): Promise<File> {
 export function ActiveBatchView({
   batch, settings, scanner, t, onZoom, onBrowsePrintings,
   posts, selectedPostId, onSelectPost, onPostsChanged,
+  addedIdx, onMarkAdded, onAddAll, onExport, onRefreshPrices,
 }: Props) {
   const dialog = useDialog();
-  // Track which cards have already been pushed to the checklist (origIdx → listing id)
-  const [addedIdx, setAddedIdx] = useState<Record<number, number>>({});
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Synchronous re-entry guard for per-card adds. React's `disabled={added}`
+  // updates on the next render, which can be slower than a real double-click.
+  // This ref flips immediately, blocks the second click in the same JS tick.
+  const cardAddInFlightRef = useRef<Set<number>>(new Set());
 
   // Compute per-card row data unconditionally. Hooks must not run conditionally.
-  const cardData = useMemo<CardRowData[]>(() => {
-    if (!batch.response) return [];
-    return batch.response.cards.map((c, origIdx) => {
-      const sel = c.candidates[0] || ({} as never);
-      const isManual = !!sel._manual;
-      const isFoil = batch.isFoil[origIdx] ?? false;
-      const removed = !!batch.removed[origIdx];
-      const usd = isFoil ? (sel.usd_foil || sel.usd || 0) : (sel.usd || 0);
-      const globalMult = isFoil ? settings.multFoil : settings.multNormal;
-      const multRaw = batch.multOverride[origIdx];
-      const hasMultOverride = multRaw != null && !isNaN(multRaw);
-      const mult = hasMultOverride ? (multRaw as number) : globalMult;
-      const qty = Math.max(1, batch.quantity[origIdx] || 1);
-      const overrideRaw = batch.priceOverride[origIdx];
-      const hasOverride = overrideRaw != null && overrideRaw !== '';
-      // CK is the only price source. If the chosen side has no CK row we don't
-      // auto-price — the user must enter manually. Skipping applyRounding here
-      // is what bypasses the RM 1 floor and surfaces "needs price" so we never
-      // ship a fake RM 1 sticker on something we couldn't actually look up.
-      const ckSourceMatched = isFoil
-        ? sel.price_source_foil === 'cardkingdom'
-        : sel.price_source_normal === 'cardkingdom';
-      const autoPrice = ckSourceMatched ? applyRounding(usd * mult, settings) : 0;
-      const needsPrice = !hasOverride && (isManual || !ckSourceMatched);
-      const unitPrice = hasOverride
-        ? (parseFloat(overrideRaw as string) || 0)
-        : needsPrice ? NaN : autoPrice;
-      const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
-      const source = isManual
-        ? 'manual'
-        : (isFoil
-          ? (sel.price_source_foil || 'none')
-          : (sel.price_source_normal || 'none')) as CardRowData['source'];
-      return {
-        card: c, sel, origIdx, removed,
-        isFoil, isManual, needsPrice,
-        usd, mult, globalMult, hasMultOverride,
-        autoPrice, qty, unitPrice, hasOverride, lineTotal, source,
-        pillOffset: batch.pillOffset?.[origIdx] ?? null,
-      };
-    });
-  }, [batch, settings]);
+  // The actual computation lives in utils.ts so Scanner's bulk handlers can
+  // derive the same pricing/quantity rows for any batch they need to operate on.
+  const cardData = useMemo<CardRowData[]>(
+    () => computeCardData(batch, settings),
+    [batch, settings],
+  );
 
   if (batch.status === 'scanning') {
     return (
@@ -123,13 +104,24 @@ export function ActiveBatchView({
     ? `${data.cards.length} ${t('cards')}`
     : `${visibleCount} / ${data.cards.length} ${t('cards')}`;
 
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try { await onRefreshPrices(); }
+    finally { setRefreshing(false); }
+  };
+
   // POST a single card row to /api/listings, remembering it succeeded
-  // so the button can show its "added" state.
+  // so the button can show its "added" state. Skips when this card is
+  // already added or has a POST in flight from a same-tick double-click.
   const addOneToList = async (cd: CardRowData) => {
+    if (addedIdx[cd.origIdx]) return;
+    if (cardAddInFlightRef.current.has(cd.origIdx)) return;
     if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) {
       await dialog.alert({ title: t('alert_error_title'), message: t('add_to_list_failed', { err: 'no price set' }) });
       return;
     }
+    cardAddInFlightRef.current.add(cd.origIdx);
     try {
       const ckDirect = cd.isFoil
         ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
@@ -151,40 +143,11 @@ export function ActiveBatchView({
         qty_total: cd.qty,
         post_ids: selectedPostId != null ? [selectedPostId] : [],
       });
-      setAddedIdx(prev => ({ ...prev, [cd.origIdx]: result.id }));
+      onMarkAdded(cd.origIdx, result.id);
     } catch (e) {
       await dialog.alert({ title: t('alert_error_title'), message: t('add_to_list_failed', { err: (e as Error).message }) });
-    }
-  };
-
-  // "Add all to checklist" — runs sequentially so we get clean errors per card
-  const addAllToList = async () => {
-    for (const cd of visible) {
-      if (addedIdx[cd.origIdx]) continue;
-      if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) continue;
-      try {
-        const ck = cd.isFoil
-          ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
-          : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
-        const result = await addToChecklist({
-          name: cd.sel.name || '(unknown)',
-          scryfall_id: cd.sel.scryfall_id || null,
-          set_code: cd.sel.set || null,
-          set_name: cd.sel.set_name || null,
-          collector_number: cd.sel.collector_number || null,
-          rarity: cd.sel.rarity || null,
-          is_foil: cd.isFoil,
-          image_url: cd.sel.image_url || null,
-          ck_url: ck || null,
-          unit_price_myr: cd.unitPrice.toFixed(2),
-          qty_total: cd.qty,
-          post_ids: selectedPostId != null ? [selectedPostId] : [],
-        });
-        setAddedIdx(prev => ({ ...prev, [cd.origIdx]: result.id }));
-      } catch (e) {
-        // Skip failures but warn at the end if any happened
-        console.error('Add failed for', cd.sel.name, e);
-      }
+    } finally {
+      cardAddInFlightRef.current.delete(cd.origIdx);
     }
   };
 
@@ -216,38 +179,65 @@ export function ActiveBatchView({
     }
   };
 
-  const doExport = async () => {
-    const payload = {
-      image_id: data.image_id,
-      show_outlines: settings.showOutlines,
-      label_position: settings.labelPosition,
-      font_scale: settings.labelFontScale,
-      cards: visible.map(cd => {
-        // Suffix mode bakes "F" into the label; gold mode leaves it off and the pill renders gold.
-        const unitLabel = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
-        const label = cd.qty > 1 ? `${unitLabel} ×${cd.qty}` : unitLabel;
-        return {
-          bbox: cd.card.bbox,
-          corners: cd.card.corners,
-          is_foil: cd.isFoil && settings.foilStyle === 'gold',
-          label_override: label,
-          pill_dx: cd.pillOffset?.dx,
-          pill_dy: cd.pillOffset?.dy,
-        };
-      }),
-    };
-    try {
-      const blob = await exportImage(payload);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = batch.filename.replace(/\.[^.]+$/, '') + '_priced.png';
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
-    }
-  };
+  // Single source of truth for the refresh button — rendered the same way
+  // at both top and bottom finalize blocks. Sized like the other action
+  // buttons (Add / Export), `ghost` styling so it reads as secondary.
+  const refreshButton = batch.scanId != null ? (
+    <button
+      type="button"
+      className="ghost"
+      disabled={refreshing}
+      onClick={handleRefresh}
+    >{refreshing ? t('scan_refresh_prices_busy') : t('scan_refresh_prices')}</button>
+  ) : null;
+
+  // Shared finalize-block content. Rendered once at the top of the card list
+  // and once at the bottom so mobile users don't have to scroll past long
+  // card lists to act. The picker + button state are bound to the same props,
+  // so both copies stay in sync automatically.
+  const finalizeContent = (
+    <>
+      <div className="finalize-picker-row">
+        <span className="scan-post-label">{t('scanner_post_label')}</span>
+        <select
+          className="scan-post-select"
+          value={selectedPostId ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            onSelectPost(v === '' ? null : parseInt(v, 10));
+          }}
+        >
+          <option value="">{t('scanner_post_none')}</option>
+          {posts.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.title || `#${p.id}`}
+              {p.fb_url ? ' · 🔗' : ''}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="ghost"
+          onClick={createPostFromScan}
+          title={t('scanner_post_new_title')}
+        >{t('scanner_post_new_btn')}</button>
+      </div>
+      {selectedPostId != null ? (
+        <span className="scan-post-hint">{t('scanner_post_selected_hint')}</span>
+      ) : (
+        <span className="scan-post-hint muted">{t('scanner_post_unselected_hint')}</span>
+      )}
+      <div className="finalize-action-row">
+        <button
+          className="accent"
+          onClick={onAddAll}
+          disabled={visible.every(cd => addedIdx[cd.origIdx])}
+        >+ {t('add_all_to_list')}</button>
+        <button className="accent" onClick={onExport}>{t('export_btn')}</button>
+        {refreshButton}
+      </div>
+    </>
+  );
 
   return (
     <div className="batch-image">
@@ -272,6 +262,13 @@ export function ActiveBatchView({
           t={t}
         />
         <div>
+          {/* Top finalize block — same content as the bottom one so mobile
+              users with long card lists can act without scrolling. Picker +
+              button state are bound to shared props, so both stay in sync. */}
+          <div className="finalize-block finalize-block-top">
+            {finalizeContent}
+          </div>
+
           <div className="bulk-bar">
             <span className="bulk-label">{t('bulk_label')}</span>
             <button
@@ -344,74 +341,12 @@ export function ActiveBatchView({
             <span>{t('export_warning')}</span>
           </div>
 
-          {/* Finalize block: pick/create a post, add all reviewed cards to it,
-              export the priced image, jump back to the top for the next scan.
-              Sits at the bottom because every action here is post-review. */}
+          {/* Bottom finalize block — same content, same handlers, kept here
+              so users who've scrolled all the way down don't need to scroll
+              back up. The post picker and action buttons are bound to shared
+              state, so changing one updates both. */}
           <div className="finalize-block">
-            <div className="finalize-step">
-              <span className="finalize-num">1</span>
-              <div className="finalize-body">
-                <div className="finalize-title">{t('scanner_finalize_step1')}</div>
-                <div className="scan-post-bar">
-                  <span className="scan-post-label">{t('scanner_post_label')}</span>
-                  <select
-                    className="scan-post-select"
-                    value={selectedPostId ?? ''}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      onSelectPost(v === '' ? null : parseInt(v, 10));
-                    }}
-                  >
-                    <option value="">{t('scanner_post_none')}</option>
-                    {posts.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.title || `#${p.id}`}
-                        {p.fb_url ? ' · 🔗' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={createPostFromScan}
-                    title={t('scanner_post_new_title')}
-                  >{t('scanner_post_new_btn')}</button>
-                </div>
-                {selectedPostId != null ? (
-                  <span className="scan-post-hint">{t('scanner_post_selected_hint')}</span>
-                ) : (
-                  <span className="scan-post-hint muted">{t('scanner_post_unselected_hint')}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="finalize-step">
-              <span className="finalize-num">2</span>
-              <div className="finalize-body">
-                <div className="finalize-title">{t('scanner_finalize_step2')}</div>
-                <button
-                  className="accent"
-                  onClick={addAllToList}
-                  disabled={visible.every(cd => addedIdx[cd.origIdx])}
-                >+ {t('add_all_to_list')}</button>
-              </div>
-            </div>
-
-            <div className="finalize-step">
-              <span className="finalize-num">3</span>
-              <div className="finalize-body">
-                <div className="finalize-title">{t('scanner_finalize_step3')}</div>
-                <div className="finalize-actions">
-                  <button className="accent" onClick={doExport}>{t('export_btn')}</button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                    title={t('scanner_back_to_top_title')}
-                  >{t('scanner_back_to_top')}</button>
-                </div>
-              </div>
-            </div>
+            {finalizeContent}
           </div>
         </div>
       </div>

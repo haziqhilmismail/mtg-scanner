@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { addToChecklist, exportImage, relookupScanPrices, type Health } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
-import type { Candidate, Settings } from '../types.ts';
+import type { Batch, Candidate, Settings } from '../types.ts';
+import { ckSearchUrl, computeCardData, formatMyrWithFoil } from '../utils.ts';
 import { ActiveBatchView } from '../components/ActiveBatchView.tsx';
 import { BatchTabStrip } from '../components/BatchTabStrip.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
@@ -9,7 +11,6 @@ import { PrintingsModal } from '../components/PrintingsModal.tsx';
 import { SettingsPanel } from '../components/SettingsPanel.tsx';
 import { UploadZone } from '../components/UploadZone.tsx';
 import { ZoomModal } from '../components/ZoomModal.tsx';
-import type { Health } from '../api.ts';
 
 interface Props {
   scanner: ScannerStore;
@@ -17,6 +18,33 @@ interface Props {
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   health: Health | null;
   t: (k: string, vars?: Record<string, string | number>) => string;
+}
+
+const ADDED_STORAGE_PREFIX = 'mtg.scanner.added.';
+
+// Persist "this card from this scan was already added" so a refresh doesn't
+// silently re-enable Add-all and create duplicate listings on the next click.
+// Keyed by server-side scanId (stable across reloads); the client-side
+// batchId is regenerated on every load and can't be used here.
+function loadAddedFromStorage(): Record<number, Record<number, number>> {
+  const out: Record<number, Record<number, number>> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(ADDED_STORAGE_PREFIX)) continue;
+      const scanId = parseInt(key.slice(ADDED_STORAGE_PREFIX.length), 10);
+      if (isNaN(scanId)) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      out[scanId] = JSON.parse(raw);
+    }
+  } catch { /* corrupted entries are ignored */ }
+  return out;
+}
+
+function persistAddedSlice(scanId: number, slice: Record<number, number>) {
+  try { localStorage.setItem(ADDED_STORAGE_PREFIX + scanId, JSON.stringify(slice)); }
+  catch { /* quota / disabled storage — silent */ }
 }
 
 export function Scanner({ scanner, settings, updateSetting, health, t }: Props) {
@@ -30,12 +58,129 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
   const [posts, setPosts] = useState<Post[]>([]);
   const [postIdByBatch, setPostIdByBatch] = useState<Record<string, number | null>>({});
 
+  // Tracks which scanned cards have already been pushed to the checklist.
+  // Keyed by scanId (NOT batchId) so refresh-rehydrated batches keep their
+  // "added" memory and re-running Add-all becomes a no-op instead of a
+  // silent duplicate. Initialised eagerly from localStorage.
+  const [addedByScanId, setAddedByScanId] = useState<Record<number, Record<number, number>>>(loadAddedFromStorage);
+
+  // Synchronous re-entry guard for per-batch Add-all. A ref (not state)
+  // because React state updates are async — a fast double-click can fire
+  // the second handler before the first's setState propagates. Refs flip
+  // synchronously and block the second call in the same JS tick.
+  const addBatchInFlightRef = useRef<Set<string>>(new Set());
+
   const refreshPosts = useCallback(async () => {
     try { setPosts(await postsApi.list()); }
     catch { /* offline or auth error — ignore, picker just stays empty */ }
   }, []);
 
   useEffect(() => { refreshPosts(); }, [refreshPosts]);
+
+  const markAdded = useCallback((scanId: number, origIdx: number, listingId: number) => {
+    setAddedByScanId(prev => {
+      const next = { ...prev, [scanId]: { ...(prev[scanId] || {}), [origIdx]: listingId } };
+      persistAddedSlice(scanId, next[scanId]);
+      return next;
+    });
+  }, []);
+
+  // Per-batch add-all — already-added cards (tracked in addedByScanId) are
+  // skipped so re-clicking after manual per-card adds doesn't create
+  // duplicate listings. Synchronously gated by addBatchInFlightRef to block
+  // fast double-clicks.
+  const addBatchToChecklist = useCallback(async (batch: Batch, postId: number | null) => {
+    if (!batch.response || batch.scanId == null) return;
+    if (addBatchInFlightRef.current.has(batch.id)) return;
+    addBatchInFlightRef.current.add(batch.id);
+    try {
+      const cardData = computeCardData(batch, settings);
+      const visible = cardData.filter(cd => !cd.removed);
+      const alreadyAdded = addedByScanId[batch.scanId] || {};
+      for (const cd of visible) {
+        if (alreadyAdded[cd.origIdx]) continue;
+        if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) continue;
+        try {
+          const ckDirect = cd.isFoil
+            ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
+            : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
+          const ck = ckDirect || ckSearchUrl(cd.sel.name || '');
+          const result = await addToChecklist({
+            name: cd.sel.name || '(unknown)',
+            scryfall_id: cd.sel.scryfall_id || null,
+            set_code: cd.sel.set || null,
+            set_name: cd.sel.set_name || null,
+            collector_number: cd.sel.collector_number || null,
+            rarity: cd.sel.rarity || null,
+            is_foil: cd.isFoil,
+            image_url: cd.sel.image_url || null,
+            ck_url: ck || null,
+            unit_price_myr: cd.unitPrice.toFixed(2),
+            qty_total: cd.qty,
+            post_ids: postId != null ? [postId] : [],
+          });
+          markAdded(batch.scanId, cd.origIdx, result.id);
+        } catch (e) {
+          console.error('Add failed for', cd.sel.name, e);
+        }
+      }
+    } finally {
+      addBatchInFlightRef.current.delete(batch.id);
+    }
+  }, [settings, addedByScanId, markAdded]);
+
+  const exportBatch = useCallback(async (batch: Batch) => {
+    if (!batch.response) return;
+    const cardData = computeCardData(batch, settings);
+    const visible = cardData.filter(cd => !cd.removed);
+    const data = batch.response;
+    const payload = {
+      image_id: data.image_id,
+      show_outlines: settings.showOutlines,
+      label_position: settings.labelPosition,
+      font_scale: settings.labelFontScale,
+      cards: visible.map(cd => {
+        const unitLabel = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
+        const label = cd.qty > 1 ? `${unitLabel} ×${cd.qty}` : unitLabel;
+        return {
+          bbox: cd.card.bbox,
+          corners: cd.card.corners,
+          is_foil: cd.isFoil && settings.foilStyle === 'gold',
+          label_override: label,
+          pill_dx: cd.pillOffset?.dx,
+          pill_dy: cd.pillOffset?.dy,
+        };
+      }),
+    };
+    try {
+      const blob = await exportImage(payload);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = batch.filename.replace(/\.[^.]+$/, '') + '_priced.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
+    }
+  }, [settings, dialog, t]);
+
+  // Re-fetch CK prices for an already-saved scan. Cheap on the backend
+  // (local SQLite lookups, no Gemini, no network out). Returns the updated
+  // cards array which we swap into the batch's response in-place so user
+  // overrides (manual prices, foil toggles, qty) survive untouched.
+  const refreshScanPrices = useCallback(async (batch: Batch) => {
+    if (batch.scanId == null) return;
+    try {
+      const result = await relookupScanPrices(batch.scanId);
+      scanner.replaceAllCards(batch.id, result.cards);
+    } catch (e) {
+      await dialog.alert({
+        title: t('alert_error_title'),
+        message: 'Refresh failed: ' + (e as Error).message,
+      });
+    }
+  }, [scanner, dialog, t]);
 
   const activeBatch = scanner.batches.find(b => b.id === scanner.activeBatchId) ?? null;
 
@@ -77,6 +222,11 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
     return t('batch_counter', { cur: idx + 1, total: scanner.batches.length });
   })();
 
+  // Slice of addedByScanId for the currently-active batch — handed to
+  // ActiveBatchView as `addedIdx`. Empty when the batch hasn't completed
+  // scanning yet (no scanId yet) so the "+ Add" buttons stay clickable.
+  const activeAddedSlice = (activeBatch?.scanId != null ? addedByScanId[activeBatch.scanId] : null) || {};
+
   return (
     <>
       <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />
@@ -105,6 +255,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
               )}
             </span>
           </div>
+
           <BatchTabStrip
             batches={scanner.batches}
             activeId={scanner.activeBatchId}
@@ -124,6 +275,13 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
               selectedPostId={postIdByBatch[activeBatch.id] ?? null}
               onSelectPost={(pid) => setPostIdByBatch(prev => ({ ...prev, [activeBatch.id]: pid }))}
               onPostsChanged={refreshPosts}
+              addedIdx={activeAddedSlice}
+              onMarkAdded={(origIdx, listingId) => {
+                if (activeBatch.scanId != null) markAdded(activeBatch.scanId, origIdx, listingId);
+              }}
+              onAddAll={() => addBatchToChecklist(activeBatch, postIdByBatch[activeBatch.id] ?? null)}
+              onExport={() => exportBatch(activeBatch)}
+              onRefreshPrices={() => refreshScanPrices(activeBatch)}
             />
           ) : null}
         </section>

@@ -10,6 +10,9 @@ export interface Health {
   gemini_error?: string;
   cardkingdom_cards?: number;
   cardkingdom_error?: string;
+  // Unix epoch seconds — file mtime of ck_index.db. Frontend formats
+  // relative ("2h ago") so users can decide when to manually refresh.
+  cardkingdom_refreshed_at?: number;
 }
 
 export async function fetchHealth(): Promise<Health> {
@@ -34,6 +37,21 @@ export async function fetchScans(limit = 30): Promise<SavedScan[]> {
 export async function deleteScan(id: number): Promise<void> {
   const r = await fetch(`/api/scans/${id}`, { method: 'DELETE', headers: authHeaders() });
   if (!r.ok) throw new Error(`deleteScan failed: ${r.status}`);
+}
+
+// Re-runs CK price enrichment for every candidate in a saved scan.
+// Cheap (local SQLite lookups, no Gemini, no network to CK). Used by the
+// per-scan "↻ Refresh prices" button to pick up freshly-pulled CK data
+// without re-scanning the image.
+export interface RelookupPricesResponse extends SavedScan {
+  updated: number;
+}
+export async function relookupScanPrices(scanId: number): Promise<RelookupPricesResponse> {
+  const r = await fetch(`/api/scans/${scanId}/relookup-prices`, {
+    method: 'POST', headers: authHeaders(),
+  });
+  if (!r.ok) throw new Error(`relookupScanPrices failed: ${r.status}`);
+  return (await r.json()) as RelookupPricesResponse;
 }
 
 // Phone photos are usually 12 MP (~4032×3024). Gemini bills per ~768px image
