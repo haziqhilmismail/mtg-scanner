@@ -80,12 +80,12 @@ export function Header({
           {theme === 'dark' ? '☀' : '☾'}
         </button>
         <button
-          className="icon-btn"
+          className="feedback-chip-btn"
           type="button"
           onClick={() => setFeedbackOpen(true)}
           title={t('feedback_open')}
           aria-label={t('feedback_open')}
-        >💬</button>
+        >{t('feedback_btn_label')}</button>
       </div>
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
     </>

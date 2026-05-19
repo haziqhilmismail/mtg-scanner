@@ -180,12 +180,12 @@ export function Login({ clientId, onCredential, error, busy }: Props) {
           {theme === 'dark' ? '☀' : '☾'}
         </button>
         <button
-          className="icon-btn landing-theme"
+          className="feedback-chip-btn is-compact"
           type="button"
           onClick={() => setFeedbackOpen(true)}
           title={t('feedback_open')}
           aria-label={t('feedback_open')}
-        >💬</button>
+        >{t('feedback_btn_label')}</button>
       </div>
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
     </div>
