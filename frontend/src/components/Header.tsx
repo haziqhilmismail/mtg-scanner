@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { AuthUser } from '../api/auth.ts';
 import type { Lang, Theme } from '../types.ts';
+import { FeedbackModal } from './FeedbackModal.tsx';
 
 interface Props {
   title: string;
@@ -10,6 +12,7 @@ interface Props {
   onLangChange: (l: Lang) => void;
   theme: Theme;
   onThemeToggle: () => void;
+  t: (k: string, vars?: Record<string, string | number>) => string;
   // Only shown when Google auth is enabled on the backend. In solo mode both
   // are undefined and the sign-out chip stays hidden.
   user?: AuthUser | null;
@@ -18,9 +21,10 @@ interface Props {
 
 export function Header({
   title, sub, healthLabel, healthState,
-  lang, onLangChange, theme, onThemeToggle,
+  lang, onLangChange, theme, onThemeToggle, t,
   user, onSignOut,
 }: Props) {
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   return (
     <>
       <header className="masthead">
@@ -75,7 +79,15 @@ export function Header({
         >
           {theme === 'dark' ? '☀' : '☾'}
         </button>
+        <button
+          className="icon-btn"
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          title={t('feedback_open')}
+          aria-label={t('feedback_open')}
+        >💬</button>
       </div>
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
     </>
   );
 }

@@ -172,6 +172,19 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     scan_refresh_prices: '↻ Refresh prices',
     scan_refresh_prices_busy: '⟳ Refreshing prices…',
 
+    // User feedback modal — opened from the 💬 button in the floating chip.
+    // Piggybacks on /api/bug with exception_type=UserFeedback so the
+    // Telegram push renders as feedback, not a crash.
+    feedback_open: 'Send feedback',
+    feedback_close: 'Close feedback',
+    feedback_title: 'Send feedback',
+    feedback_sub: 'Bug, idea, or anything else — sent straight to the developer.',
+    feedback_placeholder: 'Tell us what worked, what didn\'t, or what you wish existed…',
+    feedback_send: 'Send',
+    feedback_sending: 'Sending…',
+    feedback_sent: 'Thanks — sent!',
+    feedback_error: 'Could not send: {err}',
+
     tab_status_scanning: 'scanning…',
     tab_status_done_one: '1 card',
     tab_status_done: '{n} cards',
@@ -698,6 +711,19 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     // Segarkan harga per-imbasan — pertanya semula CK untuk kad dalam imbasan ini
     scan_refresh_prices: '↻ Segarkan harga',
     scan_refresh_prices_busy: '⟳ Menyegarkan harga…',
+
+    // Modal maklum balas pengguna — dibuka dari butang 💬 dalam cip apung.
+    // Guna /api/bug dengan exception_type=UserFeedback supaya push Telegram
+    // dipaparkan sebagai maklum balas, bukan ralat.
+    feedback_open: 'Hantar maklum balas',
+    feedback_close: 'Tutup',
+    feedback_title: 'Hantar maklum balas',
+    feedback_sub: 'Pepijat, idea, atau apa-apa — dihantar terus ke pembangun.',
+    feedback_placeholder: 'Beritahu kami apa yang berjaya, apa yang tidak, atau apa yang anda harapkan…',
+    feedback_send: 'Hantar',
+    feedback_sending: 'Menghantar…',
+    feedback_sent: 'Terima kasih — dihantar!',
+    feedback_error: 'Gagal hantar: {err}',
 
     tab_status_scanning: 'mengimbas…',
     tab_status_done_one: '1 kad',

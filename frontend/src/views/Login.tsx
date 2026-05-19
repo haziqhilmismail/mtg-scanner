@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DemoChecklist } from '../components/demo/DemoChecklist.tsx';
 import { DemoScan } from '../components/demo/DemoScan.tsx';
+import { FeedbackModal } from '../components/FeedbackModal.tsx';
 import { useLang } from '../hooks/useLang.ts';
 import { useTheme } from '../hooks/useTheme.ts';
 
@@ -23,6 +24,7 @@ type DemoTab = 'scan' | 'tracker';
 export function Login({ clientId, onCredential, error, busy }: Props) {
   const btnRef = useRef<HTMLDivElement | null>(null);
   const [tab, setTab] = useState<DemoTab>('scan');
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { lang, setLang, t } = useLang();
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -177,7 +179,15 @@ export function Login({ clientId, onCredential, error, busy }: Props) {
         >
           {theme === 'dark' ? '☀' : '☾'}
         </button>
+        <button
+          className="icon-btn landing-theme"
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          title={t('feedback_open')}
+          aria-label={t('feedback_open')}
+        >💬</button>
       </div>
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
     </div>
   );
 }
