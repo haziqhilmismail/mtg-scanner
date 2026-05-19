@@ -3295,6 +3295,98 @@ img.zoomable:hover {
   padding: clamp(10px, 1.6vw, 18px) clamp(16px, 5vw, 80px) clamp(20px, 4vw, 56px);
   display: flex; flex-direction: column; align-items: center;
 }
+/* User-feedback modal. Opened from the 💬 button in the floating chip.
+   Sits above the chip (z-index 60) so backdrop clicks-out work; modal
+   keeps focus trap minimal (ESC + click-outside) since the form is
+   short and ephemeral. */
+.feedback-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(12px, 4vw, 32px);
+}
+.feedback-modal {
+  width: 100%; max-width: 480px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,0.5);
+  padding: 22px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.feedback-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.feedback-head h2 {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 20px; font-weight: 800;
+  color: var(--ink);
+}
+.feedback-close {
+  width: 30px; height: 30px; padding: 0;
+  border: 1px solid var(--rule);
+  background: transparent; color: var(--ink-soft);
+  border-radius: var(--radius-pill);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px; line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.feedback-close:hover {
+  background: var(--ink); color: var(--paper); border-color: var(--ink);
+}
+.feedback-sub {
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.feedback-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.feedback-textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.feedback-foot {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.feedback-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.feedback-success {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--green);
+  flex: 1;
+}
+.feedback-error {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  flex: 1;
+}
+.feedback-foot .accent {
+  margin-left: auto;
+}
+@media (max-width: 480px) {
+  .feedback-foot .accent { margin-left: 0; flex: 1 1 100%; }
+}
+
 /* Floating "back to top" button. Stacks above .float-controls (bottom-right
    corner). Fades in once the user has scrolled > 1 viewport. Hidden when
    above the threshold so it doesn't compete with the masthead. */

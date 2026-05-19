@@ -87,6 +87,7 @@ export default function App() {
         onLangChange={setLang}
         theme={theme}
         onThemeToggle={toggleTheme}
+        t={t}
         user={auth.config?.auth_enabled ? auth.user : null}
         onSignOut={auth.config?.auth_enabled ? auth.signOut : undefined}
       />
