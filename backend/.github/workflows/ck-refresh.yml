@@ -65,12 +65,10 @@ jobs:
           flyctl ssh console -a mtg-scanner-backend -C "rm -f /app/data/ck_index.db"
           echo "put data/ck_index.db /app/data/ck_index.db" | flyctl ssh sftp shell -a mtg-scanner-backend
           # `flyctl machine restart -a APP` is an interactive picker in TTY
-          # mode and errors out in CI. Loop over every machine id explicitly
-          # so this works for both single- and (future) multi-machine apps.
-          for m in $(flyctl machines list -a mtg-scanner-backend --json | jq -r '.[].id'); do
-            echo "restarting machine $m"
-            flyctl machine restart "$m" -a mtg-scanner-backend
-          done
+          # mode and errors out in CI. Pass the machine ID directly. The
+          # app runs a single fixed machine — if that ever scales to multiple
+          # machines, swap this for `flyctl machines list --json | jq` loop.
+          flyctl machine restart 5683e032f74008 -a mtg-scanner-backend
 
       - name: Smoke-check /api/health after restart
         run: |
