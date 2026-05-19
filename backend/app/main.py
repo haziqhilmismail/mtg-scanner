@@ -149,6 +149,16 @@ async def health():
     try:
         idx = await get_ck_index()
         out["cardkingdom_cards"] = idx.matched_scryfall_count
+        # File mtime is the authoritative "when did this index actually get
+        # written" timestamp — the refresh job atomic-renames a fresh build
+        # onto DB_FILE, so its mtime advances with each successful refresh.
+        # Returned as Unix epoch seconds; the frontend formats relative time.
+        try:
+            from .services.cardkingdom_prices import DB_FILE as _ck_db
+            if _ck_db.exists():
+                out["cardkingdom_refreshed_at"] = _ck_db.stat().st_mtime
+        except Exception:
+            pass
     except Exception as e:
         out["cardkingdom_error"] = str(e)
     pidx = local_card_id.get_index()
@@ -775,6 +785,56 @@ async def delete_scan(scan_id: int, db: DbSession, user_id: CurrentUserId):
             pass
     _IMAGE_CACHE.pop(str(scan_id), None)
     await db.delete(scan_row)
+
+
+@app.post("/api/scans/{scan_id}/relookup-prices")
+@limiter.limit("30/minute")
+async def relookup_scan_prices(
+    request: Request, scan_id: int, db: DbSession, user_id: CurrentUserId,
+):
+    """Re-run CK price enrichment for every candidate in a saved scan. Cards
+    themselves (names, sets, scryfall_ids, bboxes) are unchanged — only the
+    pricing fields (usd/usd_foil/price_source_*/ck_*) are refreshed from
+    the current ck_index.db. Cheap (local SQLite lookups, no network).
+    Returns the same shape as GET /api/scans for in-place rehydration."""
+    scan_row = await db.get(Scan, scan_id)
+    if not scan_row or scan_row.user_id != user_id:
+        raise HTTPException(404, "Scan not found")
+
+    payload = scan_row.gemini_raw or {}
+    cards = payload.get("cards", [])
+    ck_index = await get_ck_index()
+
+    updated = 0
+    for card in cards:
+        cands = card.get("candidates", []) or []
+        for i, cand in enumerate(cands):
+            if not cand:
+                continue
+            new_cand = _enrich_with_ck(cand, ck_index)
+            if new_cand:
+                cands[i] = new_cand
+                updated += 1
+        card["candidates"] = cands
+
+    payload["cards"] = cards
+    scan_row.gemini_raw = payload
+    # JSON column needs an explicit mark — SQLAlchemy doesn't detect
+    # in-place dict mutation.
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(scan_row, "gemini_raw")
+    await db.commit()
+
+    return {
+        "image_id": str(scan_row.id),
+        "scan_id": scan_row.id,
+        "filename": scan_row.filename,
+        "image_b64": payload.get("image_b64", ""),
+        "width": scan_row.width,
+        "height": scan_row.height,
+        "cards": cards,
+        "updated": updated,
+    }
 
 
 @app.post("/api/relookup")
