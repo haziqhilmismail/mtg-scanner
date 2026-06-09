@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { listingsApi, type Listing, type ListingCreatePayload, type ListingStatus, type Post } from '../../api/checklist.ts';
 import { upgradeScryfallImage } from '../../utils.ts';
 import { useDialog } from '../DialogProvider.tsx';
@@ -16,18 +16,25 @@ interface Props {
   posts: Post[];
   reload: () => void;
   onCreateOrder?: (listing: Listing) => void;
+  onBulkCreateOrder?: (listingIds: number[]) => void;
   t: T;
 }
 
 // Stock = flat cross-cutting view of every card. Rendered as compact rows
 // (one per card), each opening an edit dialog. Search box at the top filters
 // by name / set / collector number.
-export function ListingsView({ listings, posts, reload, onCreateOrder, t }: Props) {
+export function ListingsView({ listings, posts, reload, onCreateOrder, onBulkCreateOrder, t }: Props) {
+  const dialog = useDialog();
   const [showForm, setShowForm] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [filter, setFilter] = useState<ListingStatus | 'all'>('active');
   const [search, setSearch] = useState('');
+  // Multi-select for bulk delete. Holds listing ids; pruned to whatever is
+  // actually on screen whenever the filtered set changes so a stale id can't
+  // linger in a hidden selection.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Posts that can be linked to from the edit dialog: active + inactive.
   // Archived posts are deliberately excluded — user has to un-archive first.
@@ -50,6 +57,72 @@ export function ListingsView({ listings, posts, reload, onCreateOrder, t }: Prop
         );
       });
   }, [listings, filter, search]);
+
+  // Keep the selection in sync with what's visible: drop ids that filtering or
+  // search scrolled out of view (and ids deleted on the last reload).
+  const filteredIds = filtered.map(l => l.id).join(',');
+  useEffect(() => {
+    setSelected(prev => {
+      const visible = new Set(filtered.map(l => l.id));
+      const next = new Set([...prev].filter(id => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+    // filteredIds is the cheap stable key for the filtered id list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredIds]);
+
+  const selectedVisible = filtered.filter(l => selected.has(l.id));
+  const allSelected = filtered.length > 0 && selectedVisible.length === filtered.length;
+  // Only active listings can go on an order (archived ones aren't sellable).
+  const selectedActive = selectedVisible.filter(l => l.status === 'active');
+
+  const toggleOne = (id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelected(prev => {
+      if (filtered.length > 0 && filtered.every(l => prev.has(l.id))) {
+        const next = new Set(prev);
+        filtered.forEach(l => next.delete(l.id));
+        return next;
+      }
+      const next = new Set(prev);
+      filtered.forEach(l => next.add(l.id));
+      return next;
+    });
+  };
+
+  // Bulk delete = the same per-row archive endpoint applied to every selected
+  // id (hard-deletes cards with no order history, archives the rest). Fired in
+  // parallel; partial failures are surfaced rather than silently swallowed.
+  const bulkDelete = async () => {
+    const ids = selectedVisible.map(l => l.id);
+    if (ids.length === 0) return;
+    const ok = await dialog.confirm({
+      title: t('ck_bulk_delete_title'),
+      message: t('ck_bulk_delete_msg', { n: ids.length }),
+      okLabel: t('ck_bulk_delete_ok'),
+      destructive: true,
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const results = await Promise.allSettled(ids.map(id => listingsApi.archive(id)));
+      const failed = results.filter(r => r.status === 'rejected').length;
+      setSelected(new Set());
+      reload();
+      if (failed > 0) {
+        await dialog.alert({ title: t('alert_error_title'), message: t('ck_bulk_some_failed', { n: failed }) });
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const editingListing = editingId ? listings.find(l => l.id === editingId) : null;
 
@@ -103,12 +176,39 @@ export function ListingsView({ listings, posts, reload, onCreateOrder, t }: Prop
         />
       )}
 
+      {selectedVisible.length > 0 && (
+        <div className="bulk-bar">
+          <span className="bulk-count">{t('ck_bulk_selected', { n: selectedVisible.length })}</span>
+          <button className="ghost compact" disabled={bulkBusy} onClick={() => setSelected(new Set())}>
+            {t('ck_bulk_clear')}
+          </button>
+          {onBulkCreateOrder && selectedActive.length > 0 && (
+            <button
+              className="bulk-order-btn"
+              disabled={bulkBusy}
+              onClick={() => onBulkCreateOrder(selectedActive.map(l => l.id))}
+            >
+              {t('ck_bulk_add_order', { n: selectedActive.length })}
+            </button>
+          )}
+          <button className="bulk-delete-btn" disabled={bulkBusy} onClick={bulkDelete}>
+            {bulkBusy ? t('ck_bulk_deleting') : t('ck_bulk_delete_btn', { n: selectedVisible.length })}
+          </button>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="checklist-empty" style={{ padding: 30 }}>
           <div className="sub">{search ? t('ck_stock_search_no_match', { q: search }) : emptyMsg}</div>
         </div>
       ) : (
         <div className="stock-rows">
+          {filtered.length > 1 && (
+            <label className="stock-select-all">
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+              <span>{allSelected ? t('ck_bulk_deselect_all') : t('ck_bulk_select_all')}</span>
+            </label>
+          )}
           {filtered.map(l => (
             <StockRow
               key={l.id}
@@ -117,6 +217,8 @@ export function ListingsView({ listings, posts, reload, onCreateOrder, t }: Prop
               reload={reload}
               onEdit={() => setEditingId(l.id)}
               onCreateOrder={onCreateOrder}
+              selected={selected.has(l.id)}
+              onToggleSelect={() => toggleOne(l.id)}
               t={t}
             />
           ))}
@@ -136,12 +238,14 @@ export function ListingsView({ listings, posts, reload, onCreateOrder, t }: Prop
   );
 }
 
-function StockRow({ l, posts, reload, onEdit, onCreateOrder, t }: {
+function StockRow({ l, posts, reload, onEdit, onCreateOrder, selected, onToggleSelect, t }: {
   l: Listing;
   posts: Post[];
   reload: () => void;
   onEdit: () => void;
   onCreateOrder?: (l: Listing) => void;
+  selected: boolean;
+  onToggleSelect: () => void;
   t: T;
 }) {
   const dialog = useDialog();
@@ -172,7 +276,14 @@ function StockRow({ l, posts, reload, onEdit, onCreateOrder, t }: {
   };
 
   return (
-    <div className={`stock-row${archived ? ' archived' : ''}`}>
+    <div className={`stock-row${archived ? ' archived' : ''}${selected ? ' selected' : ''}`}>
+      <input
+        type="checkbox"
+        className="stock-check"
+        checked={selected}
+        onChange={onToggleSelect}
+        aria-label={t('ck_bulk_select_one', { name: l.name })}
+      />
       {l.image_url ? (
         <img
           src={l.image_url}

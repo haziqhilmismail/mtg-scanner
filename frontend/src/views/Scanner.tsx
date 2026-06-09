@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addToChecklist, exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
-import { ckSearchUrl, computeCardData, formatMyrWithFoil } from '../utils.ts';
+import { ckSearchUrl, computeCardData, formatMyr, formatMyrWithFoil } from '../utils.ts';
 import { ActiveBatchView } from '../components/ActiveBatchView.tsx';
 import { BatchTabStrip } from '../components/BatchTabStrip.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
@@ -266,6 +266,20 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
   // scanning yet (no scanId yet) so the "+ Add" buttons stay clickable.
   const activeAddedSlice = (activeBatch?.scanId != null ? addedByScanId[activeBatch.scanId] : null) || {};
 
+  // Running priced value across every scanned image. Recomputes whenever a
+  // batch or the settings (incl. the price multiplier) change, so picking a new
+  // multiplier updates this total and every per-image total together.
+  const allScansTotal = useMemo(
+    () => scanner.batches.reduce((sum, b) => {
+      const total = computeCardData(b, settings)
+        .filter(cd => !cd.removed)
+        .reduce((s, cd) => s + (isFinite(cd.lineTotal) ? cd.lineTotal : 0), 0);
+      return sum + total;
+    }, 0),
+    [scanner.batches, settings],
+  );
+  const hasExportable = scanner.batches.some(b => b.response);
+
   return (
     <>
       <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />
@@ -277,7 +291,13 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
             <h2><span className="step-num">3</span><span> {t('review_title')}</span></h2>
             <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span className="meta">{counterText}</span>
-              {scanner.batches.some(b => b.response) && (
+              {hasExportable && (
+                <span className="all-scans-total" title={t('all_scans_total')}>
+                  <span className="label">Σ {t('all_scans_total')}</span>
+                  <span className="value">{formatMyr(allScansTotal, settings)}</span>
+                </span>
+              )}
+              {hasExportable && (
                 <button
                   className="ghost"
                   style={{ padding: '6px 12px', fontSize: 10 }}

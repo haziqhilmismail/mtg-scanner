@@ -5,7 +5,9 @@ import { BuyerNamePicker } from './BuyerNamePicker.tsx';
 interface Props {
   buyers: Buyer[];
   listings: Listing[];
-  initialListingId?: number | null;
+  // One row is seeded per id (bulk "Add to order" from stock). A single click
+  // passes a one-element array. Ids that aren't active listings are dropped.
+  initialListingIds?: number[];
   onCreated: () => void;
   onCancel: () => void;
   t: (k: string, vars?: Record<string, string | number>) => string;
@@ -14,17 +16,22 @@ interface Props {
 // Inline form: buyer is identified by FB name (with optional URL). Backend
 // resolves the name against existing buyers case-insensitively, creating a
 // new buyer row only if there's no match. No separate "manage buyers" UI.
-export function NewOrderCard({ buyers, listings, initialListingId, onCreated, onCancel, t }: Props) {
+export function NewOrderCard({ buyers, listings, initialListingIds, onCreated, onCancel, t }: Props) {
   const active = listings.filter(l => l.status === 'active');
   const [fbName, setFbName] = useState('');
   const [fbUrl, setFbUrl] = useState('');
   const [phone, setPhone] = useState('');
-  // Seed the first item from the prefilled listing if one was passed in (clicked
-  // "+ Order" from the stock panel), otherwise default to the first active listing.
-  const seedId = initialListingId ?? active[0]?.id ?? 0;
-  const [items, setItems] = useState<OrderItemPayload[]>([{ listing_id: seedId, qty: 1 }]);
+  // Seed one row per prefilled listing (bulk "Add to order" from the stock
+  // panel); only ids that are actually active listings survive. Falls back to
+  // the first active listing when nothing was passed in.
+  const seedIds = (initialListingIds ?? []).filter(id => active.some(l => l.id === id));
+  const [items, setItems] = useState<OrderItemPayload[]>(
+    seedIds.length > 0
+      ? seedIds.map(id => ({ listing_id: id, qty: 1 }))
+      : [{ listing_id: active[0]?.id ?? 0, qty: 1 }],
+  );
   // BuyerNamePicker autoFocuses its own input on mount, so we don't need a
-  // separate ref-based focus dance when initialListingId is provided.
+  // separate ref-based focus dance when seed listings are provided.
   const [dropoffMethod, setDropoffMethod] = useState<string>('dropoff');
   // Default drop-off location — user's regular spot for handing cards over
   const [dropoffAddress, setDropoffAddress] = useState<string>('Cards and Hobbies');

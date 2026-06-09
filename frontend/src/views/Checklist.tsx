@@ -23,8 +23,18 @@ export function Checklist({ t }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  // Listing id to pre-seed into the new-order form when user clicks "+ Order" on a stock row
-  const [pendingListingId, setPendingListingId] = useState<number | null>(null);
+  // Listing ids to pre-seed into the new-order form. One id when "+ Order" is
+  // clicked on a single row; many when "Add to order" is used on a bulk stock
+  // selection.
+  const [pendingListingIds, setPendingListingIds] = useState<number[]>([]);
+
+  // Open the new-order form seeded with the given listings and scroll it into
+  // view (the form lives above the stock panel).
+  const openNewOrder = useCallback((ids: number[]) => {
+    setPendingListingIds(ids);
+    setShowForm(true);
+    setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 0);
+  }, []);
 
   const reload = useCallback(async () => {
     setError(null);
@@ -92,10 +102,10 @@ export function Checklist({ t }: Props) {
         <NewOrderCard
           buyers={buyers}
           listings={listings}
-          initialListingId={pendingListingId}
+          initialListingIds={pendingListingIds}
           t={t}
-          onCancel={() => { setShowForm(false); setPendingListingId(null); }}
-          onCreated={() => { setShowForm(false); setPendingListingId(null); reload(); }}
+          onCancel={() => { setShowForm(false); setPendingListingIds([]); }}
+          onCreated={() => { setShowForm(false); setPendingListingIds([]); reload(); }}
         />
       )}
 
@@ -126,11 +136,7 @@ export function Checklist({ t }: Props) {
               posts={posts}
               listings={listings}
               reload={reload}
-              onCreateOrder={(l) => {
-                setPendingListingId(l.id);
-                setShowForm(true);
-                setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 0);
-              }}
+              onCreateOrder={(l) => openNewOrder([l.id])}
               t={t}
             />
           </section>
@@ -150,14 +156,8 @@ export function Checklist({ t }: Props) {
                 posts={posts}
                 reload={reload}
                 t={t}
-                onCreateOrder={(l) => {
-                  setPendingListingId(l.id);
-                  setShowForm(true);
-                  // Scroll the form into view (it's above the stock panel)
-                  setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }, 0);
-                }}
+                onCreateOrder={(l) => openNewOrder([l.id])}
+                onBulkCreateOrder={(ids) => openNewOrder(ids)}
               />
             </div>
           </details>

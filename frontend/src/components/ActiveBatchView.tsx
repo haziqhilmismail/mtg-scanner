@@ -3,7 +3,7 @@ import { addToChecklist, frameCard } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { ckSearchUrl, computeCardData } from '../utils.ts';
+import { ckSearchUrl, computeCardData, formatMyr } from '../utils.ts';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow } from './CardRow.tsx';
 import { useDialog } from './DialogProvider.tsx';
@@ -91,6 +91,10 @@ export function ActiveBatchView({
   const totalQty = visible.reduce((s, cd) => s + cd.qty, 0);
   const visibleCount = visible.length;
   const needsPriceCount = visible.filter(cd => cd.needsPrice).length;
+  // Priced value of this image. lineTotal already collapses unpriced cards to 0,
+  // so this is the sum of everything we can actually price — and it recomputes
+  // with the multiplier because computeCardData() reads settings.mult*.
+  const priceTotal = visible.reduce((s, cd) => s + (isFinite(cd.lineTotal) ? cd.lineTotal : 0), 0);
 
   let totalLabel = `${t('total')} · ${totalQty} ${t('cards')}`;
   if (totalQty !== visibleCount) {
@@ -335,6 +339,7 @@ export function ActiveBatchView({
 
           <div className="totals">
             <span>{totalLabel}</span>
+            <span className="total-price">{formatMyr(priceTotal, settings)}</span>
           </div>
           <div className="export-warning">
             <span className="warn-icon">⚠</span>
