@@ -1,0 +1,31 @@
+# Self-hosted deployment for the homeserver (Ubuntu in Proxmox).
+#
+# Builds the SAME Dockerfile used on Fly, so behaviour matches production
+# (DejaVu font for the overlay renderer, pillow-heif for HEIC, etc.). All
+# persistent state lives in ./data on the host — that directory is the source
+# of truth, exactly like the Fly volume was.
+#
+# Usage:
+#   docker compose up -d --build      # build + start in the background
+#   docker compose logs -f            # tail logs
+#   docker compose pull && docker compose up -d --build   # after a git pull
+#
+# Public access is provided by Tailscale Funnel pointing at localhost:8000 —
+# see DEPLOY_HOMESERVER.md.
+services:
+  backend:
+    build: .
+    image: mtg-scanner-backend:local
+    container_name: mtg-scanner-backend
+    restart: unless-stopped
+    # Bind to loopback only: nothing reaches this port except Tailscale Funnel
+    # (and other processes on the box). The home LAN / WAN can't hit it directly.
+    ports:
+      - "127.0.0.1:8000:8000"
+    # Secrets + config come from a .env file on the host (NOT committed):
+    # GEMINI_API_KEY, GOOGLE_CLIENT_ID, ALLOWED_EMAILS, JWT_SECRET, etc.
+    env_file:
+      - .env
+    volumes:
+      # SQLite DB, scans/, posts/, ck_index.db, jwt_secret.txt all live here.
+      - ./data:/app/data
