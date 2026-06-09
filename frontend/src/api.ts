@@ -223,3 +223,20 @@ export async function exportImage(payload: ExportPayload): Promise<Blob> {
   if (!r.ok) throw new Error(`Export failed: ${r.status}`);
   return await r.blob();
 }
+
+// One export payload plus the source filename, used to name its entry in the
+// bulk-export zip.
+export interface ExportAllImage extends ExportPayload {
+  filename: string;
+}
+
+// Render every batch's priced overlay server-side and download them as a single
+// zip. The backend skips any image whose source bytes it can't find, so a stale
+// id won't fail the whole archive.
+export async function exportAllImages(images: ExportAllImage[]): Promise<Blob> {
+  const fd = new FormData();
+  fd.append('payload', JSON.stringify({ images }));
+  const r = await fetch('/api/export-all', { method: 'POST', body: fd, headers: authHeaders() });
+  if (!r.ok) throw new Error(`Export all failed: ${r.status}`);
+  return await r.blob();
+}
