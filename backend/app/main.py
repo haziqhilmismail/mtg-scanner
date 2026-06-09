@@ -9,6 +9,7 @@ Routes:
   POST /api/printings     -> all printings of a name, CK-enriched
   POST /api/refresh-ck    -> force-refresh the CK pricelist
   POST /api/export        -> render the priced overlay PNG
+  POST /api/export-all    -> render every batch's overlay, stream as one zip
 
 DB tables (users, scans, listings, buyers, orders, order_items, payments)
 are created on startup and a solo-mode user row is seeded if missing.
@@ -17,6 +18,8 @@ are created on startup and a solo-mode user row is seeded if missing.
 import asyncio
 import base64
 import json
+import re
+import zipfile
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from io import BytesIO
@@ -996,24 +999,18 @@ async def printings(request: Request, payload: str = Form(...)):
     return {"name": name, "printings": out}
 
 
-@app.post("/api/export")
-@limiter.limit("60/minute")  # Pillow render is CPU-bound; cap to prevent runaway
-async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId, payload: str = Form(...)):
-    try:
-        data = json.loads(payload)
-    except Exception:
-        raise HTTPException(400, "Invalid JSON in 'payload'")
+async def _resolve_export_image(db: DbSession, user_id: int, image_id: str) -> bytes:
+    """Return the source photo bytes for an export `image_id`.
 
-    image_id = data.get("image_id")
-    if not image_id:
-        raise HTTPException(400, "Missing image_id")
-
+    Checks the in-memory cache first, then falls back to disk (e.g. after a
+    server restart) when the id is a numeric scan PK owned by the user.
+    Raises 404 when nothing is found.
+    """
     raw: bytes | None = _IMAGE_CACHE.get(image_id)
-    # Cache miss (e.g. after a server restart) — fall through to disk
     if raw is None:
         try:
             scan_pk = int(image_id)
-        except ValueError:
+        except (ValueError, TypeError):
             scan_pk = None
         if scan_pk is not None:
             scan_row = await db.get(Scan, scan_pk)
@@ -1024,6 +1021,11 @@ async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId
                     _cache_put(image_id, raw)
     if raw is None:
         raise HTTPException(404, "image_id not found (re-upload the image)")
+    return raw
+
+
+def _render_export(data: dict, raw: bytes) -> bytes:
+    """Render one priced-overlay PNG from an export payload dict + source bytes."""
     cards = []
     for c in data.get("cards", []):
         bbox = c.get("bbox")
@@ -1057,16 +1059,94 @@ async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId
     except (TypeError, ValueError):
         font_scale = 1.0
 
-    png = render_overlay(
+    return render_overlay(
         raw, cards,
         show_outlines=show_outlines,
         label_position=label_position,
         font_scale=font_scale,
     )
+
+
+def _zip_entry_name(filename: str | None, used: set[str]) -> str:
+    """Turn a client filename into a safe, unique `<base>_priced.png` zip entry."""
+    base = re.sub(r"\.[^.]+$", "", filename or "card")
+    base = re.sub(r"[^\w.\- ]", "_", base).strip() or "card"
+    name = f"{base}_priced.png"
+    i = 2
+    while name in used:
+        name = f"{base}_priced_{i}.png"
+        i += 1
+    used.add(name)
+    return name
+
+
+@app.post("/api/export")
+@limiter.limit("60/minute")  # Pillow render is CPU-bound; cap to prevent runaway
+async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId, payload: str = Form(...)):
+    try:
+        data = json.loads(payload)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON in 'payload'")
+
+    image_id = data.get("image_id")
+    if not image_id:
+        raise HTTPException(400, "Missing image_id")
+
+    raw = await _resolve_export_image(db, user_id, image_id)
+    png = _render_export(data, raw)
     return Response(
         content=png,
         media_type="image/png",
         headers={"Content-Disposition": "attachment; filename=mtg_prices.png"},
+    )
+
+
+@app.post("/api/export-all")
+@limiter.limit("12/minute")  # heavier than single export — renders N images per call
+async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentUserId, payload: str = Form(...)):
+    """Render every supplied image's priced overlay and stream them as one zip.
+
+    Payload: {"images": [{"filename": ..., "image_id": ..., "cards": [...],
+    "show_outlines": ..., "label_position": ..., "font_scale": ...}, ...]}.
+    Images whose source bytes can't be found are skipped rather than failing
+    the whole archive; a 404 is only returned when nothing renders at all.
+    """
+    try:
+        data = json.loads(payload)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON in 'payload'")
+
+    images = data.get("images")
+    if not isinstance(images, list) or not images:
+        raise HTTPException(400, "Missing 'images'")
+    if len(images) > 100:
+        raise HTTPException(400, "Too many images (max 100)")
+
+    buf = BytesIO()
+    used: set[str] = set()
+    # ZIP_STORED: the entries are already-compressed PNGs, so deflate would burn
+    # CPU on the 512 MB VM for no size win.
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+        for item in images:
+            if not isinstance(item, dict):
+                continue
+            image_id = item.get("image_id")
+            if not image_id:
+                continue
+            try:
+                raw = await _resolve_export_image(db, user_id, image_id)
+            except HTTPException:
+                continue  # one stale id shouldn't sink the whole export
+            png = _render_export(item, raw)
+            zf.writestr(_zip_entry_name(item.get("filename"), used), png)
+
+    if not used:
+        raise HTTPException(404, "No exportable images (re-upload and try again)")
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=mtg_prices.zip"},
     )
 
 
