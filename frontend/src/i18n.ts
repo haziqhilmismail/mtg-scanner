@@ -279,6 +279,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     confirm_clear_all_title: 'Clear all scans',
     confirm_clear_all_msg: 'Clear all {n} scans? Each saved scan will be deleted from disk.',
     confirm_clear_all_ok: 'Clear all',
+    export_all_btn: '⬇ Export all (zip)',
+    export_all_loading: 'Exporting…',
+    export_all_none: 'No finished scans to export yet.',
     ck_post_delete_title: 'Delete post',
     scanner_post_prompt_ok: 'Create post',
 
@@ -820,6 +823,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     confirm_clear_all_title: 'Padam semua imbasan',
     confirm_clear_all_msg: 'Padam semua {n} imbasan? Setiap imbasan yang disimpan akan dipadam.',
     confirm_clear_all_ok: 'Padam semua',
+    export_all_btn: '⬇ Eksport semua (zip)',
+    export_all_loading: 'Mengeksport…',
+    export_all_none: 'Tiada imbasan selesai untuk dieksport lagi.',
     ck_post_delete_title: 'Padam post',
     scanner_post_prompt_ok: 'Cipta post',
 

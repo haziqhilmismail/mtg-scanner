@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addToChecklist, exportImage, relookupScanPrices, type Health } from '../api.ts';
+import { addToChecklist, exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
@@ -45,6 +45,34 @@ function loadAddedFromStorage(): Record<number, Record<number, number>> {
 function persistAddedSlice(scanId: number, slice: Record<number, number>) {
   try { localStorage.setItem(ADDED_STORAGE_PREFIX + scanId, JSON.stringify(slice)); }
   catch { /* quota / disabled storage — silent */ }
+}
+
+// Build the /api/export payload for one batch (shared by single-batch export and
+// the bulk "Export all" zip). Returns null for batches that haven't finished
+// scanning yet (no response).
+function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | null {
+  if (!batch.response) return null;
+  const cardData = computeCardData(batch, settings);
+  const visible = cardData.filter(cd => !cd.removed);
+  const data = batch.response;
+  return {
+    image_id: data.image_id,
+    show_outlines: settings.showOutlines,
+    label_position: settings.labelPosition,
+    font_scale: settings.labelFontScale,
+    cards: visible.map(cd => {
+      const unitLabel = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
+      const label = cd.qty > 1 ? `${unitLabel} ×${cd.qty}` : unitLabel;
+      return {
+        bbox: cd.card.bbox,
+        corners: cd.card.corners,
+        is_foil: cd.isFoil && settings.foilStyle === 'gold',
+        label_override: label,
+        pill_dx: cd.pillOffset?.dx,
+        pill_dy: cd.pillOffset?.dy,
+      };
+    }),
+  };
 }
 
 export function Scanner({ scanner, settings, updateSetting, health, t }: Props) {
@@ -130,28 +158,8 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
   }, [settings, addedByScanId, markAdded]);
 
   const exportBatch = useCallback(async (batch: Batch) => {
-    if (!batch.response) return;
-    const cardData = computeCardData(batch, settings);
-    const visible = cardData.filter(cd => !cd.removed);
-    const data = batch.response;
-    const payload = {
-      image_id: data.image_id,
-      show_outlines: settings.showOutlines,
-      label_position: settings.labelPosition,
-      font_scale: settings.labelFontScale,
-      cards: visible.map(cd => {
-        const unitLabel = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
-        const label = cd.qty > 1 ? `${unitLabel} ×${cd.qty}` : unitLabel;
-        return {
-          bbox: cd.card.bbox,
-          corners: cd.card.corners,
-          is_foil: cd.isFoil && settings.foilStyle === 'gold',
-          label_override: label,
-          pill_dx: cd.pillOffset?.dx,
-          pill_dy: cd.pillOffset?.dy,
-        };
-      }),
-    };
+    const payload = buildExportPayload(batch, settings);
+    if (!payload) return;
     try {
       const blob = await exportImage(payload);
       const url = URL.createObjectURL(blob);
@@ -164,6 +172,37 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
       await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
     }
   }, [settings, dialog, t]);
+
+  // Bulk export: render every finished batch's priced overlay and download them
+  // as a single zip. Guarded by `exportingAll` so a slow render (N images on the
+  // 512 MB VM) can't be re-triggered mid-flight.
+  const [exportingAll, setExportingAll] = useState(false);
+  const exportAllBatches = useCallback(async () => {
+    const images = scanner.batches
+      .map(b => {
+        const payload = buildExportPayload(b, settings);
+        return payload ? { ...payload, filename: b.filename } as ExportAllImage : null;
+      })
+      .filter((x): x is ExportAllImage => x !== null);
+    if (images.length === 0) {
+      await dialog.alert({ title: t('alert_error_title'), message: t('export_all_none') });
+      return;
+    }
+    setExportingAll(true);
+    try {
+      const blob = await exportAllImages(images);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mtg_prices.zip';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
+    } finally {
+      setExportingAll(false);
+    }
+  }, [scanner.batches, settings, dialog, t]);
 
   // Re-fetch CK prices for an already-saved scan. Cheap on the backend
   // (local SQLite lookups, no Gemini, no network out). Returns the updated
@@ -238,6 +277,14 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
             <h2><span className="step-num">3</span><span> {t('review_title')}</span></h2>
             <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span className="meta">{counterText}</span>
+              {scanner.batches.some(b => b.response) && (
+                <button
+                  className="ghost"
+                  style={{ padding: '6px 12px', fontSize: 10 }}
+                  disabled={exportingAll}
+                  onClick={exportAllBatches}
+                >{exportingAll ? t('export_all_loading') : t('export_all_btn')}</button>
+              )}
               {scanner.batches.length > 1 && (
                 <button
                   className="ghost"
