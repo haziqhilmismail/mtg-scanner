@@ -345,6 +345,23 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
 }
 @keyframes dots { 0%,100% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
 
+/* Loading wheel — centred spinner + optional caption for section-level fetches */
+.loading-wheel {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 48px 0; color: var(--ink-soft);
+}
+.spinner {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid var(--rule); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+.loading-wheel-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }
+
 /* Review section heading */
 .review-head {
   display: flex; justify-content: space-between; align-items: center;
