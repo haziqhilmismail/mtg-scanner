@@ -1,13 +1,25 @@
 import { useEffect, useRef } from 'react';
-import type { Batch } from '../types.ts';
+import type { Batch, Settings } from '../types.ts';
+import { computeCardData, formatMyr } from '../utils.ts';
 import { useDialog } from './DialogProvider.tsx';
 
 interface Props {
   batches: Batch[];
   activeId: string | null;
+  settings: Settings;
   onSelect: (id: string) => void;
   onRemove?: (id: string) => void;
   t: (k: string, vars?: Record<string, string | number>) => string;
+}
+
+// Priced value of a single batch — sum of every visible card's line total.
+// Recomputes with the multiplier (computeCardData reads settings.mult*), so a
+// tab's price tracks the same number shown inside the batch view.
+function batchTotal(b: Batch, settings: Settings): number {
+  if (!b.response) return 0;
+  return computeCardData(b, settings)
+    .filter(cd => !cd.removed)
+    .reduce((sum, cd) => sum + (isFinite(cd.lineTotal) ? cd.lineTotal : 0), 0);
 }
 
 function summary(b: Batch, t: Props['t']): { status: string; text: string } {
@@ -28,7 +40,7 @@ function summary(b: Batch, t: Props['t']): { status: string; text: string } {
   return { status: 'done', text: t('tab_status_done', { n }) };
 }
 
-export function BatchTabStrip({ batches, activeId, onSelect, onRemove, t }: Props) {
+export function BatchTabStrip({ batches, activeId, settings, onSelect, onRemove, t }: Props) {
   const { confirm } = useDialog();
   const stripRef = useRef<HTMLDivElement>(null);
 
@@ -43,6 +55,7 @@ export function BatchTabStrip({ batches, activeId, onSelect, onRemove, t }: Prop
     <div className="tab-strip" ref={stripRef}>
       {batches.map(b => {
         const s = summary(b, t);
+        const price = batchTotal(b, settings);
         const isActive = b.id === activeId;
         return (
           <div
@@ -67,6 +80,9 @@ export function BatchTabStrip({ batches, activeId, onSelect, onRemove, t }: Prop
                 <span className="dot" />
                 {s.text}
               </div>
+              {b.response && price > 0 ? (
+                <div className="tab-price">{formatMyr(price, settings)}</div>
+              ) : null}
             </div>
             {onRemove ? (
               <button

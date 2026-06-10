@@ -440,6 +440,11 @@ button.accent { background: var(--accent); border-color: var(--accent); color: w
   display: flex; align-items: center; gap: 6px;
 }
 .tab .tab-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-soft); }
+.tab .tab-price {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+  color: var(--ink); line-height: 1.2;
+}
+.tab.active .tab-price { color: var(--accent); }
 .tab .tab-status.scanning .dot { background: var(--gold); animation: pulse-dot 1.2s ease-in-out infinite; }
 .tab .tab-status.done .dot { background: var(--green); }
 .tab .tab-status.error .dot { background: var(--warn); }
