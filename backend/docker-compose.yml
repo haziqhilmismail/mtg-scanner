@@ -18,6 +18,25 @@ services:
     image: mtg-scanner-backend:local
     container_name: mtg-scanner-backend
     restart: unless-stopped
+    # --- Hardening (defense-in-depth if the app is ever RCE'd) ---
+    # read-only root FS: the app can't modify its own code or drop tools. The
+    # only writable spots are the ./data volume and the /tmp tmpfs below.
+    read_only: true
+    # no new privileges + drop every Linux capability: even running as root the
+    # process can't escalate (no setuid binaries gain anything, no raw sockets,
+    # no mount, etc.). The app binds :8000 (>1024) so it needs no capability.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Scratch space for FastAPI's upload spooling + PIL/HEIF temp files. Capped
+    # so it can't grow unbounded; the CK rebuild writes its .tmp into ./data, not
+    # here. tmpfs is wiped on restart, which is exactly what we want for scratch.
+    tmpfs:
+      - /tmp:size=256m
+    # Optional extra step (commented — needs the host ./data owned by this uid,
+    # `sudo chown -R 1000:1000 ./data`, or the SQLite writes will fail):
+    #   user: "1000:1000"
     # Bind to loopback only: nothing reaches this port except Tailscale Funnel
     # (and other processes on the box). The home LAN / WAN can't hit it directly.
     ports:

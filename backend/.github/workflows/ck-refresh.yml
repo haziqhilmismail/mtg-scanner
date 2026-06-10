@@ -34,8 +34,16 @@ jobs:
       - name: Trigger CK refresh on the homeserver
         # The CK pricelist is ~50 MB and the rebuild takes a minute or two, so
         # allow a generous timeout. -f makes a non-2xx (e.g. 502 when CK is
-        # unreachable) fail the step instead of passing silently.
-        run: curl -fsS -X POST "$BACKEND_URL/api/refresh-ck" --max-time 600
+        # unreachable, or 403 on a token mismatch) fail the step.
+        # X-Refresh-Token must match REFRESH_CK_TOKEN in the backend's .env;
+        # set the repo secret under Settings → Secrets → Actions. Empty secret
+        # + empty backend token = endpoint stays open (back-compat).
+        env:
+          REFRESH_CK_TOKEN: ${{ secrets.REFRESH_CK_TOKEN }}
+        run: |
+          curl -fsS -X POST "$BACKEND_URL/api/refresh-ck" \
+            -H "X-Refresh-Token: $REFRESH_CK_TOKEN" \
+            --max-time 600
 
       - name: Verify the index updated
         run: |

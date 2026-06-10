@@ -28,7 +28,7 @@ from pathlib import Path
 import aiohttp
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -39,6 +39,13 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 # iPhone uploads are HEIC by default; register once at import time so every
 # Image.open() in the app (scan, overlay, …) can decode them transparently.
 register_heif_opener()
+
+# Decompression-bomb guard. A tiny malicious file can declare a huge canvas
+# and balloon to gigabytes when PIL materialises it, OOM-killing the 1 GB VM.
+# Every Image.open() in the app inherits this ceiling; PIL raises
+# DecompressionBombError past 2× it. The scan path downscales to 2000 px
+# anyway, so 50 MP (≈ 8660×5773) is far above any real phone photo.
+Image.MAX_IMAGE_PIXELS = 50_000_000
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -174,12 +181,21 @@ async def health():
 
 @app.post("/api/refresh-ck")
 @limiter.limit("3/hour")  # CK pricelist is ~50MB; don't hammer their CDN
-async def refresh_ck(request: Request):
+async def refresh_ck(
+    request: Request,
+    x_refresh_token: str | None = Header(default=None),
+):
     """Force a refresh from CK. 200 only when the download actually ran end
     to end; 502 if CK couldn't be reached. The previous fire-and-forget
     behaviour returned 200 even when the underlying download silently
     failed and the rebuild ran from a week-old cache — see
-    cardkingdom_prices.py for the new contract."""
+    cardkingdom_prices.py for the new contract.
+
+    Guarded by `refresh_ck_token` when configured: the public Funnel URL means
+    anyone could otherwise trigger a 50 MB rebuild. The scheduled GitHub Action
+    sends the matching X-Refresh-Token header."""
+    if settings.refresh_ck_token and x_refresh_token != settings.refresh_ck_token:
+        raise HTTPException(403, "Invalid or missing refresh token")
     from fastapi.responses import JSONResponse  # local import: cold-path
     idx = await get_ck_index()
     try:
@@ -282,6 +298,12 @@ async def scan(
     image: UploadFile = File(...),
 ):
     raw = await image.read()
+    # Reject oversized uploads before the expensive decode. 25 MB is generous
+    # for a phone photo (even a 48 MP HEIC is a few MB); anything bigger is
+    # either a mistake or an attempt to exhaust memory on the box.
+    MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Image too large (max 25 MB)")
     try:
         pil = Image.open(BytesIO(raw))
         pil.load()
