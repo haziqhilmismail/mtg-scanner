@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     # Symmetric secret for our own session JWTs. Auto-generated on first run if blank.
     jwt_secret: str = ""
 
+    # Shared secret guarding POST /api/refresh-ck. Empty = endpoint stays open
+    # (back-compat). When set, callers must send a matching `X-Refresh-Token`
+    # header — the scheduled GitHub Action passes it from a repo secret so the
+    # public Funnel URL can't be used by anyone to trigger 50 MB CK rebuilds.
+    refresh_ck_token: str = ""
+
     # CORS — frontend dev server + same-origin. In production, append the
     # Vercel URL via env: CORS_ORIGINS="https://my-app.vercel.app,http://..."
     # NoDecode disables pydantic-settings' JSON pre-parser so the validator

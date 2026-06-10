@@ -42,7 +42,11 @@ def _resolve_user_id(authorization: str | None) -> int | None:
 
 
 @router.post("/bug", status_code=202)
-@_limiter.limit("30/minute")
+# Public (errors can fire pre-login), so cap it: a burst is fine for a real
+# crash loop, but the hourly ceiling bounds DB bloat from a spammer. Behind the
+# Funnel slowapi sees one shared IP, so these limits are effectively global —
+# acceptable for a solo deployment.
+@_limiter.limit("30/minute;100/hour")
 async def report_bug(
     request: Request,
     payload: BugReportCreate,
