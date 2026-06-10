@@ -5,6 +5,7 @@ import { ListingsView } from '../components/checklist/ListingsView.tsx';
 import { NewOrderCard } from '../components/checklist/NewOrderCard.tsx';
 import { OrderKanban } from '../components/checklist/OrderKanban.tsx';
 import { PostsView } from '../components/checklist/PostsView.tsx';
+import { Spinner } from '../components/Spinner.tsx';
 
 interface Props {
   t: (k: string, vars?: Record<string, string | number>) => string;
@@ -111,7 +112,7 @@ export function Checklist({ t }: Props) {
 
       {loading ? (
         <div className="checklist-empty">
-          <div className="sub loading">{t('ck_loading')}</div>
+          <Spinner label={t('ck_loading')} />
         </div>
       ) : (
         <>

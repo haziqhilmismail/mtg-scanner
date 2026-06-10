@@ -10,6 +10,7 @@ import { BatchTabStrip } from '../components/BatchTabStrip.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
 import { PrintingsModal } from '../components/PrintingsModal.tsx';
 import { SettingsPanel } from '../components/SettingsPanel.tsx';
+import { Spinner } from '../components/Spinner.tsx';
 import { UploadZone } from '../components/UploadZone.tsx';
 import { ZoomModal } from '../components/ZoomModal.tsx';
 
@@ -331,6 +332,10 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
     <>
       <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />
       <UploadZone onFiles={scanner.addFiles} t={t} />
+
+      {scanner.loadingSaved && scanner.batches.length === 0 && (
+        <Spinner label={t('scanner_loading_saved')} />
+      )}
 
       {scanner.batches.length > 0 && (
         <section>
