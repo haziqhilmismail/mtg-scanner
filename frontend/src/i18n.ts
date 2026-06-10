@@ -151,6 +151,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     added_to_list: 'Added',
     add_all_to_list: 'Add all to checklist',
     add_all_loading: 'Adding…',
+    cancel: 'Cancel',
     add_to_list_failed: 'Add failed: {err}',
 
     // Scanner ↔ Post grouping
@@ -715,6 +716,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     added_to_list: 'Ditambah',
     add_all_to_list: 'Tambah semua ke senarai',
     add_all_loading: 'Menambah…',
+    cancel: 'Batal',
     add_to_list_failed: 'Gagal tambah: {err}',
 
     // Pengimbas ↔ Post

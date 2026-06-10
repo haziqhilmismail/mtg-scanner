@@ -5,6 +5,7 @@ import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
 import { ckSearchUrl, computeCardData, formatMyr, formatMyrWithFoil } from '../utils.ts';
 import { ActiveBatchView } from '../components/ActiveBatchView.tsx';
+import { AddAllChecklistModal } from '../components/AddAllChecklistModal.tsx';
 import { BatchTabStrip } from '../components/BatchTabStrip.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
 import { PrintingsModal } from '../components/PrintingsModal.tsx';
@@ -172,31 +173,36 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
   }, [addBatchCore]);
 
   // Page-level bulk: add every scanned image's cards to the checklist in one
-  // go, each batch attached to whatever post it's grouped under. Confirmed
-  // first (it can create a lot of listings) and guarded by `addingAll` so the
-  // loading button can't be re-triggered mid-run.
-  const addAllBatchesToChecklist = useCallback(async () => {
-    if (addingAll) return;
-    const ready = scanner.batches.filter(b => b.response && b.scanId != null);
-    if (ready.length === 0) {
+  // go. Opening the picker modal lets the user choose a single post (or none)
+  // to attach all of them to — distinct from each batch's own post grouping.
+  const [addAllOpen, setAddAllOpen] = useState(false);
+
+  const readyBatches = scanner.batches.filter(b => b.response && b.scanId != null);
+
+  const openAddAll = useCallback(async () => {
+    if (readyBatches.length === 0) {
       await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_all_none') });
       return;
     }
-    const ok = await dialog.confirm({
-      title: t('bulk_add_all_title'),
-      message: t('bulk_add_all_msg', { n: ready.length }),
-      okLabel: t('bulk_add_all_ok'),
-    });
-    if (!ok) return;
+    setAddAllOpen(true);
+  }, [readyBatches.length, dialog, t]);
+
+  // Runs after the modal confirms. `postId` (null = no post) applies to every
+  // image. Guarded by `addingAll` so the loading button can't re-trigger it.
+  const runAddAll = useCallback(async (postId: number | null) => {
+    setAddAllOpen(false);
+    if (addingAll) return;
+    const ready = scanner.batches.filter(b => b.response && b.scanId != null);
+    if (ready.length === 0) return;
     setAddingAll(true);
     try {
       for (const b of ready) {
-        await addBatchCore(b, postIdByBatch[b.id] ?? null);
+        await addBatchCore(b, postId);
       }
     } finally {
       setAddingAll(false);
     }
-  }, [addingAll, scanner.batches, postIdByBatch, addBatchCore, dialog, t]);
+  }, [addingAll, scanner.batches, addBatchCore]);
 
   const exportBatch = useCallback(async (batch: Batch) => {
     const payload = buildExportPayload(batch, settings);
@@ -343,7 +349,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
                   className="accent"
                   style={{ padding: '6px 12px', fontSize: 10 }}
                   disabled={addingAll || addingBatchId != null}
-                  onClick={addAllBatchesToChecklist}
+                  onClick={openAddAll}
                 >{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}</button>
               )}
               {hasExportable && (
@@ -403,6 +409,16 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
             />
           ) : null}
         </section>
+      )}
+
+      {addAllOpen && (
+        <AddAllChecklistModal
+          count={readyBatches.length}
+          posts={posts}
+          onClose={() => setAddAllOpen(false)}
+          onConfirm={runAddAll}
+          t={t}
+        />
       )}
 
       <PrintingsModal
