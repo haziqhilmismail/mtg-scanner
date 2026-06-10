@@ -102,10 +102,40 @@ stop paying Fly entirely.
 
 ## Updating later
 
+By hand:
+
 ```bash
 git pull
 docker compose up -d --build
 ```
+
+### Auto-deploy (pull + rebuild on a timer)
+
+`deploy.sh` + the units in `deploy/` poll `origin/main` and, when it moves,
+fast-forward, rebuild the container, and prune the old image. One-time setup on
+the VM (after the units exist in your checkout):
+
+```bash
+cd ~/mtg-scanner-backend
+git pull --ff-only                 # fetch deploy.sh + deploy/*.{service,timer}
+chmod +x deploy.sh
+sudo cp deploy/mtg-deploy.service deploy/mtg-deploy.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now mtg-deploy.timer
+```
+
+Check it / trigger a deploy immediately:
+
+```bash
+systemctl list-timers mtg-deploy.timer        # next scheduled run
+sudo systemctl start mtg-deploy.service       # run once now
+journalctl -u mtg-deploy.service -n 30 --no-pager
+```
+
+A failed build leaves the running container in place (compose only swaps after
+a clean build). A push now lands on the homeserver within ~5 min, no manual
+step. For deeper disk cleanup occasionally: `docker system prune -af` (removes
+*all* unused images + build cache; the next build re-pulls the base image).
 
 ## Notes / caveats
 
