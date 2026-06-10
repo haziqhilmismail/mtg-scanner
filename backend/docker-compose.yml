@@ -27,6 +27,14 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # ...but add back CAP_DAC_OVERRIDE. The app runs as root while ./data is a
+    # bind mount owned by the host user (uid != 0); without this one capability
+    # root can't bypass the file-permission check and every SQLite INSERT fails
+    # with "attempt to write a readonly database". DAC_OVERRIDE only bypasses
+    # file perms inside the container — it grants no escalation, network, or
+    # mount powers, so the hardening still holds.
+    cap_add:
+      - DAC_OVERRIDE
     # NOTE: a read-only root FS (`read_only: true`) is intentionally NOT used.
     # SQLite writes -wal/-journal/-shm sidecar files and takes a write lock when
     # it opens app.db for writing; with a read-only root those operations are
