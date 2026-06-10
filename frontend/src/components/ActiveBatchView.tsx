@@ -26,6 +26,10 @@ interface Props {
   // Add-all and export now live in Scanner.tsx so the page-level bulk strip
   // can replay them against any batch. This component just triggers them.
   onAddAll: () => Promise<void>;
+  // True while this batch's add-all (or the page-level bulk add) is running.
+  // Drives the button's loading label and disables it so a double-click can't
+  // fire a second add — re-adding is otherwise always allowed.
+  addAllBusy: boolean;
   onExport: () => Promise<void>;
   // Re-queries CK for this scan's cards. Disabled until the batch has a
   // scanId (server-side save complete). The button manages its own busy
@@ -45,7 +49,7 @@ async function dataUrlToFile(dataUrl: string, filename: string): Promise<File> {
 export function ActiveBatchView({
   batch, settings, scanner, t, onZoom, onBrowsePrintings,
   posts, selectedPostId, onSelectPost, onPostsChanged,
-  addedIdx, onMarkAdded, onAddAll, onExport, onRefreshPrices,
+  addedIdx, onMarkAdded, onAddAll, addAllBusy, onExport, onRefreshPrices,
 }: Props) {
   const dialog = useDialog();
   const [refreshing, setRefreshing] = useState(false);
@@ -235,8 +239,8 @@ export function ActiveBatchView({
         <button
           className="accent"
           onClick={onAddAll}
-          disabled={visible.every(cd => addedIdx[cd.origIdx])}
-        >+ {t('add_all_to_list')}</button>
+          disabled={addAllBusy}
+        >{addAllBusy ? t('add_all_loading') : `+ ${t('add_all_to_list')}`}</button>
         <button className="accent" onClick={onExport}>{t('export_btn')}</button>
         {refreshButton}
       </div>

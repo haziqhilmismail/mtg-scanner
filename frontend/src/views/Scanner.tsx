@@ -113,49 +113,90 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
     });
   }, []);
 
-  // Per-batch add-all — already-added cards (tracked in addedByScanId) are
-  // skipped so re-clicking after manual per-card adds doesn't create
-  // duplicate listings. Synchronously gated by addBatchInFlightRef to block
-  // fast double-clicks.
-  const addBatchToChecklist = useCallback(async (batch: Batch, postId: number | null) => {
+  // Which batch's add-all is currently running (drives the button's loading
+  // state) and whether the page-level "add all images" bulk run is in flight.
+  const [addingBatchId, setAddingBatchId] = useState<string | null>(null);
+  const [addingAll, setAddingAll] = useState(false);
+
+  // Core add-all: push every visible, priced card of a batch to the checklist.
+  // No dedup against earlier adds — re-running intentionally re-adds (the user
+  // asked to "always allow"). Accidental double-submits are prevented by the
+  // button's busy state, not by skipping cards. markAdded still runs so the
+  // per-card "added" badge stays informative.
+  const addBatchCore = useCallback(async (batch: Batch, postId: number | null) => {
     if (!batch.response || batch.scanId == null) return;
+    const cardData = computeCardData(batch, settings);
+    const visible = cardData.filter(cd => !cd.removed);
+    for (const cd of visible) {
+      if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) continue;
+      try {
+        const ckDirect = cd.isFoil
+          ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
+          : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
+        const ck = ckDirect || ckSearchUrl(cd.sel.name || '');
+        const result = await addToChecklist({
+          name: cd.sel.name || '(unknown)',
+          scryfall_id: cd.sel.scryfall_id || null,
+          set_code: cd.sel.set || null,
+          set_name: cd.sel.set_name || null,
+          collector_number: cd.sel.collector_number || null,
+          rarity: cd.sel.rarity || null,
+          is_foil: cd.isFoil,
+          image_url: cd.sel.image_url || null,
+          ck_url: ck || null,
+          unit_price_myr: cd.unitPrice.toFixed(2),
+          qty_total: cd.qty,
+          post_ids: postId != null ? [postId] : [],
+        });
+        markAdded(batch.scanId, cd.origIdx, result.id);
+      } catch (e) {
+        console.error('Add failed for', cd.sel.name, e);
+      }
+    }
+  }, [settings, markAdded]);
+
+  // Per-batch add-all handler. Synchronously gated by addBatchInFlightRef to
+  // block same-tick double-clicks (state updates are async), and surfaces a
+  // loading label via addingBatchId.
+  const addBatchToChecklist = useCallback(async (batch: Batch, postId: number | null) => {
+    if (batch.scanId == null) return;
     if (addBatchInFlightRef.current.has(batch.id)) return;
     addBatchInFlightRef.current.add(batch.id);
+    setAddingBatchId(batch.id);
     try {
-      const cardData = computeCardData(batch, settings);
-      const visible = cardData.filter(cd => !cd.removed);
-      const alreadyAdded = addedByScanId[batch.scanId] || {};
-      for (const cd of visible) {
-        if (alreadyAdded[cd.origIdx]) continue;
-        if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) continue;
-        try {
-          const ckDirect = cd.isFoil
-            ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
-            : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
-          const ck = ckDirect || ckSearchUrl(cd.sel.name || '');
-          const result = await addToChecklist({
-            name: cd.sel.name || '(unknown)',
-            scryfall_id: cd.sel.scryfall_id || null,
-            set_code: cd.sel.set || null,
-            set_name: cd.sel.set_name || null,
-            collector_number: cd.sel.collector_number || null,
-            rarity: cd.sel.rarity || null,
-            is_foil: cd.isFoil,
-            image_url: cd.sel.image_url || null,
-            ck_url: ck || null,
-            unit_price_myr: cd.unitPrice.toFixed(2),
-            qty_total: cd.qty,
-            post_ids: postId != null ? [postId] : [],
-          });
-          markAdded(batch.scanId, cd.origIdx, result.id);
-        } catch (e) {
-          console.error('Add failed for', cd.sel.name, e);
-        }
-      }
+      await addBatchCore(batch, postId);
     } finally {
       addBatchInFlightRef.current.delete(batch.id);
+      setAddingBatchId(null);
     }
-  }, [settings, addedByScanId, markAdded]);
+  }, [addBatchCore]);
+
+  // Page-level bulk: add every scanned image's cards to the checklist in one
+  // go, each batch attached to whatever post it's grouped under. Confirmed
+  // first (it can create a lot of listings) and guarded by `addingAll` so the
+  // loading button can't be re-triggered mid-run.
+  const addAllBatchesToChecklist = useCallback(async () => {
+    if (addingAll) return;
+    const ready = scanner.batches.filter(b => b.response && b.scanId != null);
+    if (ready.length === 0) {
+      await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_all_none') });
+      return;
+    }
+    const ok = await dialog.confirm({
+      title: t('bulk_add_all_title'),
+      message: t('bulk_add_all_msg', { n: ready.length }),
+      okLabel: t('bulk_add_all_ok'),
+    });
+    if (!ok) return;
+    setAddingAll(true);
+    try {
+      for (const b of ready) {
+        await addBatchCore(b, postIdByBatch[b.id] ?? null);
+      }
+    } finally {
+      setAddingAll(false);
+    }
+  }, [addingAll, scanner.batches, postIdByBatch, addBatchCore, dialog, t]);
 
   const exportBatch = useCallback(async (batch: Batch) => {
     const payload = buildExportPayload(batch, settings);
@@ -299,6 +340,14 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
               )}
               {hasExportable && (
                 <button
+                  className="accent"
+                  style={{ padding: '6px 12px', fontSize: 10 }}
+                  disabled={addingAll || addingBatchId != null}
+                  onClick={addAllBatchesToChecklist}
+                >{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}</button>
+              )}
+              {hasExportable && (
+                <button
                   className="ghost"
                   style={{ padding: '6px 12px', fontSize: 10 }}
                   disabled={exportingAll}
@@ -326,6 +375,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
           <BatchTabStrip
             batches={scanner.batches}
             activeId={scanner.activeBatchId}
+            settings={settings}
             onSelect={scanner.setActiveBatchId}
             onRemove={scanner.removeBatch}
             t={t}
@@ -347,6 +397,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
                 if (activeBatch.scanId != null) markAdded(activeBatch.scanId, origIdx, listingId);
               }}
               onAddAll={() => addBatchToChecklist(activeBatch, postIdByBatch[activeBatch.id] ?? null)}
+              addAllBusy={addingBatchId === activeBatch.id || addingAll}
               onExport={() => exportBatch(activeBatch)}
               onRefreshPrices={() => refreshScanPrices(activeBatch)}
             />

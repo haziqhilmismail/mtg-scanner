@@ -150,6 +150,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     add_to_list: 'Add to checklist',
     added_to_list: 'Added',
     add_all_to_list: 'Add all to checklist',
+    add_all_loading: 'Adding…',
     add_to_list_failed: 'Add failed: {err}',
 
     // Scanner ↔ Post grouping
@@ -294,6 +295,12 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     confirm_clear_all_ok: 'Clear all',
     export_all_btn: '⬇ Export all (zip)',
     export_all_loading: 'Exporting…',
+    bulk_add_all_btn: '🧾 Add all to checklist',
+    bulk_add_all_loading: 'Adding…',
+    bulk_add_all_none: 'No scanned images to add yet.',
+    bulk_add_all_title: 'Add all to checklist',
+    bulk_add_all_msg: 'Add cards from all {n} scanned images to the checklist? This always adds, even if some were added before.',
+    bulk_add_all_ok: 'Add all',
     export_all_none: 'No finished scans to export yet.',
     ck_post_delete_title: 'Delete post',
     scanner_post_prompt_ok: 'Create post',
@@ -707,6 +714,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     add_to_list: 'Tambah ke senarai',
     added_to_list: 'Ditambah',
     add_all_to_list: 'Tambah semua ke senarai',
+    add_all_loading: 'Menambah…',
     add_to_list_failed: 'Gagal tambah: {err}',
 
     // Pengimbas ↔ Post
@@ -851,6 +859,12 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     confirm_clear_all_ok: 'Padam semua',
     export_all_btn: '⬇ Eksport semua (zip)',
     export_all_loading: 'Mengeksport…',
+    bulk_add_all_btn: '🧾 Tambah semua ke senarai',
+    bulk_add_all_loading: 'Menambah…',
+    bulk_add_all_none: 'Tiada imbasan untuk ditambah lagi.',
+    bulk_add_all_title: 'Tambah semua ke senarai',
+    bulk_add_all_msg: 'Tambah kad dari semua {n} imbasan ke senarai? Ini sentiasa menambah, walaupun sebahagiannya telah ditambah sebelum ini.',
+    bulk_add_all_ok: 'Tambah semua',
     export_all_none: 'Tiada imbasan selesai untuk dieksport lagi.',
     ck_post_delete_title: 'Padam post',
     scanner_post_prompt_ok: 'Cipta post',
