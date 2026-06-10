@@ -1,0 +1,12 @@
+# Checks for new commits a few minutes after boot, then every 5 minutes.
+# Persistent=true catches up on a missed run if the box was asleep.
+[Unit]
+Description=Periodically check mtg-scanner-backend for updates
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
