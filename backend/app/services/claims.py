@@ -164,12 +164,11 @@ def read_screenshot(
 
 class CatalogueCard(BaseModel):
     card_id: int          # the card's id within its scan
-    no: int               # the number printed beside its price on the exported image
     name: str
     set_code: str = ""
     price: str = ""       # as shown to buyers, e.g. "RM58"
     foil: bool = False
-    position: str = ""    # where it sits in the photo, e.g. "row 1 of 2, 3rd of 4 from the left"
+    position: str = ""    # where it sits in the photo, e.g. "row 1 of 2, 3rd of 4 from the left (top right)"
 
 
 class CataloguePhoto(BaseModel):
@@ -200,12 +199,13 @@ PROMPT = """You are helping a Malaysian Magic: The Gathering seller work out who
 
 The thread text below was read from screenshots by OCR, so expect small misreadings (l/1/I, O/0, missing diacritics, stray symbols), and Facebook chrome mixed in ("Like", "Reply", "2h", "Top fan", "Author", "View more replies", "Write a comment").
 
-Comments are in Malay, English or a mix. Buyers claim with words like: "nak", "nak 1", "mine", "claim", "booking", "book", "ambil", "ambik", "amik", "lock", "sy nak", "saya nak", "+1", or by just naming a card or its number. They refer to cards by:
-- the number printed on the photo ("3", "no 3", "#3", "3 & 7", "3,7,9")
-- the card's name, often shortened or misspelt ("sol ring", "rhystic", "bolt")
-- its place in the photo ("top left", "kiri atas", "bawah kanan", "tengah", "second row first", "yang last")
-- its price ("yang RM58 tu")
+Comments are in Malay, English or a mix. Buyers claim with words like: "nak", "nak 1", "mine", "claim", "booking", "book", "ambil", "ambik", "amik", "lock", "sy nak", "saya nak", "+1", or by just naming a card. Cards carry no numbers; buyers describe them in their own words:
+- the card's name, often shortened, nicknamed or misspelt ("sol ring", "rhystic", "bolt", "kitsune tu")
+- its place in the photo ("top left", "kiri atas", "bawah kanan", "tengah", "second row first", "yang last", "yang ketiga", "the third one"). Counting goes left to right, then top to bottom, as the positions in the list below describe.
+- its price ("yang RM58 tu", "the 58 one")
+- what it is ("the foil one", "the dragon", "artifact tu") — match only if exactly one card fits
 - "all" / "semua" / "borong"
+A bare number such as "nak 2" usually means a quantity, not a card.
 
 THE CARDS ON SALE
 {catalogue}
@@ -220,8 +220,8 @@ One entry per buyer comment that claims something, in the order the comments app
 - buyer: the commenter's name as written.
 - comment: their comment text, tidied of OCR junk but not reworded.
 - items: one per card claimed, with scan_id and card_id taken from the list above, qty (default 1), and `said` = the buyer's words for that card.
-- If you cannot tell which card or which photo is meant, still return the item with card_id -1 (and scan_id 0 if the photo is unknown) and put the reason in the item's `unclear`, phrased as a short question the seller can answer, e.g. "Number 3 exists in two photos — which one?" or "No card called 'bolt' here — which card?". Never guess between two plausible cards.
-- A number or position only identifies a card within one photo. If the thread covers several photos and a comment gives only a number or position, it is unclear unless something else (a card name, a price) settles it.
+- If you cannot tell which card or which photo is meant, still return the item with card_id -1 (and scan_id 0 if the photo is unknown) and put the reason in the item's `unclear`, phrased as a short question the seller can answer, e.g. "'Top left' fits a card in each photo — which photo?" or "No card called 'bolt' here — which card?". Never guess between two plausible cards.
+- A position only identifies a card within one photo. If the thread covers several photos and a comment gives only a position, it is unclear unless something else (a card name, a price) settles it.
 - Skip comments that are not claims: questions ("price?", "ada lagi?", "condition?"), "pm", "interested", tags of friends, emoji only.
 - If a comment cancels or changes an earlier claim ("cancel", "tak jadi", "tukar"), return it with no certain items and explain in the comment-level `unclear`.
 - If the same person claims in several comments, return each comment separately.
@@ -238,7 +238,7 @@ def _catalogue_text(photos: list[CataloguePhoto]) -> str:
     for p in photos:
         out.append(f"{p.label} — scan_id {p.scan_id}")
         for c in p.cards:
-            bits = [f"  card_id {c.card_id}", f"number {c.no}", c.name + (" (foil)" if c.foil else "")]
+            bits = [f"  card_id {c.card_id}", c.name + (" (foil)" if c.foil else "")]
             if c.set_code:
                 bits.append(c.set_code.upper())
             if c.price:
@@ -252,9 +252,9 @@ def _catalogue_text(photos: list[CataloguePhoto]) -> str:
 def parse_claims(thread: str, photos: list[CataloguePhoto], seller: str) -> list[ClaimDraft]:
     """Ask Gemini (text only) who claimed what. Synchronous — call it in a thread."""
     if len(photos) == 1:
-        scope = f"All of these comments are about one photo: {photos[0].label}. Numbers and positions refer to it."
+        scope = f"All of these comments are about one photo: {photos[0].label}. Positions refer to it."
     else:
-        scope = (f"The thread covers {len(photos)} photos. A bare number or position does not say which photo, "
+        scope = (f"The thread covers {len(photos)} photos. A position alone does not say which photo, "
                  "so treat it as unclear unless the comment also names the card or its price.")
     prompt = PROMPT.format(
         catalogue=_catalogue_text(photos), scope=scope,
