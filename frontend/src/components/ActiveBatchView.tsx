@@ -83,9 +83,13 @@ export function ActiveBatchView({
       <div className="batch-image">
         <div className="batch-image-head">
           <span className="name">{batch.filename}</span>
-          <span className="meta" style={{ color: 'var(--warn)' }}>{t('error')}</span>
+          <span className="meta" style={{ color: 'var(--warn)' }}>
+            {batch.outOfCredits ? t('tab_status_no_credits') : t('error')}
+          </span>
         </div>
-        <p className="status error">{batch.error || t('unknown_error')}</p>
+        <p className="status error">
+          {batch.outOfCredits ? t('scan_no_credits') : (batch.error || t('unknown_error'))}
+        </p>
       </div>
     );
   }

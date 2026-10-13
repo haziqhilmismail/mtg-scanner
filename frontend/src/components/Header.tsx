@@ -15,12 +15,13 @@ interface Props {
   // are undefined and the account rows stay hidden.
   user?: AuthUser | null;
   onSignOut?: () => void;
+  onRedeemVoucher?: () => void;
 }
 
 export function Header({
   title, healthLabel, healthState,
   lang, onLangChange, appearance, onAppearanceChange, t,
-  user, onSignOut,
+  user, onSignOut, onRedeemVoucher,
 }: Props) {
   return (
     <header className="app-bar">
@@ -42,6 +43,7 @@ export function Header({
             status={{ label: healthLabel, state: healthState }}
             user={user}
             onSignOut={onSignOut}
+            onRedeemVoucher={onRedeemVoucher}
           />
         </div>
       </div>

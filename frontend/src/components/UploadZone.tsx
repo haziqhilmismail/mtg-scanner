@@ -1,12 +1,30 @@
+import type { Credits } from '../api.ts';
 import { Icon } from './Icon.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Props {
   onFiles: (files: File[]) => void;
   t: (k: string, vars?: Record<string, string | number>) => string;
+  lang: string;
+  // Scan-credit balance; null until loaded (and in solo mode it isn't enforced).
+  credits: Credits | null;
+  onEnterVoucher: () => void;
 }
 
-export function UploadZone({ onFiles, t }: Props) {
+export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher }: Props) {
+  const limited = !!credits && credits.enforced && !credits.unlimited;
+  const outOfCredits = limited && credits.remaining === 0;
+  const nextBack = credits?.next_free_at
+    ? new Date(credits.next_free_at).toLocaleDateString(lang === 'ms' ? 'ms-MY' : 'en-MY', { day: 'numeric', month: 'short' })
+    : '';
+  let balance = '';
+  if (credits?.enforced && credits.unlimited) balance = t('credits_unlimited');
+  else if (limited) {
+    balance = t('credits_free_left', { n: Math.max(0, credits.limit - credits.used), limit: credits.limit });
+    if (credits.bonus > 0) balance += ' ' + t('credits_plus_extra', { n: credits.bonus });
+    if (credits.used > 0 && nextBack) balance += ' · ' + t('credits_next_back', { date: nextBack });
+  }
+
   const inputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
@@ -20,6 +38,7 @@ export function UploadZone({ onFiles, t }: Props) {
   }, []);
 
   const dispatch = useCallback((fl: FileList | File[]) => {
+    if (outOfCredits) return;
     const files = filterFiles(fl);
     if (!files.length) {
       setStatus(t('drop_no_images'));
@@ -27,7 +46,7 @@ export function UploadZone({ onFiles, t }: Props) {
     }
     setStatus('');
     onFiles(files);
-  }, [filterFiles, onFiles, t]);
+  }, [filterFiles, onFiles, t, outOfCredits]);
 
   // Drag-and-drop
   useEffect(() => {
@@ -105,6 +124,15 @@ export function UploadZone({ onFiles, t }: Props) {
   return (
     <section className="panel">
       <h2>{t('upload_title')}</h2>
+      {outOfCredits ? (
+        <div className="drop is-empty" ref={dropRef}>
+          <strong>{t('credits_out_title')}</strong>
+          <p>{nextBack ? t('credits_out_body', { date: nextBack, limit: credits.limit }) : t('credits_out_body_plain', { limit: credits.limit })}</p>
+          <button type="button" className="accent" onClick={onEnterVoucher}>
+            <Icon name="ticket" size={18} />{t('voucher_enter')}
+          </button>
+        </div>
+      ) : (
       <div
         ref={dropRef}
         className={`drop ${dragOver ? 'dragover' : ''}`}
@@ -120,6 +148,8 @@ export function UploadZone({ onFiles, t }: Props) {
         <p>{t('drop_sub')}</p>
         <p className="drop-photo-tip">{t('drop_photo_tip')}</p>
       </div>
+      )}
+      {balance && !outOfCredits ? <p className="credits-line">{balance}</p> : null}
       <input
         ref={inputRef}
         type="file"
