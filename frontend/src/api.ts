@@ -134,7 +134,7 @@ export async function fetchCredits(): Promise<Credits> {
 }
 
 export interface RedeemResult {
-  granted: { credits: number; unlimited: boolean; unlimited_days: number | null };
+  granted: { credits: number; unlimited: boolean; unlimited_days: number | null; reset?: boolean };
   credits: Credits;
 }
 
