@@ -65,7 +65,7 @@ def test_ocr_rejects_non_images():
 
 def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
     C, P, D, I = claims.CatalogueCard, claims.CataloguePhoto, claims.ClaimDraft, claims.ClaimItemDraft
-    photo = P(scan_id=7, label="Photo 1", cards=[C(card_id=0, no=1, name="Sol Ring"), C(card_id=1, no=2, name="Island")])
+    photo = P(scan_id=7, label="Photo 1", cards=[C(card_id=0, name="Sol Ring"), C(card_id=1, name="Island")])
 
     class _Models:
         def generate_content(self, **kw):
@@ -151,7 +151,7 @@ def test_read_and_parse_endpoints(client, monkeypatch):
             claims.ClaimItemDraft(scan_id=5, card_id=0, qty=1, said="1", unclear="")])]
     monkeypatch.setattr(claims, "parse_claims", fake_parse)
     r = client.post("/api/claims/parse", headers=me, json={"text": "Aiman\nnak 1", "photos": [
-        {"scan_id": 5, "label": "Photo 1", "cards": [{"card_id": 0, "no": 1, "name": "Sol Ring"}]}]})
+        {"scan_id": 5, "label": "Photo 1", "cards": [{"card_id": 0, "name": "Sol Ring"}]}]})
     assert r.status_code == 200 and r.json()["claims"][0]["items"][0]["card_id"] == 0
     assert seen["text"] == "Aiman\nnak 1" and seen["photos"] == 1
     assert client.post("/api/claims/parse", json={"text": "x", "photos": []}).status_code in (401, 422)
