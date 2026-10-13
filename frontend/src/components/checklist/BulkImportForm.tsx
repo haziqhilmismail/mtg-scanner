@@ -43,8 +43,7 @@ export function BulkImportForm({ onDone, onCancel, t }: Props) {
   return (
     <div className="form-card">
       <h3>{t('ck_bulk_title')}</h3>
-      <p style={{
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+      <p style={{ fontSize: 13,
         color: 'var(--ink-soft)', marginTop: -6, marginBottom: 10,
         lineHeight: 1.45,
       }}>{t('ck_bulk_hint')}</p>
@@ -56,8 +55,7 @@ export function BulkImportForm({ onDone, onCancel, t }: Props) {
         placeholder={PLACEHOLDER}
         style={{
           width: '100%',
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 12,
+          fontSize: 13,
           minHeight: 220,
         }}
       />
@@ -68,8 +66,7 @@ export function BulkImportForm({ onDone, onCancel, t }: Props) {
         <div style={{ marginTop: 14 }}>
           <div style={{
             padding: '8px 12px', borderRadius: 'var(--radius)',
-            background: result.created > 0 ? 'rgba(99,142,80,0.12)' : 'var(--surface-2)',
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+            background: result.created > 0 ? 'rgba(99,142,80,0.12)' : 'var(--surface-2)', fontSize: 13,
             color: result.created > 0 ? 'var(--green)' : 'var(--ink)',
             marginBottom: 8,
           }}>
@@ -78,13 +75,11 @@ export function BulkImportForm({ onDone, onCancel, t }: Props) {
           {result.lines.filter(l => !l.ok).length > 0 && (
             <details open>
               <summary style={{
-                cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                cursor: 'pointer', fontSize: 13,
                 color: 'var(--warn)', padding: '4px 0',
               }}>{t('ck_bulk_failed_summary', { n: result.lines.filter(l => !l.ok).length })}</summary>
               <ul style={{
-                margin: '6px 0 0', padding: '0 0 0 18px',
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                margin: '6px 0 0', padding: '0 0 0 18px', fontSize: 13,
                 color: 'var(--ink-soft)',
               }}>
                 {result.lines.filter(l => !l.ok).map((l, i) => (

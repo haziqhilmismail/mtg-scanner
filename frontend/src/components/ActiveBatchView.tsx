@@ -1,3 +1,4 @@
+import { Icon } from './Icon.tsx';
 import { useMemo, useRef, useState } from 'react';
 import { addToChecklist, frameCard } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
@@ -196,7 +197,7 @@ export function ActiveBatchView({
       className="ghost"
       disabled={refreshing}
       onClick={handleRefresh}
-    >{refreshing ? t('scan_refresh_prices_busy') : t('scan_refresh_prices')}</button>
+    ><Icon name="refresh" size={18} />{refreshing ? t('scan_refresh_prices_busy') : t('scan_refresh_prices')}</button>
   ) : null;
 
   // Shared finalize-block content. Rendered once at the top of the card list
@@ -219,7 +220,7 @@ export function ActiveBatchView({
           {posts.map(p => (
             <option key={p.id} value={p.id}>
               {p.title || `#${p.id}`}
-              {p.fb_url ? ' · 🔗' : ''}
+              {p.fb_url ? ' · link' : ''}
             </option>
           ))}
         </select>
@@ -228,7 +229,7 @@ export function ActiveBatchView({
           className="ghost"
           onClick={createPostFromScan}
           title={t('scanner_post_new_title')}
-        >{t('scanner_post_new_btn')}</button>
+        ><Icon name="plus" size={16} />{t('scanner_post_new_btn')}</button>
       </div>
       {selectedPostId != null ? (
         <span className="scan-post-hint">{t('scanner_post_selected_hint')}</span>
@@ -236,12 +237,12 @@ export function ActiveBatchView({
         <span className="scan-post-hint muted">{t('scanner_post_unselected_hint')}</span>
       )}
       <div className="finalize-action-row">
-        <button
-          className="accent"
-          onClick={onAddAll}
-          disabled={addAllBusy}
-        >{addAllBusy ? t('add_all_loading') : `+ ${t('add_all_to_list')}`}</button>
-        <button className="accent" onClick={onExport}>{t('export_btn')}</button>
+        <button className="accent" onClick={onExport}>
+          <Icon name="share" size={18} />{t('export_btn')}
+        </button>
+        <button onClick={onAddAll} disabled={addAllBusy}>
+          <Icon name="addList" size={18} />{addAllBusy ? t('add_all_loading') : t('add_all_to_list')}
+        </button>
         {refreshButton}
       </div>
     </>
@@ -346,7 +347,7 @@ export function ActiveBatchView({
             <span className="total-price">{formatMyr(priceTotal, settings)}</span>
           </div>
           <div className="export-warning">
-            <span className="warn-icon">⚠</span>
+            <Icon name="warning" className="warn-icon" />
             <span>{t('export_warning')}</span>
           </div>
 

@@ -8,7 +8,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { DemoChecklist } from '../components/demo/DemoChecklist.tsx';
 import { DemoScan } from '../components/demo/DemoScan.tsx';
-import { FeedbackModal } from '../components/FeedbackModal.tsx';
+import { AppMenu } from '../components/AppMenu.tsx';
+import { Icon } from '../components/Icon.tsx';
 import { useLang } from '../hooks/useLang.ts';
 import { useTheme } from '../hooks/useTheme.ts';
 
@@ -24,9 +25,8 @@ type DemoTab = 'scan' | 'tracker';
 export function Login({ clientId, onCredential, error, busy }: Props) {
   const btnRef = useRef<HTMLDivElement | null>(null);
   const [tab, setTab] = useState<DemoTab>('scan');
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { lang, setLang, t } = useLang();
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme, appearance, setAppearance } = useTheme();
 
   useEffect(() => {
     if (!clientId) return;
@@ -48,7 +48,7 @@ export function Login({ clientId, onCredential, error, busy }: Props) {
         btnRef.current.innerHTML = '';
         window.google.accounts.id.renderButton(btnRef.current, {
           type: 'standard',
-          theme: 'filled_black',
+          theme: theme === 'dark' ? 'filled_black' : 'outline',
           size: 'large',
           text: 'continue_with',
           shape: 'pill',
@@ -59,33 +59,33 @@ export function Login({ clientId, onCredential, error, busy }: Props) {
     };
     tryInit();
     return () => { cancelled = true; };
-  }, [clientId, onCredential]);
+  }, [clientId, onCredential, theme]);
 
   return (
     <div className="landing">
       <div className="landing-grid">
         <section className="landing-pitch">
-          <div className="landing-mark">♠</div>
+          <div className="landing-mark" aria-hidden="true"><Icon name="scan" size={34} /></div>
           <h1 className="landing-title">{t('lp_title')}</h1>
           <p className="landing-tagline">{t('lp_tagline')}</p>
 
           <ul className="landing-features">
             <li>
-              <span className="landing-feature-glyph">⚡</span>
+              <span className="landing-feature-glyph"><Icon name="bolt" /></span>
               <div>
                 <strong>{t('lp_feat_scan_head')}</strong>
                 <span>{t('lp_feat_scan_body')}</span>
               </div>
             </li>
             <li>
-              <span className="landing-feature-glyph">📋</span>
+              <span className="landing-feature-glyph"><Icon name="checklist" /></span>
               <div>
                 <strong>{t('lp_feat_track_head')}</strong>
                 <span>{t('lp_feat_track_body')}</span>
               </div>
             </li>
             <li>
-              <span className="landing-feature-glyph">📤</span>
+              <span className="landing-feature-glyph"><Icon name="share" /></span>
               <div>
                 <strong>{t('lp_feat_export_head')}</strong>
                 <span>{t('lp_feat_export_body')}</span>
@@ -151,43 +151,15 @@ export function Login({ clientId, onCredential, error, busy }: Props) {
         </a>
       </footer>
 
-      <div className="float-controls" aria-label="Display settings">
-        <div className="lang-toggle landing-lang" role="tablist" aria-label="Language">
-          <button
-            type="button"
-            className={lang === 'en' ? 'active' : ''}
-            aria-pressed={lang === 'en'}
-            onClick={() => setLang('en')}
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            className={lang === 'ms' ? 'active' : ''}
-            aria-pressed={lang === 'ms'}
-            onClick={() => setLang('ms')}
-          >
-            MS
-          </button>
-        </div>
-        <button
-          className="icon-btn landing-theme"
-          type="button"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? '☀' : '☾'}
-        </button>
-        <button
-          className="feedback-chip-btn is-compact"
-          type="button"
-          onClick={() => setFeedbackOpen(true)}
-          title={t('feedback_open')}
-          aria-label={t('feedback_open')}
-        >{t('feedback_btn_label')}</button>
+      <div className="landing-menu">
+        <AppMenu
+          lang={lang}
+          onLangChange={setLang}
+          appearance={appearance}
+          onAppearanceChange={setAppearance}
+          t={t}
+        />
       </div>
-      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
     </div>
   );
 }
