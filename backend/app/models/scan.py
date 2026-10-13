@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, ForeignKey, String
+from sqlalchemy import JSON, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
@@ -20,6 +20,10 @@ class Scan(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
 
+    # The post this photo is filed under in the Scans gallery. NULL = unfiled.
+    # Deleting a post unfiles its photos (see routers/posts.py); it never
+    # deletes them.
+    post_id: Mapped[int | None] = mapped_column(Integer, index=True)
     filename: Mapped[str] = mapped_column(String(255))
     # Original photo lives on disk so /api/export still works after a server restart.
     image_path: Mapped[str | None] = mapped_column(String(512))

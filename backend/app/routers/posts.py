@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import selectinload
 
 from ..config import DATA_DIR, settings
@@ -23,6 +23,7 @@ from ..models import (
     OrderStatus,
     Post,
     listing_post_links,
+    Scan,
 )
 from ..schemas import PostReadWithStats, PostUpdate
 
@@ -303,4 +304,7 @@ async def delete_post(post_id: int, db: DbSession, user_id: CurrentUserId) -> No
             Path(post.image_path).unlink(missing_ok=True)
         except Exception:
             pass
+    # Photos filed under this post become unfiled; deleting a post never
+    # deletes scans.
+    await db.execute(update(Scan).where(Scan.post_id == post_id).values(post_id=None))
     await db.delete(post)

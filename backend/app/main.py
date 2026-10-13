@@ -56,7 +56,10 @@ from sqlalchemy.orm.attributes import flag_modified
 from .config import DATA_DIR, settings
 from .db import async_session_factory
 from .deps import CurrentUserId, DbSession
-from .models import Scan, User
+from pydantic import BaseModel
+from sqlalchemy import update
+
+from .models import Post, Scan, User
 from .routers import auth as auth_router
 from .routers import bugs as bugs_router
 from .routers import buyers as buyers_router
@@ -348,7 +351,13 @@ async def scan(
     db: DbSession,
     user_id: CurrentUserId,
     image: UploadFile = File(...),
+    post_id: int | None = Form(default=None),
 ):
+    # Which post to file the photo under. Checked before anything costly.
+    if post_id is not None:
+        post = await db.get(Post, post_id)
+        if not post or post.user_id != user_id:
+            raise HTTPException(404, "Post not found")
     raw = await image.read()
     # Reject oversized uploads before the expensive decode. 25 MB is generous
     # for a phone photo (even a 48 MP HEIC is a few MB); anything bigger is
@@ -392,7 +401,7 @@ async def scan(
             "credits": await credits.status(db, user_id),
         })
     try:
-        result = await _scan_pipeline(db, user_id, image.filename, pil, norm_bytes)
+        result = await _scan_pipeline(db, user_id, image.filename, pil, norm_bytes, post_id)
     except BaseException:
         await credits.refund(user_id, credit)
         raise
@@ -402,6 +411,7 @@ async def scan(
 
 async def _scan_pipeline(
     db: DbSession, user_id: int, filename: str | None, pil: Image.Image, norm_bytes: bytes,
+    post_id: int | None = None,
 ) -> dict:
     """Everything /api/scan does once it has a decoded photo and a credit."""
     W, H = pil.size
@@ -609,6 +619,7 @@ async def _scan_pipeline(
     }
     scan_row = Scan(
         user_id=user_id,
+        post_id=post_id,
         filename=filename or "upload.jpg",
         width=W,
         height=H,
@@ -632,6 +643,7 @@ async def _scan_pipeline(
     return {
         "image_id": image_id,
         "scan_id": scan_row.id,
+        "post_id": post_id,
         **response_payload,
     }
 
@@ -772,7 +784,10 @@ async def frame_card(
 
 
 @app.get("/api/scans")
-async def list_scans(db: DbSession, user_id: CurrentUserId, limit: int = 30, lite: bool = False):
+async def list_scans(
+    db: DbSession, user_id: CurrentUserId,
+    limit: int = Query(default=30, ge=1, le=500), lite: bool = False,
+):
     """Most-recent-first list of saved scans, with the full response baked in.
     Frontend uses this to rehydrate batches after a page refresh.
 
@@ -797,6 +812,7 @@ async def list_scans(db: DbSession, user_id: CurrentUserId, limit: int = 30, lit
         out.append({
             "image_id": str(s.id),
             "scan_id": s.id,
+            "post_id": s.post_id,
             "filename": s.filename,
             "image_b64": "" if lite else payload.get("image_b64", ""),
             "width": s.width,
@@ -805,6 +821,26 @@ async def list_scans(db: DbSession, user_id: CurrentUserId, limit: int = 30, lit
             "created_at": s.created_at.isoformat() if s.created_at else None,
         })
     return out
+
+
+class MoveScans(BaseModel):
+    scan_ids: list[int]
+    post_id: int | None = None  # None = unfile
+
+
+@app.post("/api/scans/move", status_code=204)
+async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
+    """File photos under a post (or unfile them). Other people's scans in
+    `scan_ids` are silently left alone."""
+    if body.post_id is not None:
+        post = await db.get(Post, body.post_id)
+        if not post or post.user_id != user_id:
+            raise HTTPException(404, "Post not found")
+    await db.execute(
+        update(Scan)
+        .where(Scan.id.in_(body.scan_ids), Scan.user_id == user_id)
+        .values(post_id=body.post_id)
+    )
 
 
 async def _scan_for_image(db: DbSession, scan_id: int, token: str | None) -> Scan:
