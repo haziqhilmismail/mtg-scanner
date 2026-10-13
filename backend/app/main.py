@@ -417,7 +417,10 @@ async def scan(
     # drop cards classical missed.
     gemini_detections: list[CardDetection] = []
     try:
-        gemini_detections = scan_image(norm_bytes)
+        # The Gemini SDK call is synchronous and takes several seconds; run it
+        # in a worker thread so the event loop keeps serving other requests
+        # (and other scans) while this one waits.
+        gemini_detections = await asyncio.to_thread(scan_image, norm_bytes)
     except Exception as e:
         # If pHash got SOME of the cards we can still ship a partial result
         # rather than 500; otherwise bail.
