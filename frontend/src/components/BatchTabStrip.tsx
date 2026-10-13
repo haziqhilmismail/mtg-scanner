@@ -71,7 +71,7 @@ export function BatchTabStrip({ batches, activeId, settings, onSelect, onRemove,
             }}
           >
             {b.response?.image_b64 ? (
-              <img className="tab-thumb" src={b.response.image_b64} alt="" />
+              <img className="tab-thumb" src={b.response.thumb_url ?? b.response.image_b64} alt="" loading="lazy" />
             ) : (
               <div className="tab-thumb placeholder">…</div>
             )}
