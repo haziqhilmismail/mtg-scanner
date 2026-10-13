@@ -1,3 +1,4 @@
+import { Icon } from './Icon.tsx';
 import { useEffect, useState } from 'react';
 import type { CardRowData, RelookupMsg, Settings } from '../types.ts';
 import { applyRounding, fmt2 } from '../utils.ts';
@@ -76,15 +77,30 @@ export function AdjustPanel({
     onPriceChange(null);
   };
 
+  const [open, setOpen] = useState(false);
   let priceWrapClass = 'price-input-wrap';
   if (cd.needsPrice) priceWrapClass += ' required';
   else if (cd.hasOverride) priceWrapClass += ' set';
 
   const asisUrgent = msg?.type === 'err' && !cd.isManual;
 
+  // Corrections are the exception, not the rule, so they stay folded until
+  // asked for — unless this card needs a price or a lookup just reported back.
+  const showBody = open || cd.needsPrice || !!msg || busy;
+
   return (
-    <div className="adjust">
-      <div className="adjust-title">{t('adjust')}</div>
+    <div className={`adjust ${showBody ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="adjust-toggle"
+        aria-expanded={showBody}
+        onClick={() => setOpen(o => !o)}
+      >
+        <span>{t('adjust')}</span>
+        <Icon name="chevronDown" size={16} className="disclosure-chevron" />
+      </button>
+      {showBody ? (
+      <>
 
       <div className="adjust-block">
         <label className="adjust-label">
@@ -151,7 +167,7 @@ export function AdjustPanel({
             disabled={cd.isManual || !cd.sel.name}
             onClick={onBrowsePrintings}
           >
-            <span className="glyph">▦</span> {t('browse_printings')}
+            {t('browse_printings')}
           </button>
         </div>
       </div>
@@ -193,6 +209,8 @@ export function AdjustPanel({
         <AdjustMsg msg={msg} onAction={() => onUseAsIs(nameInput)} />
         <div className="adjust-hint">{t('relookup_hint')}</div>
       </div>
+      </>
+      ) : null}
     </div>
   );
 }

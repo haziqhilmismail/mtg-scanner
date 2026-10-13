@@ -1,6 +1,8 @@
 import type { Health } from '../api.ts';
 import type { LabelPosition, FoilStyle, RoundDirection, RoundStep, Settings } from '../types.ts';
 import { useDecimalInput } from '../hooks/useDecimalInput.ts';
+import { usePersistedState } from '../hooks/usePersistedState.ts';
+import { Icon } from './Icon.tsx';
 
 interface Props {
   settings: Settings;
@@ -15,6 +17,13 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
   const multNormal = useDecimalInput(settings.multNormal, v => update('multNormal', v ?? 0));
   const multFoil = useDecimalInput(settings.multFoil, v => update('multFoil', v ?? 0));
   const minPrice = useDecimalInput(settings.minPrice, v => update('minPrice', v ?? 0));
+  // Pricing is set once per market night, so it stays folded away with a
+  // one-line summary until someone wants to change it.
+  const [open, setOpen] = usePersistedState('mtg.settingsOpen', false);
+  const roundSummary = settings.roundDirection === 'none'
+    ? t('round_none')
+    : `${t(`round_dir_${settings.roundDirection}`)} ${t('round_to')} ${settings.currencyLabel} ${settings.roundStep}`;
+  const summary = `×${settings.multNormal} · ${t('foil_on')} ×${settings.multFoil} · ${roundSummary}`;
   let healthBadge = (
     <span className="health-badge">{t('ck_checking')}</span>
   );
@@ -33,11 +42,22 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
   }
 
   return (
-    <section className="panel">
-      <h2>
-        <span className="step-num">1</span>
-        <span>{t('settings_title')}</span>
-      </h2>
+    <section className={`panel disclosure ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="disclosure-head"
+        aria-expanded={open}
+        aria-controls="pricing-settings"
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className="disclosure-text">
+          <span className="disclosure-title">{t('settings_title')}</span>
+          {!open ? <span className="disclosure-summary">{summary}</span> : null}
+        </span>
+        <Icon name="chevronDown" className="disclosure-chevron" />
+      </button>
+      {open ? (
+      <div id="pricing-settings" className="disclosure-body">
       <div className="settings">
         <label>
           <span>{t('mult_normal')}</span>
@@ -161,6 +181,8 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
       <p className="status">
         {t('formula_hint')} {healthBadge}
       </p>
+      </div>
+      ) : null}
     </section>
   );
 }

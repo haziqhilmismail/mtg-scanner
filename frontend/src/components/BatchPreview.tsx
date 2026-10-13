@@ -1,3 +1,4 @@
+import { Icon } from './Icon.tsx';
 import { useEffect, useRef, useState } from 'react';
 
 import type { CardRowData, PillOffset, Settings } from '../types.ts';
@@ -396,7 +397,7 @@ export function BatchPreview({
           onClick={() => setExpanded(false)}
           aria-label={t('preview_collapse')}
           title={t('preview_collapse')}
-        >✕</button>
+        ><Icon name="close" size={18} /></button>
       ) : null}
       <div className="preview-wrap">
         <img src={imageB64} alt="" />

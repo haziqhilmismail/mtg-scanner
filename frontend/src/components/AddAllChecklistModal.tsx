@@ -40,7 +40,7 @@ export function AddAllChecklistModal({ count, posts, onClose, onConfirm, t }: Pr
             {posts.map(p => (
               <option key={p.id} value={p.id}>
                 {p.title || `#${p.id}`}
-                {p.fb_url ? ' · 🔗' : ''}
+                {p.fb_url ? ' · link' : ''}
               </option>
             ))}
           </select>

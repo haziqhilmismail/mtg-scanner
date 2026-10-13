@@ -159,7 +159,7 @@ export function StockEditDialog({ listing, posts, onClose, onSaved, t }: Props) 
           <div className="full">
             <span className="lab-text">{t('ck_form_posts_label')}</span>
             {posts.length === 0 ? (
-              <p style={{ fontSize: 12, color: 'var(--ink-soft)', margin: 0 }}>{t('ck_form_posts_empty')}</p>
+              <p style={{ fontSize: 13, color: 'var(--ink-soft)', margin: 0 }}>{t('ck_form_posts_empty')}</p>
             ) : (
               <div className="post-chips">
                 {posts.map(p => {

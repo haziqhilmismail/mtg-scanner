@@ -1,93 +1,50 @@
-import { useState } from 'react';
 import type { AuthUser } from '../api/auth.ts';
-import type { Lang, Theme } from '../types.ts';
-import { FeedbackModal } from './FeedbackModal.tsx';
+import type { Appearance, Lang } from '../types.ts';
+import { AppMenu } from './AppMenu.tsx';
 
 interface Props {
   title: string;
-  sub: string;
   healthLabel: string;
   healthState: 'ok' | 'err' | null;
   lang: Lang;
   onLangChange: (l: Lang) => void;
-  theme: Theme;
-  onThemeToggle: () => void;
+  appearance: Appearance;
+  onAppearanceChange: (a: Appearance) => void;
   t: (k: string, vars?: Record<string, string | number>) => string;
   // Only shown when Google auth is enabled on the backend. In solo mode both
-  // are undefined and the sign-out chip stays hidden.
+  // are undefined and the account rows stay hidden.
   user?: AuthUser | null;
   onSignOut?: () => void;
 }
 
 export function Header({
-  title, sub, healthLabel, healthState,
-  lang, onLangChange, theme, onThemeToggle, t,
+  title, healthLabel, healthState,
+  lang, onLangChange, appearance, onAppearanceChange, t,
   user, onSignOut,
 }: Props) {
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   return (
-    <>
-      <header className="masthead">
-        <div>
-          <h1>{title}</h1>
-          <div className="sub">
-            {sub} ·{' '}
-            <span className={`health ${healthState ?? ''}`}>{healthLabel}</span>
-          </div>
+    <header className="app-bar">
+      <div className="app-bar-inner">
+        <h1 className="app-bar-title">{title}</h1>
+        <div className="app-bar-actions">
+          {/* The dot alone would rely on colour, so the label sits beside it
+              on wide screens and in the menu on narrow ones. */}
+          <span className={`bar-status ${healthState ?? ''}`} title={healthLabel}>
+            <span className={`status-dot ${healthState ?? ''}`} aria-hidden="true" />
+            <span className="bar-status-label">{healthLabel}</span>
+          </span>
+          <AppMenu
+            lang={lang}
+            onLangChange={onLangChange}
+            appearance={appearance}
+            onAppearanceChange={onAppearanceChange}
+            t={t}
+            status={{ label: healthLabel, state: healthState }}
+            user={user}
+            onSignOut={onSignOut}
+          />
         </div>
-        {user && onSignOut ? (
-          <div className="header-controls">
-            <div className="user-chip" title={user.email}>
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="user-avatar" referrerPolicy="no-referrer" />
-              ) : (
-                <span className="user-avatar placeholder">{(user.name || user.email)[0]?.toUpperCase()}</span>
-              )}
-              <span className="user-name">{user.name || user.email}</span>
-              <button type="button" className="signout-btn" onClick={onSignOut} aria-label="Sign out">
-                Sign out
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </header>
-      <div className="float-controls" aria-label="Display settings">
-        <div className="lang-toggle" role="tablist" aria-label="Language">
-          <button
-            type="button"
-            className={lang === 'en' ? 'active' : ''}
-            aria-pressed={lang === 'en'}
-            onClick={() => onLangChange('en')}
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            className={lang === 'ms' ? 'active' : ''}
-            aria-pressed={lang === 'ms'}
-            onClick={() => onLangChange('ms')}
-          >
-            MS
-          </button>
-        </div>
-        <button
-          className="icon-btn"
-          type="button"
-          onClick={onThemeToggle}
-          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? '☀' : '☾'}
-        </button>
-        <button
-          className="feedback-chip-btn"
-          type="button"
-          onClick={() => setFeedbackOpen(true)}
-          title={t('feedback_open')}
-          aria-label={t('feedback_open')}
-        >{t('feedback_btn_label')}</button>
       </div>
-      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
-    </>
+    </header>
   );
 }

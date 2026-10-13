@@ -1,3 +1,4 @@
+import { Icon } from './Icon.tsx';
 import type { CardRowData, RelookupMsg, Settings } from '../types.ts';
 import { ckSearchUrl, fmt2, formatMyrWithFoil } from '../utils.ts';
 import { CompareImages } from './CompareImages.tsx';
@@ -99,7 +100,7 @@ export function CardRow({
       </div>
     ) : (
       <div className="manual-banner">
-        <span className="dot">⚠</span> {t('manual_set_price')}
+        <Icon name="warning" size={16} /> {t('manual_set_price')}
       </div>
     );
   }
@@ -120,7 +121,7 @@ export function CardRow({
         onClick={added ? undefined : onAddToList}
         disabled={added}
       >
-        <span className="glyph">{added ? '✓' : '+'}</span>
+        <Icon name={added ? 'check' : 'plus'} size={16} />
       </button>
       <button
         type="button"
@@ -128,7 +129,7 @@ export function CardRow({
         title={t('remove_card')}
         aria-label={t('remove_card')}
         onClick={onRemove}
-      >×</button>
+      ><Icon name="close" size={14} /></button>
 
       <CompareImages
         cropB64={cd.card.crop_b64}
