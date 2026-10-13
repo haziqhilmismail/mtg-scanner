@@ -2739,7 +2739,14 @@ img.zoomable:hover {
 .landing-google {
   min-height: 44px;
   display: flex; justify-content: flex-start;
+  /* Google draws its button in an iframe whose page is light-scheme. When the
+     element embedding it is dark-scheme (our dark appearance), browsers give
+     the iframe an opaque white backdrop instead of a transparent one, which
+     shows as a white box behind the pill. Keeping this box light-scheme keeps
+     the iframe transparent; the button's own dark styling is unaffected. */
+  color-scheme: light;
 }
+.landing-google iframe { color-scheme: light; }
 .landing-cta-foot {
   font-size: 12px;
 
