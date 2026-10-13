@@ -2,7 +2,7 @@ import { Icon } from './Icon.tsx';
 import { useEffect, useRef, useState } from 'react';
 
 import type { CardRowData, PillOffset, Settings } from '../types.ts';
-import { formatMyrWithFoil } from '../utils.ts';
+import { pillLabel } from '../utils.ts';
 
 // Card aspect (width / height). The framing tool's default snap.
 const CARD_ASPECT = 488 / 680;
@@ -39,8 +39,7 @@ interface DragState {
 // card is in a "needs manual price" state — we skip rendering a pill then.
 function pillLabelFor(cd: CardRowData, settings: Settings): string {
   if (cd.needsPrice || !Number.isFinite(cd.unitPrice)) return '';
-  const unit = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
-  return cd.qty > 1 ? `${unit} ×${cd.qty}` : unit;
+  return pillLabel(cd, settings);
 }
 
 // Mirrors the anchor math in backend/app/services/price_overlay.py so the

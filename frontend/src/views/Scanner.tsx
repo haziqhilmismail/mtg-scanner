@@ -6,7 +6,7 @@ import { postsApi, type Post } from '../api/checklist.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
-import { ckSearchUrl, computeCardData, formatMyr, formatMyrWithFoil } from '../utils.ts';
+import { ckSearchUrl, computeCardData, formatMyr, pillLabel } from '../utils.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 interface Folder {
@@ -81,8 +81,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
     label_position: settings.labelPosition,
     font_scale: settings.labelFontScale,
     cards: visible.map(cd => {
-      const unitLabel = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
-      const label = cd.qty > 1 ? `${unitLabel} ×${cd.qty}` : unitLabel;
+      const label = pillLabel(cd, settings);
       return {
         bbox: cd.card.bbox,
         corners: cd.card.corners,

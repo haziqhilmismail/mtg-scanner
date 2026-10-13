@@ -55,6 +55,23 @@ export function formatMyr(price: number, settings: Settings): string {
   return settings.showCurrency ? `${settings.currencyLabel}${formatted}` : formatted;
 }
 
+// The number a card carries on the exported photo and everywhere a buyer or
+// the claims reader refers to it. Fixed by the card's place in the scan, so
+// it never shifts when another card is removed or the page is opened elsewhere.
+export function cardNumber(cd: { origIdx: number }): number {
+  return cd.origIdx + 1;
+}
+
+// What is printed on a card's price pill: "#3 RM58", "#3 RM58 ×2".
+export function pillLabel(
+  cd: { origIdx: number; unitPrice: number; isFoil: boolean; qty: number },
+  settings: Settings,
+): string {
+  const unit = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
+  const priced = cd.qty > 1 ? `${unit} ×${cd.qty}` : unit;
+  return settings.numberCards ? `#${cardNumber(cd)} ${priced}` : priced;
+}
+
 export function formatMyrWithFoil(price: number, isFoil: boolean, settings: Settings): string {
   const base = formatMyr(price, settings);
   if (isFoil && settings.foilStyle === 'suffix') return base + 'F';
