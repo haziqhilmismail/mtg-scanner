@@ -24,6 +24,7 @@ function batchTotal(b: Batch, settings: Settings): number {
 
 function summary(b: Batch, t: Props['t']): { status: string; text: string } {
   if (b.status === 'scanning') return { status: 'scanning', text: t('tab_status_scanning') };
+  if (b.outOfCredits) return { status: 'warn', text: t('tab_status_no_credits') };
   if (b.status === 'error') return { status: 'error', text: t('tab_status_error') };
   if (!b.response) return { status: 'done', text: t('tab_status_done', { n: 0 }) };
   let n = 0, needs = 0;
