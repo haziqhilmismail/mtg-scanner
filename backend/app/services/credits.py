@@ -137,6 +137,14 @@ async def status(db: AsyncSession, user_id: int) -> dict:
     }
 
 
+async def reset(db: AsyncSession, user_id: int) -> None:
+    """Put a user back on the standard allowance with nothing used."""
+    user = await db.get(User, user_id)
+    user.unlimited_scans_until = None
+    user.bonus_scan_credits = 0
+    await db.execute(delete(ScanCreditEvent).where(ScanCreditEvent.user_id == user_id))
+
+
 def normalise_code(code: str) -> str:
     return "".join(ch for ch in code.upper() if ch.isalnum())
 
@@ -167,30 +175,38 @@ async def redeem(db: AsyncSession, user_id: int, code: str) -> Voucher:
     """Apply a voucher to `user_id`. Raises VoucherError when it can't be."""
     now = _now()
     voucher = await db.scalar(select(Voucher).where(Voucher.code == normalise_code(code)))
-    if voucher is None:
+    # A code bound to someone else looks exactly like a code that doesn't exist.
+    if voucher is None or (voucher.only_user_id and voucher.only_user_id != user_id):
         raise VoucherError("invalid")
     if voucher.expires_at and voucher.expires_at <= now:
         raise VoucherError("expired")
-    already = await db.scalar(
-        select(VoucherRedemption.id).where(
-            VoucherRedemption.voucher_id == voucher.id, VoucherRedemption.user_id == user_id
+    if voucher.reusable:
+        await db.execute(
+            update(Voucher).where(Voucher.id == voucher.id).values(used_count=Voucher.used_count + 1)
         )
-    )
-    if already:
-        raise VoucherError("already_redeemed")
-    # Conditional update so two people racing for the last use can't both win.
-    claimed = await db.execute(
-        update(Voucher)
-        .where(Voucher.id == voucher.id, Voucher.used_count < Voucher.max_uses)
-        .values(used_count=Voucher.used_count + 1)
-    )
-    if not claimed.rowcount:
-        raise VoucherError("used_up")
-    db.add(VoucherRedemption(voucher_id=voucher.id, user_id=user_id, created_at=now))
-    try:
-        await db.flush()
-    except IntegrityError:
-        raise VoucherError("already_redeemed")
+    else:
+        already = await db.scalar(
+            select(VoucherRedemption.id).where(
+                VoucherRedemption.voucher_id == voucher.id, VoucherRedemption.user_id == user_id
+            )
+        )
+        if already:
+            raise VoucherError("already_redeemed")
+        # Conditional update so two people racing for the last use can't both win.
+        claimed = await db.execute(
+            update(Voucher)
+            .where(Voucher.id == voucher.id, Voucher.used_count < Voucher.max_uses)
+            .values(used_count=Voucher.used_count + 1)
+        )
+        if not claimed.rowcount:
+            raise VoucherError("used_up")
+        db.add(VoucherRedemption(voucher_id=voucher.id, user_id=user_id, created_at=now))
+        try:
+            await db.flush()
+        except IntegrityError:
+            raise VoucherError("already_redeemed")
+    if voucher.resets:
+        await reset(db, user_id)
     await grant(db, user_id, credits=voucher.credits, unlimited=voucher.unlimited,
                 unlimited_days=voucher.unlimited_days)
     return voucher

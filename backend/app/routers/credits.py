@@ -35,6 +35,7 @@ async def redeem_voucher(request: Request, body: RedeemRequest, db: DbSession, u
             "credits": voucher.credits,
             "unlimited": voucher.unlimited,
             "unlimited_days": voucher.unlimited_days,
+            "reset": voucher.resets,
         },
         "credits": await credits.status(db, user_id),
     }

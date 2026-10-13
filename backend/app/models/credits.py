@@ -37,6 +37,15 @@ class Voucher(Base):
     unlimited: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # With `unlimited`: how long it lasts. NULL = forever.
     unlimited_days: Mapped[int | None] = mapped_column(Integer)
+    # Puts the account back on the standard allowance: unlimited off, extra
+    # credits cleared, usage wiped so the full free allowance is available.
+    # For testing the limited experience on an account that has a bypass.
+    resets: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # Can be redeemed again and again by the same account (max_uses and the
+    # once-per-account rule don't apply). Only sensible with `only_user_id`.
+    reusable: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # When set, nobody else can redeem this code.
+    only_user_id: Mapped[int | None] = mapped_column(Integer)
     max_uses: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     used_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     expires_at: Mapped[datetime | None] = mapped_column(DateTime)

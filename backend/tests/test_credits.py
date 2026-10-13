@@ -201,6 +201,34 @@ def test_voucher_rejections():
     run(_dispose_then(go()))
 
 
+def test_owner_testing_pair_toggles_between_unlimited_and_a_fresh_limit():
+    async def go():
+        me, other = await new_user(), await new_user()
+        on = await make_voucher(unlimited=True, reusable=True, only_user_id=me)
+        off = await make_voucher(resets=True, reusable=True, only_user_id=me)
+
+        for _ in range(4):                       # leave some usage and extras behind
+            await credits.reserve(me)
+        await redeem(me, await make_voucher(credits=7))
+
+        for _ in range(2):                       # both codes work again and again
+            await redeem(me, on)
+            assert (await get_status(me))["unlimited"] is True
+            await redeem(me, off)
+            st = await get_status(me)
+            assert (st["unlimited"], st["used"], st["bonus"], st["remaining"]) == (False, 0, 0, LIMIT)
+            got = [await credits.reserve(me) for _ in range(LIMIT + 1)]
+            assert got == [credits.FREE] * LIMIT + [None]
+
+        # Bound to one account: to anyone else the codes don't exist.
+        for code in (on, off):
+            with pytest.raises(credits.VoucherError) as e:
+                await redeem(other, code)
+            assert e.value.code == "invalid"
+        assert (await get_status(other))["unlimited"] is False
+    run(_dispose_then(go()))
+
+
 # ---------- /api/scan ----------
 
 def _photo() -> bytes:
