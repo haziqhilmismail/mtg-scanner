@@ -1,3 +1,4 @@
+import { Icon } from './Icon.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface Props {
@@ -103,15 +104,18 @@ export function UploadZone({ onFiles, t }: Props) {
 
   return (
     <section className="panel">
-      <h2>
-        <span className="step-num">2</span>
-        <span>{t('upload_title')}</span>
-      </h2>
+      <h2>{t('upload_title')}</h2>
       <div
         ref={dropRef}
         className={`drop ${dragOver ? 'dragover' : ''}`}
+        role="button"
+        tabIndex={0}
         onClick={e => { e.preventDefault(); inputRef.current?.click(); }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); }
+        }}
       >
+        <Icon name="photo" size={34} className="drop-icon" />
         <strong>{t('drop_strong')}</strong>
         <p>{t('drop_sub')}</p>
         <p className="drop-photo-tip">{t('drop_photo_tip')}</p>

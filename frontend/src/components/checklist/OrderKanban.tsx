@@ -148,10 +148,9 @@ export function OrderKanban({ orders, buyers, listings, reload, t }: Props) {
                 <span className="count">{colOrders.length}</span>
               </div>
               {colOrders.length === 0 ? (
-                <div style={{
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                <div style={{ fontSize: 12,
                   color: 'var(--ink-soft)', textAlign: 'center', padding: '20px 0',
-                  fontStyle: 'italic', textTransform: 'lowercase', letterSpacing: '0.08em',
+                  fontStyle: 'italic', textTransform: 'lowercase',
                 }}>{t(col.subKey)}</div>
               ) : Array.from(byBuyer.entries()).map(([buyerId, group]) => {
                 const groupKey = `${col.key}:${buyerId}`;

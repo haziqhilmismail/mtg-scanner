@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addToChecklist, exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
@@ -330,8 +331,8 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
 
   return (
     <>
-      <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />
       <UploadZone onFiles={scanner.addFiles} t={t} />
+      <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />
 
       {scanner.loadingSaved && scanner.batches.length === 0 && (
         <Spinner label={t('scanner_loading_saved')} />
@@ -340,35 +341,33 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
       {scanner.batches.length > 0 && (
         <section>
           <div className="review-head">
-            <h2><span className="step-num">3</span><span> {t('review_title')}</span></h2>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="review-title">
+              <h2>{t('review_title')}</h2>
               <span className="meta">{counterText}</span>
-              {hasExportable && (
-                <span className="all-scans-total" title={t('all_scans_total')}>
-                  <span className="label">Σ {t('all_scans_total')}</span>
-                  <span className="value">{formatMyr(allScansTotal, settings)}</span>
-                </span>
-              )}
+            </div>
+            {hasExportable && (
+              <span className="all-scans-total" title={t('all_scans_total')}>
+                <span className="label">{t('all_scans_total')}</span>
+                <span className="value">{formatMyr(allScansTotal, settings)}</span>
+              </span>
+            )}
+            <span className="review-actions">
               {hasExportable && (
                 <button
                   className="accent"
-                  style={{ padding: '6px 12px', fontSize: 10 }}
                   disabled={addingAll || addingBatchId != null}
                   onClick={openAddAll}
-                >{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}</button>
+                ><Icon name="addList" size={18} />{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}</button>
               )}
               {hasExportable && (
                 <button
-                  className="ghost"
-                  style={{ padding: '6px 12px', fontSize: 10 }}
                   disabled={exportingAll}
                   onClick={exportAllBatches}
-                >{exportingAll ? t('export_all_loading') : t('export_all_btn')}</button>
+                ><Icon name="download" size={18} />{exportingAll ? t('export_all_loading') : t('export_all_btn')}</button>
               )}
               {scanner.batches.length > 1 && (
                 <button
-                  className="ghost"
-                  style={{ padding: '6px 12px', fontSize: 10 }}
+                  className="ghost destructive"
                   onClick={async () => {
                     const ok = await dialog.confirm({
                       title: t('confirm_clear_all_title'),
@@ -378,7 +377,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
                     });
                     if (ok) scanner.clearAll();
                   }}
-                >× Clear all</button>
+                >{t('clear_all')}</button>
               )}
             </span>
           </div>

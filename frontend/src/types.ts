@@ -7,6 +7,7 @@ export type LabelPosition = 'top' | 'bottom' | 'center';
 export type FoilStyle = 'gold' | 'suffix';
 export type Lang = 'en' | 'ms';
 export type Theme = 'light' | 'dark';
+export type Appearance = 'auto' | Theme;
 export type PriceSource = 'cardkingdom' | 'none' | 'manual';
 
 export interface Settings {

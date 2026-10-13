@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import { buyersApi, listingsApi, ordersApi, postsApi, type Buyer, type Listing, type Order, type Post } from '../api/checklist.ts';
 import { ArchivedOrdersSection } from '../components/checklist/ArchivedOrdersSection.tsx';
@@ -82,14 +83,16 @@ export function Checklist({ t }: Props) {
 
       {/* New order entry — kept at the top because it's the recurring task */}
       <div className="list-toolbar">
-        <h3>{t('ck_orders')} · {activeOrders.length}</h3>
+        <h3>{t('ck_orders')}</h3>
+        <span className="toolbar-count">{activeOrders.length}</span>
         <div className="spacer" />
         {!showForm && (
           <button
+            className="accent"
             onClick={() => setShowForm(true)}
             disabled={activeListings.length === 0}
             title={activeListings.length === 0 ? t('ck_new_order_disabled_hint') : ''}
-          >{t('ck_new_order')}</button>
+          ><Icon name="plus" size={18} />{t('ck_new_order')}</button>
         )}
       </div>
 

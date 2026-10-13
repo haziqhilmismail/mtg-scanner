@@ -19,7 +19,7 @@ import { Scanner } from './views/Scanner.tsx';
 type View = 'scanner' | 'checklist';
 
 export default function App() {
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { appearance, setAppearance } = useTheme();
   const { lang, setLang, t } = useLang();
   const { settings, update: updateSetting } = useSettings();
   const scanner = useScanner();
@@ -77,28 +77,25 @@ export default function App() {
   return (
     <DialogProvider>
     <ImageZoomProvider>
-    <div className="wrap">
-      <Header
+    <Header
         title={t('app_title')}
-        sub={t('app_sub')}
         healthLabel={healthLabel}
         healthState={healthState}
         lang={lang}
         onLangChange={setLang}
-        theme={theme}
-        onThemeToggle={toggleTheme}
+        appearance={appearance}
+        onAppearanceChange={setAppearance}
         t={t}
         user={auth.config?.auth_enabled ? auth.user : null}
         onSignOut={auth.config?.auth_enabled ? auth.signOut : undefined}
       />
-
-      <TopTabs
-        view={view}
-        onChange={setView}
-        scannerLabel={t('nav_scanner')}
-        checklistLabel={t('nav_checklist')}
-      />
-
+    <TopTabs
+      view={view}
+      onChange={setView}
+      scannerLabel={t('nav_scanner')}
+      checklistLabel={t('nav_checklist')}
+    />
+    <main className="wrap">
       {view === 'scanner' ? (
         <Scanner
           scanner={scanner}
@@ -115,7 +112,7 @@ export default function App() {
         <span>{t('footer_left')}</span>
         <span>{t('footer_right')}</span>
       </footer>
-    </div>
+    </main>
     <FloatingBackToTop />
     </ImageZoomProvider>
     </DialogProvider>
