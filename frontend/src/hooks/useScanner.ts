@@ -110,6 +110,7 @@ function batchFromSavedScan(saved: SavedScan): Batch {
     response: {
       image_id: saved.image_id,
       image_b64: saved.image_b64,
+      thumb_url: saved.thumb_url,
       width: saved.width,
       height: saved.height,
       cards: saved.cards,
