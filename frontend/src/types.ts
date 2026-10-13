@@ -96,7 +96,11 @@ export interface DetectedCard {
 
 export interface ScanResponse {
   image_id: string;
+  // What goes in <img src>: a data: URL straight after a scan, or a
+  // /api/scans/{id}/preview URL for scans loaded from the server.
   image_b64: string;
+  // Small version of the same picture for the scan strip, when there is one.
+  thumb_url?: string;
   width: number;
   height: number;
   cards: DetectedCard[];

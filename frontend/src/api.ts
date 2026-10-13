@@ -1,7 +1,7 @@
 // Typed wrappers over the FastAPI backend. Vite proxies /api/* to localhost:8000
 // in dev (see vite.config.ts).
 
-import { authHeaders } from './api/auth.ts';
+import { authHeaders, authToken } from './api/auth.ts';
 import type { Candidate, DetectedCard, ScanResponse } from './types.ts';
 
 export interface Health {
@@ -27,11 +27,38 @@ export interface SavedScan extends ScanResponse {
   created_at: string | null;
 }
 
+// <img src=…> can't send Authorization headers, so scan pictures carry the
+// session JWT in the query string (same as post images).
+function scanImageUrl(path: string, params: Record<string, string | number> = {}): string {
+  const q = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]));
+  const t = authToken.get();
+  if (t) q.set('token', t);
+  const qs = q.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 // Loads all saved scans (most-recent first) for rehydration after a page refresh.
+//
+// Asks for the list without its embedded pictures (`lite=1`) and points each
+// picture at its own URL instead. With 30 scans the embedded version is ~22 MB
+// in one response, and nothing showed until all of it arrived; this way the
+// list is ~0.3 MB and the browser fetches only the pictures on screen, then
+// keeps them cached.
 export async function fetchScans(limit = 30): Promise<SavedScan[]> {
-  const r = await fetch(`/api/scans?limit=${limit}`, { headers: authHeaders() });
+  const r = await fetch(`/api/scans?limit=${limit}&lite=1`, { headers: authHeaders() });
   if (!r.ok) throw new Error(`fetchScans failed: ${r.status}`);
-  return (await r.json()) as SavedScan[];
+  const scans = (await r.json()) as SavedScan[];
+  return scans.map(s => {
+    // A server that predates `lite` ignores it and still embeds the pictures.
+    if (s.image_b64) return s;
+    const base = `/api/scans/${s.scan_id}`;
+    return {
+      ...s,
+      image_b64: scanImageUrl(`${base}/preview`),
+      thumb_url: scanImageUrl(`${base}/preview`, { w: 160 }),
+      cards: s.cards.map(c => ({ ...c, crop_b64: scanImageUrl(`${base}/crops/${c.id}`) })),
+    };
+  });
 }
 
 export async function deleteScan(id: number): Promise<void> {
