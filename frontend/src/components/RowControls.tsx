@@ -27,7 +27,9 @@ export function RowControls({
     if (v === null) onMultChange(null);
     else if (Math.abs(v - cd.globalMult) < 1e-9) onMultChange(null);
     else onMultChange(v);
-  });
+  }, cd.globalMult);
+  // Quantity: whole numbers, and an empty box means 1.
+  const qtyInput = useDecimalInput(cd.qty, (v) => onQtyChange(v == null ? 1 : Math.max(1, Math.round(v))), 1);
 
   return (
     <div className="row-controls">
@@ -37,8 +39,10 @@ export function RowControls({
         <input
           className="qty-input"
           type="text" inputMode="numeric" pattern="[0-9]*"
-          value={cd.qty}
-          onChange={e => onQtyChange(parseInt(e.target.value) || 1)}
+          value={qtyInput.text}
+          placeholder={qtyInput.placeholder}
+          aria-label={t('qty')}
+          onChange={e => qtyInput.onChange(e.target.value.replace(/\D/g, ''))}
         />
         <button type="button" className="qty-btn" onClick={() => onQtyStep(1)} aria-label={`${t('qty')} +`}><Icon name="plus" size={16} /></button>
       </div>
@@ -49,6 +53,8 @@ export function RowControls({
           className="mult-input"
           type="text" inputMode="decimal"
           value={multInput.text}
+          placeholder={multInput.placeholder}
+          aria-label={t('mult')}
           title={cd.hasMultOverride ? `override (global: ${cd.globalMult})` : 'global default'}
           onChange={e => multInput.onChange(e.target.value)}
         />

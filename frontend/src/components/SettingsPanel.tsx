@@ -64,6 +64,7 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
           <input
             type="text" inputMode="decimal"
             value={multNormal.text}
+            placeholder={multNormal.placeholder}
             onChange={e => multNormal.onChange(e.target.value)}
           />
         </label>
@@ -72,6 +73,7 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
           <input
             type="text" inputMode="decimal"
             value={multFoil.text}
+            placeholder={multFoil.placeholder}
             onChange={e => multFoil.onChange(e.target.value)}
           />
         </label>
@@ -136,6 +138,7 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
           <input
             type="text" inputMode="decimal"
             value={minPrice.text}
+            placeholder={minPrice.placeholder}
             onChange={e => minPrice.onChange(e.target.value)}
           />
         </label>

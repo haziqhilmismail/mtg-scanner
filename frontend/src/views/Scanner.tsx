@@ -375,18 +375,49 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     if (next) { setPhotoId(next); window.scrollTo({ top: 0 }); }
   }, [liveNavIds, navIndex]);
 
-  // Arrow keys step between photos (not while typing in a field).
+  // Keyboard shortcuts (never while typing in a field, or under a dialog):
+  //   one photo   ← / → previous / next photo, Esc back to the post
+  //   a post      arrows move between tiles (Enter opens), Esc back to posts
+  //   any gallery / jumps to search
   useEffect(() => {
-    if (photoId == null) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
-      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
-      if (e.key === 'ArrowLeft') step(-1);
-      if (e.key === 'ArrowRight') step(1);
+      if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return;
+      if (document.querySelector('.dlg-shade, .modal.open, .zoom-modal.open, .feedback-overlay, .modal-shade, .preview-cell.expanded, .menu-popover')) return;
+
+      if (photoId != null) {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+        else if (e.key === 'Escape') setPhotoId(null);
+        return;
+      }
+      if (e.key === '/') {
+        const search = document.querySelector<HTMLInputElement>('.scan-search input');
+        if (search) { e.preventDefault(); search.focus(); }
+        return;
+      }
+      if (e.key === 'Escape' && folderKey != null) {
+        if (selecting) { setSelecting(false); setSelected(new Set()); }
+        else goTo(null);
+        return;
+      }
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      const tiles = Array.from(document.querySelectorAll<HTMLElement>('.gallery-grid .scan-tile'));
+      if (!tiles.length) return;
+      const at = tiles.indexOf(document.activeElement as HTMLElement);
+      // Tiles sharing the first one's top edge make up a row.
+      const cols = tiles.filter(tile => tile.offsetTop === tiles[0].offsetTop).length || 1;
+      const delta = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key] ?? 0;
+      const next = at < 0 ? 0 : at + delta;
+      if (next < 0 || next >= tiles.length) return;
+      e.preventDefault();
+      tiles[next].focus();
+      tiles[next].scrollIntoView({ block: 'nearest' });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [photoId, step]);
+  }, [photoId, step, folderKey, selecting, goTo]);
 
   // Swipe left/right on the photo's header to step, like a photo roll. Kept
   // to the header so it can't fight dragging a price pill or scrolling a row.
@@ -433,22 +464,22 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     setSelecting(false);
   }, [dialog, scanner, t]);
 
-  const renamePost = useCallback(async (folder: Folder) => {
-    if (folder.postId == null) return;
-    const title = await dialog.prompt({
-      title: t('scans_rename_title'),
-      defaultValue: folder.title,
-      placeholder: folder.title,
-      okLabel: t('scans_rename'),
-    });
-    if (title == null || !title.trim()) return;
+  // Renaming a post: click its name on the post page and type. Enter or
+  // clicking away saves, Esc cancels. null = not editing.
+  const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  const saveTitle = useCallback(async (folder: Folder) => {
+    const title = (titleDraft ?? '').trim();
+    setTitleDraft(null);
+    if (folder.postId == null || !title || title === folder.title) return;
+    // Show the new name at once; put the old one back if the server says no.
+    setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, title } : p)));
     try {
-      await postsApi.update(folder.postId, { title: title.trim() });
-      await refreshPosts();
+      await postsApi.update(folder.postId, { title });
     } catch (e) {
+      await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
     }
-  }, [dialog, refreshPosts, t]);
+  }, [titleDraft, dialog, refreshPosts, t]);
 
   const addFolderToChecklist = useCallback(async (folder: Folder) => {
     const targets = folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null);
@@ -572,13 +603,13 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
             <span className="photo-nav-steps">
               <button
                 type="button" className="round-btn"
-                aria-label={t('scans_prev')} title={t('scans_prev')}
+                aria-label={t('scans_prev')} title={`${t('scans_prev')} (←)`}
                 disabled={navIndex <= 0}
                 onClick={() => step(-1)}
               ><Icon name="chevronLeft" size={18} /></button>
               <button
                 type="button" className="round-btn"
-                aria-label={t('scans_next')} title={t('scans_next')}
+                aria-label={t('scans_next')} title={`${t('scans_next')} (→)`}
                 disabled={navIndex < 0 || navIndex >= liveNavIds.length - 1}
                 onClick={() => step(1)}
               ><Icon name="chevronRight" size={18} /></button>
@@ -627,14 +658,36 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
           </div>
           <div className="review-head">
             <div className="review-title">
-              <h2>{openFolder.title}</h2>
-              {openFolder.postId != null ? (
-                <button
-                  type="button" className="round-btn"
-                  aria-label={t('scans_rename')} title={t('scans_rename')}
-                  onClick={() => renamePost(openFolder)}
-                ><Icon name="edit" size={16} /></button>
-              ) : null}
+              {openFolder.postId == null ? (
+                <h2>{openFolder.title}</h2>
+              ) : titleDraft != null ? (
+                <input
+                  className="title-edit"
+                  type="text"
+                  value={titleDraft}
+                  aria-label={t('scans_rename_title')}
+                  maxLength={255}
+                  autoFocus
+                  onFocus={e => e.target.select()}
+                  onChange={e => setTitleDraft(e.target.value)}
+                  onBlur={() => saveTitle(openFolder)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); saveTitle(openFolder); }
+                    if (e.key === 'Escape') { e.preventDefault(); setTitleDraft(null); }
+                  }}
+                />
+              ) : (
+                <h2>
+                  <button
+                    type="button" className="title-btn"
+                    title={t('scans_rename')}
+                    onClick={() => setTitleDraft(openFolder.title)}
+                  >
+                    <span>{openFolder.title}</span>
+                    <Icon name="edit" size={16} />
+                  </button>
+                </h2>
+              )}
             </div>
             {openFolder.total > 0 ? (
               <span className="all-scans-total">

@@ -12,17 +12,26 @@ import { useEffect, useState } from 'react';
 // External updates to `value` (e.g. another input mutating settings) sync
 // back into the text only when the current text doesn't already represent
 // that number — so an in-progress "2." doesn't get clobbered mid-keystroke.
+//
+// An emptied box stays empty. The owner still gets told (null) and falls back
+// to some number, `emptyValue`; the box shows that number as its placeholder
+// rather than having it typed back in — otherwise clearing "2.8" to type "3"
+// leaves you with "03".
 export function useDecimalInput(
   value: number,
   // null = the box is empty / unparseable. Consumer decides what that means
   // (zero for settings, "use global default" for the per-card multiplier, …).
   onCommit: (v: number | null) => void,
+  // What the owner uses while the box is empty. Shown as the placeholder.
+  emptyValue = 0,
 ) {
   const [text, setText] = useState<string>(() => String(value));
 
   useEffect(() => {
     const parsed = parseFloat(text);
     if (Number.isFinite(parsed) && Math.abs(parsed - value) < 1e-9) return;
+    // Empty box, and the value is just the owner's stand-in for "empty".
+    if (!Number.isFinite(parsed) && Math.abs(value - emptyValue) < 1e-9) return;
     setText(String(value));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
@@ -39,5 +48,5 @@ export function useDecimalInput(
     if (Number.isFinite(parsed)) onCommit(parsed);
   };
 
-  return { text, onChange };
+  return { text, onChange, placeholder: String(emptyValue) };
 }
