@@ -382,6 +382,27 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
             </span>
           </div>
 
+          {scanner.scanProgress ? (
+            <div className="scan-progress">
+              <div
+                className="scan-progress-track"
+                role="progressbar"
+                aria-label={t('scan_progress', scanner.scanProgress)}
+                aria-valuemin={0}
+                aria-valuemax={scanner.scanProgress.total}
+                aria-valuenow={scanner.scanProgress.done}
+              >
+                <div
+                  className="scan-progress-fill"
+                  style={{ width: `${(scanner.scanProgress.done / scanner.scanProgress.total) * 100}%` }}
+                />
+              </div>
+              <span className="scan-progress-label" aria-live="polite">
+                {t('scan_progress', scanner.scanProgress)}
+              </span>
+            </div>
+          ) : null}
+
           <BatchTabStrip
             batches={scanner.batches}
             activeId={scanner.activeBatchId}

@@ -478,6 +478,16 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   .review-actions button { flex: 1 1 auto; }
 }
 
+/* ---------- Scan progress ----------
+   Determinate: one step per photo finished, shown only while a run is going. */
+.scan-progress { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.scan-progress-track { flex: 1; height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.scan-progress-fill {
+  height: 100%; min-width: 6px; border-radius: 3px; background: var(--accent-fill);
+  transition: width 0.4s var(--ease);
+}
+.scan-progress-label { flex: none; font-size: 13px; color: var(--ink-soft); }
+
 /* ---------- Scan chips ----------
    One chip per uploaded photo; the selected one carries an accent ring. */
 .tab-strip {
