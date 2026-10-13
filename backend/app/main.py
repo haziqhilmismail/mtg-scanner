@@ -30,7 +30,7 @@ from pathlib import Path
 import aiohttp
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -66,6 +66,7 @@ from .routers import orders as orders_router
 from .routers import posts as posts_router
 from .services import bug_reporter
 from .services import credits
+from .services.auth_service import decode_session_token
 from .services import local_card_id
 from .services.cardkingdom_prices import DB_FILE as CK_DB_FILE
 from .services.cardkingdom_prices import get_index as get_ck_index
@@ -771,9 +772,15 @@ async def frame_card(
 
 
 @app.get("/api/scans")
-async def list_scans(db: DbSession, user_id: CurrentUserId, limit: int = 30):
+async def list_scans(db: DbSession, user_id: CurrentUserId, limit: int = 30, lite: bool = False):
     """Most-recent-first list of saved scans, with the full response baked in.
-    Frontend uses this to rehydrate batches after a page refresh."""
+    Frontend uses this to rehydrate batches after a page refresh.
+
+    `lite=1` leaves out the embedded images (the photo preview and every
+    card's thumbnail, as base64). With them, 30 scans is ~22 MB in a single
+    response that has to finish before anything shows; without, ~0.3 MB. The
+    client then loads each picture from /preview and /crops/{id} below, only
+    when it is on screen, and the browser caches them."""
     q = (
         select(Scan)
         .where(Scan.user_id == user_id)
@@ -784,17 +791,81 @@ async def list_scans(db: DbSession, user_id: CurrentUserId, limit: int = 30):
     out = []
     for s in rows:
         payload = s.gemini_raw or {}
+        cards = payload.get("cards", [])
+        if lite:
+            cards = [{**c, "crop_b64": ""} for c in cards]
         out.append({
             "image_id": str(s.id),
             "scan_id": s.id,
             "filename": s.filename,
-            "image_b64": payload.get("image_b64", ""),
+            "image_b64": "" if lite else payload.get("image_b64", ""),
             "width": s.width,
             "height": s.height,
-            "cards": payload.get("cards", []),
+            "cards": cards,
             "created_at": s.created_at.isoformat() if s.created_at else None,
         })
     return out
+
+
+async def _scan_for_image(db: DbSession, scan_id: int, token: str | None) -> Scan:
+    """The scan behind an <img src>. A browser image request can't send an
+    `Authorization` header, so the session JWT comes as `?token=...` instead
+    (same as post images). In solo mode the token is ignored."""
+    if settings.auth_enabled:
+        user_id = decode_session_token(token) if token else None
+        if user_id is None:
+            raise HTTPException(401, "Missing or invalid token")
+    else:
+        user_id = settings.solo_user_id
+    scan_row = await db.get(Scan, scan_id)
+    if not scan_row or scan_row.user_id != user_id:
+        raise HTTPException(404, "Scan not found")
+    return scan_row
+
+
+def _data_url_jpeg(data_url: str, max_edge: int | None = None) -> Response:
+    """A stored `data:image/jpeg;base64,...` string as an image response,
+    optionally shrunk. A scan's pictures never change once saved, so the
+    browser may keep them for good."""
+    if not data_url:
+        raise HTTPException(404, "No image")
+    raw = base64.b64decode(data_url.split(",", 1)[-1])
+    if max_edge:
+        img = Image.open(BytesIO(raw))
+        img.thumbnail((max_edge, max_edge))
+        buf = BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=80)
+        raw = buf.getvalue()
+    return Response(
+        content=raw,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
+
+
+@app.get("/api/scans/{scan_id}/preview")
+async def scan_preview(
+    scan_id: int,
+    db: DbSession,
+    token: str | None = Query(default=None),
+    w: int | None = Query(default=None, ge=32, le=1400),
+):
+    """The scan's photo preview. `w` caps the longest edge, for the small
+    thumbnails in the scan strip."""
+    scan_row = await _scan_for_image(db, scan_id, token)
+    return _data_url_jpeg((scan_row.gemini_raw or {}).get("image_b64", ""), w)
+
+
+@app.get("/api/scans/{scan_id}/crops/{card_id}")
+async def scan_card_crop(
+    scan_id: int, card_id: int, db: DbSession, token: str | None = Query(default=None),
+):
+    """One detected card's thumbnail, cut from the photo at scan time."""
+    scan_row = await _scan_for_image(db, scan_id, token)
+    for card in (scan_row.gemini_raw or {}).get("cards", []):
+        if card.get("id") == card_id:
+            return _data_url_jpeg(card.get("crop_b64", ""))
+    raise HTTPException(404, "Card not found")
 
 
 @app.delete("/api/scans/{scan_id}", status_code=204)
