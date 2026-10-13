@@ -63,6 +63,7 @@ from .models import Post, Scan, User
 from .routers import auth as auth_router
 from .routers import bugs as bugs_router
 from .routers import buyers as buyers_router
+from .routers import claims as claims_router
 from .routers import credits as credits_router
 from .routers import listings as listings_router
 from .routers import orders as orders_router
@@ -1252,6 +1253,7 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
 app.include_router(auth_router.router)
 app.include_router(bugs_router.router)
 app.include_router(buyers_router.router)
+app.include_router(claims_router.router)
 app.include_router(credits_router.router)
 app.include_router(listings_router.router)
 app.include_router(orders_router.router)

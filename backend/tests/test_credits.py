@@ -4,21 +4,8 @@ Run with:  python -m pytest tests
 """
 
 import asyncio
-import os
-import tempfile
 from datetime import timedelta
 from io import BytesIO
-
-# Settings are read at import time, so point them at a throwaway database and
-# switch Google auth on (credits are only enforced when auth is) first.
-os.environ.update(
-    DATABASE_URL=f"sqlite+aiosqlite:///{tempfile.mkdtemp()}/test.db",
-    GOOGLE_CLIENT_ID="test-client-id",
-    JWT_SECRET="test-secret",
-    GEMINI_API_KEY="x",
-    TELEGRAM_BOT_TOKEN="", TELEGRAM_CHAT_ID="",
-    USE_CLASSICAL_BBOX="false", USE_LOCAL_CARD_ID="false",
-)
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

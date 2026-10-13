@@ -8,8 +8,12 @@ FROM python:3.12-slim
 # with tiny text in prod while the macOS dev box (which has Arial) looks fine.
 # fonts-dejavu-core (~1.5 MB) installs DejaVuSans-Bold.ttf at the first path
 # in price_overlay.FONT_PATH_CANDIDATES, so no Python change is needed.
+#
+# Tesseract reads screenshots of Facebook comment threads for the Claims page
+# (services/claims.py): the engine plus English and Malay language data.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       fonts-dejavu-core \
+      tesseract-ocr tesseract-ocr-eng tesseract-ocr-msa \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
