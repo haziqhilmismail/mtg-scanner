@@ -43,7 +43,9 @@ export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
     try {
       const res = await redeemVoucher(code);
       setGranted(
-        res.granted.unlimited
+        res.granted.reset && !res.granted.unlimited && !res.granted.credits
+          ? t('voucher_granted_reset', { n: res.credits.limit })
+          : res.granted.unlimited
           ? (res.granted.unlimited_days
             ? t('voucher_granted_unlimited_days', { n: res.granted.unlimited_days })
             : t('voucher_granted_unlimited'))
