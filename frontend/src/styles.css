@@ -589,7 +589,18 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   background: #000; border: 0;
   border-radius: var(--radius); overflow: hidden; line-height: 0;
 }
-.preview-wrap img { display: block; max-height: 65vh; max-width: 100%; width: auto; height: auto; }
+.preview-wrap img {
+  display: block; max-height: 65vh; max-width: 100%; width: auto; height: auto;
+  transition: opacity 0.25s ease;
+}
+/* Photo still downloading: a quiet placeholder the size of the photo, with
+   the overlay (outlines, price pills) held back until there is a photo
+   under it. */
+.preview-wrap.is-loading { background: var(--fill); animation: photo-pulse 1.4s ease-in-out infinite; }
+.preview-wrap.is-loading img { position: absolute; inset: 0; opacity: 0; }
+.preview-wrap.is-loading svg, .preview-wrap.is-loading .frame-toolbar { display: none; }
+@keyframes photo-pulse { 50% { opacity: 0.55; } }
+.compare img { transition: opacity 0.2s ease; }
 .preview-wrap svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 /* Expanded mode: the cell escapes its flow and centers on screen. Width and
    height are set inline from React to match the photo's aspect ratio (capped

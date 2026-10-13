@@ -111,6 +111,7 @@ export function BatchPreview({
   // pointer-up.
   const [liveOffset, setLiveOffset] = useState<Record<number, PillOffset>>({});
   const [expanded, setExpanded] = useState(false);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
 
   // Framing tool — lets the user draw a rectangle on the photo to identify a
   // card the detector merged with its neighbour (or missed entirely). Only
@@ -380,6 +381,11 @@ export function BatchPreview({
     }
     : null;
 
+  // Saved scans load their photo from a URL, so it can arrive after the
+  // card data. Until it does, show a placeholder of the same size and keep
+  // the outlines and price pills back: frames drawn over nothing look broken.
+  const photoLoaded = loadedSrc === imageB64;
+
   const framingEnabled = expanded && !!onFrameCard;
   const framingActive = frameStage !== 'idle';
 
@@ -399,8 +405,22 @@ export function BatchPreview({
           title={t('preview_collapse')}
         ><Icon name="close" size={18} /></button>
       ) : null}
-      <div className="preview-wrap">
-        <img src={imageB64} alt="" />
+      <div
+        className={`preview-wrap ${photoLoaded ? '' : 'is-loading'}`}
+        style={photoLoaded || expanded ? undefined : {
+          // Hold the exact box the photo will fill (fit inside 100% × 65vh,
+          // never upscaled past the 1400px preview) so nothing jumps when it
+          // arrives.
+          width: `min(100%, calc(65vh * ${width / height}), 1400px)`,
+          aspectRatio: `${width} / ${height}`,
+        }}
+      >
+        <img
+          src={imageB64}
+          alt=""
+          onLoad={() => setLoadedSrc(imageB64)}
+          onError={() => setLoadedSrc(imageB64)}
+        />
         {framingEnabled ? (
           <div className="frame-toolbar">
             {!framingActive ? (
