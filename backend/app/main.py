@@ -60,10 +60,12 @@ from .models import Scan, User
 from .routers import auth as auth_router
 from .routers import bugs as bugs_router
 from .routers import buyers as buyers_router
+from .routers import credits as credits_router
 from .routers import listings as listings_router
 from .routers import orders as orders_router
 from .routers import posts as posts_router
 from .services import bug_reporter
+from .services import credits
 from .services import local_card_id
 from .services.cardkingdom_prices import DB_FILE as CK_DB_FILE
 from .services.cardkingdom_prices import get_index as get_ck_index
@@ -380,6 +382,27 @@ async def scan(
     pil.save(norm_buf, format="JPEG", quality=92)
     norm_bytes = norm_buf.getvalue()
 
+    # One credit per photo, taken before the Gemini call (so parallel scans
+    # can't overshoot the limit) and handed back if anything below fails.
+    credit = await credits.reserve(user_id)
+    if credit is None:
+        raise HTTPException(402, detail={
+            "code": "out_of_credits",
+            "credits": await credits.status(db, user_id),
+        })
+    try:
+        result = await _scan_pipeline(db, user_id, image.filename, pil, norm_bytes)
+    except BaseException:
+        await credits.refund(user_id, credit)
+        raise
+    result["credits"] = await credits.status(db, user_id)
+    return result
+
+
+async def _scan_pipeline(
+    db: DbSession, user_id: int, filename: str | None, pil: Image.Image, norm_bytes: bytes,
+) -> dict:
+    """Everything /api/scan does once it has a decoded photo and a credit."""
     W, H = pil.size
 
     # ---------- Step 1: classical bbox + quad detection (cheap, no API call) ----------
@@ -585,7 +608,7 @@ async def scan(
     }
     scan_row = Scan(
         user_id=user_id,
-        filename=image.filename or "upload.jpg",
+        filename=filename or "upload.jpg",
         width=W,
         height=H,
         gemini_raw=response_payload,
@@ -1122,6 +1145,7 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
 app.include_router(auth_router.router)
 app.include_router(bugs_router.router)
 app.include_router(buyers_router.router)
+app.include_router(credits_router.router)
 app.include_router(listings_router.router)
 app.include_router(orders_router.router)
 app.include_router(posts_router.router)

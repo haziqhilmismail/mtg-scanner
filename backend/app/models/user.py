@@ -2,7 +2,9 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Float, String
+from datetime import datetime
+
+from sqlalchemy import DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
@@ -40,6 +42,12 @@ class User(Base, TimestampMixin):
     default_currency: Mapped[str] = mapped_column(String(8), default="RM")
     default_mult_normal: Mapped[float] = mapped_column(Float, default=2.8)
     default_mult_foil: Mapped[float] = mapped_column(Float, default=3.0)
+
+    # Scan credits (see services/credits.py). Extra scans from vouchers or
+    # payments that don't expire, and "no limit until" (naive UTC; year 9999
+    # means forever).
+    bonus_scan_credits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    unlimited_scans_until: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Relationships — back-populates so we can navigate from any side
     scans: Mapped[list["Scan"]] = relationship(back_populates="user", cascade="all, delete-orphan")

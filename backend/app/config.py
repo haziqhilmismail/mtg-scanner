@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     # Symmetric secret for our own session JWTs. Auto-generated on first run if blank.
     jwt_secret: str = ""
 
+    # Free photo scans each signed-in user gets in any rolling 30-day window.
+    # Solo mode (no Google auth) is never limited. See services/credits.py.
+    free_scans_per_window: int = 10
+
     # Shared secret guarding POST /api/refresh-ck. Empty = endpoint stays open
     # (back-compat). When set, callers must send a matching `X-Refresh-Token`
     # header — the scheduled GitHub Action passes it from a repo secret so the
