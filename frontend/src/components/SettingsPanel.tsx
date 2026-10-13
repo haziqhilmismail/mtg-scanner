@@ -175,14 +175,6 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
         <label className="checkbox-row">
           <input
             type="checkbox"
-            checked={settings.numberCards}
-            onChange={e => update('numberCards', e.target.checked)}
-          />
-          <span>{t('number_cards')}</span>
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
             checked={settings.showOutlines}
             onChange={e => update('showOutlines', e.target.checked)}
           />

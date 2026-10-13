@@ -357,7 +357,7 @@ export async function readClaimScreenshots(files: File[], scanIds: number[]): Pr
 export interface CataloguePhoto {
   scan_id: number;
   label: string;
-  cards: Array<{ card_id: number; no: number; name: string; set_code: string; price: string; foil: boolean; position: string }>;
+  cards: Array<{ card_id: number; name: string; set_code: string; price: string; foil: boolean; position: string }>;
 }
 
 export interface ClaimDraft {

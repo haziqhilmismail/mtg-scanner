@@ -16,8 +16,6 @@ export interface Settings {
   currencyLabel: string;
   labelPosition: LabelPosition;
   showOutlines: boolean;
-  // Print "#3" beside each price on the photo, so buyers can claim by number.
-  numberCards: boolean;
   showCurrency: boolean;
   showCents: boolean;
   // Two-axis rounding: pick direction first, then the step. Direction 'none'
@@ -37,7 +35,6 @@ export const DEFAULT_SETTINGS: Settings = {
   currencyLabel: 'RM',
   labelPosition: 'center',
   showOutlines: false,
-  numberCards: true,
   showCurrency: true,
   showCents: false,
   roundDirection: 'up',

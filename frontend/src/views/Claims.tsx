@@ -21,7 +21,7 @@ import { Spinner } from '../components/Spinner.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { cardNumber, ckSearchUrl, computeCardData, formatMyr, formatMyrWithFoil } from '../utils.ts';
+import { ckSearchUrl, computeCardData, formatMyr, formatMyrWithFoil } from '../utils.ts';
 
 type T = (k: string, vars?: Record<string, string | number>) => string;
 
@@ -60,8 +60,9 @@ type PayState = 'unpaid' | 'paid' | 'done';
 const ORDINALS = ['1st', '2nd', '3rd'];
 const ordinal = (n: number) => ORDINALS[n - 1] ?? `${n}th`;
 
-// Where each card sits, in words a comment might use ("top left"). Cards are
-// put into rows by their vertical centres, then ordered left to right.
+// Where each card sits, in words a comment might use ("top left", "the third
+// one"). Cards are put into rows by their vertical centres, then ordered left
+// to right; the running count goes row by row, the way people read.
 function describePositions(cards: CardRowData[]): Map<number, string> {
   const out = new Map<number, string>();
   if (!cards.length) return out;
@@ -75,14 +76,16 @@ function describePositions(cards: CardRowData[]): Map<number, string> {
     const row = rows[rows.length - 1];
     if (row && b.cy - row[0].cy < medianH * 0.5) row.push(b); else rows.push([b]);
   }
+  let count = 0;
+  rows.forEach(row => row.sort((a, b) => a.cx - b.cx));
   rows.forEach((row, r) => {
-    row.sort((a, b) => a.cx - b.cx);
     row.forEach((b, c) => {
+      count += 1;
       const vert = rows.length === 1 ? '' : r === 0 ? 'top' : r === rows.length - 1 ? 'bottom' : 'middle';
       const horiz = row.length === 1 ? '' : c === 0 ? 'left' : c === row.length - 1 ? 'right' : 'centre';
       const words = [vert, horiz].filter(Boolean).join(' ');
       out.set(b.cd.origIdx,
-        `row ${r + 1} of ${rows.length}, ${ordinal(c + 1)} of ${row.length} from the left${words ? ` (${words})` : ''}`);
+        `row ${r + 1} of ${rows.length}, ${ordinal(c + 1)} of ${row.length} from the left${words ? ` (${words})` : ''}, ${ordinal(count)} of ${boxes.length} overall`);
     });
   });
   return out;
@@ -168,7 +171,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
   const cardLabel = useCallback((c: CardRef) => {
     const price = Number.isFinite(c.cd.unitPrice) ? ` · ${formatMyrWithFoil(c.cd.unitPrice, c.cd.isFoil, settings)}` : '';
     const where = photos.length > 1 ? `${t('claims_photo_short', { n: c.photo })} · ` : '';
-    return `${where}#${cardNumber(c.cd)} ${c.cd.sel.name || '?'}${price}`;
+    return `${where}${c.cd.sel.name || '?'}${price}`;
   }, [photos.length, settings, t]);
 
   const catalogue = useCallback((subset: Photo[]): CataloguePhoto[] => subset.map(p => ({
@@ -176,7 +179,6 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
     label: photoLabel(p),
     cards: p.cards.map(c => ({
       card_id: c.cd.card.id,
-      no: cardNumber(c.cd),
       name: c.cd.sel.name || '',
       set_code: c.cd.sel.set || '',
       price: Number.isFinite(c.cd.unitPrice) ? formatMyrWithFoil(c.cd.unitPrice, c.cd.isFoil, settings) : '',
@@ -414,9 +416,8 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
 
   const itemLine = useCallback((i: Order['items'][number]) => {
     const card = cardOfListing(listingsById.get(i.listing_id));
-    const no = card ? `#${cardNumber(card.cd)} ` : '';
     const where = card && photos.length > 1 ? `${t('claims_photo_short', { n: card.photo })} · ` : '';
-    return `${where}${no}${i.name_snapshot}${i.qty > 1 ? ` ×${i.qty}` : ''}`;
+    return `${where}${i.name_snapshot}${i.qty > 1 ? ` ×${i.qty}` : ''}`;
   }, [cardOfListing, listingsById, photos.length, t]);
 
   const [copied, setCopied] = useState<number | null>(null);
@@ -491,13 +492,19 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
   return (
     <>
       <div className="review-head">
-        <div className="review-title"><h2>{t('nav_claims')}</h2></div>
-        <label className="claims-post">
-          <span>{t('scanner_post_label')}</span>
-          <select value={activeKey ?? ''} onChange={e => setFolderKey(e.target.value)}>
-            {postOptions.map(o => <option key={o.key} value={o.key}>{o.title}</option>)}
-          </select>
-        </label>
+        {/* The post's name in full as the heading: a <select> can only ever
+            show as much of a long name as fits on one line. */}
+        <div className="review-title">
+          <h2>{postOptions.find(o => o.key === activeKey)?.title ?? t('nav_claims')}</h2>
+        </div>
+        {postOptions.length > 1 ? (
+          <label className="claims-post">
+            <span>{t('claims_switch_post')}</span>
+            <select value={activeKey ?? ''} onChange={e => setFolderKey(e.target.value)}>
+              {postOptions.map(o => <option key={o.key} value={o.key}>{o.title}</option>)}
+            </select>
+          </label>
+        ) : null}
       </div>
       {loadError ? <div className="form-error">{t('ck_backend_error', { err: loadError })}</div> : null}
       {help}
