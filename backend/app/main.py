@@ -19,6 +19,8 @@ import asyncio
 import base64
 import json
 import re
+import time
+import traceback
 import zipfile
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -30,9 +32,9 @@ from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from PIL import Image
+from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 from slowapi import Limiter, _rate_limit_exceeded_handler
 
@@ -49,6 +51,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy import select
+from sqlalchemy.orm.attributes import flag_modified
 
 from .config import DATA_DIR, settings
 from .db import async_session_factory
@@ -62,6 +65,7 @@ from .routers import orders as orders_router
 from .routers import posts as posts_router
 from .services import bug_reporter
 from .services import local_card_id
+from .services.cardkingdom_prices import DB_FILE as CK_DB_FILE
 from .services.cardkingdom_prices import get_index as get_ck_index
 from .services.classical_detector import detect_card_quads, iou_xywh, perspective_warp
 from .services.gemini_scanner import CardDetection, get_client, scan_image
@@ -163,12 +167,8 @@ async def health():
         # written" timestamp — the refresh job atomic-renames a fresh build
         # onto DB_FILE, so its mtime advances with each successful refresh.
         # Returned as Unix epoch seconds; the frontend formats relative time.
-        try:
-            from .services.cardkingdom_prices import DB_FILE as _ck_db
-            if _ck_db.exists():
-                out["cardkingdom_refreshed_at"] = _ck_db.stat().st_mtime
-        except Exception:
-            pass
+        if CK_DB_FILE.exists():
+            out["cardkingdom_refreshed_at"] = CK_DB_FILE.stat().st_mtime
     except Exception as e:
         out["cardkingdom_error"] = str(e)
     pidx = local_card_id.get_index()
@@ -196,7 +196,6 @@ async def refresh_ck(
     sends the matching X-Refresh-Token header."""
     if settings.refresh_ck_token and x_refresh_token != settings.refresh_ck_token:
         raise HTTPException(403, "Invalid or missing refresh token")
-    from fastapi.responses import JSONResponse  # local import: cold-path
     idx = await get_ck_index()
     try:
         await idx.refresh(force=True)
@@ -231,6 +230,12 @@ def _cache_put(key: str, val: bytes):
     _IMAGE_CACHE[key] = val
 
 
+def _jpeg_data_url(pil: Image.Image) -> str:
+    buf = BytesIO()
+    pil.convert("RGB").save(buf, format="JPEG", quality=85)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
 def _make_thumb_b64(pil: Image.Image, x: int, y: int, x2: int, y2: int) -> str:
     crop = pil.crop((max(0, x), max(0, y), min(pil.width, x2), min(pil.height, y2)))
     if crop.width == 0 or crop.height == 0:
@@ -239,18 +244,62 @@ def _make_thumb_b64(pil: Image.Image, x: int, y: int, x2: int, y2: int) -> str:
     # The row thumbnail in the React UI renders this at ~78px wide, so we're paying
     # extra bytes once and reusing them for click-to-zoom — no extra round-trip needed.
     crop.thumbnail((700, 980))
-    buf = BytesIO()
-    crop.convert("RGB").save(buf, format="JPEG", quality=85)
-    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    return _jpeg_data_url(crop)
 
 
 def _preview_b64(pil: Image.Image) -> str:
     p = pil.copy()
-    if max(p.size) > 1400:
-        p.thumbnail((1400, 1400))
-    buf = BytesIO()
-    p.convert("RGB").save(buf, format="JPEG", quality=85)
-    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    p.thumbnail((1400, 1400))  # no-op when already smaller
+    return _jpeg_data_url(p)
+
+
+def _json_payload(payload: str) -> dict:
+    try:
+        return json.loads(payload)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON in 'payload'")
+
+
+def _norm_box(x: int, y: int, x2: int, y2: int, W: int, H: int) -> list[int]:
+    """Pixel box → Gemini-style [ymin, xmin, ymax, xmax] on a 0-1000 scale."""
+    return [
+        max(0, min(1000, int(v / dim * 1000)))
+        for v, dim in ((y, H), (x, W), (y2, H), (x2, W))
+    ]
+
+
+def _phash_match(
+    pil_rgb: Image.Image, quad: list[list[int]], box: tuple[int, int, int, int],
+) -> local_card_id.Candidate | None:
+    """Confident local pHash name for one card, or None.
+
+    The crop is *perspective-warped* via the quad (see notebook §27/§28):
+    the index was built from upright Scryfall images, and even a small tilt
+    in the photo shifts the hash by 6–10 bits — enough to flip top-1 to a
+    neighbour. Warping the quad flat puts the card in the same orientation
+    as the index. Empirically this took clean-photo top-1 from 1/4 to 4/4
+    with zero false positives. `box` is the (x0, y0, x1, y1) fallback crop.
+    """
+    idx = local_card_id.get_index()
+    if not settings.use_local_card_id or idx is None:
+        return None
+    try:
+        warped = perspective_warp(pil_rgb, quad)
+    except Exception as e:
+        # Numerical edge cases in the 8-coeff solve fall back to the
+        # axis-aligned crop so pHash still has a chance.
+        print(f"[phash] perspective warp failed: {e}", flush=True)
+        warped = pil_rgb.crop(box)
+    # top_k=2 so we can require a margin between #1 and #2. At ~48k
+    # entries the bottom of the distance distribution is noisy —
+    # a tied or near-tied top-1 means we don't actually know which
+    # card it is, even if the absolute distance is small.
+    cands = idx.search(local_card_id.hash_pil(warped), top_k=2)
+    if not cands or cands[0].distance > settings.phash_distance_threshold:
+        return None
+    if len(cands) >= 2 and cands[1].distance - cands[0].distance < settings.phash_distance_margin:
+        return None
+    return cands[0]
 
 
 def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
@@ -311,7 +360,6 @@ async def scan(
         raise HTTPException(400, "Could not decode image")
 
     try:
-        from PIL import ImageOps
         pil = ImageOps.exif_transpose(pil)
     except Exception:
         pass
@@ -327,8 +375,9 @@ async def scan(
     if max(pil.size) > SCAN_MAX_EDGE:
         pil.thumbnail((SCAN_MAX_EDGE, SCAN_MAX_EDGE), Image.LANCZOS)
 
+    pil = pil.convert("RGB")
     norm_buf = BytesIO()
-    pil.convert("RGB").save(norm_buf, format="JPEG", quality=92)
+    pil.save(norm_buf, format="JPEG", quality=92)
     norm_bytes = norm_buf.getvalue()
 
     W, H = pil.size
@@ -351,39 +400,11 @@ async def scan(
 
     # ---------- Step 2: local pHash identification per classical box ----------
     # If the index is loaded, hash each classical crop and look it up. A
-    # confident match (Hamming ≤ threshold) names the card without Gemini.
-    #
-    # The crop is *perspective-warped* via the quad (see notebook §27/§28):
-    # the index was built from upright Scryfall images, and even a small tilt
-    # in the photo shifts the hash by 6–10 bits — enough to flip top-1 to a
-    # neighbour. Warping the quad flat puts the card in the same orientation
-    # as the index. Empirically this took clean-photo top-1 from 1/4 to 4/4
-    # with zero false positives.
-    phash_results: list[local_card_id.Candidate | None] = [None] * len(classical_boxes)
-    if settings.use_local_card_id and local_card_id.get_index() is not None and classical_boxes:
-        idx = local_card_id.get_index()
-        thresh = settings.phash_distance_threshold
-        margin = settings.phash_distance_margin
-        pil_rgb = pil.convert("RGB")
-        for ci, (cx, cy, cw, ch) in enumerate(classical_boxes):
-            try:
-                warped = perspective_warp(pil_rgb, classical_quads[ci])
-            except Exception as e:
-                # Numerical edge cases in the 8-coeff solve fall back to the
-                # axis-aligned crop so pHash still has a chance.
-                print(f"[scan] perspective warp failed (card {ci}): {e}", flush=True)
-                warped = pil_rgb.crop((cx, cy, cx + cw, cy + ch))
-            h = local_card_id.hash_pil(warped)
-            # top_k=2 so we can require a margin between #1 and #2. At ~48k
-            # entries the bottom of the distance distribution is noisy —
-            # a tied or near-tied top-1 means we don't actually know which
-            # card it is, even if the absolute distance is small.
-            cands = idx.search(h, top_k=2)
-            if not cands or cands[0].distance > thresh:
-                continue
-            if len(cands) >= 2 and (cands[1].distance - cands[0].distance) < margin:
-                continue
-            phash_results[ci] = cands[0]
+    # confident match names the card without Gemini.
+    phash_results = [
+        _phash_match(pil, quad, (cx, cy, cx + cw, cy + ch))
+        for (cx, cy, cw, ch), quad in zip(classical_boxes, classical_quads)
+    ]
 
     # ---------- Step 3: Gemini for detection + naming-fallback ----------
     # Always call Gemini. The classical detector can under-detect (finds 1 of 4
@@ -396,28 +417,18 @@ async def scan(
     # drop cards classical missed.
     gemini_detections: list[CardDetection] = []
     try:
-        gemini_detections = scan_image(norm_bytes, mime_type="image/jpeg")
+        gemini_detections = scan_image(norm_bytes)
     except Exception as e:
         # If pHash got SOME of the cards we can still ship a partial result
         # rather than 500; otherwise bail.
-        if not any(r is not None for r in phash_results):
+        if not any(phash_results):
             raise HTTPException(500, f"Gemini call failed: {e}")
         print(f"[scan] Gemini call failed, continuing with pHash only: {e}", flush=True)
-        gemini_detections = []
 
     # ---------- Step 4: assemble unified detection list ----------
     # Per detection we track: a CardDetection (drives Scryfall lookup),
     # the pixel bbox, where the bbox came from, where the name came from,
     # and the pHash distance if applicable.
-    def _classical_box_to_norm(box: tuple[int, int, int, int]) -> list[int]:
-        cx, cy, cw, ch = box
-        return [
-            max(0, min(1000, int(cy / H * 1000))),
-            max(0, min(1000, int(cx / W * 1000))),
-            max(0, min(1000, int((cy + ch) / H * 1000))),
-            max(0, min(1000, int((cx + cw) / W * 1000))),
-        ]
-
     @dataclass
     class _Resolved:
         det: CardDetection
@@ -428,7 +439,9 @@ async def scan(
         name_confidence: int | None  # Hamming distance for phash; None for gemini
 
     resolved: list[_Resolved] = []
-    classical_consumed: list[bool] = [False] * len(classical_boxes)
+    # pHash-named boxes start out consumed: their entry wins over any Gemini
+    # detection that overlaps the same classical box.
+    classical_consumed = [r is not None for r in phash_results]
 
     # 4a) pHash-named entries — bbox comes from classical (tight by construction)
     for ci, cand in enumerate(phash_results):
@@ -441,7 +454,7 @@ async def scan(
             collector_number=cand.collector_number,
             is_foil=False,  # pHash can't tell — user toggles
             quantity=1,
-            box_2d=_classical_box_to_norm(classical_boxes[ci]),
+            box_2d=_norm_box(cx, cy, cx + cw, cy + ch, W, H),
         )
         resolved.append(_Resolved(
             det=det,
@@ -451,7 +464,6 @@ async def scan(
             name_source="phash",
             name_confidence=cand.distance,
         ))
-        classical_consumed[ci] = True
 
     # 4b) Gemini-named entries — for each Gemini detection, refine bbox by
     # matching to any *remaining* classical box (same logic as before).
@@ -486,13 +498,9 @@ async def scan(
                 if cur > best_iou:
                     best_iou, best_idx = cur, ci
             if best_idx >= 0 and best_iou >= 0.4:
-                if phash_results[best_idx] is not None:
-                    # pHash already named this classical box → its entry wins,
-                    # this Gemini one is a duplicate.
-                    continue
                 if classical_consumed[best_idx]:
-                    # Already consumed by an earlier Gemini detection in this
-                    # loop — also a duplicate. Drop it.
+                    # Named by pHash, or taken by an earlier Gemini detection
+                    # in this loop — either way this one is a duplicate.
                     continue
                 cx, cy, cw, ch = classical_boxes[best_idx]
                 x, y = cx, cy
@@ -621,10 +629,7 @@ async def frame_card(
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
 
-    try:
-        data = json.loads(payload)
-    except Exception:
-        raise HTTPException(400, "Invalid JSON in 'payload'")
+    data = _json_payload(payload)
 
     corners = data.get("corners")
     if not (isinstance(corners, list) and len(corners) == 4
@@ -635,20 +640,11 @@ async def frame_card(
     except (TypeError, ValueError):
         raise HTTPException(400, "Corners must be numeric")
 
-    # Load image from cache → disk fallback.
-    raw: bytes | None = _IMAGE_CACHE.get(str(scan_id))
-    if raw is None and scan_row.image_path:
-        p = Path(scan_row.image_path)
-        if p.exists():
-            raw = p.read_bytes()
-            _cache_put(str(scan_id), raw)
-    if raw is None:
-        raise HTTPException(404, "Original image bytes missing — re-upload")
+    raw = await _resolve_export_image(db, user_id, str(scan_id))
 
     try:
         pil = Image.open(BytesIO(raw))
         pil.load()
-        from PIL import ImageOps
         try:
             pil = ImageOps.exif_transpose(pil)
         except Exception:
@@ -669,31 +665,15 @@ async def frame_card(
     if x1 - x0 < 16 or y1 - y0 < 16:
         raise HTTPException(400, "Frame is too small")
 
-    skip_identify = bool(data.get("skip_identify", False))
-
-    pil_rgb = pil.convert("RGB")
-
-    # pHash via the perspective-warped crop. Same gate as /api/scan — absolute
-    # threshold AND top-2 margin — so a low-confidence local match falls
-    # through to "manual" rather than naming the wrong card.
-    # `skip_identify` bypasses the lookup entirely — the user has signalled
-    # they'll fill the card in by hand via the row's edit controls.
+    # Same pHash gate as /api/scan — absolute threshold AND top-2 margin — so
+    # a low-confidence local match falls through to "manual" rather than
+    # naming the wrong card. `skip_identify` bypasses the lookup entirely —
+    # the user has signalled they'll fill the card in by hand via the row's
+    # edit controls.
     matched: local_card_id.Candidate | None = None
-    if not skip_identify and settings.use_local_card_id and local_card_id.get_index() is not None:
-        idx = local_card_id.get_index()
-        thresh = settings.phash_distance_threshold
-        margin = settings.phash_distance_margin
+    if not data.get("skip_identify"):
         try:
-            warped = perspective_warp(pil_rgb, clamped)
-        except Exception as e:
-            print(f"[frame-card] warp failed: {e}", flush=True)
-            warped = pil_rgb.crop((x0, y0, x1, y1))
-        try:
-            h = local_card_id.hash_pil(warped)
-            cands = idx.search(h, top_k=2)
-            if cands and cands[0].distance <= thresh:
-                if len(cands) < 2 or (cands[1].distance - cands[0].distance) >= margin:
-                    matched = cands[0]
+            matched = _phash_match(pil.convert("RGB"), clamped, (x0, y0, x1, y1))
         except Exception as e:
             print(f"[frame-card] phash search failed: {e}", flush=True)
 
@@ -708,12 +688,7 @@ async def frame_card(
             collector_number=matched.collector_number,
             is_foil=False,
             quantity=1,
-            box_2d=[
-                max(0, min(1000, int(y0 / H * 1000))),
-                max(0, min(1000, int(x0 / W * 1000))),
-                max(0, min(1000, int(y1 / H * 1000))),
-                max(0, min(1000, int(x1 / W * 1000))),
-            ],
+            box_2d=_norm_box(x0, y0, x1, y1, W, H),
         )
         summaries = await lookup_all([det])
         ck_index = await get_ck_index()
@@ -773,7 +748,6 @@ async def frame_card(
 async def list_scans(db: DbSession, user_id: CurrentUserId, limit: int = 30):
     """Most-recent-first list of saved scans, with the full response baked in.
     Frontend uses this to rehydrate batches after a page refresh."""
-    from sqlalchemy import select
     q = (
         select(Scan)
         .where(Scan.user_id == user_id)
@@ -846,7 +820,6 @@ async def relookup_scan_prices(
     scan_row.gemini_raw = payload
     # JSON column needs an explicit mark — SQLAlchemy doesn't detect
     # in-place dict mutation.
-    from sqlalchemy.orm.attributes import flag_modified
     flag_modified(scan_row, "gemini_raw")
     await db.commit()
 
@@ -866,10 +839,7 @@ async def relookup_scan_prices(
 @limiter.limit("60/minute")  # Scryfall asks ~10 req/sec max — keep well below
 async def relookup(request: Request, payload: str = Form(...)):
     """Fuzzy lookup → search fallback → 404. Result is CK-enriched."""
-    try:
-        data = json.loads(payload)
-    except Exception:
-        raise HTTPException(400, "Invalid JSON in 'payload'")
+    data = _json_payload(payload)
 
     name = (data.get("name") or "").strip()
     if not name:
@@ -908,15 +878,24 @@ async def relookup(request: Request, payload: str = Form(...)):
     return _enrich_with_ck(summary, ck_index)
 
 
-# In-process cache for Scryfall's /sets endpoint. The list is ~800 entries
-# and changes only when new sets release, so a long-lived TTL is fine.
-_SETS_CACHE: dict[str, object] = {"data": None, "fetched_at": 0.0}
-_SETS_TTL = 6 * 60 * 60  # 6 hours
+# In-process cache for Scryfall's slow-moving catalogs, keyed by API path.
+# /sets (~800 entries) changes only when new sets release; /catalog/card-names
+# (~30k strings) only when new cards are spoiled — long TTLs are fine.
+_SCRYFALL_CACHE: dict[str, tuple[float, list]] = {}
 
-# Same idea for /catalog/card-names — ~30k strings, changes only when new
-# cards are spoiled. Used by the new-stock autocomplete.
-_CARD_NAMES_CACHE: dict[str, object] = {"data": None, "fetched_at": 0.0}
-_CARD_NAMES_TTL = 24 * 60 * 60  # 24 hours
+
+async def _scryfall_data(path: str, ttl: float) -> list:
+    fetched_at, cached = _SCRYFALL_CACHE.get(path, (0.0, []))
+    if cached and time.time() - fetched_at < ttl:
+        return cached
+    timeout = aiohttp.ClientTimeout(total=20)
+    async with aiohttp.ClientSession(headers=SCRYFALL_HEADERS, timeout=timeout) as session:
+        async with session.get("https://api.scryfall.com" + path) as resp:
+            if resp.status != 200:
+                raise HTTPException(502, f"Scryfall {path} failed")
+            data = (await resp.json()).get("data") or []
+    _SCRYFALL_CACHE[path] = (time.time(), data)
+    return data
 
 
 @app.get("/api/sets")
@@ -924,29 +903,16 @@ _CARD_NAMES_TTL = 24 * 60 * 60  # 24 hours
 async def list_scryfall_sets(request: Request):
     """Return a slim {code, name, released_at, set_type} list for the set picker.
     Cached aggressively — Scryfall doesn't want this called per keystroke."""
-    import time as _time
-    now = _time.time()
-    cached = _SETS_CACHE.get("data")
-    if cached and (now - float(_SETS_CACHE.get("fetched_at") or 0)) < _SETS_TTL:
-        return cached
-    timeout = aiohttp.ClientTimeout(total=15)
-    async with aiohttp.ClientSession(headers=SCRYFALL_HEADERS, timeout=timeout) as session:
-        async with session.get("https://api.scryfall.com/sets") as resp:
-            if resp.status != 200:
-                raise HTTPException(502, "Scryfall /sets failed")
-            body = await resp.json()
-    sets = []
-    for s in body.get("data") or []:
-        sets.append({
+    return [
+        {
             "code": (s.get("code") or "").lower(),
             "name": s.get("name") or "",
             "released_at": s.get("released_at"),
             "set_type": s.get("set_type"),
             "icon_svg_uri": s.get("icon_svg_uri"),
-        })
-    _SETS_CACHE["data"] = sets
-    _SETS_CACHE["fetched_at"] = now
-    return sets
+        }
+        for s in await _scryfall_data("/sets", ttl=6 * 60 * 60)
+    ]
 
 
 @app.get("/api/card-names")
@@ -954,31 +920,14 @@ async def list_scryfall_sets(request: Request):
 async def list_card_names(request: Request):
     """Scryfall's full English card-name catalog. Cached for 24h since this is
     used by the new-stock form's name autocomplete on every keystroke."""
-    import time as _time
-    now = _time.time()
-    cached = _CARD_NAMES_CACHE.get("data")
-    if cached and (now - float(_CARD_NAMES_CACHE.get("fetched_at") or 0)) < _CARD_NAMES_TTL:
-        return cached
-    timeout = aiohttp.ClientTimeout(total=20)
-    async with aiohttp.ClientSession(headers=SCRYFALL_HEADERS, timeout=timeout) as session:
-        async with session.get("https://api.scryfall.com/catalog/card-names") as resp:
-            if resp.status != 200:
-                raise HTTPException(502, "Scryfall /catalog/card-names failed")
-            body = await resp.json()
-    names = body.get("data") or []
-    _CARD_NAMES_CACHE["data"] = names
-    _CARD_NAMES_CACHE["fetched_at"] = now
-    return names
+    return await _scryfall_data("/catalog/card-names", ttl=24 * 60 * 60)
 
 
 @app.post("/api/printings")
 @limiter.limit("20/minute")  # Each call paginates Scryfall up to 4 pages
 async def printings(request: Request, payload: str = Form(...)):
     """Every printing of a card name, paginated and CK-enriched."""
-    try:
-        data = json.loads(payload)
-    except Exception:
-        raise HTTPException(400, "Invalid JSON in 'payload'")
+    data = _json_payload(payload)
 
     name = (data.get("name") or "").strip()
     if not name:
@@ -1105,10 +1054,7 @@ def _zip_entry_name(filename: str | None, used: set[str]) -> str:
 @app.post("/api/export")
 @limiter.limit("60/minute")  # Pillow render is CPU-bound; cap to prevent runaway
 async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId, payload: str = Form(...)):
-    try:
-        data = json.loads(payload)
-    except Exception:
-        raise HTTPException(400, "Invalid JSON in 'payload'")
+    data = _json_payload(payload)
 
     image_id = data.get("image_id")
     if not image_id:
@@ -1133,10 +1079,7 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
     Images whose source bytes can't be found are skipped rather than failing
     the whole archive; a 404 is only returned when nothing renders at all.
     """
-    try:
-        data = json.loads(payload)
-    except Exception:
-        raise HTTPException(400, "Invalid JSON in 'payload'")
+    data = _json_payload(payload)
 
     images = data.get("images")
     if not isinstance(images, list) or not images:
@@ -1187,9 +1130,6 @@ app.include_router(posts_router.router)
 # reaches here is something a route handler didn't anticipate.
 @app.exception_handler(Exception)
 async def _capture_unexpected(request: Request, exc: Exception):
-    import traceback
-    from fastapi.responses import JSONResponse  # local import: cold-path
-
     # Still surface the traceback in logs (`fly logs`) — installing this
     # handler suppresses Starlette's default stderr print, so we restore it.
     traceback.print_exception(type(exc), exc, exc.__traceback__)
