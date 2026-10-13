@@ -28,6 +28,7 @@ const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
 // hasn't been confirmed yet. Survives reload so a refresh-mid-clear can't
 // cause deleted scans to reappear, and so the unsent deletes get retried.
 const TOMBSTONE_KEY = 'mtg.scan_tombstones';
+const SCAN_CONCURRENCY = 3;
 
 function readTombstones(): Set<number> {
   try {
@@ -209,6 +210,26 @@ export function useScanner() {
     [],
   );
 
+  // Scans run a few at a time: each one mostly waits on Gemini (~6 s), so
+  // running them side by side cuts a 10-photo drop from ~70 s to ~25 s. Three
+  // stays under the server's 30-scans-a-minute limit. One shared queue, so a
+  // second drop while the first is running joins it instead of doubling up.
+  const scanQueue = useRef<Array<() => Promise<void>>>([]);
+  const scansRunning = useRef(0);
+  const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
+  const pumpScanQueue = useCallback(() => {
+    while (scansRunning.current < SCAN_CONCURRENCY && scanQueue.current.length) {
+      const job = scanQueue.current.shift()!;
+      scansRunning.current += 1;
+      job().finally(() => {
+        scansRunning.current -= 1;
+        // Clear the bar once the whole run is finished.
+        setScanProgress(p => (!p || p.done + 1 >= p.total ? null : { ...p, done: p.done + 1 }));
+        pumpScanQueue();
+      });
+    }
+  }, []);
+
   const addFiles = useCallback(async (files: File[]) => {
     if (!files.length) return;
     // Front-load every dropped file as a 'scanning' stub so the tab strip
@@ -235,7 +256,8 @@ export function useScanner() {
     // the strip around as each scan finishes.
     setActiveBatchId(queued[0].id);
 
-    for (const { file, id } of queued) {
+    setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + queued.length }));
+    scanQueue.current.push(...queued.map(({ file, id }) => async () => {
       try {
         const resp = await scanImage(file);
         const n = resp.cards.length;
@@ -259,8 +281,9 @@ export function useScanner() {
       } catch (e) {
         patchBatch(id, { status: 'error', error: (e as Error).message });
       }
-    }
-  }, [patchBatch]);
+    }));
+    pumpScanQueue();
+  }, [patchBatch, pumpScanQueue]);
 
   const toggleFoil = useCallback((batchId: string, idx: number) => {
     setBatches(prev =>
@@ -522,6 +545,7 @@ export function useScanner() {
     setActiveBatchId,
     loadingSaved,
     addFiles,
+    scanProgress,
     removeBatch,
     clearAll,
     toggleFoil,
