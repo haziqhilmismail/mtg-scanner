@@ -5,6 +5,7 @@ import {
   relookup as apiRelookup,
   scanImage,
   type SavedScan,
+  OutOfCreditsError,
 } from '../api.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg } from '../types.ts';
 import { generateBatchId } from '../utils.ts';
@@ -279,7 +280,11 @@ export function useScanner() {
           relookupMsg: new Array(n).fill(null),
         });
       } catch (e) {
-        patchBatch(id, { status: 'error', error: (e as Error).message });
+        patchBatch(id, {
+          status: 'error',
+          error: (e as Error).message,
+          outOfCredits: e instanceof OutOfCreditsError,
+        });
       }
     }));
     pumpScanQueue();
