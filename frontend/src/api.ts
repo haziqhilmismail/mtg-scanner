@@ -23,6 +23,8 @@ export async function fetchHealth(): Promise<Health> {
 
 export interface SavedScan extends ScanResponse {
   scan_id: number;
+  // The post this photo is filed under; null = unfiled.
+  post_id?: number | null;
   filename: string;
   created_at: string | null;
 }
@@ -44,7 +46,7 @@ function scanImageUrl(path: string, params: Record<string, string | number> = {}
 // in one response, and nothing showed until all of it arrived; this way the
 // list is ~0.3 MB and the browser fetches only the pictures on screen, then
 // keeps them cached.
-export async function fetchScans(limit = 30): Promise<SavedScan[]> {
+export async function fetchScans(limit = 300): Promise<SavedScan[]> {
   const r = await fetch(`/api/scans?limit=${limit}&lite=1`, { headers: authHeaders() });
   if (!r.ok) throw new Error(`fetchScans failed: ${r.status}`);
   const scans = (await r.json()) as SavedScan[];
@@ -55,7 +57,7 @@ export async function fetchScans(limit = 30): Promise<SavedScan[]> {
     return {
       ...s,
       image_b64: scanImageUrl(`${base}/preview`),
-      thumb_url: scanImageUrl(`${base}/preview`, { w: 160 }),
+      thumb_url: scanImageUrl(`${base}/preview`, { w: 480 }),
       cards: s.cards.map(c => ({ ...c, crop_b64: scanImageUrl(`${base}/crops/${c.id}`) })),
     };
   });
@@ -146,6 +148,16 @@ export interface Credits {
   next_free_at: string | null; // when the oldest free scan drops out of the window
 }
 
+// File scans under a post, or unfile them with postId = null.
+export async function moveScans(scanIds: number[], postId: number | null): Promise<void> {
+  const r = await fetch('/api/scans/move', {
+    method: 'POST',
+    headers: authHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ scan_ids: scanIds, post_id: postId }),
+  });
+  if (!r.ok) throw new Error(`Move failed: ${r.status}`);
+}
+
 export class OutOfCreditsError extends Error {
   credits: Credits | null;
   constructor(credits: Credits | null) {
@@ -182,10 +194,12 @@ export async function redeemVoucher(code: string): Promise<RedeemResult> {
   return (await r.json()) as RedeemResult;
 }
 
-export async function scanImage(file: File): Promise<ScanResponse> {
+// `postId` files the photo under that post; null leaves it unfiled.
+export async function scanImage(file: File, postId: number | null = null): Promise<ScanResponse> {
   const upload = await downscaleForScan(file);
   const fd = new FormData();
   fd.append('image', upload);
+  if (postId != null) fd.append('post_id', String(postId));
   const r = await fetch('/api/scan', { method: 'POST', body: fd, headers: authHeaders() });
   if (r.status === 402) {
     const body = await r.json().catch(() => null);

@@ -6,6 +6,7 @@ import {
   scanImage,
   type SavedScan,
   OutOfCreditsError,
+  moveScans as apiMoveScans,
 } from '../api.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg } from '../types.ts';
 import { generateBatchId } from '../utils.ts';
@@ -105,6 +106,7 @@ function batchFromSavedScan(saved: SavedScan): Batch {
   return {
     id,
     scanId: saved.scan_id,
+    postId: saved.post_id ?? null,
     filename: saved.filename,
     status: 'done',
     response: {
@@ -232,7 +234,7 @@ export function useScanner() {
     }
   }, []);
 
-  const addFiles = useCallback(async (files: File[]) => {
+  const addFiles = useCallback(async (files: File[], postId: number | null = null) => {
     if (!files.length) return;
     // Front-load every dropped file as a 'scanning' stub so the tab strip
     // shows all N immediately. Without this, sequential awaits below mean
@@ -245,6 +247,7 @@ export function useScanner() {
     const stubs: Batch[] = queued.map(({ file, id }) => ({
       id,
       scanId: null,
+      postId,
       filename: file.name,
       status: 'scanning',
       response: null,
@@ -261,7 +264,7 @@ export function useScanner() {
     setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + queued.length }));
     scanQueue.current.push(...queued.map(({ file, id }) => async () => {
       try {
-        const resp = await scanImage(file);
+        const resp = await scanImage(file, postId);
         const n = resp.cards.length;
         // Server-side scan_id is what we'll persist UI state against
         const scanId = (resp as unknown as { scan_id?: number }).scan_id ?? null;
@@ -524,6 +527,21 @@ export function useScanner() {
     removeTombstones(succeeded);
   }, [batches]);
 
+  // File photos under another post (or unfile them). Optimistic: the gallery
+  // regroups at once; if the server refuses, they go back where they were.
+  const moveBatches = useCallback(async (ids: string[], postId: number | null) => {
+    const before = new Map(batches.filter(b => ids.includes(b.id)).map(b => [b.id, b.postId]));
+    setBatches(prev => prev.map(b => (before.has(b.id) ? { ...b, postId } : b)));
+    const scanIds = batches.filter(b => before.has(b.id) && b.scanId != null).map(b => b.scanId as number);
+    if (!scanIds.length) return;
+    try {
+      await apiMoveScans(scanIds, postId);
+    } catch (e) {
+      setBatches(prev => prev.map(b => (before.has(b.id) ? { ...b, postId: before.get(b.id) ?? null } : b)));
+      throw e;
+    }
+  }, [batches]);
+
   const removeBatch = useCallback(async (id: string) => {
     const b = batches.find(x => x.id === id);
     setBatches(prev => prev.filter(x => x.id !== id));
@@ -553,6 +571,7 @@ export function useScanner() {
     addFiles,
     scanProgress,
     removeBatch,
+    moveBatches,
     clearAll,
     toggleFoil,
     setAllFoil,

@@ -1,0 +1,122 @@
+// The Scans gallery: posts as tiles, then the photos inside one as tiles.
+// Big enough to recognise a scan by its picture, with the things worth
+// knowing before opening it (how many cards, what it's worth, what's wrong).
+
+import type { Batch, Settings } from '../types.ts';
+import { computeCardData, formatMyr } from '../utils.ts';
+import { Icon } from './Icon.tsx';
+
+type T = (k: string, vars?: Record<string, string | number>) => string;
+
+export interface BatchSummary {
+  batch: Batch;
+  cards: number;      // visible (not removed) cards
+  needs: number;      // things to fix: unpriced cards, or 1 if the photo itself failed
+  total: number;      // priced value of the visible cards
+  haystack: string;   // lower-cased filename + card names, for search
+}
+
+export function summarise(batch: Batch, settings: Settings): BatchSummary {
+  if (!batch.response) {
+    return {
+      batch, cards: 0, total: 0,
+      needs: batch.status === 'error' ? 1 : 0,
+      haystack: batch.filename.toLowerCase(),
+    };
+  }
+  const visible = computeCardData(batch, settings).filter(cd => !cd.removed);
+  return {
+    batch,
+    cards: visible.length,
+    needs: visible.filter(cd => cd.needsPrice).length,
+    total: visible.reduce((sum, cd) => sum + (isFinite(cd.lineTotal) ? cd.lineTotal : 0), 0),
+    haystack: [batch.filename, ...visible.map(cd => cd.sel.name || '')].join('\n').toLowerCase(),
+  };
+}
+
+function NeedsBadge({ n, t }: { n: number; t: T }) {
+  if (n <= 0) return null;
+  return (
+    <span className="needs-badge">
+      <Icon name="warning" size={14} />{t('scans_to_fix', { n })}
+    </span>
+  );
+}
+
+function photosLabel(n: number, t: T) {
+  return n === 1 ? t('scans_photo_one') : t('scans_photos', { n });
+}
+
+interface PostTileProps {
+  title: string;
+  cover: string | null;
+  photos: number;
+  needs: number;
+  total: number;
+  settings: Settings;
+  t: T;
+  onOpen: () => void;
+}
+
+export function PostTile({ title, cover, photos, needs, total, settings, t, onOpen }: PostTileProps) {
+  return (
+    <button type="button" className="scan-tile" onClick={onOpen}>
+      <span className="scan-tile-img">
+        {cover ? <img src={cover} alt="" loading="lazy" /> : <Icon name="photo" size={28} />}
+      </span>
+      <span className="scan-tile-body">
+        <span className="scan-tile-title">{title}</span>
+        <span className="scan-tile-meta">
+          {photosLabel(photos, t)}{total > 0 ? ` · ${formatMyr(total, settings)}` : ''}
+        </span>
+        <NeedsBadge n={needs} t={t} />
+      </span>
+    </button>
+  );
+}
+
+interface PhotoTileProps {
+  summary: BatchSummary;
+  settings: Settings;
+  t: T;
+  // Shown under the filename when results span several posts (search).
+  caption?: string;
+  selecting: boolean;
+  selected: boolean;
+  onOpen: () => void;
+  onToggle: () => void;
+}
+
+export function PhotoTile({ summary, settings, t, caption, selecting, selected, onOpen, onToggle }: PhotoTileProps) {
+  const { batch, cards, needs, total } = summary;
+  const src = batch.response ? (batch.response.thumb_url ?? batch.response.image_b64) : null;
+  let meta: string;
+  if (batch.status === 'scanning') meta = t('tab_status_scanning');
+  else if (batch.outOfCredits) meta = t('tab_status_no_credits');
+  else if (batch.status === 'error') meta = t('tab_status_error');
+  else meta = (cards === 1 ? t('tab_status_done_one') : t('tab_status_done', { n: cards }))
+    + (total > 0 ? ` · ${formatMyr(total, settings)}` : '');
+  return (
+    <button
+      type="button"
+      className={`scan-tile ${selected ? 'is-selected' : ''}`}
+      aria-pressed={selecting ? selected : undefined}
+      onClick={selecting ? onToggle : onOpen}
+    >
+      <span className={`scan-tile-img ${batch.status === 'scanning' ? 'is-scanning' : ''}`}>
+        {src ? <img src={src} alt="" loading="lazy" /> : <Icon name="photo" size={28} />}
+        {selecting ? (
+          <span className="scan-tile-check" aria-hidden="true">
+            {selected ? <Icon name="check" size={16} /> : null}
+          </span>
+        ) : null}
+      </span>
+      <span className="scan-tile-body">
+        <span className="scan-tile-title">{batch.filename}</span>
+        {caption ? <span className="scan-tile-meta">{caption}</span> : null}
+        <span className="scan-tile-meta">{meta}</span>
+        <NeedsBadge n={needs} t={t} />
+      </span>
+    </button>
+  );
+}
