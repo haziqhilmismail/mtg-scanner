@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { fetchHealth, type Health } from './api.ts';
+import { fetchCredits, fetchHealth, type Credits, type Health } from './api.ts';
 import { formatRelativeTime } from './utils.ts';
 import { DialogProvider } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
 import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
 import { TopTabs } from './components/TopTabs.tsx';
+import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useLang } from './hooks/useLang.ts';
 import { usePersistedState } from './hooks/usePersistedState.ts';
@@ -40,6 +41,16 @@ export default function App() {
       () => { setHealth(null); setHealthErr(true); },
     );
   }, [auth.status]);
+
+  // Scan-credit balance. Refetched whenever a scan finishes (scanProgress
+  // ticks) so the line under the upload area is always current.
+  const [credits, setCredits] = useState<Credits | null>(null);
+  const [voucherOpen, setVoucherOpen] = useState(false);
+  const scansDone = scanner.scanProgress?.done ?? -1;
+  useEffect(() => {
+    if (auth.status !== 'authenticated') return;
+    fetchCredits().then(setCredits, () => { /* balance line just stays hidden */ });
+  }, [auth.status, scansDone]);
 
   const healthLabel = (() => {
     if (!health && !healthErr) return t('ck_checking');
@@ -88,6 +99,7 @@ export default function App() {
         t={t}
         user={auth.config?.auth_enabled ? auth.user : null}
         onSignOut={auth.config?.auth_enabled ? auth.signOut : undefined}
+        onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
       />
     <TopTabs
       view={view}
@@ -103,6 +115,9 @@ export default function App() {
           updateSetting={updateSetting}
           health={health}
           t={t}
+          lang={lang}
+          credits={credits}
+          onEnterVoucher={() => setVoucherOpen(true)}
         />
       ) : (
         <Checklist t={t} />
@@ -114,6 +129,12 @@ export default function App() {
       </footer>
     </main>
     <FloatingBackToTop />
+    <VoucherSheet
+      open={voucherOpen}
+      onClose={() => setVoucherOpen(false)}
+      onRedeemed={setCredits}
+      t={t}
+    />
     </ImageZoomProvider>
     </DialogProvider>
   );

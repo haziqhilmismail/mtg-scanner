@@ -1,3 +1,4 @@
+import type { Credits } from '../api.ts';
 import { Icon } from '../components/Icon.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addToChecklist, exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
@@ -21,6 +22,9 @@ interface Props {
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   health: Health | null;
   t: (k: string, vars?: Record<string, string | number>) => string;
+  lang: string;
+  credits: Credits | null;
+  onEnterVoucher: () => void;
 }
 
 const ADDED_STORAGE_PREFIX = 'mtg.scanner.added.';
@@ -78,7 +82,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
   };
 }
 
-export function Scanner({ scanner, settings, updateSetting, health, t }: Props) {
+export function Scanner({ scanner, settings, updateSetting, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
   const [zoom, setZoom] = useState<{ src: string; caption: string } | null>(null);
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
@@ -331,7 +335,13 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
 
   return (
     <>
-      <UploadZone onFiles={scanner.addFiles} t={t} />
+      <UploadZone
+        onFiles={scanner.addFiles}
+        t={t}
+        lang={lang}
+        credits={credits}
+        onEnterVoucher={onEnterVoucher}
+      />
       <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />
 
       {scanner.loadingSaved && scanner.batches.length === 0 && (
@@ -381,6 +391,27 @@ export function Scanner({ scanner, settings, updateSetting, health, t }: Props) 
               )}
             </span>
           </div>
+
+          {scanner.scanProgress ? (
+            <div className="scan-progress">
+              <div
+                className="scan-progress-track"
+                role="progressbar"
+                aria-label={t('scan_progress', scanner.scanProgress)}
+                aria-valuemin={0}
+                aria-valuemax={scanner.scanProgress.total}
+                aria-valuenow={scanner.scanProgress.done}
+              >
+                <div
+                  className="scan-progress-fill"
+                  style={{ width: `${(scanner.scanProgress.done / scanner.scanProgress.total) * 100}%` }}
+                />
+              </div>
+              <span className="scan-progress-label" aria-live="polite">
+                {t('scan_progress', scanner.scanProgress)}
+              </span>
+            </div>
+          ) : null}
 
           <BatchTabStrip
             batches={scanner.batches}

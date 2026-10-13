@@ -122,6 +122,9 @@ export interface Batch {
   scanId: number | null;          // backend Scan.id once saved — null while scanning
   filename: string;
   status: 'scanning' | 'done' | 'error';
+  // Set with status 'error' when the server refused the scan for lack of
+  // credits, so the UI can say that instead of showing a failure.
+  outOfCredits?: boolean;
   response: ScanResponse | null;
   error?: string;
   // Per-card parallel arrays, length === response.cards.length when status === 'done'

@@ -16,6 +16,8 @@ interface Props {
   // Only set when Google auth is enabled on the backend.
   user?: AuthUser | null;
   onSignOut?: () => void;
+  // Shown when scan credits apply to this account.
+  onRedeemVoucher?: () => void;
 }
 
 const LANGS: Lang[] = ['en', 'ms'];
@@ -24,7 +26,7 @@ const APPEARANCES: Appearance[] = ['auto', 'light', 'dark'];
 // The "More" menu: display preferences, feedback and the account, tucked
 // behind one button so the bar stays clear for the content.
 export function AppMenu({
-  lang, onLangChange, appearance, onAppearanceChange, t, status, user, onSignOut,
+  lang, onLangChange, appearance, onAppearanceChange, t, status, user, onSignOut, onRedeemVoucher,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -115,6 +117,14 @@ export function AppMenu({
           </div>
 
           <div className="menu-group">
+            {onRedeemVoucher ? (
+              <button
+                type="button" role="menuitem" className="menu-item"
+                onClick={() => { setOpen(false); onRedeemVoucher(); }}
+              >
+                <Icon name="ticket" />{t('voucher_title')}
+              </button>
+            ) : null}
             <button
               type="button" role="menuitem" className="menu-item"
               onClick={() => { setOpen(false); setFeedbackOpen(true); }}

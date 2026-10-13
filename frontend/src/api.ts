@@ -108,11 +108,62 @@ async function downscaleForScan(file: File): Promise<File> {
   return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
 }
 
+// Scan-credit balance, as returned by GET /api/credits and alongside each scan.
+export interface Credits {
+  enforced: boolean;          // false in solo mode: nothing is limited
+  unlimited: boolean;
+  limit: number;              // free scans per rolling 30 days
+  used: number;               // free scans used in the current window
+  bonus: number;              // extra scans from vouchers; don't expire
+  remaining: number | null;   // free + extra left; null when unlimited
+  next_free_at: string | null; // when the oldest free scan drops out of the window
+}
+
+export class OutOfCreditsError extends Error {
+  credits: Credits | null;
+  constructor(credits: Credits | null) {
+    super('Out of scan credits');
+    this.credits = credits;
+  }
+}
+
+export async function fetchCredits(): Promise<Credits> {
+  const r = await fetch('/api/credits', { headers: authHeaders() });
+  if (!r.ok) throw new Error(`Credits failed: ${r.status}`);
+  return (await r.json()) as Credits;
+}
+
+export interface RedeemResult {
+  granted: { credits: number; unlimited: boolean; unlimited_days: number | null };
+  credits: Credits;
+}
+
+// Rejects with an Error carrying `.code`: invalid | expired | used_up |
+// already_redeemed | rate_limited.
+export async function redeemVoucher(code: string): Promise<RedeemResult> {
+  const r = await fetch('/api/vouchers/redeem', {
+    method: 'POST',
+    headers: authHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ code }),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => null);
+    const err = new Error(`Redeem failed: ${r.status}`) as Error & { code?: string };
+    err.code = r.status === 429 ? 'rate_limited' : body?.detail?.code;
+    throw err;
+  }
+  return (await r.json()) as RedeemResult;
+}
+
 export async function scanImage(file: File): Promise<ScanResponse> {
   const upload = await downscaleForScan(file);
   const fd = new FormData();
   fd.append('image', upload);
   const r = await fetch('/api/scan', { method: 'POST', body: fd, headers: authHeaders() });
+  if (r.status === 402) {
+    const body = await r.json().catch(() => null);
+    throw new OutOfCreditsError(body?.detail?.credits ?? null);
+  }
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`Scan failed: ${r.status} ${t.slice(0, 200)}`);
