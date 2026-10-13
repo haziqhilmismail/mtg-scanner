@@ -575,6 +575,23 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .photo-nav-count { margin: 0 auto; font-size: 15px; font-weight: 600; white-space: nowrap; }
 .photo-nav-steps { display: flex; gap: 6px; margin-left: auto; }
 .photo-nav-count + .photo-nav-steps { margin-left: 0; }
+/* A post's name doubles as its rename control: click it and type. */
+.title-btn {
+  min-height: 0; max-width: 100%; padding: 2px 8px; margin: -2px -8px; gap: 8px;
+  background: transparent; color: inherit; border-radius: 8px;
+  font: inherit; letter-spacing: inherit; text-align: left; cursor: text;
+}
+.title-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title-btn .icon { color: var(--ink-faint); }
+.title-btn:hover { background: var(--fill); }
+.title-btn:hover .icon { color: var(--accent); }
+.title-edit {
+  width: min(100%, 22em); min-height: 0; padding: 2px 8px; margin: -3px -9px;
+  font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.015em;
+  background: var(--paper); border-radius: 8px;
+}
+.review-title { min-width: 0; }
+.review-title h2 { min-width: 0; max-width: 100%; }
 .round-btn {
   width: 36px; height: 36px; min-height: 0; padding: 0; flex: none;
   background: var(--fill); color: var(--accent); border: 0; border-radius: 50%;
