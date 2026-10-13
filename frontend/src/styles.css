@@ -536,9 +536,11 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 }
 .scan-tile.is-selected .scan-tile-check { background: var(--accent-fill); }
 .scan-tile-body { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px 12px; min-width: 0; }
+/* Names wrap rather than being cut off with an ellipsis: a post's name is
+   how you tell one from another. */
 .scan-tile-title {
   max-width: 100%; font-size: 15px; font-weight: 600; line-height: 1.25;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .scan-tile-meta { max-width: 100%; font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .needs-badge {
@@ -550,7 +552,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .gallery-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 14px; }
 .gallery-bar-count { font-size: 15px; font-weight: 600; margin-right: auto; }
 .gallery-filter { flex: none; }
-.gallery-move { flex: 0 1 200px; min-width: 0; font-size: 15px; background-color: var(--paper); }
+.gallery-move { flex: 1 1 200px; min-width: 0; font-size: 15px; background-color: var(--paper); }
 .scan-search {
   flex: 1 1 200px; min-width: 0; max-width: 360px;
   display: flex; align-items: center; gap: 6px; padding: 0 10px;
@@ -569,8 +571,10 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 }
 
 /* ---------- Claims ---------- */
-.claims-post { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; min-width: 0; }
-.claims-post select { min-width: 0; max-width: 260px; font-size: 15px; background-color: var(--paper); }
+/* A <select> can't wrap its text, so the post picker gets the whole row
+   instead of a narrow box that cuts the name short. */
+.claims-post { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 400; color: var(--ink-soft); min-width: 0; flex: 0 1 320px; }
+.claims-post select { flex: 1; min-width: 0; font-size: 15px; background-color: var(--paper); }
 .claims-help ol { margin: 0 0 14px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
 .claims-help ol strong { color: var(--ink); font-weight: 600; }
 .claims-help-eg-title { margin: 0 0 8px; font-size: 13px; color: var(--ink-soft); }
@@ -602,8 +606,8 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .claims-page { padding: 12px; margin-bottom: 10px; background: var(--surface-2); border-radius: var(--radius); }
 .claims-page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .claims-page-name { font-size: 13px; color: var(--ink-soft); margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
-.claims-page-head label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); min-width: 0; }
-.claims-page-head select { min-width: 0; max-width: 220px; font-size: 15px; background-color: var(--paper); }
+.claims-page-head label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); min-width: 0; flex: 1 1 220px; }
+.claims-page-head select { flex: 1; min-width: 0; font-size: 15px; background-color: var(--paper); }
 .claims-page textarea { width: 100%; font-size: 15px; line-height: 1.4; background: var(--paper); resize: vertical; }
 .claims-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
 .claims-actions .spacer, .claim-row-foot .spacer { flex: 1; }
@@ -630,9 +634,11 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .claims-old { margin: 28px 0 0; text-align: center; }
 
 /* Back / position / step controls above a post's photos and a single photo. */
-.photo-nav { display: flex; align-items: center; gap: 8px; min-height: var(--tap); margin: -4px 0 8px; }
-.photo-nav-back { padding-left: 4px; gap: 2px; font-size: 17px; font-weight: 400; max-width: 55%; }
-.photo-nav-back span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Wraps: a long post name takes the first line to itself and the position
+   and step buttons drop to the next, instead of squeezing it into a column. */
+.photo-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: var(--tap); margin: -4px 0 8px; }
+.photo-nav-back { padding-left: 4px; gap: 2px; font-size: 17px; font-weight: 400; min-width: 0; max-width: 100%; flex: 0 1 auto; text-align: left; }
+.photo-nav-back span { overflow-wrap: anywhere; }
 .photo-nav-count { margin: 0 auto; font-size: 15px; font-weight: 600; white-space: nowrap; }
 .photo-nav-steps { display: flex; gap: 6px; margin-left: auto; }
 .photo-nav-count + .photo-nav-steps { margin-left: 0; }
@@ -642,7 +648,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   background: transparent; color: inherit; border-radius: 8px;
   font: inherit; letter-spacing: inherit; text-align: left; cursor: text;
 }
-.title-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title-btn span { overflow-wrap: anywhere; }
 .title-btn .icon { color: var(--ink-faint); }
 .title-btn:hover { background: var(--fill); }
 .title-btn:hover .icon { color: var(--accent); }
@@ -652,7 +658,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   background: var(--paper); border-radius: 8px;
 }
 .review-title { min-width: 0; }
-.review-title h2 { min-width: 0; max-width: 100%; }
+.review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .round-btn {
   width: 36px; height: 36px; min-height: 0; padding: 0; flex: none;
   background: var(--fill); color: var(--accent); border: 0; border-radius: 50%;
@@ -833,7 +839,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .finalize-block-top { margin-top: 0; margin-bottom: 16px; }
 .finalize-picker-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .scan-post-label { font-size: 15px; font-weight: 600; color: var(--ink); }
-.scan-post-select { flex: 1 1 180px; min-width: 0; max-width: 320px; font-size: 15px; background-color: var(--paper); }
+.scan-post-select { flex: 1 1 240px; min-width: 0; font-size: 15px; background-color: var(--paper); }
 .scan-post-hint { font-size: 13px; color: var(--green); }
 .scan-post-hint.muted { color: var(--ink-soft); }
 .finalize-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
