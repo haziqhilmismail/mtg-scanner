@@ -135,19 +135,16 @@ export function NewOrderCard({ buyers, listings, initialListingIds, onCreated, o
         <div style={{
           marginTop: 8, padding: '8px 12px',
           background: 'var(--accent-soft)', borderRadius: 'var(--radius)',
-          borderLeft: '3px solid var(--accent)',
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700,
-          color: 'var(--accent)', letterSpacing: '0.08em',
-          textTransform: 'uppercase',
+          borderLeft: '3px solid var(--accent)', fontSize: 13, fontWeight: 600,
+          color: 'var(--accent)',
         }}>
           {t('ck_buyer_required_banner')}
         </div>
       ) : matchedBuyer ? (
         <div style={{
           marginTop: 8, padding: '6px 10px',
-          background: 'var(--surface-2)', borderRadius: 'var(--radius)',
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          color: 'var(--green)', letterSpacing: '0.06em',
+          background: 'var(--surface-2)', borderRadius: 'var(--radius)', fontSize: 12,
+          color: 'var(--green)',
         }}>
           {t(
             (matchedBuyer.total_orders_count ?? 0) === 1 ? 'ck_buyer_match' : 'ck_buyer_match_plural',
@@ -157,19 +154,16 @@ export function NewOrderCard({ buyers, listings, initialListingIds, onCreated, o
       ) : (
         <div style={{
           marginTop: 8, padding: '6px 10px',
-          background: 'var(--accent-soft)', borderRadius: 'var(--radius)',
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          color: 'var(--accent)', letterSpacing: '0.06em',
+          background: 'var(--accent-soft)', borderRadius: 'var(--radius)', fontSize: 12,
+          color: 'var(--accent)',
         }}>
           {t('ck_buyer_new')}
         </div>
       )}
 
       <div style={{ marginTop: 16 }}>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          textTransform: 'uppercase', letterSpacing: '0.14em',
-          color: 'var(--ink-soft)', marginBottom: 8, fontWeight: 700,
+        <div style={{ fontSize: 12,
+          color: 'var(--ink-soft)', marginBottom: 8, fontWeight: 600,
         }}>{t('ck_items')}</div>
         {items.map((it, i) => {
           const l = listings.find(l => l.id === it.listing_id);
@@ -194,8 +188,7 @@ export function NewOrderCard({ buyers, listings, initialListingIds, onCreated, o
                 style={{
                   flex: 2, padding: '8px 10px', border: '1px solid var(--rule)',
                   background: 'var(--surface)', color: 'var(--ink)',
-                  borderRadius: 'var(--radius)',
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
+                  borderRadius: 'var(--radius)', fontSize: 13,
                 }}
               >
                 {active.map(l => (
@@ -210,14 +203,12 @@ export function NewOrderCard({ buyers, listings, initialListingIds, onCreated, o
                 style={{
                   width: 60, padding: '8px 10px', border: '1px solid var(--rule)',
                   background: 'var(--surface)', color: 'var(--ink)',
-                  borderRadius: 'var(--radius)',
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
+                  borderRadius: 'var(--radius)', fontSize: 13,
                   textAlign: 'center',
                 }}
               />
               <div style={{
-                width: 80, textAlign: 'right',
-                fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 13,
+                width: 80, textAlign: 'right', fontWeight: 600, fontSize: 15,
               }}>RM{linePrice.toFixed(2)}</div>
               {items.length > 1 ? (
                 <button className="ghost" onClick={() => removeItem(i)}>×</button>
@@ -257,12 +248,11 @@ export function NewOrderCard({ buyers, listings, initialListingIds, onCreated, o
         padding: '7px 14px',
         background: 'var(--ink)', color: 'var(--paper)',
         borderRadius: 'var(--radius)',
-        fontFamily: "'JetBrains Mono', monospace",
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         lineHeight: 1.2,
       }}>
-        <span style={{ textTransform: 'uppercase', letterSpacing: '0.14em', fontSize: 10 }}>{t('ck_total_label')}</span>
-        <strong style={{ fontSize: 14 }}>RM{total.toFixed(2)}</strong>
+        <span style={{ fontSize: 12 }}>{t('ck_total_label')}</span>
+        <strong style={{ fontSize: 15 }}>RM{total.toFixed(2)}</strong>
       </div>
 
       {err ? <div className="form-error">{err}</div> : null}
@@ -278,8 +268,8 @@ export function NewOrderCard({ buyers, listings, initialListingIds, onCreated, o
       </div>
       {active.length === 0 ? (
         <div style={{
-          marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          color: 'var(--warn)', textTransform: 'uppercase', letterSpacing: '0.12em',
+          marginTop: 10, fontSize: 12,
+          color: 'var(--warn)',
         }}>
           {t('ck_no_active_listings')}
         </div>

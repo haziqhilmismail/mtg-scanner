@@ -90,9 +90,8 @@ function ArchivedCard({ order, buyers, listings, onUnarchive, t }: {
             <span>{buyer?.fb_name ?? t('ck_buyer_anon', { id: order.buyer_id })}</span>
           )}
         </div>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-          color: 'var(--ink-soft)', letterSpacing: '0.04em',
+        <div style={{ fontSize: 13,
+          color: 'var(--ink-soft)',
         }}>
           {t(totalItems === 1 ? 'ck_cancelled_summary' : 'ck_cancelled_summary_plural', { unique: order.items.length, qty: totalItems })} · <strong style={{ color: 'var(--ink)' }}>RM{order.total_myr}</strong>
         </div>
@@ -100,9 +99,8 @@ function ArchivedCard({ order, buyers, listings, onUnarchive, t }: {
           <span className="badge archived">{t('ck_status_archived')}</span>
         </div>
         {archivedDate ? (
-          <div style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-            color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2,
+          <div style={{ fontSize: 11,
+            color: 'var(--ink-soft)', marginTop: 2,
           }}>
             {t('ck_archived_on', { date: archivedDate })}
           </div>

@@ -47,12 +47,12 @@ export function BuyersView({ buyers, reload }: Props) {
                 {b.fb_url ? (
                   <a href={b.fb_url} target="_blank" rel="noreferrer">{b.fb_url.replace(/^https?:\/\//, '')}</a>
                 ) : '—'}
-                {b.phone ? <div style={{ color: 'var(--ink-soft)', fontSize: 11 }}>{b.phone}</div> : null}
+                {b.phone ? <div style={{ color: 'var(--ink-soft)', fontSize: 13 }}>{b.phone}</div> : null}
               </td>
               <td>
                 {b.default_dropoff_method || '—'}
                 {b.default_dropoff_address ? (
-                  <div style={{ color: 'var(--ink-soft)', fontSize: 11 }}>{b.default_dropoff_address}</div>
+                  <div style={{ color: 'var(--ink-soft)', fontSize: 13 }}>{b.default_dropoff_address}</div>
                 ) : null}
               </td>
               <td className="num">{b.open_orders_count ?? 0}</td>

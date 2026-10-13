@@ -1,3 +1,4 @@
+import { Icon } from '../Icon.tsx';
 import { useEffect, useMemo, useState } from 'react';
 import { listingsApi, type Listing, type ListingCreatePayload, type ListingStatus, type Post } from '../../api/checklist.ts';
 import { upgradeScryfallImage } from '../../utils.ts';
@@ -154,7 +155,7 @@ export function ListingsView({ listings, posts, reload, onCreateOrder, onBulkCre
         {!showForm && !showBulk && (
           <>
             <button className="ghost" onClick={() => setShowBulk(true)}>{t('ck_bulk_import_btn_short')}</button>
-            <button onClick={() => setShowForm(true)}>{t('ck_add_stock')}</button>
+            <button onClick={() => setShowForm(true)}><Icon name="plus" size={18} />{t('ck_add_stock')}</button>
           </>
         )}
       </div>
@@ -329,7 +330,7 @@ function StockRow({ l, posts, reload, onEdit, onCreateOrder, selected, onToggleS
       </div>
       <div className="row-actions">
         {l.status === 'active' && onCreateOrder ? (
-          <button className="accent compact" onClick={() => onCreateOrder(l)}>{t('ck_create_order')}</button>
+          <button className="compact" onClick={() => onCreateOrder(l)}><Icon name="plus" size={14} />{t('ck_create_order')}</button>
         ) : null}
         <button className="ghost compact" onClick={onEdit}>{t('ck_stock_edit_btn')}</button>
         {archived ? (
@@ -482,13 +483,11 @@ function NewStockForm({ onCancel, onSaved, t, posts }: {
         </label>
         <div className="full">
           <span style={{
-            display: 'block',
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
-            letterSpacing: '0.14em', textTransform: 'uppercase',
+            display: 'block', fontSize: 12, fontWeight: 600,
             color: 'var(--ink-soft)', marginBottom: 6,
           }}>{t('ck_form_posts_label')}</span>
           {posts.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{t('ck_form_posts_empty')}</p>
+            <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>{t('ck_form_posts_empty')}</p>
           ) : (
             <div className="post-chips">
               {posts.map(po => {

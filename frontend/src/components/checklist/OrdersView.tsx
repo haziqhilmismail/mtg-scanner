@@ -84,7 +84,7 @@ export function OrdersView({ orders, buyers, listings, reload }: Props) {
               <td>
                 <strong>{buyerName(buyers, o.buyer_id)}</strong>
                 {o.items.length > 0 ? (
-                  <div style={{ color: 'var(--ink-soft)', fontSize: 11, marginTop: 4 }}>
+                  <div style={{ color: 'var(--ink-soft)', fontSize: 13, marginTop: 4 }}>
                     {o.items.slice(0, 3).map(i => i.name_snapshot).join(' · ')}
                     {o.items.length > 3 ? ` · +${o.items.length - 3} more` : ''}
                   </div>
@@ -96,12 +96,12 @@ export function OrdersView({ orders, buyers, listings, reload }: Props) {
               <td>
                 {new Date(o.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 {o.paid_at ? (
-                  <div style={{ color: 'var(--green)', fontSize: 10 }}>
+                  <div style={{ color: 'var(--green)', fontSize: 12 }}>
                     paid {new Date(o.paid_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </div>
                 ) : null}
                 {o.delivered_at ? (
-                  <div style={{ color: 'var(--ink-soft)', fontSize: 10 }}>
+                  <div style={{ color: 'var(--ink-soft)', fontSize: 12 }}>
                     delivered {new Date(o.delivered_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </div>
                 ) : null}
@@ -212,10 +212,8 @@ function OrderForm({
       </div>
 
       <div style={{ marginTop: 14 }}>
-        <div style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          textTransform: 'uppercase', letterSpacing: '0.14em',
-          color: 'var(--ink-soft)', marginBottom: 8, fontWeight: 700,
+        <div style={{ fontSize: 12,
+          color: 'var(--ink-soft)', marginBottom: 8, fontWeight: 600,
         }}>Items</div>
         {items.map((it, i) => {
           const l = listings.find(l => l.id === it.listing_id);
@@ -228,8 +226,7 @@ function OrderForm({
                 style={{
                   flex: 2, padding: '8px 10px', border: '1px solid var(--rule)',
                   background: 'var(--surface)', color: 'var(--ink)',
-                  borderRadius: 'var(--radius)',
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
+                  borderRadius: 'var(--radius)', fontSize: 13,
                 }}
               >
                 {active.map(l => (
@@ -244,14 +241,12 @@ function OrderForm({
                 style={{
                   width: 60, padding: '8px 10px', border: '1px solid var(--rule)',
                   background: 'var(--surface)', color: 'var(--ink)',
-                  borderRadius: 'var(--radius)',
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
+                  borderRadius: 'var(--radius)', fontSize: 13,
                   textAlign: 'center',
                 }}
               />
               <div style={{
-                width: 80, textAlign: 'right',
-                fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 13,
+                width: 80, textAlign: 'right', fontWeight: 600, fontSize: 15,
               }}>
                 RM{linePrice.toFixed(2)}
               </div>
@@ -289,11 +284,10 @@ function OrderForm({
         marginTop: 14, padding: '10px 14px',
         background: 'var(--ink)', color: 'var(--paper)',
         borderRadius: 'var(--radius)',
-        fontFamily: "'JetBrains Mono', monospace",
         display: 'flex', justifyContent: 'space-between',
       }}>
-        <span style={{ textTransform: 'uppercase', letterSpacing: '0.14em', fontSize: 11 }}>Total</span>
-        <strong style={{ fontSize: 16 }}>RM{total.toFixed(2)}</strong>
+        <span style={{ fontSize: 13 }}>Total</span>
+        <strong style={{ fontSize: 17 }}>RM{total.toFixed(2)}</strong>
       </div>
 
       {err ? <div className="form-error">{err}</div> : null}

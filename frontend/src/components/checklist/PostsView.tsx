@@ -1,3 +1,4 @@
+import { Icon } from '../Icon.tsx';
 import { useState } from 'react';
 import { postsApi, type Listing, type Post } from '../../api/checklist.ts';
 import { upgradeScryfallImage } from '../../utils.ts';
@@ -47,7 +48,7 @@ export function PostsView({ posts, listings, reload, onCreateOrder, t }: Props) 
         <h3>{t('ck_posts_heading', { n: activePosts.length })}</h3>
         <div className="spacer" />
         {!showNewPost && !editing && (
-          <button className="accent" onClick={() => setShowNewPost(true)}>{t('ck_post_new_btn')}</button>
+          <button onClick={() => setShowNewPost(true)}><Icon name="plus" size={18} />{t('ck_post_new_btn')}</button>
         )}
       </div>
 
@@ -231,8 +232,7 @@ function PostCard({
       {expanded && (
         <div className="post-listings">
           {listings.length === 0 ? (
-            <div style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+            <div style={{ fontSize: 13,
               color: 'var(--ink-soft)', padding: 14, textAlign: 'center',
             }}>{t('ck_post_no_cards')}</div>
           ) : listings.map(l => {
@@ -262,8 +262,8 @@ function PostCard({
                 </div>
                 <div className="price">RM{l.unit_price_myr}</div>
                 {onCreateOrder && !archived ? (
-                  <button className="accent compact" onClick={() => onCreateOrder(l)}>
-                    {t('ck_create_order')}
+                  <button className="compact" onClick={() => onCreateOrder(l)}>
+                    <Icon name="plus" size={14} />{t('ck_create_order')}
                   </button>
                 ) : null}
               </div>

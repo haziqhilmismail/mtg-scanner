@@ -1,3 +1,4 @@
+import { Icon } from './Icon.tsx';
 import type { CardRowData } from '../types.ts';
 import { useDecimalInput } from '../hooks/useDecimalInput.ts';
 
@@ -32,18 +33,18 @@ export function RowControls({
     <div className="row-controls">
       <div className="qty-row">
         <span>{t('qty')}</span>
-        <button type="button" className="qty-btn" onClick={() => onQtyStep(-1)} aria-label="−">−</button>
+        <button type="button" className="qty-btn" onClick={() => onQtyStep(-1)} aria-label={`${t('qty')} −`}><Icon name="minus" size={16} /></button>
         <input
           className="qty-input"
           type="text" inputMode="numeric" pattern="[0-9]*"
           value={cd.qty}
           onChange={e => onQtyChange(parseInt(e.target.value) || 1)}
         />
-        <button type="button" className="qty-btn" onClick={() => onQtyStep(1)} aria-label="+">+</button>
+        <button type="button" className="qty-btn" onClick={() => onQtyStep(1)} aria-label={`${t('qty')} +`}><Icon name="plus" size={16} /></button>
       </div>
       <div className={`mult-row ${cd.hasMultOverride ? 'set' : ''}`}>
         <span>{t('mult')}</span>
-        <button type="button" className="qty-btn" onClick={() => onMultStep(-0.1)} aria-label="−">−</button>
+        <button type="button" className="qty-btn" onClick={() => onMultStep(-0.1)} aria-label={`${t('mult')} −`}><Icon name="minus" size={16} /></button>
         <input
           className="mult-input"
           type="text" inputMode="decimal"
@@ -51,7 +52,7 @@ export function RowControls({
           title={cd.hasMultOverride ? `override (global: ${cd.globalMult})` : 'global default'}
           onChange={e => multInput.onChange(e.target.value)}
         />
-        <button type="button" className="qty-btn" onClick={() => onMultStep(0.1)} aria-label="+">+</button>
+        <button type="button" className="qty-btn" onClick={() => onMultStep(0.1)} aria-label={`${t('mult')} +`}><Icon name="plus" size={16} /></button>
         {/* Always render so the row width is constant — otherwise toggling an
             override widens the row by ~28px and bumps the foil button to the
             next line via flex-wrap on .row-controls. */}
