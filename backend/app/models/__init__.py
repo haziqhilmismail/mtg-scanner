@@ -3,6 +3,7 @@
 from .base import Base, TimestampMixin
 from .bug_event import BugEvent
 from .buyer import Buyer
+from .credits import ScanCreditEvent, Voucher, VoucherRedemption
 from .listing import Listing, ListingStatus
 from .order import Order, OrderStatus
 from .order_item import OrderItem
@@ -27,5 +28,8 @@ __all__ = [
     "Post",
     "PostStatus",
     "Scan",
+    "ScanCreditEvent",
     "User",
+    "Voucher",
+    "VoucherRedemption",
 ]
