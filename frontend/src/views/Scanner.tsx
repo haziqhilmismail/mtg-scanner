@@ -3,14 +3,27 @@ import { Icon } from '../components/Icon.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addToChecklist, exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { postsApi, type Post } from '../api/checklist.ts';
+import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
 import { ckSearchUrl, computeCardData, formatMyr, formatMyrWithFoil } from '../utils.ts';
+
+// One post's worth of scans in the gallery. `postId` null is the Unfiled group.
+interface Folder {
+  key: string;
+  postId: number | null;
+  title: string;
+  items: BatchSummary[];
+  needs: number;
+  total: number;
+}
+
+const UNFILED = 'unfiled';
 import { ActiveBatchView } from '../components/ActiveBatchView.tsx';
 import { AddAllChecklistModal } from '../components/AddAllChecklistModal.tsx';
-import { BatchTabStrip } from '../components/BatchTabStrip.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
 import { PrintingsModal } from '../components/PrintingsModal.tsx';
+import { PhotoTile, PostTile, summarise, type BatchSummary } from '../components/ScanGallery.tsx';
 import { SettingsPanel } from '../components/SettingsPanel.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { UploadZone } from '../components/UploadZone.tsx';
@@ -87,11 +100,11 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
   const [zoom, setZoom] = useState<{ src: string; caption: string } | null>(null);
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
 
-  // Post grouping state — which post each batch's cards get attached to when
-  // added to the checklist. Map keyed by batch id so the choice survives
-  // switching tabs between batches.
+  // Posts double as the gallery's folders: every scan is filed under one (or
+  // is unfiled), and that same post is where its cards go on the checklist.
+  // Archived posts are loaded too so their photos don't fall into Unfiled.
   const [posts, setPosts] = useState<Post[]>([]);
-  const [postIdByBatch, setPostIdByBatch] = useState<Record<string, number | null>>({});
+  const [postsLoaded, setPostsLoaded] = useState(false);
 
   // Tracks which scanned cards have already been pushed to the checklist.
   // Keyed by scanId (NOT batchId) so refresh-rehydrated batches keep their
@@ -106,8 +119,9 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
   const addBatchInFlightRef = useRef<Set<string>>(new Set());
 
   const refreshPosts = useCallback(async () => {
-    try { setPosts(await postsApi.list()); }
+    try { setPosts(await postsApi.list(true)); }
     catch { /* offline or auth error — ignore, picker just stays empty */ }
+    setPostsLoaded(true);
   }, []);
 
   useEffect(() => { refreshPosts(); }, [refreshPosts]);
@@ -178,37 +192,24 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     }
   }, [addBatchCore]);
 
-  // Page-level bulk: add every scanned image's cards to the checklist in one
-  // go. Opening the picker modal lets the user choose a single post (or none)
-  // to attach all of them to — distinct from each batch's own post grouping.
-  const [addAllOpen, setAddAllOpen] = useState(false);
+  // Bulk add: push the cards of several photos to the checklist in one go.
+  // Inside a post they go under that post (after a confirm); for unfiled
+  // photos a picker asks which post, if any. `addAllTargets` holds the photos
+  // while that picker is open.
+  const [addAllTargets, setAddAllTargets] = useState<Batch[] | null>(null);
 
-  const readyBatches = scanner.batches.filter(b => b.response && b.scanId != null);
-
-  const openAddAll = useCallback(async () => {
-    if (readyBatches.length === 0) {
-      await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_all_none') });
-      return;
-    }
-    setAddAllOpen(true);
-  }, [readyBatches.length, dialog, t]);
-
-  // Runs after the modal confirms. `postId` (null = no post) applies to every
-  // image. Guarded by `addingAll` so the loading button can't re-trigger it.
-  const runAddAll = useCallback(async (postId: number | null) => {
-    setAddAllOpen(false);
-    if (addingAll) return;
-    const ready = scanner.batches.filter(b => b.response && b.scanId != null);
-    if (ready.length === 0) return;
+  const runAddAll = useCallback(async (targets: Batch[], postId: number | null) => {
+    setAddAllTargets(null);
+    if (addingAll || targets.length === 0) return;
     setAddingAll(true);
     try {
-      for (const b of ready) {
+      for (const b of targets) {
         await addBatchCore(b, postId);
       }
     } finally {
       setAddingAll(false);
     }
-  }, [addingAll, scanner.batches, addBatchCore]);
+  }, [addingAll, addBatchCore]);
 
   const exportBatch = useCallback(async (batch: Batch) => {
     const payload = buildExportPayload(batch, settings);
@@ -230,8 +231,8 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
   // as a single zip. Guarded by `exportingAll` so a slow render (N images on the
   // 512 MB VM) can't be re-triggered mid-flight.
   const [exportingAll, setExportingAll] = useState(false);
-  const exportAllBatches = useCallback(async () => {
-    const images = scanner.batches
+  const exportAllBatches = useCallback(async (batches: Batch[]) => {
+    const images = batches
       .map(b => {
         const payload = buildExportPayload(b, settings);
         return payload ? { ...payload, filename: b.filename } as ExportAllImage : null;
@@ -255,7 +256,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     } finally {
       setExportingAll(false);
     }
-  }, [scanner.batches, settings, dialog, t]);
+  }, [settings, dialog, t]);
 
   // Re-fetch CK prices for an already-saved scan. Cheap on the backend
   // (local SQLite lookups, no Gemini, no network out). Returns the updated
@@ -274,7 +275,195 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     }
   }, [scanner, dialog, t]);
 
-  const activeBatch = scanner.batches.find(b => b.id === scanner.activeBatchId) ?? null;
+  // ---------- Gallery navigation ----------
+  // Three levels: all posts → one post's photos → one photo. Which post is
+  // open survives a refresh; the open photo doesn't need to.
+  const [folderKey, setFolderKey] = usePersistedState<string | null>('mtg.scans.folder', null);
+  const [photoId, setPhotoId] = useState<string | null>(null);
+  // The photos Prev/Next step through, fixed when a photo is opened so the
+  // order doesn't shift under you as you fix things.
+  const [navIds, setNavIds] = useState<string[]>([]);
+  const [filter, setFilter] = useState<'all' | 'needs'>('all');
+  const [query, setQuery] = useState('');
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const postsById = useMemo(() => new Map(posts.map(p => [p.id, p])), [posts]);
+  const pickerPosts = useMemo(() => posts.filter(p => p.status !== 'archived'), [posts]);
+  const postTitle = useCallback(
+    (p: Post) => p.title || `#${p.id}`,
+    [],
+  );
+
+  const folders = useMemo<Folder[]>(() => {
+    const byKey = new Map<string, Folder>();
+    for (const b of scanner.batches) {
+      const post = b.postId != null ? postsById.get(b.postId) : undefined;
+      const key = post ? `p${post.id}` : UNFILED;
+      let f = byKey.get(key);
+      if (!f) {
+        f = { key, postId: post?.id ?? null, title: post ? postTitle(post) : t('scans_unfiled'), items: [], needs: 0, total: 0 };
+        byKey.set(key, f);
+      }
+      const sum = summarise(b, settings);
+      f.items.push(sum);
+      f.needs += sum.needs;
+      f.total += sum.total;
+    }
+    // Newest activity first; a post that is still scanning counts as newest.
+    const newest = (f: Folder) => Math.max(...f.items.map(i => i.batch.scanId ?? Infinity));
+    return [...byKey.values()].sort((a, b) => newest(b) - newest(a));
+  }, [scanner.batches, postsById, postTitle, settings, t]);
+
+  // The open post. It may have no photos yet (just created, or all deleted).
+  const openFolder = useMemo<Folder | null>(() => {
+    if (folderKey == null) return null;
+    const found = folders.find(f => f.key === folderKey);
+    if (found) return found;
+    if (folderKey === UNFILED) return { key: UNFILED, postId: null, title: t('scans_unfiled'), items: [], needs: 0, total: 0 };
+    const post = postsById.get(Number(folderKey.slice(1)));
+    return post ? { key: folderKey, postId: post.id, title: postTitle(post), items: [], needs: 0, total: 0 } : null;
+  }, [folderKey, folders, postsById, postTitle, t]);
+
+  // A remembered post that no longer exists (deleted on the checklist): go
+  // back to the list rather than show an empty screen.
+  useEffect(() => {
+    if (folderKey != null && postsLoaded && !scanner.loadingSaved && !openFolder && photoId == null) {
+      setFolderKey(null);
+    }
+  }, [folderKey, postsLoaded, scanner.loadingSaved, openFolder, photoId, setFolderKey]);
+
+  const q = query.trim().toLowerCase();
+  const matches = useCallback((s: BatchSummary) => !q || s.haystack.includes(q), [q]);
+  const visibleItems = useMemo(
+    () => (openFolder?.items ?? []).filter(s => (filter === 'needs' ? s.needs > 0 : true)).filter(matches),
+    [openFolder, filter, matches],
+  );
+  // Top level with a search typed: matching photos from every post.
+  const searchHits = useMemo(
+    () => (q && !openFolder ? folders.flatMap(f => f.items.filter(matches).map(s => ({ s, folder: f }))) : []),
+    [q, openFolder, folders, matches],
+  );
+
+  const goTo = useCallback((key: string | null) => {
+    setFolderKey(key);
+    setPhotoId(null);
+    setFilter('all');
+    setQuery('');
+    setSelecting(false);
+    setSelected(new Set());
+  }, [setFolderKey]);
+
+  const openPhoto = useCallback((id: string, ids: string[], key?: string) => {
+    if (key) setFolderKey(key);
+    setNavIds(ids);
+    setPhotoId(id);
+    setSelecting(false);
+    window.scrollTo({ top: 0 });
+  }, [setFolderKey]);
+
+  const activeBatch = scanner.batches.find(b => b.id === photoId) ?? null;
+  // An open photo that has gone (deleted): fall back to its post.
+  useEffect(() => {
+    if (photoId != null && !activeBatch) setPhotoId(null);
+  }, [photoId, activeBatch]);
+
+  const liveNavIds = navIds.filter(id => scanner.batches.some(b => b.id === id));
+  const navIndex = photoId ? liveNavIds.indexOf(photoId) : -1;
+  const step = useCallback((delta: number) => {
+    const next = liveNavIds[navIndex + delta];
+    if (next) { setPhotoId(next); window.scrollTo({ top: 0 }); }
+  }, [liveNavIds, navIndex]);
+
+  // Arrow keys step between photos (not while typing in a field).
+  useEffect(() => {
+    if (photoId == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      if (e.key === 'ArrowLeft') step(-1);
+      if (e.key === 'ArrowRight') step(1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [photoId, step]);
+
+  // Swipe left/right on the photo's header to step, like a photo roll. Kept
+  // to the header so it can't fight dragging a price pill or scrolling a row.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+
+  // New photos: inside a post they join it; from the top level a drop starts
+  // a new post named for the moment, and opens it.
+  const onFiles = useCallback(async (files: File[]) => {
+    if (openFolder) {
+      scanner.addFiles(files, openFolder.postId);
+      return;
+    }
+    let postId: number | null = null;
+    try {
+      const title = new Date().toLocaleString(lang === 'ms' ? 'ms-MY' : 'en-MY', {
+        day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+      });
+      postId = (await postsApi.create({ title })).id;
+      await refreshPosts();
+    } catch { /* couldn't create the post: the photos are still scanned, unfiled */ }
+    scanner.addFiles(files, postId);
+    goTo(postId != null ? `p${postId}` : UNFILED);
+  }, [openFolder, scanner, lang, refreshPosts, goTo]);
+
+  const moveTo = useCallback(async (ids: string[], postId: number | null) => {
+    try {
+      await scanner.moveBatches(ids, postId);
+    } catch {
+      await dialog.alert({ title: t('alert_error_title'), message: t('scans_move_failed') });
+    }
+  }, [scanner, dialog, t]);
+
+  const deletePhotos = useCallback(async (ids: string[]) => {
+    if (!ids.length) return;
+    const ok = await dialog.confirm({
+      title: ids.length === 1 ? t('scans_delete_title_one') : t('scans_delete_title', { n: ids.length }),
+      message: t('scans_delete_msg'),
+      okLabel: t('scans_delete'),
+      destructive: true,
+    });
+    if (!ok) return;
+    for (const id of ids) await scanner.removeBatch(id);
+    setSelected(new Set());
+    setSelecting(false);
+  }, [dialog, scanner, t]);
+
+  const renamePost = useCallback(async (folder: Folder) => {
+    if (folder.postId == null) return;
+    const title = await dialog.prompt({
+      title: t('scans_rename_title'),
+      defaultValue: folder.title,
+      placeholder: folder.title,
+      okLabel: t('scans_rename'),
+    });
+    if (title == null || !title.trim()) return;
+    try {
+      await postsApi.update(folder.postId, { title: title.trim() });
+      await refreshPosts();
+    } catch (e) {
+      await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
+    }
+  }, [dialog, refreshPosts, t]);
+
+  const addFolderToChecklist = useCallback(async (folder: Folder) => {
+    const targets = folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null);
+    if (targets.length === 0) {
+      await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_all_none') });
+      return;
+    }
+    if (folder.postId == null) { setAddAllTargets(targets); return; }
+    const ok = await dialog.confirm({
+      title: t('scans_add_all_confirm_title'),
+      message: t('scans_add_all_confirm_msg', { n: targets.length, post: folder.title }),
+      okLabel: t('scans_add_all_confirm_ok'),
+    });
+    if (ok) runAddAll(targets, folder.postId);
+  }, [dialog, runAddAll, t]);
 
   const onBrowsePrintings = (idx: number) => {
     if (!activeBatch) return;
@@ -307,151 +496,303 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     return b?.response?.cards[printingsCtx.idx]?.candidates[0]?.scryfall_id || '';
   })();
 
-  const counterText = (() => {
-    if (!scanner.activeBatchId) return '';
-    const idx = scanner.batches.findIndex(b => b.id === scanner.activeBatchId);
-    if (idx < 0) return '';
-    return t('batch_counter', { cur: idx + 1, total: scanner.batches.length });
-  })();
-
   // Slice of addedByScanId for the currently-active batch — handed to
   // ActiveBatchView as `addedIdx`. Empty when the batch hasn't completed
   // scanning yet (no scanId yet) so the "+ Add" buttons stay clickable.
   const activeAddedSlice = (activeBatch?.scanId != null ? addedByScanId[activeBatch.scanId] : null) || {};
 
-  // Running priced value across every scanned image. Recomputes whenever a
-  // batch or the settings (incl. the price multiplier) change, so picking a new
-  // multiplier updates this total and every per-image total together.
-  const allScansTotal = useMemo(
-    () => scanner.batches.reduce((sum, b) => {
-      const total = computeCardData(b, settings)
-        .filter(cd => !cd.removed)
-        .reduce((s, cd) => s + (isFinite(cd.lineTotal) ? cd.lineTotal : 0), 0);
-      return sum + total;
-    }, 0),
-    [scanner.batches, settings],
+  const loading = (scanner.loadingSaved || !postsLoaded) && scanner.batches.length === 0;
+  const progress = scanner.scanProgress ? (
+    <div className="scan-progress">
+      <div
+        className="scan-progress-track"
+        role="progressbar"
+        aria-label={t('scan_progress', scanner.scanProgress)}
+        aria-valuemin={0}
+        aria-valuemax={scanner.scanProgress.total}
+        aria-valuenow={scanner.scanProgress.done}
+      >
+        <div
+          className="scan-progress-fill"
+          style={{ width: `${(scanner.scanProgress.done / scanner.scanProgress.total) * 100}%` }}
+        />
+      </div>
+      <span className="scan-progress-label" aria-live="polite">
+        {t('scan_progress', scanner.scanProgress)}
+      </span>
+    </div>
+  ) : null;
+  const searchField = (
+    <label className="scan-search">
+      <Icon name="search" size={18} />
+      <input
+        type="search"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={t('scans_search')}
+        aria-label={t('scans_search')}
+      />
+    </label>
   );
-  const hasExportable = scanner.batches.some(b => b.response);
+  const upload = (
+    <UploadZone
+      onFiles={onFiles}
+      t={t}
+      lang={lang}
+      credits={credits}
+      onEnterVoucher={onEnterVoucher}
+      compact={openFolder != null}
+    />
+  );
+  const pricing = <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />;
 
   return (
     <>
-      <UploadZone
-        onFiles={scanner.addFiles}
-        t={t}
-        lang={lang}
-        credits={credits}
-        onEnterVoucher={onEnterVoucher}
-      />
-      <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />
-
-      {scanner.loadingSaved && scanner.batches.length === 0 && (
-        <Spinner label={t('scanner_loading_saved')} />
-      )}
-
-      {scanner.batches.length > 0 && (
+      {activeBatch ? (
+        /* ---------- One photo ---------- */
         <section>
-          <div className="review-head">
-            <div className="review-title">
-              <h2>{t('review_title')}</h2>
-              <span className="meta">{counterText}</span>
-            </div>
-            {hasExportable && (
-              <span className="all-scans-total" title={t('all_scans_total')}>
-                <span className="label">{t('all_scans_total')}</span>
-                <span className="value">{formatMyr(allScansTotal, settings)}</span>
-              </span>
-            )}
-            <span className="review-actions">
-              {hasExportable && (
-                <button
-                  className="accent"
-                  disabled={addingAll || addingBatchId != null}
-                  onClick={openAddAll}
-                ><Icon name="addList" size={18} />{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}</button>
-              )}
-              {hasExportable && (
-                <button
-                  disabled={exportingAll}
-                  onClick={exportAllBatches}
-                ><Icon name="download" size={18} />{exportingAll ? t('export_all_loading') : t('export_all_btn')}</button>
-              )}
-              {scanner.batches.length > 1 && (
-                <button
-                  className="ghost destructive"
-                  onClick={async () => {
-                    const ok = await dialog.confirm({
-                      title: t('confirm_clear_all_title'),
-                      message: t('confirm_clear_all_msg', { n: scanner.batches.length }),
-                      okLabel: t('confirm_clear_all_ok'),
-                      destructive: true,
-                    });
-                    if (ok) scanner.clearAll();
-                  }}
-                >{t('clear_all')}</button>
-              )}
+          <div
+            className="photo-nav"
+            onTouchStart={e => { swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+            onTouchEnd={e => {
+              const from = swipeStart.current; swipeStart.current = null;
+              if (!from) return;
+              const dx = e.changedTouches[0].clientX - from.x;
+              const dy = e.changedTouches[0].clientY - from.y;
+              if (Math.abs(dx) > 60 && Math.abs(dy) < 40) step(dx < 0 ? 1 : -1);
+            }}
+          >
+            <button type="button" className="ghost photo-nav-back" onClick={() => setPhotoId(null)}>
+              <Icon name="chevronLeft" size={18} />
+              <span>{openFolder?.title ?? t('scans_title')}</span>
+            </button>
+            <span className="photo-nav-count">
+              {navIndex >= 0 ? t('scans_counter', { cur: navIndex + 1, total: liveNavIds.length }) : ''}
+            </span>
+            <span className="photo-nav-steps">
+              <button
+                type="button" className="round-btn"
+                aria-label={t('scans_prev')} title={t('scans_prev')}
+                disabled={navIndex <= 0}
+                onClick={() => step(-1)}
+              ><Icon name="chevronLeft" size={18} /></button>
+              <button
+                type="button" className="round-btn"
+                aria-label={t('scans_next')} title={t('scans_next')}
+                disabled={navIndex < 0 || navIndex >= liveNavIds.length - 1}
+                onClick={() => step(1)}
+              ><Icon name="chevronRight" size={18} /></button>
+              <button
+                type="button" className="round-btn destructive"
+                aria-label={t('scans_delete_photo')} title={t('scans_delete_photo')}
+                onClick={() => deletePhotos([activeBatch.id])}
+              ><Icon name="trash" size={18} /></button>
             </span>
           </div>
-
-          {scanner.scanProgress ? (
-            <div className="scan-progress">
-              <div
-                className="scan-progress-track"
-                role="progressbar"
-                aria-label={t('scan_progress', scanner.scanProgress)}
-                aria-valuemin={0}
-                aria-valuemax={scanner.scanProgress.total}
-                aria-valuenow={scanner.scanProgress.done}
-              >
-                <div
-                  className="scan-progress-fill"
-                  style={{ width: `${(scanner.scanProgress.done / scanner.scanProgress.total) * 100}%` }}
-                />
-              </div>
-              <span className="scan-progress-label" aria-live="polite">
-                {t('scan_progress', scanner.scanProgress)}
+          {pricing}
+          <ActiveBatchView
+            batch={activeBatch}
+            settings={settings}
+            scanner={scanner}
+            t={t}
+            onZoom={(src, caption) => setZoom({ src, caption })}
+            onBrowsePrintings={onBrowsePrintings}
+            posts={pickerPosts}
+            selectedPostId={activeBatch.postId != null && postsById.has(activeBatch.postId) ? activeBatch.postId : null}
+            onSelectPost={async (pid) => {
+              // Filing the photo under another post takes you there with it.
+              if (pid != null && !postsById.has(pid)) await refreshPosts();
+              await moveTo([activeBatch.id], pid);
+              setFolderKey(pid != null ? `p${pid}` : UNFILED);
+            }}
+            onPostsChanged={refreshPosts}
+            addedIdx={activeAddedSlice}
+            onMarkAdded={(origIdx, listingId) => {
+              if (activeBatch.scanId != null) markAdded(activeBatch.scanId, origIdx, listingId);
+            }}
+            onAddAll={() => addBatchToChecklist(activeBatch, activeBatch.postId)}
+            addAllBusy={addingBatchId === activeBatch.id || addingAll}
+            onExport={() => exportBatch(activeBatch)}
+            onRefreshPrices={() => refreshScanPrices(activeBatch)}
+          />
+        </section>
+      ) : openFolder ? (
+        /* ---------- One post's photos ---------- */
+        <>
+          <div className="photo-nav">
+            <button type="button" className="ghost photo-nav-back" onClick={() => goTo(null)}>
+              <Icon name="chevronLeft" size={18} />
+              <span>{t('scans_title')}</span>
+            </button>
+          </div>
+          <div className="review-head">
+            <div className="review-title">
+              <h2>{openFolder.title}</h2>
+              {openFolder.postId != null ? (
+                <button
+                  type="button" className="round-btn"
+                  aria-label={t('scans_rename')} title={t('scans_rename')}
+                  onClick={() => renamePost(openFolder)}
+                ><Icon name="edit" size={16} /></button>
+              ) : null}
+            </div>
+            {openFolder.total > 0 ? (
+              <span className="all-scans-total">
+                <span className="label">{openFolder.items.length === 1 ? t('scans_photo_one') : t('scans_photos', { n: openFolder.items.length })}</span>
+                <span className="value">{formatMyr(openFolder.total, settings)}</span>
               </span>
+            ) : null}
+            {openFolder.items.some(s => s.batch.response) ? (
+              <span className="review-actions">
+                <button className="accent" disabled={addingAll || addingBatchId != null} onClick={() => addFolderToChecklist(openFolder)}>
+                  <Icon name="addList" size={18} />{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}
+                </button>
+                <button disabled={exportingAll} onClick={() => exportAllBatches(openFolder.items.map(s => s.batch))}>
+                  <Icon name="download" size={18} />{exportingAll ? t('export_all_loading') : t('export_all_btn')}
+                </button>
+              </span>
+            ) : null}
+          </div>
+          {upload}
+          {pricing}
+          {progress}
+          {openFolder.items.length > 0 ? (
+            <div className="gallery-bar">
+              {selecting ? (
+                <>
+                  <span className="gallery-bar-count">{t('scans_n_selected', { n: selected.size })}</span>
+                  <select
+                    className="gallery-move"
+                    value=""
+                    disabled={selected.size === 0}
+                    aria-label={t('scans_move_to')}
+                    onChange={async e => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      await moveTo([...selected], v === UNFILED ? null : Number(v));
+                      setSelected(new Set());
+                      setSelecting(false);
+                    }}
+                  >
+                    <option value="">{t('scans_move_to')}</option>
+                    {pickerPosts.filter(p => p.id !== openFolder.postId).map(p => (
+                      <option key={p.id} value={p.id}>{postTitle(p)}</option>
+                    ))}
+                    {openFolder.postId != null ? <option value={UNFILED}>{t('scans_unfiled')}</option> : null}
+                  </select>
+                  <button className="destructive" disabled={selected.size === 0} onClick={() => deletePhotos([...selected])}>
+                    <Icon name="trash" size={18} />{t('scans_delete')}
+                  </button>
+                  <button className="ghost" onClick={() => { setSelecting(false); setSelected(new Set()); }}>{t('scans_select_done')}</button>
+                </>
+              ) : (
+                <>
+                  <div className="segmented gallery-filter" role="group" aria-label={t('scans_filter_needs')}>
+                    <button type="button" className={filter === 'all' ? 'active' : ''} aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+                      {t('scans_filter_all')}
+                    </button>
+                    <button type="button" className={filter === 'needs' ? 'active' : ''} aria-pressed={filter === 'needs'} onClick={() => setFilter('needs')}>
+                      {t('scans_filter_needs')}{openFolder.needs > 0 ? ` ${openFolder.items.filter(s => s.needs > 0).length}` : ''}
+                    </button>
+                  </div>
+                  {searchField}
+                  <button className="ghost" onClick={() => setSelecting(true)}>{t('scans_select')}</button>
+                </>
+              )}
             </div>
           ) : null}
-
-          <BatchTabStrip
-            batches={scanner.batches}
-            activeId={scanner.activeBatchId}
-            settings={settings}
-            onSelect={scanner.setActiveBatchId}
-            onRemove={scanner.removeBatch}
-            t={t}
-          />
-          {activeBatch ? (
-            <ActiveBatchView
-              batch={activeBatch}
-              settings={settings}
-              scanner={scanner}
-              t={t}
-              onZoom={(src, caption) => setZoom({ src, caption })}
-              onBrowsePrintings={onBrowsePrintings}
-              posts={posts}
-              selectedPostId={postIdByBatch[activeBatch.id] ?? null}
-              onSelectPost={(pid) => setPostIdByBatch(prev => ({ ...prev, [activeBatch.id]: pid }))}
-              onPostsChanged={refreshPosts}
-              addedIdx={activeAddedSlice}
-              onMarkAdded={(origIdx, listingId) => {
-                if (activeBatch.scanId != null) markAdded(activeBatch.scanId, origIdx, listingId);
-              }}
-              onAddAll={() => addBatchToChecklist(activeBatch, postIdByBatch[activeBatch.id] ?? null)}
-              addAllBusy={addingBatchId === activeBatch.id || addingAll}
-              onExport={() => exportBatch(activeBatch)}
-              onRefreshPrices={() => refreshScanPrices(activeBatch)}
-            />
-          ) : null}
-        </section>
+          {openFolder.items.length === 0 ? (
+            <p className="gallery-empty">{t('scans_empty_post')}</p>
+          ) : visibleItems.length === 0 ? (
+            <p className="gallery-empty">{q ? t('scans_no_matches') : t('scans_none_to_fix')}</p>
+          ) : (
+            <div className="gallery-grid">
+              {visibleItems.map(s => (
+                <PhotoTile
+                  key={s.batch.id}
+                  summary={s}
+                  settings={settings}
+                  t={t}
+                  selecting={selecting}
+                  selected={selected.has(s.batch.id)}
+                  onOpen={() => openPhoto(s.batch.id, visibleItems.map(v => v.batch.id))}
+                  onToggle={() => setSelected(prev => {
+                    const next = new Set(prev);
+                    if (next.has(s.batch.id)) next.delete(s.batch.id); else next.add(s.batch.id);
+                    return next;
+                  })}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        /* ---------- All posts ---------- */
+        <>
+          {upload}
+          {pricing}
+          {progress}
+          {loading ? (
+            <Spinner label={t('scanner_loading_saved')} />
+          ) : folders.length === 0 ? (
+            <p className="gallery-empty">{t('scans_empty')}</p>
+          ) : (
+            <>
+              <div className="review-head">
+                <div className="review-title"><h2>{t('scans_title')}</h2></div>
+                {searchField}
+              </div>
+              {q ? (
+                searchHits.length === 0 ? (
+                  <p className="gallery-empty">{t('scans_no_matches')}</p>
+                ) : (
+                  <div className="gallery-grid">
+                    {searchHits.map(({ s, folder }) => (
+                      <PhotoTile
+                        key={s.batch.id}
+                        summary={s}
+                        settings={settings}
+                        t={t}
+                        caption={folder.title}
+                        selecting={false}
+                        selected={false}
+                        onOpen={() => openPhoto(s.batch.id, searchHits.map(h => h.s.batch.id), folder.key)}
+                        onToggle={() => { /* no selection in search results */ }}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="gallery-grid">
+                  {folders.map(f => {
+                    const cover = [...f.items].reverse().find(i => i.batch.response)?.batch.response;
+                    return (
+                      <PostTile
+                        key={f.key}
+                        title={f.title}
+                        cover={cover ? (cover.thumb_url ?? cover.image_b64) : null}
+                        photos={f.items.length}
+                        needs={f.items.filter(i => i.needs > 0).length}
+                        total={f.total}
+                        settings={settings}
+                        t={t}
+                        onOpen={() => goTo(f.key)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
 
-      {addAllOpen && (
+      {addAllTargets && (
         <AddAllChecklistModal
-          count={readyBatches.length}
-          posts={posts}
-          onClose={() => setAddAllOpen(false)}
-          onConfirm={runAddAll}
+          count={addAllTargets.length}
+          posts={pickerPosts}
+          onClose={() => setAddAllTargets(null)}
+          onConfirm={(postId) => runAddAll(addAllTargets, postId)}
           t={t}
         />
       )}

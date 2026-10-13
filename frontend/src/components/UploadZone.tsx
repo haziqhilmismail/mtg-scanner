@@ -9,9 +9,11 @@ interface Props {
   // Scan-credit balance; null until loaded (and in solo mode it isn't enforced).
   credits: Credits | null;
   onEnterVoucher: () => void;
+  // Inside a post the photos are the point, so the zone shrinks to one row.
+  compact?: boolean;
 }
 
-export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher }: Props) {
+export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact }: Props) {
   const limited = !!credits && credits.enforced && !credits.unlimited;
   const outOfCredits = limited && credits.remaining === 0;
   const nextBack = credits?.next_free_at
@@ -122,8 +124,8 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher }: Props)
   }, [dispatch]);
 
   return (
-    <section className="panel">
-      <h2>{t('upload_title')}</h2>
+    <section className={`panel ${compact ? 'upload-compact' : ''}`}>
+      {compact ? null : <h2>{t('upload_title')}</h2>}
       {outOfCredits ? (
         <div className="drop is-empty" ref={dropRef}>
           <strong>{t('credits_out_title')}</strong>
@@ -143,10 +145,14 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher }: Props)
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); }
         }}
       >
-        <Icon name="photo" size={34} className="drop-icon" />
-        <strong>{t('drop_strong')}</strong>
-        <p>{t('drop_sub')}</p>
-        <p className="drop-photo-tip">{t('drop_photo_tip')}</p>
+        <Icon name="photo" size={compact ? 22 : 34} className="drop-icon" />
+        <strong>{compact ? t('drop_add_more') : t('drop_strong')}</strong>
+        {compact ? null : (
+          <>
+            <p>{t('drop_sub')}</p>
+            <p className="drop-photo-tip">{t('drop_photo_tip')}</p>
+          </>
+        )}
       </div>
       )}
       {balance && !outOfCredits ? <p className="credits-line">{balance}</p> : null}

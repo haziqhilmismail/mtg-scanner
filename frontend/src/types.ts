@@ -124,6 +124,7 @@ export interface PillOffset {
 export interface Batch {
   id: string;
   scanId: number | null;          // backend Scan.id once saved — null while scanning
+  postId: number | null;          // the post this photo is filed under; null = unfiled
   filename: string;
   status: 'scanning' | 'done' | 'error';
   // Set with status 'error' when the server refused the scan for lack of

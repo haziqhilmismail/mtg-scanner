@@ -31,6 +31,9 @@ const PATHS = {
   minus: 'M5 12h14',
   edit: 'M4 20h4l10.500-10.500a2.100 2.100 0 0 0-3-3L5 17v3ZM13.500 7.500l3 3',
   ticket: 'M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8ZM14.500 6v2.500M14.500 11v2M14.500 15.500V18',
+  chevronLeft: 'M15 5l-7 7 7 7',
+  chevronRight: 'M9 5l7 7-7 7',
+  folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
   expand: 'M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7',
 } as const;
 
