@@ -8,8 +8,7 @@ Pipeline:
     morphological closing -> fill holes -> connected components ->
     filter by area + MTG card aspect ratio (~488:680).
 
-`detect_card_bboxes` returns axis-aligned (x, y, w, h) boxes (kept for callers
-that just need a rectangle). `detect_card_quads` extends each kept blob with
+`detect_card_quads` returns an axis-aligned (x, y, w, h) box per kept blob plus
 its smallest enclosing quadrilateral (4 corner points) via convex hull →
 polygon simplification → all-C(n, 4) edge-combination search. The quad is
 what the frontend uses to draw a tight outline on tilted/skewed cards and
@@ -52,14 +51,6 @@ CLOSE_ITERATIONS = 4
 # segment is at least this fraction of the perimeter. 0.15 = ~6-vertex
 # polygon for a typical card hull.
 QUAD_MIN_SEG_FRAC = 0.15
-
-
-def detect_card_bboxes(image_bytes: bytes) -> list[tuple[int, int, int, int]]:
-    """Axis-aligned bboxes only. Returns [(x, y, w, h), ...]. Empty on failure.
-
-    Kept as the legacy entry point — `detect_card_quads` is the full pipeline.
-    """
-    return [bbox for bbox, _quad in detect_card_quads(image_bytes)]
 
 
 def detect_card_quads(
