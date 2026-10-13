@@ -14,10 +14,13 @@ import { useScanner } from './hooks/useScanner.ts';
 import { useSettings } from './hooks/useSettings.ts';
 import { useTheme } from './hooks/useTheme.ts';
 import { Checklist } from './views/Checklist.tsx';
+import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
 import { Scanner } from './views/Scanner.tsx';
 
-type View = 'scanner' | 'checklist';
+// 'checklist' is the page Claims replaced; still reachable from a link at the
+// bottom of Claims for anyone with stock or orders in it.
+type View = 'scanner' | 'claims' | 'checklist';
 
 export default function App() {
   const { appearance, setAppearance } = useTheme();
@@ -26,7 +29,7 @@ export default function App() {
   const scanner = useScanner();
   const auth = useAuth();
 
-  const [view, setView] = usePersistedState<View>('mtg.view', 'scanner');
+  const [view, setView] = usePersistedState<View>('mtg.tab', 'scanner');
   const [health, setHealth] = useState<Health | null>(null);
   const [healthErr, setHealthErr] = useState(false);
 
@@ -102,10 +105,10 @@ export default function App() {
         onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
       />
     <TopTabs
-      view={view}
+      view={view === 'scanner' ? 'scanner' : 'claims'}
       onChange={setView}
       scannerLabel={t('nav_scanner')}
-      checklistLabel={t('nav_checklist')}
+      claimsLabel={t('nav_claims')}
     />
     <main className="wrap">
       {view === 'scanner' ? (
@@ -118,6 +121,13 @@ export default function App() {
           lang={lang}
           credits={credits}
           onEnterVoucher={() => setVoucherOpen(true)}
+        />
+      ) : view === 'claims' ? (
+        <Claims
+          scanner={scanner}
+          settings={settings}
+          t={t}
+          onOpenOldChecklist={() => setView('checklist')}
         />
       ) : (
         <Checklist t={t} />

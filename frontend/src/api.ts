@@ -332,3 +332,71 @@ export async function exportAllImages(images: ExportAllImage[]): Promise<Blob> {
   if (!r.ok) throw new Error(`Export all failed: ${r.status}`);
   return await r.blob();
 }
+
+// ---------- Claims: read a comment thread, draft who claimed what ----------
+
+export interface ClaimPage {
+  text: string;              // the thread as read from the screenshot
+  scan_id: number | null;    // which photo the screenshot shows, when it could tell
+}
+
+// OCR screenshots of a comment thread. `scanIds` are the photos each
+// screenshot might be showing; the server says which, when it can tell.
+export async function readClaimScreenshots(files: File[], scanIds: number[]): Promise<ClaimPage[]> {
+  const fd = new FormData();
+  files.forEach(f => fd.append('images', f));
+  fd.append('scan_ids', scanIds.join(','));
+  const r = await fetch('/api/claims/read', { method: 'POST', body: fd, headers: authHeaders() });
+  if (!r.ok) {
+    const body = await r.json().catch(() => null);
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `Could not read the screenshots (${r.status})`);
+  }
+  return ((await r.json()) as { pages: ClaimPage[] }).pages;
+}
+
+export interface CataloguePhoto {
+  scan_id: number;
+  label: string;
+  cards: Array<{ card_id: number; no: number; name: string; set_code: string; price: string; foil: boolean; position: string }>;
+}
+
+export interface ClaimDraft {
+  buyer: string;
+  comment: string;
+  unclear: string;
+  items: Array<{ scan_id: number; card_id: number; qty: number; said: string; unclear: string }>;
+}
+
+export async function parseClaims(text: string, photos: CataloguePhoto[]): Promise<ClaimDraft[]> {
+  const r = await fetch('/api/claims/parse', {
+    method: 'POST',
+    headers: authHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ text, photos }),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => null);
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `Could not work out the claims (${r.status})`);
+  }
+  return ((await r.json()) as { claims: ClaimDraft[] }).claims;
+}
+
+export interface ConfirmClaim {
+  buyer: string;
+  note?: string | null;
+  items: Array<{
+    scan_id: number; card_id: number; bbox: number[]; name: string;
+    scryfall_id?: string | null; set_code?: string | null; set_name?: string | null;
+    collector_number?: string | null; rarity?: string | null; is_foil: boolean;
+    image_url?: string | null; ck_url?: string | null;
+    unit_price_myr: string; qty_total: number; qty: number;
+  }>;
+}
+
+export async function confirmClaims(postId: number | null, claims: ConfirmClaim[]): Promise<void> {
+  const r = await fetch('/api/claims/confirm', {
+    method: 'POST',
+    headers: authHeaders({ 'content-type': 'application/json' }),
+    body: JSON.stringify({ post_id: postId, claims }),
+  });
+  if (!r.ok) throw new Error(`Could not save the claims (${r.status})`);
+}
