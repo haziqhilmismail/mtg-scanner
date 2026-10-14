@@ -18,7 +18,7 @@ import type { T } from './useLang.ts';
 // uploaded to the scan's ui_state once and then removed.
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
 const SAVE_DELAY_MS = 800;
-const SAVE_RETRY_MS = 5000;
+const RETRY_MS = 5000;
 // Scanner.tsx remembers per scan which cards went to the checklist.
 export const ADDED_STORAGE_PREFIX = 'mtg.scanner.added.';
 
@@ -127,6 +127,9 @@ function batchFromSavedScan(saved: SavedScan): Batch {
 export function useScanner() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
+  // Translation key of a background failure to tell the user about.
+  const [notice, setNotice] = useState<string | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
   // Latest batches, for work that finishes after they changed.
   const batchesRef = useRef(batches);
   batchesRef.current = batches;
@@ -164,7 +167,7 @@ export function useScanner() {
           // Gone (404), or forgotten since (deleted, signed out): drop it.
           if (e.status === 404 || saves.get(scanId) !== slot) return;
           if (slot.latest === sent) slot.pending = state;
-          later(SAVE_RETRY_MS);
+          later(RETRY_MS);
         },
       );
     }
@@ -187,7 +190,8 @@ export function useScanner() {
   }, [flushSaves]);
 
   // Initial rehydration from backend, a page at a time, newest first. Each
-  // page shows as it arrives; loadingSaved stays true until the last one.
+  // page shows as it arrives; loadingSaved stays true until the last one. A
+  // page that fails is retried (e.g. during a redeploy) after saying so.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -197,22 +201,27 @@ export function useScanner() {
       // fire the DELETE again so they're actually gone next time.
       const tombstones = readTombstones();
       const serverIds = new Set<number>();
-      try {
-        for (let before: number | undefined; ;) {
-          const page = await fetchScans(before);
+      for (let before: number | undefined, told = false; ;) {
+        let page: SavedScan[];
+        try {
+          page = await fetchScans(before);
+        } catch {
           if (cancelled) return;
-          page.forEach(s => serverIds.add(s.scan_id));
-          const kept = page.filter(s => !tombstones.has(s.scan_id));
-          kept.forEach(uploadLegacyState);
-          // Older pages go in front: newest is at the END of the array
-          // (matches "append on upload" UX).
-          setBatches(prev => [...kept.reverse().map(batchFromSavedScan), ...prev]);
-          if (page.length < SCANS_PAGE) break;
-          before = page[page.length - 1].scan_id;
+          if (!told) setNotice('scans_load_failed');
+          told = true;
+          await new Promise(r => setTimeout(r, RETRY_MS));
+          if (cancelled) return;
+          continue;
         }
-      } catch {
-        if (!cancelled) setLoadingSaved(false);
-        return;
+        if (cancelled) return;
+        page.forEach(s => serverIds.add(s.scan_id));
+        const kept = page.filter(s => !tombstones.has(s.scan_id));
+        kept.forEach(uploadLegacyState);
+        // Older pages go in front: newest is at the END of the array
+        // (matches "append on upload" UX).
+        setBatches(prev => [...kept.reverse().map(batchFromSavedScan), ...prev]);
+        if (page.length < SCANS_PAGE) break;
+        before = page[page.length - 1].scan_id;
       }
 
       const stillAlive = Array.from(tombstones).filter(id => serverIds.has(id));
@@ -347,7 +356,10 @@ export function useScanner() {
           return;
         }
         if (scanId != null && b.postId !== postId) {
-          apiMoveScans([scanId], b.postId).catch(() => patchBatch(id, { postId }));
+          apiMoveScans([scanId], b.postId).catch(() => {
+            patchBatch(id, { postId });
+            setNotice('scans_move_failed');
+          });
         }
         patchBatch(id, {
           status: 'done',
@@ -615,6 +627,8 @@ export function useScanner() {
     loadingSaved,
     // Send waiting edits now (before signing out).
     flush: flushSaves,
+    notice,
+    clearNotice,
     addFiles,
     scanProgress,
     removeBatch,
