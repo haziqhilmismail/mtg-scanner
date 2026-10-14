@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchCredits, fetchHealth, type Health } from './api.ts';
 import { formatRelativeTime } from './utils.ts';
-import { DialogProvider } from './components/DialogProvider.tsx';
+import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
 import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
@@ -10,7 +10,7 @@ import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useLang } from './hooks/useLang.ts';
 import { usePersistedState } from './hooks/usePersistedState.ts';
-import { useScanner } from './hooks/useScanner.ts';
+import { useScanner, type ScannerStore } from './hooks/useScanner.ts';
 import { useSettings } from './hooks/useSettings.ts';
 import { useTheme } from './hooks/useTheme.ts';
 import type { Appearance, Credits, Lang } from './types.ts';
@@ -174,6 +174,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         <span>{t('footer_right')}</span>
       </footer>
     </main>
+    <ScannerNotice scanner={scanner} t={t} />
     <FloatingBackToTop />
     <VoucherSheet
       open={voucherOpen}
@@ -184,4 +185,16 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
     </ImageZoomProvider>
     </DialogProvider>
   );
+}
+
+// Tells the user when something the scanner did in the background failed.
+function ScannerNotice({ scanner, t }: { scanner: ScannerStore; t: T }) {
+  const dialog = useDialog();
+  const { notice, clearNotice } = scanner;
+  useEffect(() => {
+    if (!notice) return;
+    clearNotice();
+    dialog.alert({ title: t('alert_error_title'), message: t(notice) });
+  }, [notice, clearNotice, dialog, t]);
+  return null;
 }
