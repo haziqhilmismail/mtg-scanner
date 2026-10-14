@@ -12,10 +12,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..config import settings
-from ..deps import DbSession
+from ..deps import DbSession, bearer_user_id
 from ..schemas import BugReportCreate
 from ..services import bug_reporter
-from ..services.auth_service import decode_session_token
 
 router = APIRouter(prefix="/api", tags=["bugs"])
 
@@ -33,10 +32,7 @@ def _resolve_user_id(authorization: str | None) -> int | None:
     """
     if not settings.auth_enabled:
         return settings.solo_user_id
-    if not authorization or not authorization.lower().startswith("bearer "):
-        return None
-    token = authorization.split(" ", 1)[1].strip()
-    return decode_session_token(token)
+    return bearer_user_id(authorization)
 
 
 @router.post("/bug", status_code=202)

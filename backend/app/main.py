@@ -55,7 +55,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from .config import DATA_DIR, settings
 from .db import async_session_factory
-from .deps import CurrentUserId, DbSession
+from .deps import CurrentUserId, DbSession, ImageUserId
 from pydantic import BaseModel
 from sqlalchemy import update
 
@@ -70,7 +70,6 @@ from .routers import orders as orders_router
 from .routers import posts as posts_router
 from .services import bug_reporter
 from .services import credits
-from .services.auth_service import decode_session_token
 from .services import local_card_id
 from .services import local_scan
 from .services.cardkingdom_prices import DB_FILE as CK_DB_FILE
@@ -867,16 +866,8 @@ async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
     )
 
 
-async def _scan_for_image(db: DbSession, scan_id: int, token: str | None) -> Scan:
-    """The scan behind an <img src>. A browser image request can't send an
-    `Authorization` header, so the session JWT comes as `?token=...` instead
-    (same as post images). In solo mode the token is ignored."""
-    if settings.auth_enabled:
-        user_id = decode_session_token(token) if token else None
-        if user_id is None:
-            raise HTTPException(401, "Missing or invalid token")
-    else:
-        user_id = settings.solo_user_id
+async def _scan_for_image(db: DbSession, scan_id: int, user_id: int) -> Scan:
+    """The scan behind an <img src>, 404 unless it is `user_id`'s."""
     scan_row = await db.get(Scan, scan_id)
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
@@ -907,21 +898,21 @@ def _data_url_jpeg(data_url: str, max_edge: int | None = None) -> Response:
 async def scan_preview(
     scan_id: int,
     db: DbSession,
-    token: str | None = Query(default=None),
+    user_id: ImageUserId,
     w: int | None = Query(default=None, ge=32, le=1400),
 ):
     """The scan's photo preview. `w` caps the longest edge, for the small
     thumbnails in the scan strip."""
-    scan_row = await _scan_for_image(db, scan_id, token)
+    scan_row = await _scan_for_image(db, scan_id, user_id)
     return _data_url_jpeg((scan_row.gemini_raw or {}).get("image_b64", ""), w)
 
 
 @app.get("/api/scans/{scan_id}/crops/{card_id}")
 async def scan_card_crop(
-    scan_id: int, card_id: int, db: DbSession, token: str | None = Query(default=None),
+    scan_id: int, card_id: int, db: DbSession, user_id: ImageUserId,
 ):
     """One detected card's thumbnail, cut from the photo at scan time."""
-    scan_row = await _scan_for_image(db, scan_id, token)
+    scan_row = await _scan_for_image(db, scan_id, user_id)
     for card in (scan_row.gemini_raw or {}).get("cards", []):
         if card.get("id") == card_id:
             return _data_url_jpeg(card.get("crop_b64", ""))

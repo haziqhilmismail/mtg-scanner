@@ -7,14 +7,13 @@ We never query Facebook. The URL is reference-only."""
 from decimal import Decimal
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import selectinload
 
-from ..config import DATA_DIR, settings
-from ..deps import CurrentUserId, DbSession
-from ..services.auth_service import decode_session_token
+from ..config import DATA_DIR
+from ..deps import CurrentUserId, DbSession, ImageUserId
 from ..models import (
     Listing,
     ListingStatus,
@@ -185,24 +184,9 @@ async def upload_post_image(
 async def get_post_image(
     post_id: int,
     db: DbSession,
-    token: str | None = Query(default=None),
+    user_id: ImageUserId,
 ) -> Response:
-    """Serve the post's reminder image.
-
-    Auth is handled inline because a browser `<img src=...>` can't send an
-    `Authorization` header — we accept the session JWT via `?token=...` query
-    string instead. In solo mode (auth disabled) the token is ignored and the
-    request is attributed to the solo user.
-    """
-    if settings.auth_enabled:
-        if not token:
-            raise HTTPException(401, "Missing token query parameter")
-        user_id = decode_session_token(token)
-        if user_id is None:
-            raise HTTPException(401, "Invalid or expired token")
-    else:
-        user_id = settings.solo_user_id
-
+    """Serve the post's reminder image (auth: ?token=<image token>)."""
     post = await db.get(Post, post_id)
     if not post or post.user_id != user_id:
         raise HTTPException(404, "Post not found")

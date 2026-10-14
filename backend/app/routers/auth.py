@@ -2,21 +2,22 @@
 
 POST /api/auth/google  — exchange a Google ID token for one of our session JWTs.
 GET  /api/auth/me      — return the current user (or 401 if not signed in).
+Both also hand out an image-only token for <img src> URLs ("" in solo mode).
 GET  /api/auth/config  — exposes auth_enabled so the frontend can render the
                          login page vs. solo mode without a separate env var.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from ..config import settings
-from ..deps import DbSession
+from ..deps import CurrentUserId, DbSession
 from ..models import User
 from ..services.auth_service import (
-    decode_session_token,
+    IMAGE_SCOPE,
     issue_session_token,
     verify_google_id_token,
 )
@@ -36,9 +37,18 @@ class AuthUser(BaseModel):
     avatar_url: str | None = None
 
 
+class Me(AuthUser):
+    image_token: str
+
+
 class AuthResponse(BaseModel):
     token: str
+    image_token: str
     user: AuthUser
+
+
+def _image_token(user_id: int) -> str:
+    return issue_session_token(user_id, IMAGE_SCOPE) if settings.auth_enabled else ""
 
 
 class AuthConfig(BaseModel):
@@ -107,30 +117,17 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
 
     return AuthResponse(
         token=issue_session_token(user.id),
+        image_token=_image_token(user.id),
         user=AuthUser(id=user.id, email=user.email, name=user.name, avatar_url=user.avatar_url),
     )
 
 
-@router.get("/me", response_model=AuthUser)
-async def me(db: DbSession, authorization: str | None = Header(default=None)):
-    # Solo mode (auth disabled) — return the configured solo user
-    if not settings.auth_enabled:
-        user = await db.get(User, settings.solo_user_id)
-        if user is None:
-            raise HTTPException(404, "Solo user missing")
-        return AuthUser(
-            id=user.id, email=user.email, name=user.name, avatar_url=user.avatar_url,
-        )
-
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(401, "Missing bearer token")
-    token = authorization.split(" ", 1)[1].strip()
-    user_id = decode_session_token(token)
-    if user_id is None:
-        raise HTTPException(401, "Invalid or expired token")
+@router.get("/me", response_model=Me)
+async def me(db: DbSession, user_id: CurrentUserId):
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(401, "User no longer exists")
-    return AuthUser(
+    return Me(
         id=user.id, email=user.email, name=user.name, avatar_url=user.avatar_url,
+        image_token=_image_token(user.id),
     )
