@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   deleteScan as apiDeleteScan,
   fetchScans,
+  SCANS_PAGE,
   relookup as apiRelookup,
   scanImage,
   type SavedScan,
@@ -140,43 +141,48 @@ export function useScanner() {
   // localStorage for batches whose state hasn't changed.
   const lastPersistedRef = useRef<Map<string, string>>(new Map());
 
-  // Initial rehydration from backend
+  // Initial rehydration from backend, a page at a time, newest first. Each
+  // page shows as it arrives; loadingSaved stays true until the last one.
   useEffect(() => {
     let cancelled = false;
-    fetchScans().then(
-      saved => {
-        if (cancelled) return;
+    (async () => {
+      // Honour tombstones: scans the user previously deleted but whose
+      // backend DELETE never confirmed (e.g. refresh-mid-clear, backend
+      // --reload kicked in, network blip). Filter them out of the UI and
+      // fire the DELETE again so they're actually gone next time.
+      const tombstones = readTombstones();
+      const serverIds = new Set<number>();
+      try {
+        for (let before: number | undefined; ;) {
+          const page = await fetchScans(before);
+          if (cancelled) return;
+          page.forEach(s => serverIds.add(s.scan_id));
+          // Older pages go in front: newest is at the END of the array
+          // (matches "append on upload" UX).
+          const older = page.filter(s => !tombstones.has(s.scan_id)).reverse().map(batchFromSavedScan);
+          setBatches(prev => [...older, ...prev]);
+          if (page.length < SCANS_PAGE) break;
+          before = page[page.length - 1].scan_id;
+        }
+      } catch {
+        if (!cancelled) setLoadingSaved(false);
+        return;
+      }
 
-        // Honour tombstones: scans the user previously deleted but whose
-        // backend DELETE never confirmed (e.g. refresh-mid-clear, backend
-        // --reload kicked in, network blip). Filter them out of the UI and
-        // fire the DELETE again so they're actually gone next time.
-        const tombstones = readTombstones();
-        const serverIds = new Set(saved.map(s => s.scan_id));
+      const stillAlive = Array.from(tombstones).filter(id => serverIds.has(id));
+      stillAlive.forEach(id => {
+        apiDeleteScan(id).then(
+          () => removeTombstones([id]),
+          () => { /* keep tombstone; retried next mount */ },
+        );
+      });
 
-        const stillAlive = Array.from(tombstones).filter(id => serverIds.has(id));
-        stillAlive.forEach(id => {
-          apiDeleteScan(id).then(
-            () => removeTombstones([id]),
-            () => { /* keep tombstone; retried next mount */ },
-          );
-        });
-
-        // GC tombstones for IDs the server no longer has (the previous
-        // DELETE actually succeeded, we just never got to clear them).
-        const orphanTombstones = Array.from(tombstones).filter(id => !serverIds.has(id));
-        removeTombstones(orphanTombstones);
-
-        const alive = saved.filter(s => !tombstones.has(s.scan_id));
-        // Reverse so newest is at the END of the array (matches "append on upload" UX).
-        setBatches([...alive].reverse().map(batchFromSavedScan));
-        setLoadingSaved(false);
-      },
-      () => {
-        if (cancelled) return;
-        setLoadingSaved(false);
-      },
-    );
+      // GC tombstones for IDs the server no longer has (the previous
+      // DELETE actually succeeded, we just never got to clear them).
+      const orphanTombstones = Array.from(tombstones).filter(id => !serverIds.has(id));
+      removeTombstones(orphanTombstones);
+      setLoadingSaved(false);
+    })();
     return () => { cancelled = true; };
   }, []);
 
