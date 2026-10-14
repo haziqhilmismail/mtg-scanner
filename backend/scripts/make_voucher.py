@@ -37,6 +37,9 @@ async def main(args) -> int:
     if not args.credits and not args.unlimited and not args.reset:
         print("Nothing to do: pass --credits N, --unlimited and/or --reset", file=sys.stderr)
         return 2
+    if args.days is not None and not args.unlimited:
+        print("--days only applies with --unlimited", file=sys.stderr)
+        return 2
     if args.reusable and not args.only_for:
         print("--reusable needs --only-for EMAIL (a reusable code anyone can use is a free pass)", file=sys.stderr)
         return 2
