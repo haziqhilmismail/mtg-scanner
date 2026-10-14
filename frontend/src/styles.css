@@ -1084,6 +1084,8 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 }
 .manual-banner.set { background: var(--fill); color: var(--ink-soft); }
 .manual-banner .dot { font-size: 10px; line-height: 1; }
+.manual-banner.version-check { font-weight: 500; flex-wrap: wrap; }
+.manual-banner.version-check .link-btn { margin-left: auto; }
 .price-set-prompt { font-weight: 600; color: var(--warn); font-size: 17px; }
 .printings-btn { color: var(--ink); gap: 8px; }
 .printings-btn .glyph { font-size: 15px; line-height: 1; color: var(--ink-soft); }

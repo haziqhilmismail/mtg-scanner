@@ -83,13 +83,20 @@ export interface DetectedCard {
   // matches a card-shaped blob (see backend/services/classical_detector.py).
   // 'user' marks a card the user framed by hand in expand mode after the
   // detector merged or missed it.
-  bbox_source?: 'classical' | 'gemini' | 'user';
+  bbox_source?: 'classical' | 'gemini' | 'user' | 'detector';
   // Which pipeline NAMED the card. 'phash' means the local perceptual-hash
   // index matched the crop without calling Gemini; 'gemini' means the cloud
   // model named it. Tied to backend USE_LOCAL_CARD_ID.
-  name_source?: 'phash' | 'gemini';
-  // Hamming distance (0..64) when name_source is 'phash'. Lower = better.
+  // 'title' / 'embedding' come from the local scanner (SCANNER_BACKEND=local):
+  // the card's title was read and matched, or only its image was.
+  name_source?: 'phash' | 'gemini' | 'title' | 'embedding';
+  // Hamming distance (0..64) for 'phash'; cosine similarity (0..1) for the
+  // local scanner. Lower is better for phash, higher for the local scanner.
   name_confidence?: number | null;
+  // Local scanner only. 'ocr' = set + collector number were read off the card,
+  // so the printing is pinned. 'embedding' = the collector line was
+  // unreadable and the printing is a best visual guess — ask the user.
+  version_source?: 'ocr' | 'embedding';
   gemini: GeminiHint;
   candidates: Candidate[];
 }
