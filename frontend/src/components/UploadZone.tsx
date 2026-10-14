@@ -15,12 +15,24 @@ interface Props {
   compact?: boolean;
 }
 
+// When the oldest free scan comes back, as a short date ('' if none is due).
+function nextFreeDate(credits: Credits | null, lang: string): string {
+  return credits?.next_free_at
+    ? new Date(credits.next_free_at).toLocaleDateString(lang === 'ms' ? 'ms-MY' : 'en-MY', { day: 'numeric', month: 'short' })
+    : '';
+}
+
+// Why there are no scans left and when the next one returns; also used by
+// Claims, whose claim reading costs a scan.
+export function creditsOutText(credits: Credits, t: T, lang: string): string {
+  const date = nextFreeDate(credits, lang);
+  return date ? t('credits_out_body', { date, limit: credits.limit }) : t('credits_out_body_plain', { limit: credits.limit });
+}
+
 export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact }: Props) {
   const limited = !!credits && credits.enforced && !credits.unlimited;
   const outOfCredits = limited && credits.remaining === 0;
-  const nextBack = credits?.next_free_at
-    ? new Date(credits.next_free_at).toLocaleDateString(lang === 'ms' ? 'ms-MY' : 'en-MY', { day: 'numeric', month: 'short' })
-    : '';
+  const nextBack = nextFreeDate(credits, lang);
   let balance = '';
   if (credits?.enforced && credits.unlimited) balance = t('credits_unlimited');
   else if (limited) {
@@ -115,7 +127,7 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact 
       {outOfCredits ? (
         <div className="drop is-empty" ref={dropRef}>
           <strong>{t('credits_out_title')}</strong>
-          <p>{nextBack ? t('credits_out_body', { date: nextBack, limit: credits.limit }) : t('credits_out_body_plain', { limit: credits.limit })}</p>
+          <p>{creditsOutText(credits, t, lang)}</p>
           <button type="button" className="accent" onClick={onEnterVoucher}>
             <Icon name="ticket" size={18} />{t('voucher_enter')}
           </button>

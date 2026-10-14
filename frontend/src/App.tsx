@@ -164,6 +164,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           scanner={scanner}
           settings={settings}
           t={t}
+          lang={lang}
           onOpenOldChecklist={() => setView('checklist')}
         />
       ) : (

@@ -21,6 +21,7 @@ import {
   type CardRef, type CardStatus, type Photo,
 } from '../components/ClaimPickers.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
+import { creditsOutText } from '../components/UploadZone.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
@@ -33,6 +34,7 @@ interface Props {
   scanner: ScannerStore;
   settings: Settings;
   t: T;
+  lang: string;
   onOpenOldChecklist: () => void;
 }
 
@@ -93,7 +95,7 @@ function payState(orders: Order[]): PayState {
   return 'unpaid';
 }
 
-export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
+export function Claims({ scanner, settings, t, lang, onOpenOldChecklist }: Props) {
   const dialog = useDialog();
   const [posts, setPosts] = useState<Post[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -288,9 +290,10 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       setStage('review');
     } catch (e) {
       setError((e as Error).message);
-      setStage(pages.length ? 'review' : 'idle');
+      if (pages.length) setStage('review');
+      else clearIntake();
     }
-  }, [photos, stage, pages, onlyPhoto, activeKey]);
+  }, [photos, stage, pages, onlyPhoto, activeKey, clearIntake]);
 
   // Ctrl/⌘+V of a screenshot anywhere on the page (PC: Win+Shift+S, then paste).
   useEffect(() => {
@@ -340,11 +343,11 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       // Working out claims costs a scan credit; out of them, say so the way
       // the upload area does.
       setError(e instanceof OutOfCreditsError
-        ? t('credits_out_title') + (e.credits ? `. ${t('credits_out_body_plain', { limit: e.credits.limit })}` : '')
+        ? t('credits_out_title') + (e.credits ? `. ${creditsOutText(e.credits, t, lang)}` : '')
         : (e as Error).message);
       setStage('review');
     }
-  }, [pages, photos, catalogue, cardsByKey, scanIds, t]);
+  }, [pages, photos, catalogue, cardsByKey, scanIds, t, lang]);
 
   // Cards claimed more times than there are copies, counting earlier claims
   // first: existing ones, then drafts top to bottom (first comment wins).
@@ -443,9 +446,10 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       }
     } catch (e) {
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
+    } finally {
+      await reload();
+      setStateSaving(false);
     }
-    await reload();
-    setStateSaving(false);
   }, [dialog, reload, t]);
 
   const removeClaim = useCallback(async (name: string, os: Order[]) => {
@@ -456,8 +460,13 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       destructive: true,
     });
     if (!ok) return;
-    for (const o of os) await ordersApi.cancel(o.id).catch(() => { /* reload shows what's left */ });
-    await reload();
+    setStateSaving(true);
+    try {
+      for (const o of os) await ordersApi.cancel(o.id).catch(() => { /* reload shows what's left */ });
+      await reload();
+    } finally {
+      setStateSaving(false);
+    }
   }, [dialog, reload, t]);
 
   const itemLine = useCallback((i: Order['items'][number]) => {
@@ -823,6 +832,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
                     <button
                       type="button" className="round-btn destructive"
                       aria-label={t('claims_remove_title')} title={t('claims_remove_title')}
+                      disabled={stateSaving}
                       onClick={() => removeClaim(g.name, g.orders)}
                     ><Icon name="trash" size={16} /></button>
                   </div>
