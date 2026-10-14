@@ -160,6 +160,12 @@ def test_timed_unlimited_vouchers_stack_and_lapse():
             u.unlimited_scans_until = credits._now() - timedelta(seconds=1)   # lapsed
             await s.commit()
         assert await credits.reserve(uid) == credits.FREE
+
+        # Already unlimited for good: a timed voucher leaves that alone.
+        await redeem(uid, await make_voucher(unlimited=True))
+        await redeem(uid, await make_voucher(unlimited=True, unlimited_days=30, credits=2))
+        st = await get_status(uid)
+        assert st["unlimited"] is True and st["bonus"] == 2
     run(_dispose_then(go()))
 
 
