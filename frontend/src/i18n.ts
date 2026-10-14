@@ -4,6 +4,9 @@ import type { Lang } from './types.ts';
 
 type Vars = Record<string, string | number>;
 
+// A translate function bound to the current language (see useLang).
+export type T = (k: string, vars?: Vars) => string;
+
 const STRINGS: Record<Lang, Record<string, string>> = {
   en: {
     app_title: 'Pasar Malam MTG',

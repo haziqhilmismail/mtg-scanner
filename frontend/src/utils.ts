@@ -1,5 +1,5 @@
 import type { Batch, CardRowData, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
-import type { T } from './hooks/useLang.ts';
+import type { T } from './i18n.ts';
 
 export function fmt2(n: number | null | undefined): string {
   if (n == null || isNaN(n as number)) return '—';
