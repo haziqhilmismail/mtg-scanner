@@ -116,7 +116,8 @@ function batchFromSavedScan(saved: SavedScan): Batch {
   };
 }
 
-export function useScanner(userId: number | null) {
+// signOut is called if the server no longer knows the session.
+export function useScanner(userId: number | null, signOut: () => void) {
   const tombKey = tombstoneKey(userId);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
@@ -185,8 +186,8 @@ export function useScanner(userId: number | null) {
 
   // Initial rehydration from backend, a page at a time, newest first. Each
   // page shows as it arrives; loadingSaved stays true until the last one. A
-  // page that fails is retried (e.g. during a redeploy) after saying so,
-  // unless the session is gone.
+  // page that fails is retried (e.g. during a redeploy) after saying so; if
+  // the session is gone, the user is signed out.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -204,8 +205,9 @@ export function useScanner(userId: number | null) {
         try {
           page = await fetchScans(before);
         } catch (e) {
-          // Session gone: only signing in again helps, so not "still trying".
-          if (cancelled || (e as { status?: number }).status === 401) return;
+          if (cancelled) return;
+          // Session gone: only signing in again helps.
+          if ((e as { status?: number }).status === 401) return signOut();
           if (!told) setNotice('scans_load_failed');
           told = true;
           await new Promise(r => setTimeout(r, RETRY_MS));
@@ -239,7 +241,7 @@ export function useScanner(userId: number | null) {
       setLoadingSaved(false);
     })();
     return () => { cancelled = true; };
-  }, [commit, tombKey]);
+  }, [commit, tombKey, signOut]);
 
   // Queue a save for every finished batch whose per-card state changed.
   useEffect(() => {
