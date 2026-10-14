@@ -6,12 +6,12 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
-# Local config — secrets must come from Fly's env (flyctl secrets set ...).
+# Local config — secrets come from the host's .env via docker compose.
 .env
 .env.local
 
-# Local data that should NEVER ship in the image — the Fly volume mounted at
-# /app/data is the source of truth in production.
+# Local data that should NEVER ship in the image — ./data, bind-mounted at
+# /app/data, is the source of truth in production.
 data/app.db
 data/app.db-*
 data/scans/

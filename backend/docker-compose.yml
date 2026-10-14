@@ -1,9 +1,7 @@
 # Self-hosted deployment for the homeserver (Ubuntu in Proxmox).
 #
-# Builds the SAME Dockerfile used on Fly, so behaviour matches production
-# (DejaVu font for the overlay renderer, pillow-heif for HEIC, etc.). All
-# persistent state lives in ./data on the host — that directory is the source
-# of truth, exactly like the Fly volume was.
+# All persistent state lives in ./data on the host — that directory is the
+# source of truth.
 #
 # Usage:
 #   docker compose up -d --build      # build + start in the background

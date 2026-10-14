@@ -355,8 +355,8 @@ def _normalise_upload(raw: bytes) -> tuple[Image.Image, bytes]:
     # PNG / WebP but silently falls through on HEIC because non-Safari browsers
     # can't decode it via createImageBitmap — Chrome uploads land here at the
     # full 12 MP. A 12 MP PIL RGB bitmap is ~36 MB, plus Sobel + base64-for-
-    # Gemini + thumbnail buffers, and a couple of sequential scans on a 512 MB
-    # Fly VM blow the budget. Thumbnailing here bounds peak memory regardless
+    # Gemini + thumbnail buffers, and a couple of sequential scans on a small
+    # box blow the memory budget. Thumbnailing here bounds peak memory regardless
     # of what the client sent.
     SCAN_MAX_EDGE = 2000
     if max(pil.size) > SCAN_MAX_EDGE:
@@ -1282,7 +1282,7 @@ app.include_router(posts_router.router)
 # reaches here is something a route handler didn't anticipate.
 @app.exception_handler(Exception)
 async def _capture_unexpected(request: Request, exc: Exception):
-    # Still surface the traceback in logs (`fly logs`) — installing this
+    # Still surface the traceback in logs (`docker compose logs`) — installing this
     # handler suppresses Starlette's default stderr print, so we restore it.
     traceback.print_exception(type(exc), exc, exc.__traceback__)
     try:

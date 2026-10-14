@@ -5,11 +5,11 @@ __pycache__/
 .venv/
 venv/
 
-# Local config — secrets must come from `fly secrets set …`, never the repo
+# Local config — secrets live in the host's .env, never the repo
 .env
 .env.local
 
-# Local data — the Fly volume mounted at /app/data is the production source of truth
+# Local data — ./data on the host is the production source of truth
 data/*.db
 data/*.db-journal
 data/*.db.tmp

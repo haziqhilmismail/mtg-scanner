@@ -16,7 +16,7 @@ design either succeeds outright or raises so the caller can see what went wrong.
 
 Refresh policy: on startup we open ck_index.db if it's < 24h old; otherwise
 we refresh. /api/refresh-ck forces a refresh regardless of age. There is no
-background timer; if the Fly machine stays up for a week and nobody hits the
+background timer; if the server stays up for a week and nobody hits the
 refresh endpoint, the cache stays at the boot-time snapshot.
 
 Price field: we always store the NM-condition price (taken from
