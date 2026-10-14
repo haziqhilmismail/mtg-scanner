@@ -2,31 +2,34 @@
 //   - Left: marketing copy, feature bullets, Google sign-in button (always visible)
 //   - Right: tabbed interactive demo (scanner playback + order-tracker preview)
 // Stacks vertically on mobile. The Google button is mounted via GIS, same as
-// before — auth flow is unchanged. Owns its own useLang so the landing page
-// can be browsed in EN or MS before the user signs in.
+// before — auth flow is unchanged. Language and appearance come from App, so
+// a choice made here carries on after sign-in.
 
 import { useEffect, useRef, useState } from 'react';
 import { DemoChecklist } from '../components/demo/DemoChecklist.tsx';
 import { DemoScan } from '../components/demo/DemoScan.tsx';
 import { AppMenu } from '../components/AppMenu.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { useLang } from '../hooks/useLang.ts';
-import { useTheme } from '../hooks/useTheme.ts';
+import type { Appearance, Lang, Theme } from '../types.ts';
 
 interface Props {
   clientId: string;
   onCredential: (credential: string) => void;
   error?: string | null;
   busy?: boolean;
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (k: string, vars?: Record<string, string | number>) => string;
+  theme: Theme;
+  appearance: Appearance;
+  setAppearance: (a: Appearance) => void;
 }
 
 type DemoTab = 'scan' | 'tracker';
 
-export function Login({ clientId, onCredential, error, busy }: Props) {
+export function Login({ clientId, onCredential, error, busy, lang, setLang, t, theme, appearance, setAppearance }: Props) {
   const btnRef = useRef<HTMLDivElement | null>(null);
   const [tab, setTab] = useState<DemoTab>('scan');
-  const { lang, setLang, t } = useLang();
-  const { theme, appearance, setAppearance } = useTheme();
 
   useEffect(() => {
     if (!clientId) return;

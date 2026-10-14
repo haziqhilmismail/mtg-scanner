@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchCredits, fetchHealth, type Credits, type Health } from './api.ts';
 import { formatRelativeTime } from './utils.ts';
 import { DialogProvider } from './components/DialogProvider.tsx';
@@ -13,6 +13,7 @@ import { usePersistedState } from './hooks/usePersistedState.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useSettings } from './hooks/useSettings.ts';
 import { useTheme } from './hooks/useTheme.ts';
+import type { Appearance, Lang } from './types.ts';
 import { Checklist } from './views/Checklist.tsx';
 import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
@@ -23,27 +24,78 @@ import { Scanner } from './views/Scanner.tsx';
 type View = 'scanner' | 'claims' | 'checklist';
 
 export default function App() {
-  const { appearance, setAppearance } = useTheme();
+  const { theme, appearance, setAppearance } = useTheme();
   const { lang, setLang, t } = useLang();
+  const auth = useAuth();
+  const { signInWithCredential } = auth;
+  const onCredential = useCallback(
+    (c: string) => { signInWithCredential(c).catch(() => { /* shown in error */ }); },
+    [signInWithCredential],
+  );
+
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+
+  // While bootstrapping auth: show a blank shell with the theme/lang controls.
+  // While unauthenticated with auth enabled: show the Google login screen.
+  if (auth.status === 'loading') {
+    return <div className="auth-bootstrap" aria-busy="true" />;
+  }
+  if (auth.status === 'unauthenticated' && auth.config?.auth_enabled) {
+    return (
+      <DialogProvider>
+        <Login
+          clientId={auth.config.google_client_id}
+          onCredential={onCredential}
+          error={auth.error}
+          lang={lang}
+          setLang={setLang}
+          t={t}
+          theme={theme}
+          appearance={appearance}
+          setAppearance={setAppearance}
+        />
+      </DialogProvider>
+    );
+  }
+
+  // Keyed by user so signing in as someone else starts from a clean slate:
+  // the scans are fetched again, with the new user's token, after sign-in.
+  return (
+    <Workspace
+      key={auth.user?.id ?? 'none'}
+      auth={auth}
+      lang={lang}
+      setLang={setLang}
+      t={t}
+      appearance={appearance}
+      setAppearance={setAppearance}
+    />
+  );
+}
+
+interface WorkspaceProps {
+  auth: ReturnType<typeof useAuth>;
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (k: string, vars?: Record<string, string | number>) => string;
+  appearance: Appearance;
+  setAppearance: (a: Appearance) => void;
+}
+
+function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: WorkspaceProps) {
   const { settings, update: updateSetting } = useSettings();
   const scanner = useScanner();
-  const auth = useAuth();
 
   const [view, setView] = usePersistedState<View>('mtg.tab', 'scanner');
   const [health, setHealth] = useState<Health | null>(null);
   const [healthErr, setHealthErr] = useState(false);
 
-  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
-
   useEffect(() => {
-    // Defer the health check until the user is authenticated — otherwise the
-    // request 401s in auth-enabled mode before they've had a chance to log in.
-    if (auth.status !== 'authenticated') return;
     fetchHealth().then(
       h => { setHealth(h); setHealthErr(!h.ok || !!h.cardkingdom_error); },
       () => { setHealth(null); setHealthErr(true); },
     );
-  }, [auth.status]);
+  }, []);
 
   // Scan-credit balance. Refetched whenever a scan finishes (scanProgress
   // ticks) so the line under the upload area is always current.
@@ -51,9 +103,8 @@ export default function App() {
   const [voucherOpen, setVoucherOpen] = useState(false);
   const scansDone = scanner.scanProgress?.done ?? -1;
   useEffect(() => {
-    if (auth.status !== 'authenticated') return;
     fetchCredits().then(setCredits, () => { /* balance line just stays hidden */ });
-  }, [auth.status, scansDone]);
+  }, [scansDone]);
 
   const healthLabel = (() => {
     if (!health && !healthErr) return t('ck_checking');
@@ -70,23 +121,6 @@ export default function App() {
   const healthState: 'ok' | 'err' | null =
     !health && !healthErr ? null :
       (health?.cardkingdom_cards && !healthErr) ? 'ok' : healthErr ? 'err' : null;
-
-  // While bootstrapping auth: show a blank shell with the theme/lang controls.
-  // While unauthenticated with auth enabled: show the Google login screen.
-  if (auth.status === 'loading') {
-    return <div className="auth-bootstrap" aria-busy="true" />;
-  }
-  if (auth.status === 'unauthenticated' && auth.config?.auth_enabled) {
-    return (
-      <DialogProvider>
-        <Login
-          clientId={auth.config.google_client_id}
-          onCredential={(c) => auth.signInWithCredential(c).catch(() => { /* shown in error */ })}
-          error={auth.error}
-        />
-      </DialogProvider>
-    );
-  }
 
   return (
     <DialogProvider>
