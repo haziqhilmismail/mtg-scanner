@@ -1,4 +1,4 @@
-// The Scans gallery: posts as tiles, then the photos inside one as tiles.
+// The posts gallery: posts as tiles, then the photos inside one as tiles.
 // Big enough to recognise a scan by its picture, with the things worth
 // knowing before opening it (how many cards, what it's worth, what's wrong).
 
@@ -47,9 +47,29 @@ function photosLabel(n: number, t: T) {
   return n === 1 ? t('scans_photo_one') : t('scans_photos', { n });
 }
 
+// A post's cover: its first few photos side by side, so posts are told apart
+// by what is in them. The last cell says how many more there are.
+const COVER_MAX = 4;
+
+function Cover({ srcs, photos }: { srcs: string[]; photos: number }) {
+  if (!srcs.length) return <span className="scan-tile-img"><Icon name="photo" size={28} /></span>;
+  const shown = srcs.slice(0, COVER_MAX);
+  const more = photos - shown.length;
+  return (
+    <span className={`scan-tile-img post-cover n${shown.length}`}>
+      {shown.map((src, i) => (
+        <span className="post-cover-cell" key={i}>
+          <img src={src} alt="" loading="lazy" />
+          {more > 0 && i === shown.length - 1 ? <span className="post-cover-more">+{more}</span> : null}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 interface PostTileProps {
   title: string;
-  cover: string | null;
+  covers: string[];
   photos: number;
   needs: number;
   total: number;
@@ -58,12 +78,10 @@ interface PostTileProps {
   onOpen: () => void;
 }
 
-export function PostTile({ title, cover, photos, needs, total, settings, t, onOpen }: PostTileProps) {
+export function PostTile({ title, covers, photos, needs, total, settings, t, onOpen }: PostTileProps) {
   return (
     <button type="button" className="scan-tile" onClick={onOpen}>
-      <span className="scan-tile-img">
-        {cover ? <img src={cover} alt="" loading="lazy" /> : <Icon name="photo" size={28} />}
-      </span>
+      <Cover srcs={covers} photos={photos} />
       <span className="scan-tile-body">
         <span className="scan-tile-title">{title}</span>
         <span className="scan-tile-meta">
