@@ -15,7 +15,6 @@ from ..deps import CurrentUserId, DbSession, limiter
 from ..models import Listing, ListingStatus, Post, Scan, User
 from ..schemas import OrderCreate, OrderItemCreate, OrderRead
 from ..services import claims, credits
-from .credits import reserve_or_402
 from . import orders as orders_router
 
 router = APIRouter(prefix="/api/claims", tags=["claims"])
@@ -78,15 +77,11 @@ async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user
     Gemini call), handed back if the call fails."""
     user = await db.get(User, user_id)
     seller = (user.fb_name or user.name or "") if user else ""
-    credit = await reserve_or_402(db, user_id)
-    try:
-        drafts = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, seller)
-    except Exception as e:
-        await credits.refund(user_id, credit)
-        raise HTTPException(502, f"Could not work out the claims: {e}")
-    except BaseException:  # cancelled (client went away): still hand it back
-        await credits.refund(user_id, credit)
-        raise
+    async with credits.spend(db, user_id):
+        try:
+            drafts = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, seller)
+        except Exception as e:
+            raise HTTPException(502, f"Could not work out the claims: {e}")
     return {"claims": [d.model_dump() for d in drafts]}
 
 

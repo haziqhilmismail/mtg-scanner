@@ -132,6 +132,11 @@ app = FastAPI(title="MTG Pasar Malam Scanner", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+@app.exception_handler(credits.OutOfCredits)
+async def _out_of_credits(request: Request, exc: credits.OutOfCredits):
+    return JSONResponse(status_code=402, content={"detail": {"code": "out_of_credits", "credits": exc.credits}})
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -330,14 +335,9 @@ async def scan(
     # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
     pil, norm_bytes = await asyncio.to_thread(_normalise_upload, raw)
 
-    # One credit per photo, taken before the Gemini call (so parallel scans
-    # can't overshoot the limit) and handed back if anything below fails.
-    credit = await credits_router.reserve_or_402(db, user_id)
-    try:
+    # One credit per photo, handed back if anything below fails.
+    async with credits.spend(db, user_id):
         result = await _scan_pipeline(db, user_id, image.filename, pil, norm_bytes, post_id)
-    except BaseException:
-        await credits.refund(user_id, credit)
-        raise
     result["credits"] = await credits.status(db, user_id)
     return result
 

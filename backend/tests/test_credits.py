@@ -74,6 +74,34 @@ def test_refund_gives_the_credit_back():
     run(_dispose_then(go()))
 
 
+def test_spend_refunds_when_the_block_fails_or_is_cancelled():
+    async def go():
+        uid = await new_user()
+        async with async_session_factory() as s:
+            with pytest.raises(RuntimeError):
+                async with credits.spend(s, uid):
+                    raise RuntimeError("gemini is down")
+
+            async def slow_call():
+                async with credits.spend(s, uid):
+                    await asyncio.sleep(10)
+            task = asyncio.create_task(slow_call())
+            await asyncio.sleep(0.2)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            await asyncio.sleep(0.2)       # the shielded refund finishes
+            assert (await get_status(uid))["remaining"] == LIMIT
+
+            for _ in range(LIMIT):
+                await credits.reserve(uid)
+            with pytest.raises(credits.OutOfCredits) as e:
+                async with credits.spend(s, uid):
+                    pytest.fail("ran without a credit")
+            assert e.value.credits["remaining"] == 0
+    run(_dispose_then(go()))
+
+
 def test_window_rolls_after_30_days():
     async def go():
         uid = await new_user()
@@ -206,8 +234,9 @@ def test_scan_spends_a_credit_and_refuses_when_out(client):
 
     refused = _scan(client, token)
     assert refused.status_code == 402
-    assert refused.json()["detail"]["code"] == "out_of_credits"
-    assert refused.json()["detail"]["credits"]["remaining"] == 0
+    status = client.get("/api/credits", headers=headers).json()
+    assert refused.json() == {"detail": {"code": "out_of_credits", "credits": status}}
+    assert status["remaining"] == 0
     assert client.calls["gemini"] == gemini_calls        # refused before any Gemini call
 
     # Deleting a scan does not hand the credit back.
