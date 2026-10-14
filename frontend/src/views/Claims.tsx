@@ -12,7 +12,7 @@ import {
   type CataloguePhoto, type ConfirmClaim,
 } from '../api.ts';
 import {
-  buyersApi, listingsApi, ordersApi, postsApi,
+  buyersApi, listingsApi, ordersApi,
   type Buyer, type Listing, type Order, type Post,
 } from '../api/checklist.ts';
 import { OutOfCreditsError } from '../api/http.ts';
@@ -98,7 +98,7 @@ function payState(orders: Order[]): PayState {
   return 'unpaid';
 }
 
-export function Claims({ scanner, pricing: { pricingFor, learn }, t, lang, folderKey, onFolderChange, onOpenOldChecklist }: Props) {
+export function Claims({ scanner, pricing: { pricingFor, listPosts }, t, lang, folderKey, onFolderChange, onOpenOldChecklist }: Props) {
   const dialog = useDialog();
   const [posts, setPosts] = useState<Post[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -111,14 +111,14 @@ export function Claims({ scanner, pricing: { pricingFor, learn }, t, lang, folde
   const reload = useCallback(async () => {
     try {
       const [p, l, o, b] = await Promise.all([
-        postsApi.list(true), listingsApi.list(), ordersApi.list(true), buyersApi.list(),
+        listPosts(), listingsApi.list(), ordersApi.list(true), buyersApi.list(),
       ]);
-      setPosts(p); learn(p); setListings(l); setOrders(o); setBuyers(b); setLoadError('');
+      setPosts(p); setListings(l); setOrders(o); setBuyers(b); setLoadError('');
     } catch (e) {
       setLoadError((e as Error).message);
     }
     setLoaded(true);
-  }, [learn]);
+  }, [listPosts]);
   useEffect(() => { reload(); }, [reload]);
 
   // ---------- which post ----------
