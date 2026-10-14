@@ -109,6 +109,9 @@ def test_confirm_makes_orders_and_reuses_listings(client):
     aiman, siti = r.json()
     assert (aiman["status"], aiman["total_myr"], siti["total_myr"]) == ("claimed", "13.00", "2.00")
     assert siti["notes"] == "top left"
+    assert client.patch(f"/api/orders/{siti['id']}", json={"status": None}, headers=me).status_code == 422
+    assert client.patch(f"/api/orders/{siti['id']}", json={"status": "cancelled"}, headers=me).json()["status"] == "cancelled"
+    assert client.post(f"/api/orders/{siti['id']}/restore", headers=me).status_code == 200
 
     listings = client.get("/api/listings", headers=me).json()
     assert len(listings) == 2                                    # Island shared by both buyers

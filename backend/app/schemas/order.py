@@ -44,7 +44,7 @@ class OrderCreate(BaseModel):
 class OrderUpdate(BaseModel):
     """PATCH update — drives the paid/delivered transitions.
     Pass an ISO timestamp to mark, or null to unmark."""
-    status: OrderStatus | None = None
+    status: OrderStatus = None  # not nullable: null is a 422, omit it to keep the status
     paid_at: datetime | None = None
     delivered_at: datetime | None = None
     archived_at: datetime | None = None
