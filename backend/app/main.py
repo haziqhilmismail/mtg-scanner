@@ -345,27 +345,9 @@ def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
     return summary
 
 
-@app.post("/api/scan")
-@limiter.limit("30/minute;200/hour")  # Gemini calls — quota- and cost-sensitive
-async def scan(
-    request: Request,
-    db: DbSession,
-    user_id: CurrentUserId,
-    image: UploadFile = File(...),
-    post_id: int | None = Form(default=None),
-):
-    # Which post to file the photo under. Checked before anything costly.
-    if post_id is not None:
-        post = await db.get(Post, post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
-    raw = await image.read()
-    # Reject oversized uploads before the expensive decode. 25 MB is generous
-    # for a phone photo (even a 48 MP HEIC is a few MB); anything bigger is
-    # either a mistake or an attempt to exhaust memory on the box.
-    MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Image too large (max 25 MB)")
+def _normalise_upload(raw: bytes) -> tuple[Image.Image, bytes]:
+    """Decode an uploaded photo, upright it, cap its size; returns the RGB
+    image and the JPEG bytes that get stored and sent to Gemini."""
     try:
         pil = Image.open(BytesIO(raw))
         pil.load()
@@ -392,6 +374,32 @@ async def scan(
     norm_buf = BytesIO()
     pil.save(norm_buf, format="JPEG", quality=92)
     norm_bytes = norm_buf.getvalue()
+    return pil, norm_bytes
+
+
+@app.post("/api/scan")
+@limiter.limit("30/minute;200/hour")  # Gemini calls — quota- and cost-sensitive
+async def scan(
+    request: Request,
+    db: DbSession,
+    user_id: CurrentUserId,
+    image: UploadFile = File(...),
+    post_id: int | None = Form(default=None),
+):
+    # Which post to file the photo under. Checked before anything costly.
+    if post_id is not None:
+        post = await db.get(Post, post_id)
+        if not post or post.user_id != user_id:
+            raise HTTPException(404, "Post not found")
+    raw = await image.read()
+    # Reject oversized uploads before the expensive decode. 25 MB is generous
+    # for a phone photo (even a 48 MP HEIC is a few MB); anything bigger is
+    # either a mistake or an attempt to exhaust memory on the box.
+    MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Image too large (max 25 MB)")
+    # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
+    pil, norm_bytes = await asyncio.to_thread(_normalise_upload, raw)
 
     # One credit per photo, taken before the Gemini call (so parallel scans
     # can't overshoot the limit) and handed back if anything below fails.
@@ -427,7 +435,7 @@ async def _scan_pipeline(
     classical_quads: list[list[list[int]]] = []
     if settings.use_classical_bbox:
         try:
-            for bbox, quad in detect_card_quads(norm_bytes):
+            for bbox, quad in await asyncio.to_thread(detect_card_quads, norm_bytes):
                 classical_boxes.append(bbox)
                 classical_quads.append(quad)
         except Exception as e:
@@ -1190,7 +1198,7 @@ async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId
         raise HTTPException(400, "Missing image_id")
 
     raw = await _resolve_export_image(db, user_id, image_id)
-    png = _render_export(data, raw)
+    png = await asyncio.to_thread(_render_export, data, raw)
     return Response(
         content=png,
         media_type="image/png",
@@ -1231,7 +1239,7 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
                 raw = await _resolve_export_image(db, user_id, image_id)
             except HTTPException:
                 continue  # one stale id shouldn't sink the whole export
-            png = _render_export(item, raw)
+            png = await asyncio.to_thread(_render_export, item, raw)
             zf.writestr(_zip_entry_name(item.get("filename"), used), png)
 
     if not used:
