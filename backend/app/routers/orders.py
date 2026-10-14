@@ -8,11 +8,10 @@ from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..config import DATA_DIR, settings
-from ..deps import CurrentUserId, DbSession
+from ..config import DATA_DIR
+from ..deps import CurrentUserId, DbSession, ImageUserId
 from ..models import Buyer, Listing, Order, OrderItem, OrderStatus
 from ..schemas import OrderCreate, OrderRead, OrderUpdate
-from ..services.auth_service import decode_session_token
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -20,7 +19,7 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 # Same on-disk layout as posts: bytes live at data/orders/{id}.bin and the
 # orders row stores the absolute path so the data dir can be relocated
 # without rewriting rows. The image bytes are served at GET .../delivery-photo
-# behind a ?token= query param (browsers don't send Authorization on <img>).
+# behind a ?token=<image token> query param (browsers don't send Authorization on <img>).
 
 ORDERS_PHOTO_DIR = DATA_DIR / "orders"
 ORDERS_PHOTO_DIR.mkdir(exist_ok=True)
@@ -281,20 +280,9 @@ async def upload_delivery_photo(
 async def get_delivery_photo(
     order_id: int,
     db: DbSession,
-    token: str | None = Query(default=None),
+    user_id: ImageUserId,
 ) -> Response:
-    """Serve the delivery-proof photo. Auth handled inline via ?token=... so
-    `<img src=...>` can fetch it (no Authorization header support). Mirrors
-    the posts image endpoint."""
-    if settings.auth_enabled:
-        if not token:
-            raise HTTPException(401, "Missing token query parameter")
-        user_id = decode_session_token(token)
-        if user_id is None:
-            raise HTTPException(401, "Invalid or expired token")
-    else:
-        user_id = settings.solo_user_id
-
+    """Serve the delivery-proof photo (auth: ?token=<image token>)."""
     order = await db.get(Order, order_id)
     if not order or order.user_id != user_id:
         raise HTTPException(404, "Order not found")

@@ -14,9 +14,10 @@ def test_lite_list_drops_embedded_pictures_and_serves_them_by_url(client):
     uid = run(_dispose_then(new_user()))
     other = run(_dispose_then(new_user()))
     run(engine.dispose())
-    token = issue_session_token(uid)
-    headers = {"Authorization": f"Bearer {token}"}
-    scan = _scan(client, token).json()
+    session = issue_session_token(uid)
+    headers = {"Authorization": f"Bearer {session}"}
+    token = client.get("/api/auth/me", headers=headers).json()["image_token"]
+    scan = _scan(client, session).json()
     sid, card = scan["scan_id"], scan["cards"][0]
 
     full = client.get("/api/scans", headers=headers).json()[0]
@@ -42,6 +43,22 @@ def test_lite_list_drops_embedded_pictures_and_serves_them_by_url(client):
     # Only the owner, and only signed in.
     assert client.get(f"/api/scans/{sid}/preview").status_code == 401
     assert client.get(f"/api/scans/{sid}/preview?token=nonsense").status_code == 401
-    assert client.get(f"/api/scans/{sid}/preview?token={issue_session_token(other)}").status_code == 404
+    assert client.get(f"/api/scans/{sid}/preview?token={issue_session_token(other, 'img')}").status_code == 404
     assert client.get(f"/api/scans/{sid}/crops/999?token={token}").status_code == 404
     assert client.get(f"/api/scans/{sid}/preview?w=5000&token={token}").status_code == 422
+
+
+def test_image_tokens_and_session_tokens_are_not_interchangeable(client):
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    session = issue_session_token(uid)
+    image = client.get("/api/auth/me", headers={"Authorization": f"Bearer {session}"}).json()["image_token"]
+    sid = _scan(client, session).json()["scan_id"]
+
+    assert client.get(f"/api/scans/{sid}/preview?token={image}").status_code == 200
+    # A session token never goes in a URL: image routes refuse it...
+    for url in (f"/api/scans/{sid}/preview", f"/api/scans/{sid}/crops/0", "/api/posts/1/image", "/api/orders/1/delivery-photo"):
+        assert client.get(f"{url}?token={session}").status_code == 401, url
+    # ...and the image token opens nothing else.
+    assert client.get("/api/scans", headers={"Authorization": f"Bearer {image}"}).status_code == 401
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {image}"}).status_code == 401
