@@ -216,10 +216,10 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     relative_hr: '{n}h ago',
     relative_day: '{n}d ago',
 
-    upload_title: 'Upload images',
-    drop_strong: 'Drop, paste, or tap to add photos',
+    upload_title: 'New post',
+    drop_strong: 'Drop photos here to start a new post',
     drop_add_more: 'Add photos to this post',
-    drop_sub: 'Multiple at once · JPEG / PNG / HEIC · Ctrl/⌘+V to paste from clipboard',
+    drop_sub: 'Or tap to choose, or paste with Ctrl/⌘+V · several at once · JPEG / PNG / HEIC',
     drop_photo_tip: 'For best results: avoid glare, lay cards flat on a clean light background.',
     drop_no_images: 'No image files found.',
 
@@ -873,10 +873,10 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     relative_hr: '{n}j lalu',
     relative_day: '{n}h lalu',
 
-    upload_title: 'Muat naik gambar',
-    drop_strong: 'Lepaskan, tampal, atau ketuk untuk muat naik gambar',
+    upload_title: 'Post baharu',
+    drop_strong: 'Lepaskan foto di sini untuk mulakan post baharu',
     drop_add_more: 'Tambah foto ke post ini',
-    drop_sub: 'Banyak gambar serentak · JPEG / PNG / HEIC · Ctrl/⌘+V untuk tampal',
+    drop_sub: 'Atau ketuk untuk pilih, atau tampal dengan Ctrl/⌘+V · banyak serentak · JPEG / PNG / HEIC',
     drop_photo_tip: 'Untuk hasil terbaik: elak silau, susun kad atas latar belakang cerah dan bersih.',
     drop_no_images: 'Tiada fail gambar.',
 
