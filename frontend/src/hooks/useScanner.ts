@@ -18,6 +18,7 @@ import type { T } from './useLang.ts';
 // uploaded to the scan's ui_state once and then removed.
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
 const SAVE_DELAY_MS = 800;
+const SAVE_RETRY_MS = 5000;
 // Scanner.tsx remembers per scan which cards went to the checklist.
 export const ADDED_STORAGE_PREFIX = 'mtg.scanner.added.';
 
@@ -130,28 +131,49 @@ export function useScanner() {
   const batchesRef = useRef(batches);
   batchesRef.current = batches;
 
-  // Per-card edits go to the server: the last state seen per batch (the
-  // first one seen is what the server already has), the states waiting to be
-  // sent, and the timer that sends them once edits pause.
-  const lastSavedRef = useRef<Map<string, string>>(new Map());
-  const unsavedRef = useRef<Map<number, ScanUiState>>(new Map());
+  // Per-card edits go to the server, one save at a time per scan so they
+  // land in order. Per scan id: the fingerprint of the latest state seen (the
+  // first one seen is what the server already has), whether a save is in
+  // flight, and the state waiting to be sent. Plus the timer that sends
+  // waiting states once edits pause.
+  const savesRef = useRef(new Map<number, { latest: string; inFlight: boolean; pending: ScanUiState | null }>());
   const saveTimerRef = useRef<number | undefined>(undefined);
 
-  // Send every waiting state. A failed one stays waiting and goes with the
-  // next edit's save, unless a newer state for that scan is already waiting.
-  const flushSaves = useCallback((keepalive = false) => {
+  // Send every waiting state whose scan has no save in flight. A failed save
+  // is retried on a timer if it is still the scan's latest state.
+  const flushSaves = useCallback(function flush(keepalive = false) {
     clearTimeout(saveTimerRef.current);
-    const waiting = unsavedRef.current;
-    for (const [scanId, state] of waiting) {
-      waiting.delete(scanId);
-      saveScanState(scanId, state, keepalive).catch((e: Error & { status?: number }) => {
-        if (e.status !== 404 && !waiting.has(scanId)) waiting.set(scanId, state);
-      });
+    const saves = savesRef.current;
+    const later = (ms: number) => {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = window.setTimeout(flush, ms);
+    };
+    for (const [scanId, slot] of saves) {
+      const state = slot.pending;
+      if (slot.inFlight || !state) continue;
+      const sent = slot.latest;
+      slot.pending = null;
+      slot.inFlight = true;
+      saveScanState(scanId, state, keepalive).then(
+        () => {
+          slot.inFlight = false;
+          if (slot.pending && saves.get(scanId) === slot) later(0);
+        },
+        (e: Error & { status?: number }) => {
+          slot.inFlight = false;
+          // Gone (404), or forgotten since (deleted, signed out): drop it.
+          if (e.status === 404 || saves.get(scanId) !== slot) return;
+          if (slot.latest === sent) slot.pending = state;
+          later(SAVE_RETRY_MS);
+        },
+      );
     }
   }, []);
 
-  // Leaving or hiding the page (phones rarely fire unload) sends what's waiting.
+  // Leaving or hiding the page (phones rarely fire unload) sends what's
+  // waiting. Unmounting (signing out) stops all saving.
   useEffect(() => {
+    const saves = savesRef.current;
     const onHide = () => { if (document.visibilityState === 'hidden') flushSaves(true); };
     const onPageHide = () => flushSaves(true);
     document.addEventListener('visibilitychange', onHide);
@@ -159,6 +181,8 @@ export function useScanner() {
     return () => {
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', onPageHide);
+      clearTimeout(saveTimerRef.current);
+      saves.clear();
     };
   }, [flushSaves]);
 
@@ -227,11 +251,14 @@ export function useScanner() {
       if (b.status !== 'done' || !b.scanId) continue;
       const state = uiStateOf(b);
       const fingerprint = JSON.stringify(state);
-      const last = lastSavedRef.current.get(b.id);
-      if (last === fingerprint) continue;
-      lastSavedRef.current.set(b.id, fingerprint);
-      if (last === undefined) continue;
-      unsavedRef.current.set(b.scanId, state);
+      const slot = savesRef.current.get(b.scanId);
+      if (!slot) {
+        savesRef.current.set(b.scanId, { latest: fingerprint, inFlight: false, pending: null });
+        continue;
+      }
+      if (slot.latest === fingerprint) continue;
+      slot.latest = fingerprint;
+      slot.pending = state;
       changed = true;
     }
     if (changed) {
@@ -574,7 +601,7 @@ export function useScanner() {
     const b = batches.find(x => x.id === id);
     setBatches(prev => prev.filter(x => x.id !== id));
     if (b?.scanId) {
-      unsavedRef.current.delete(b.scanId);
+      savesRef.current.delete(b.scanId);
       await deleteSaved(b.scanId);
     } else if (b) {
       removedWhileScanning.current.add(id);
@@ -584,6 +611,8 @@ export function useScanner() {
   return {
     batches,
     loadingSaved,
+    // Send waiting edits now (before signing out).
+    flush: flushSaves,
     addFiles,
     scanProgress,
     removeBatch,
