@@ -194,10 +194,10 @@ export function useScanner(userId: number | null) {
       // backend DELETE never confirmed (e.g. refresh-mid-clear, backend
       // --reload kicked in, network blip). Filter them out of the UI and
       // fire the DELETE again so they're actually gone next time.
-      // Older versions kept them under one key for everyone: this user takes them.
-      addTombstones(tombKey, Array.from(readTombstones(OLD_TOMBSTONES)));
-      writeTombstones(OLD_TOMBSTONES, new Set());
-      const tombstones = readTombstones(tombKey);
+      // Older versions kept them under one key for everyone: this user
+      // honours them too, and takes over those that are its scans.
+      const old = readTombstones(OLD_TOMBSTONES);
+      const tombstones = new Set([...readTombstones(tombKey), ...old]);
       const serverIds = new Set<number>();
       for (let before: number | undefined, told = false; ;) {
         let page: SavedScan[];
@@ -230,8 +230,10 @@ export function useScanner(userId: number | null) {
         before = page[page.length - 1].scan_id;
       }
 
-      // Still on the server: delete again. Gone: the earlier DELETE worked,
-      // we just never got to clear its tombstone.
+      // Still on the server: delete again (which tombstones it under this
+      // user). Gone: the earlier DELETE worked, we just never got to clear
+      // its tombstone.
+      writeTombstones(OLD_TOMBSTONES, new Set(Array.from(old).filter(id => !serverIds.has(id))));
       tombstones.forEach(id => serverIds.has(id) && deleteSaved(tombKey, id));
       removeTombstones(tombKey, Array.from(tombstones).filter(id => !serverIds.has(id)));
       setLoadingSaved(false);
