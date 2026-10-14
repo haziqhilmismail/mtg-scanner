@@ -240,20 +240,6 @@ async def refresh_ck(
     }
 
 
-# ---------- Image cache for the export step ----------
-# In-memory dict for now; survives within a single uvicorn process.
-# Swap to disk-backed cache once we want exports to survive a restart.
-_IMAGE_CACHE: dict[str, bytes] = {}
-_CACHE_LIMIT = 30
-
-
-def _cache_put(key: str, val: bytes):
-    if len(_IMAGE_CACHE) >= _CACHE_LIMIT:
-        oldest = next(iter(_IMAGE_CACHE))
-        _IMAGE_CACHE.pop(oldest, None)
-    _IMAGE_CACHE[key] = val
-
-
 def _jpeg_data_url(pil: Image.Image) -> str:
     buf = BytesIO()
     pil.convert("RGB").save(buf, format="JPEG", quality=85)
@@ -663,18 +649,15 @@ async def _store_scan(
     # Save the normalized JPEG (downscaled + EXIF-corrected) rather than the
     # raw upload. Three reasons: (1) saved bytes now match the W/H + polygon
     # coords returned by /api/scan, so frontend rendering and /api/export stay
-    # consistent; (2) _IMAGE_CACHE doesn't hold multi-MB HEIC blobs; (3) export
-    # decodes a small JPEG instead of re-decoding HEIC every time.
+    # consistent; (2) export decodes a small JPEG instead of re-decoding HEIC
+    # every time.
     image_path = SCANS_DIR / f"{scan_row.id}.bin"
     image_path.write_bytes(norm_bytes)
     scan_row.image_path = str(image_path)
     await db.flush()
 
-    image_id = str(scan_row.id)
-    _cache_put(image_id, norm_bytes)
-
     return {
-        "image_id": image_id,
+        "image_id": str(scan_row.id),
         "scan_id": scan_row.id,
         "post_id": post_id,
         **response_payload,
@@ -947,7 +930,7 @@ async def scan_card_crop(
 
 @app.delete("/api/scans/{scan_id}", status_code=204)
 async def delete_scan(scan_id: int, db: DbSession, user_id: CurrentUserId):
-    """Drop a scan from the dashboard. Removes the DB row + the cached image bytes on disk."""
+    """Drop a scan from the dashboard. Removes the DB row + the image bytes on disk."""
     scan_row = await db.get(Scan, scan_id)
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
@@ -956,7 +939,6 @@ async def delete_scan(scan_id: int, db: DbSession, user_id: CurrentUserId):
             Path(scan_row.image_path).unlink(missing_ok=True)
         except Exception:
             pass
-    _IMAGE_CACHE.pop(str(scan_id), None)
     await db.delete(scan_row)
 
 
@@ -1145,28 +1127,17 @@ async def printings(request: Request, payload: str = Form(...)):
 
 
 async def _resolve_export_image(db: DbSession, user_id: int, image_id: str) -> bytes:
-    """Return the source photo bytes for an export `image_id`.
-
-    Checks the in-memory cache first, then falls back to disk (e.g. after a
-    server restart) when the id is a numeric scan PK owned by the user.
-    Raises 404 when nothing is found.
-    """
-    raw: bytes | None = _IMAGE_CACHE.get(image_id)
-    if raw is None:
-        try:
-            scan_pk = int(image_id)
-        except (ValueError, TypeError):
-            scan_pk = None
-        if scan_pk is not None:
-            scan_row = await db.get(Scan, scan_pk)
-            if scan_row and scan_row.user_id == user_id and scan_row.image_path:
-                p = Path(scan_row.image_path)
-                if p.exists():
-                    raw = p.read_bytes()
-                    _cache_put(image_id, raw)
-    if raw is None:
-        raise HTTPException(404, "image_id not found (re-upload the image)")
-    return raw
+    """Return the source photo bytes for an export `image_id` (a scan id),
+    from disk and only for the scan's owner. Raises 404 otherwise."""
+    try:
+        scan_row = await db.get(Scan, int(image_id))
+    except (ValueError, TypeError, OverflowError):
+        scan_row = None
+    if scan_row and scan_row.user_id == user_id and scan_row.image_path:
+        p = Path(scan_row.image_path)
+        if p.exists():
+            return p.read_bytes()
+    raise HTTPException(404, "image_id not found (re-upload the image)")
 
 
 def _render_export(data: dict, raw: bytes) -> bytes:
