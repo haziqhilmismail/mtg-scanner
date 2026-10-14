@@ -130,9 +130,13 @@ export function useScanner(userId: number | null) {
   // Translation key of a background failure to tell the user about.
   const [notice, setNotice] = useState<string | null>(null);
   const clearNotice = useCallback(() => setNotice(null), []);
-  // Latest batches, for work that finishes after they changed.
+  // Latest batches, for work that finishes after they changed. Every change
+  // goes through commit, so the ref is never behind.
   const batchesRef = useRef(batches);
-  batchesRef.current = batches;
+  const commit = useCallback((fn: (prev: Batch[]) => Batch[]) => {
+    batchesRef.current = fn(batchesRef.current);
+    setBatches(batchesRef.current);
+  }, []);
 
   // Per-card edits go to the server, one save at a time per scan so they
   // land in order. Per scan id: the fingerprint of the latest state seen (the
@@ -219,7 +223,7 @@ export function useScanner(userId: number | null) {
         kept.forEach(uploadLegacyState);
         // Older pages go in front: newest is at the END of the array
         // (matches "append on upload" UX).
-        setBatches(prev => [...kept.reverse().map(batchFromSavedScan), ...prev]);
+        commit(prev => [...kept.reverse().map(batchFromSavedScan), ...prev]);
         if (page.length < SCANS_PAGE) break;
         before = page[page.length - 1].scan_id;
       }
@@ -257,12 +261,12 @@ export function useScanner(userId: number | null) {
   }, [batches, flushSaves]);
 
   const patchBatch = useCallback((id: string, patch: Partial<Batch>) => {
-    setBatches(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)));
+    commit(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)));
   }, []);
 
   const updateCardArray = useCallback(
     <K extends keyof Batch, V>(batchId: string, field: K, idx: number, value: V) => {
-      setBatches(prev =>
+      commit(prev =>
         prev.map(b => {
           if (b.id !== batchId) return b;
           const arr = [...(b[field] as unknown as V[])];
@@ -315,9 +319,7 @@ export function useScanner(userId: number | null) {
       multOverride: [], removed: [], pillOffset: [],
       relookupBusy: [], relookupMsg: [],
     }));
-    setBatches(prev => [...prev, ...stubs]);
-    // Before the next render, so the jobs started below find their stubs.
-    batchesRef.current = [...batchesRef.current, ...stubs];
+    commit(prev => [...prev, ...stubs]);
 
     setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + queued.length }));
     // The batch list is the only record of what happened to a photo while it
@@ -358,10 +360,10 @@ export function useScanner(userId: number | null) {
       }
     }));
     pumpScanQueue();
-  }, [patchBatch, pumpScanQueue, tombKey]);
+  }, [commit, patchBatch, pumpScanQueue, tombKey]);
 
   const toggleFoil = useCallback((batchId: string, idx: number) => {
-    setBatches(prev =>
+    commit(prev =>
       prev.map(b => {
         if (b.id !== batchId) return b;
         const arr = [...b.isFoil];
@@ -372,7 +374,7 @@ export function useScanner(userId: number | null) {
   }, []);
 
   const setAllFoil = useCallback((batchId: string, foil: boolean) => {
-    setBatches(prev =>
+    commit(prev =>
       prev.map(b => {
         if (b.id !== batchId) return b;
         return {
@@ -396,7 +398,7 @@ export function useScanner(userId: number | null) {
   );
 
   const stepQuantity = useCallback((batchId: string, idx: number, delta: number) => {
-    setBatches(prev =>
+    commit(prev =>
       prev.map(b => {
         if (b.id !== batchId) return b;
         const arr = [...b.quantity];
@@ -414,7 +416,7 @@ export function useScanner(userId: number | null) {
 
   const stepMult = useCallback(
     (batchId: string, idx: number, delta: number, globalMult: number) => {
-      setBatches(prev =>
+      commit(prev =>
         prev.map(b => {
           if (b.id !== batchId) return b;
           const arr = [...b.multOverride];
@@ -444,7 +446,7 @@ export function useScanner(userId: number | null) {
   // mode). Pushes onto every parallel array so indices stay aligned. Seeded
   // foil=false, qty=1 unless the backend hint says otherwise.
   const appendFramedCard = useCallback((batchId: string, card: DetectedCard) => {
-    setBatches(prev =>
+    commit(prev =>
       prev.map(b => {
         if (b.id !== batchId || !b.response) return b;
         const cards = [...b.response.cards, card];
@@ -471,7 +473,7 @@ export function useScanner(userId: number | null) {
   }, []);
 
   const restoreAll = useCallback((batchId: string) => {
-    setBatches(prev =>
+    commit(prev =>
       prev.map(b => (b.id === batchId ? { ...b, removed: b.removed.map(() => false) } : b)),
     );
   }, []);
@@ -488,7 +490,7 @@ export function useScanner(userId: number | null) {
   // pricing fields change. User overrides (priceOverride / multOverride /
   // isFoil) live in the batch state, not in `response`, so they survive.
   const replaceAllCards = useCallback((batchId: string, cards: DetectedCard[]) => {
-    setBatches(prev =>
+    commit(prev =>
       prev.map(b => {
         if (b.id !== batchId || !b.response) return b;
         return { ...b, response: { ...b.response, cards } };
@@ -497,7 +499,7 @@ export function useScanner(userId: number | null) {
   }, []);
 
   const replaceCandidate = useCallback((batchId: string, idx: number, c: Candidate) => {
-    setBatches(prev =>
+    commit(prev =>
       prev.map(b => {
         if (b.id !== batchId) return b;
         if (!b.response) return b;
@@ -526,7 +528,7 @@ export function useScanner(userId: number | null) {
         updateCardArray(batchId, 'relookupBusy', idx, false);
         setRelookupMsg(batchId, idx, { type: 'ok', text: t('msg_updated', { name: summary.name }) });
         setTimeout(() => {
-          setBatches(prev =>
+          commit(prev =>
             prev.map(b => {
               if (b.id !== batchId) return b;
               const arr = [...b.relookupMsg];
@@ -580,13 +582,13 @@ export function useScanner(userId: number | null) {
   const moveBatches = useCallback(async (ids: string[], postId: number | null) => {
     const moving = batchesRef.current.filter(b => ids.includes(b.id));
     const before = new Map(moving.map(b => [b.id, b.postId]));
-    setBatches(prev => prev.map(b => (before.has(b.id) ? { ...b, postId } : b)));
+    commit(prev => prev.map(b => (before.has(b.id) ? { ...b, postId } : b)));
     const scanIds = moving.filter(b => b.scanId != null).map(b => b.scanId as number);
     if (!scanIds.length) return;
     try {
       await apiMoveScans(scanIds, postId);
     } catch (e) {
-      setBatches(prev => prev.map(b => (before.has(b.id) ? { ...b, postId: before.get(b.id) ?? null } : b)));
+      commit(prev => prev.map(b => (before.has(b.id) ? { ...b, postId: before.get(b.id) ?? null } : b)));
       throw e;
     }
   }, []);
@@ -595,7 +597,7 @@ export function useScanner(userId: number | null) {
   // it gone from the list and deletes what the server saved.
   const removeBatch = useCallback(async (id: string) => {
     const b = batchesRef.current.find(x => x.id === id);
-    setBatches(prev => prev.filter(x => x.id !== id));
+    commit(prev => prev.filter(x => x.id !== id));
     if (b?.scanId) {
       savesRef.current.delete(b.scanId);
       await deleteSaved(tombKey, b.scanId);
