@@ -19,13 +19,14 @@ type Status = 'loading' | 'unauthenticated' | 'authenticated';
 // Take the image token /me hands out, unless the stored one still has a week
 // left: image URLs then stay the same between visits and the browser cache
 // keeps working.
-function keepImageToken(fresh: string | undefined) {
+function keepImageToken(fresh: string) {
   const cur = imageToken.get();
-  try {
-    const { exp } = JSON.parse(atob(cur!.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    if (exp * 1000 > Date.now() + 7 * 864e5) return;
-  } catch { /* none stored, or not a JWT: replace it */ }
-  imageToken.set(fresh ?? '');
+  let exp = 0;
+  if (cur) {
+    try { exp = Number(JSON.parse(atob(cur.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp) || 0; }
+    catch { /* not a JWT: replace it */ }
+  }
+  if (exp * 1000 < Date.now() + 7 * 864e5) imageToken.set(fresh);
 }
 
 interface UseAuth {
@@ -48,28 +49,26 @@ export function useAuth(): UseAuth {
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
+    const loadMe = async () => {
+      const { image_token, ...me } = await fetchMe();
+      keepImageToken(image_token);
+      setUser(me);
+      setStatus('authenticated');
+    };
     (async () => {
       try {
         const cfg = await fetchAuthConfig();
         setConfig(cfg);
-        if (!cfg.auth_enabled) {
-          // Solo mode — /api/auth/me returns the solo user without a token
-          const me = await fetchMe();
-          keepImageToken(me.image_token);
-          setUser(me);
-          setStatus('authenticated');
-          return;
-        }
+        // Solo mode — /api/auth/me returns the solo user without a token
+        if (!cfg.auth_enabled) return await loadMe();
         // Auth enabled — if we have a stored token, validate it
         if (authToken.get()) {
           try {
-            const me = await fetchMe();
-            keepImageToken(me.image_token);
-            setUser(me);
-            setStatus('authenticated');
-            return;
-          } catch {
-            // Token expired / invalid → clear and fall through to login
+            return await loadMe();
+          } catch (e) {
+            // Only a refused token signs out; a network error or a server
+            // restart shows the error and keeps the session for next time.
+            if ((e as { status?: number }).status !== 401) throw e;
             authToken.clear();
             imageToken.clear();
           }
@@ -87,7 +86,7 @@ export function useAuth(): UseAuth {
     try {
       const resp: AuthResponse = await loginWithGoogle(credential);
       authToken.set(resp.token);
-      imageToken.set(resp.image_token ?? '');
+      imageToken.set(resp.image_token);
       setUser(resp.user);
       setStatus('authenticated');
     } catch (e) {
