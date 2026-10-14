@@ -60,6 +60,16 @@ function removeTombstones(ids: number[]) {
   if (changed) writeTombstones(s);
 }
 
+// Delete a saved scan. Tombstoned until the server confirms, so a failed
+// delete is retried by the rehydration effect on the next mount.
+async function deleteSaved(sid: number) {
+  addTombstones([sid]);
+  try {
+    await apiDeleteScan(sid);
+    removeTombstones([sid]);
+  } catch { /* tombstone persists */ }
+}
+
 // Per-card state for a scan nobody has edited yet: foil and quantity seeded
 // from Gemini's guesses, no overrides.
 function freshState(cards: DetectedCard[]): ScanUiState {
@@ -259,6 +269,12 @@ export function useScanner() {
   // second drop while the first is running joins it instead of doubling up.
   const scanQueue = useRef<Array<() => Promise<void>>>([]);
   const scansRunning = useRef(0);
+  // Photos deleted while still waiting or scanning: a waiting one is never
+  // sent, a running one is deleted on the server as soon as it is saved.
+  const removedWhileScanning = useRef<Set<string>>(new Set());
+  // Latest batches, for a scan finishing after the photo was moved.
+  const batchesRef = useRef(batches);
+  batchesRef.current = batches;
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
   const pumpScanQueue = useCallback(() => {
     while (scansRunning.current < SCAN_CONCURRENCY && scanQueue.current.length) {
@@ -298,11 +314,21 @@ export function useScanner() {
 
     setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + queued.length }));
     scanQueue.current.push(...queued.map(({ file, id }) => async () => {
+      if (removedWhileScanning.current.has(id)) return;
       try {
         const resp = await scanImage(file, postId);
         const n = resp.cards.length;
         // Server-side scan_id is what we'll persist UI state against
         const scanId = (resp as unknown as { scan_id?: number }).scan_id ?? null;
+        if (removedWhileScanning.current.has(id)) {
+          if (scanId != null) deleteSaved(scanId);
+          return;
+        }
+        // Moved to another post while scanning: file it there on the server too.
+        const movedTo = batchesRef.current.find(b => b.id === id)?.postId;
+        if (scanId != null && movedTo !== undefined && movedTo !== postId) {
+          apiMoveScans([scanId], movedTo).catch(() => patchBatch(id, { postId }));
+        }
         patchBatch(id, {
           status: 'done',
           scanId,
@@ -556,15 +582,10 @@ export function useScanner() {
     const b = batches.find(x => x.id === id);
     setBatches(prev => prev.filter(x => x.id !== id));
     if (b?.scanId) {
-      const sid = b.scanId;
-      addTombstones([sid]);
-      unsavedRef.current.delete(sid);
-      try {
-        await apiDeleteScan(sid);
-        removeTombstones([sid]);
-      } catch {
-        // Tombstone persists; rehydration effect will retry on next mount.
-      }
+      unsavedRef.current.delete(b.scanId);
+      await deleteSaved(b.scanId);
+    } else if (b) {
+      removedWhileScanning.current.add(id);
     }
   }, [batches]);
 
