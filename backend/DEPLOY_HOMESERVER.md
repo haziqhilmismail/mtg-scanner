@@ -2,7 +2,7 @@
 
 Run `mtg-scanner-backend` as a Docker container on the Ubuntu (Proxmox) box and
 expose it publicly with **Tailscale Funnel**, so the Vercel-hosted frontend can
-keep reaching it at a stable HTTPS URL. This replaces the Fly.io deployment.
+keep reaching it at a stable HTTPS URL.
 
 ```
 Browser ──HTTPS──> Vercel (React app, /api/* rewrite)
@@ -46,25 +46,13 @@ cp .env.example .env
 nano .env
 ```
 
-## 3. Bring over existing data (orders / listings / scans / sessions)
+## 3. Data
 
-Production history lives on the Fly volume at `/app/data`. Copy it so you don't
-start empty. From a machine logged into `flyctl` (e.g. your laptop):
-
-```bash
-fly ssh console -a mtg-scanner-backend -C "tar czf /tmp/data.tgz -C /app data"
-fly ssh sftp get /tmp/data.tgz -a mtg-scanner-backend     # downloads ./data.tgz
-# move data.tgz to the homeserver (scp / Tailscale), then on the VM:
-tar xzf data.tgz                                          # creates ./data/...
-```
-
-This brings `app.db` (all orders/listings), `scans/`, `posts/`, `ck_index.db`
-(CardKingdom prices), and `jwt_secret.txt`. Keeping `jwt_secret.txt` means
-existing logins stay valid; drop it and everyone just signs in again.
-
-> Tip: the app is low-traffic, but for a perfectly consistent SQLite copy you
-> can briefly stop the Fly machine first (`fly machine stop <id>`), tar, then
-> start it — or just accept the hot copy.
+Everything the app keeps lives in `./data`: `app.db` (all orders/listings),
+`scans/`, `posts/`, `orders/`, `ck_index.db` (CardKingdom prices), and
+`jwt_secret.txt`. Moving to a new box means copying that directory (stop the
+container first for a consistent SQLite copy). Keeping `jwt_secret.txt` keeps
+existing logins valid; drop it and everyone just signs in again.
 
 ## 4. Run it
 
@@ -88,15 +76,14 @@ rewrite gets pointed at it (one-line change, then redeploy the frontend).
 
 ## 6. Point the frontend at it
 
-In `frontend/vercel.json`, change the rewrite destination from the Fly URL to:
+In `frontend/vercel.json`, the rewrite destination is:
 
 ```json
 { "source": "/api/:path*", "destination": "https://<host>.<tailnet>.ts.net/api/:path*" }
 ```
 
 Commit + push `mtg-scanner-frontend` → Vercel redeploys → traffic now flows to
-the homeserver. Once verified, you can `fly apps destroy mtg-scanner-backend` to
-stop paying Fly entirely.
+the homeserver.
 
 ---
 
@@ -139,12 +126,10 @@ step. For deeper disk cleanup occasionally: `docker system prune -af` (removes
 
 ## Notes / caveats
 
-- **CardKingdom refresh now works in-app.** CK blocks Fly's outbound IP (hence
-  the `scripts/refresh_ck_offline.py` SFTP dance). From your home IP that block
-  is almost certainly gone, so `POST /api/refresh-ck` should just work.
-- **Rate limiting** (slowapi, per-IP) will see Vercel's proxy IP for every
-  request, so the per-IP limits effectively become global. Fine for solo use;
-  revisit if you ever multi-tenant.
+- **CardKingdom refresh** runs in-app: `POST /api/refresh-ck`, triggered nightly
+  by `.github/workflows/ck-refresh.yml`.
+- **Rate limiting** (slowapi) is per signed-in user. Every request arrives from
+  the same proxy address, so anonymous calls share one bucket.
 - **Uptime** is now on you — if the VM/Proxmox host is down, the app is down.
 - **Backups**: `./data/app.db` is your whole business state. Snapshot it
   (Proxmox snapshot or a nightly `cp`/`litestream`) so a disk loss isn't fatal.

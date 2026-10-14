@@ -1,15 +1,13 @@
 name: Refresh CardKingdom pricelist
 
-# Why this exists (post-Fly):
-#   The backend now self-hosts on the homeserver, reachable publicly via
-#   Tailscale Funnel. A residential IP is NOT on CardKingdom's WAF blocklist
-#   (unlike Fly's range), so the backend can pull + rebuild the pricelist
-#   itself. This workflow just *triggers* that refresh on a schedule — the
-#   heavy download + rebuild happens on the homeserver, not here.
+# Why this exists:
+#   The backend self-hosts on the homeserver, reachable publicly via Tailscale
+#   Funnel, and pulls + rebuilds the pricelist itself. This workflow just
+#   *triggers* that refresh on a schedule — the heavy download + rebuild
+#   happens on the homeserver, not here.
 #
-#   POST /api/refresh-ck is public (no auth) and rate-limited to 3/hour, so a
-#   plain curl is all that's needed. No repo secrets required — you can delete
-#   the old FLY_API_TOKEN secret.
+#   POST /api/refresh-ck is guarded by REFRESH_CK_TOKEN and rate-limited to
+#   3/hour (wrong tokens don't count towards that).
 #
 # Setup: set BACKEND_URL below to your Funnel URL. Get it on the homeserver
 # with `tailscale funnel status` (looks like https://tower.tailXXXX.ts.net).

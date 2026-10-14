@@ -28,8 +28,8 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-local-scanner
 # Copy the rest of the backend (alembic.ini, migrations/, app/).
 COPY . .
 
-# Make sure the data dir exists when no Fly volume is mounted (local docker run).
-# When a volume IS mounted at /app/data, it just covers this directory.
+# Make sure the data dir exists when nothing is mounted (plain docker run).
+# When ./data IS mounted at /app/data, it just covers this directory.
 RUN mkdir -p /app/data
 
 EXPOSE 8000
