@@ -29,7 +29,7 @@ from pathlib import Path
 import aiohttp
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from PIL import Image, ImageOps
@@ -48,13 +48,10 @@ register_heif_opener()
 Image.MAX_IMAGE_PIXELS = 50_000_000
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select
-from sqlalchemy.orm.attributes import flag_modified
 
 from .config import DATA_DIR, settings
 from .db import async_session_factory
-from .deps import CurrentUserId, DbSession, ImageUserId, limiter
-from pydantic import BaseModel
-from sqlalchemy import update
+from .deps import CurrentUserId, DbSession, limiter
 
 from .models import Post, Scan, User
 from .routers import auth as auth_router
@@ -65,6 +62,7 @@ from .routers import credits as credits_router
 from .routers import listings as listings_router
 from .routers import orders as orders_router
 from .routers import posts as posts_router
+from .routers import scans as scans_router
 from .services import bug_reporter
 from .services import credits
 from .services import local_scan
@@ -623,204 +621,6 @@ async def frame_card(
     return new_card
 
 
-@app.get("/api/scans")
-async def list_scans(
-    db: DbSession, user_id: CurrentUserId,
-    limit: int = Query(default=30, ge=1, le=500), lite: bool = False,
-    before: int | None = None,
-):
-    """Most-recent-first list of saved scans, with the full response baked in.
-    Frontend uses this to rehydrate batches after a page refresh.
-
-    `lite=1` leaves out the embedded images (the photo preview and every
-    card's thumbnail, as base64). With them, 30 scans is ~22 MB in a single
-    response that has to finish before anything shows; without, ~0.3 MB. The
-    client then loads each picture from /preview and /crops/{id} below, only
-    when it is on screen, and the browser caches them.
-
-    `before=<scan id>` pages back: the scans with a smaller id than that one."""
-    q = (
-        select(Scan)
-        .where(Scan.user_id == user_id)
-        .order_by(Scan.id.desc())
-        .limit(limit)
-    )
-    if before is not None:
-        q = q.where(Scan.id < before)
-    rows = (await db.execute(q)).scalars().all()
-    out = []
-    for s in rows:
-        payload = s.gemini_raw or {}
-        cards = payload.get("cards", [])
-        if lite:
-            cards = [{**c, "crop_b64": ""} for c in cards]
-        out.append({
-            "image_id": str(s.id),
-            "scan_id": s.id,
-            "post_id": s.post_id,
-            "filename": s.filename,
-            "image_b64": "" if lite else payload.get("image_b64", ""),
-            "width": s.width,
-            "height": s.height,
-            "cards": cards,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-            "ui_state": s.ui_state,
-        })
-    return out
-
-
-class ScanState(BaseModel):
-    state: dict
-
-
-@app.patch("/api/scans/{scan_id}/state", status_code=204)
-async def save_scan_state(scan_id: int, body: ScanState, db: DbSession, user_id: CurrentUserId):
-    """Store the seller's per-card edits for this scan. Last write wins."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
-    if len(json.dumps(body.state)) > 64 * 1024:
-        raise HTTPException(413, "State too large (max 64 KB)")
-    scan_row.ui_state = body.state
-
-
-class MoveScans(BaseModel):
-    scan_ids: list[int]
-    post_id: int | None = None  # None = unfile
-
-
-@app.post("/api/scans/move", status_code=204)
-async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
-    """File photos under a post (or unfile them). Other people's scans in
-    `scan_ids` are silently left alone."""
-    if body.post_id is not None:
-        post = await db.get(Post, body.post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
-    await db.execute(
-        update(Scan)
-        .where(Scan.id.in_(body.scan_ids), Scan.user_id == user_id)
-        .values(post_id=body.post_id)
-    )
-
-
-async def _scan_for_image(db: DbSession, scan_id: int, user_id: int) -> Scan:
-    """The scan behind an <img src>, 404 unless it is `user_id`'s."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
-    return scan_row
-
-
-def _data_url_jpeg(data_url: str, max_edge: int | None = None) -> Response:
-    """A stored `data:image/jpeg;base64,...` string as an image response,
-    optionally shrunk. A scan's pictures never change once saved, so the
-    browser may keep them for good."""
-    if not data_url:
-        raise HTTPException(404, "No image")
-    raw = base64.b64decode(data_url.split(",", 1)[-1])
-    if max_edge:
-        img = Image.open(BytesIO(raw))
-        img.thumbnail((max_edge, max_edge))
-        buf = BytesIO()
-        img.convert("RGB").save(buf, format="JPEG", quality=80)
-        raw = buf.getvalue()
-    return Response(
-        content=raw,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
-    )
-
-
-@app.get("/api/scans/{scan_id}/preview")
-async def scan_preview(
-    scan_id: int,
-    db: DbSession,
-    user_id: ImageUserId,
-    w: int | None = Query(default=None, ge=32, le=1400),
-):
-    """The scan's photo preview. `w` caps the longest edge, for the small
-    thumbnails in the scan strip."""
-    scan_row = await _scan_for_image(db, scan_id, user_id)
-    # Resizing for ?w= is a decode + re-encode; a strip of thumbnails is many at once.
-    return await asyncio.to_thread(_data_url_jpeg, (scan_row.gemini_raw or {}).get("image_b64", ""), w)
-
-
-@app.get("/api/scans/{scan_id}/crops/{card_id}")
-async def scan_card_crop(
-    scan_id: int, card_id: int, db: DbSession, user_id: ImageUserId,
-):
-    """One detected card's thumbnail, cut from the photo at scan time."""
-    scan_row = await _scan_for_image(db, scan_id, user_id)
-    for card in (scan_row.gemini_raw or {}).get("cards", []):
-        if card.get("id") == card_id:
-            return _data_url_jpeg(card.get("crop_b64", ""))
-    raise HTTPException(404, "Card not found")
-
-
-@app.delete("/api/scans/{scan_id}", status_code=204)
-async def delete_scan(scan_id: int, db: DbSession, user_id: CurrentUserId):
-    """Drop a scan from the dashboard. Removes the DB row + the image bytes on disk."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
-    if scan_row.image_path:
-        try:
-            Path(scan_row.image_path).unlink(missing_ok=True)
-        except Exception:
-            pass
-    await db.delete(scan_row)
-
-
-@app.post("/api/scans/{scan_id}/relookup-prices")
-@limiter.limit("30/minute")
-async def relookup_scan_prices(
-    request: Request, scan_id: int, db: DbSession, user_id: CurrentUserId,
-):
-    """Re-run CK price enrichment for every candidate in a saved scan. Cards
-    themselves (names, sets, scryfall_ids, bboxes) are unchanged — only the
-    pricing fields (usd/usd_foil/price_source_*/ck_*) are refreshed from
-    the current ck_index.db. Cheap (local SQLite lookups, no network).
-    Returns the same shape as GET /api/scans for in-place rehydration."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
-
-    payload = scan_row.gemini_raw or {}
-    cards = payload.get("cards", [])
-    ck_index = await get_ck_index()
-
-    updated = 0
-    for card in cards:
-        cands = card.get("candidates", []) or []
-        for i, cand in enumerate(cands):
-            if not cand:
-                continue
-            new_cand = enrich_with_ck(cand, ck_index)
-            if new_cand:
-                cands[i] = new_cand
-                updated += 1
-        card["candidates"] = cands
-
-    payload["cards"] = cards
-    scan_row.gemini_raw = payload
-    # JSON column needs an explicit mark — SQLAlchemy doesn't detect
-    # in-place dict mutation.
-    flag_modified(scan_row, "gemini_raw")
-    await db.commit()
-
-    return {
-        "image_id": str(scan_row.id),
-        "scan_id": scan_row.id,
-        "filename": scan_row.filename,
-        "image_b64": payload.get("image_b64", ""),
-        "width": scan_row.width,
-        "height": scan_row.height,
-        "cards": cards,
-        "updated": updated,
-    }
-
-
 @app.post("/api/relookup")
 @limiter.limit("60/minute")  # Scryfall asks ~10 req/sec max — keep well below
 async def relookup(request: Request, _: CurrentUserId, payload: str = Form(...)):
@@ -1099,6 +899,7 @@ app.include_router(credits_router.router)
 app.include_router(listings_router.router)
 app.include_router(orders_router.router)
 app.include_router(posts_router.router)
+app.include_router(scans_router.router)
 
 
 # Global handler for *unexpected* exceptions only. FastAPI's built-in
