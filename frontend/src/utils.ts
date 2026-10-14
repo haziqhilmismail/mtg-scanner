@@ -181,8 +181,9 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
     const hasMultOverride = multRaw != null && !isNaN(multRaw);
     const mult = hasMultOverride ? (multRaw as number) : globalMult;
     const qty = Math.max(1, batch.quantity[origIdx] || 1);
-    const overrideRaw = batch.priceOverride[origIdx];
-    const hasOverride = overrideRaw != null && overrideRaw !== '';
+    // A box holding only "." (or nothing) is no price yet, not RM0.
+    const override = parseFloat(batch.priceOverride[origIdx] ?? '');
+    const hasOverride = !isNaN(override);
     // CK is the only price source. If the chosen side has no CK row we don't
     // auto-price — the user must enter manually. Skipping applyRounding here
     // is what bypasses the RM 1 floor and surfaces "needs price" so we never
@@ -192,9 +193,7 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
       : sel.price_source_normal === 'cardkingdom';
     const autoPrice = ckSourceMatched ? applyRounding(usd * mult, settings) : 0;
     const needsPrice = !hasOverride && (isManual || !ckSourceMatched);
-    const unitPrice = hasOverride
-      ? (parseFloat(overrideRaw as string) || 0)
-      : needsPrice ? NaN : autoPrice;
+    const unitPrice = hasOverride ? override : needsPrice ? NaN : autoPrice;
     const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
     const source = isManual
       ? 'manual'
