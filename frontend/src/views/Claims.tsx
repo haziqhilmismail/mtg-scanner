@@ -15,7 +15,7 @@ import {
   buyersApi, listingsApi, ordersApi, postsApi,
   type Buyer, type Listing, type Order, type Post,
 } from '../api/checklist.ts';
-import { OutOfCreditsError } from '../api/auth.ts';
+import { OutOfCreditsError } from '../api/http.ts';
 import {
   CardPicker, CardTile, PhotoPicker, photoThumb,
   type CardRef, type CardStatus, type Photo,

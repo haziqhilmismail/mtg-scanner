@@ -7,7 +7,7 @@
 // fed in here — those are already shown to the user and don't need to page
 // the dev. The Telegram push is on the backend side; we just POST a report.
 
-import { authHeaders } from '../api/auth';
+import { authHeaders } from '../api/http.ts';
 
 const ENDPOINT = '/api/bug';
 const MAX_STACK = 8_000;

@@ -4,9 +4,8 @@
 // as authorized so the rest of the app stays unchanged.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { authToken, imageToken } from '../api/http.ts';
 import {
-  authToken,
-  imageToken,
   fetchAuthConfig,
   fetchMe,
   loginWithGoogle,

@@ -1,7 +1,7 @@
 // Typed wrappers for the checklist endpoints (listings, buyers, orders).
 // Decimal values come back as strings (Pydantic Decimal serialization).
 
-import { imageUrl, request } from './auth.ts';
+import { imageUrl, request } from './http.ts';
 
 export type ListingStatus = 'active' | 'archived';
 export type OrderStatus = 'claimed' | 'cancelled';
