@@ -84,6 +84,15 @@ export function ckSearchUrl(name: string): string {
   return `https://www.cardkingdom.com/catalog/search?search=header&filter%5Bname%5D=${encodeURIComponent(name)}`;
 }
 
+// A card's identity on its photo: listings record the bbox they came from.
+export const bboxKey = (bbox: number[]) => bbox.join(',');
+
+// The cards a photo's Add would put on the checklist (visible and priced)
+// that are not on it yet.
+export function notAdded(batch: Batch, cards: CardRowData[]): CardRowData[] {
+  return cards.filter(cd => !cd.removed && cd.unitPrice > 0 && !batch.listed.includes(bboxKey(cd.card.bbox)));
+}
+
 // What a scanned card becomes on the checklist. One function for adding a
 // card, adding a whole photo and saving claims, so they can't drift apart.
 // With no direct CK product URL the listing gets a CK search-by-name link.
@@ -221,6 +230,7 @@ export function freshState(cards: DetectedCard[]): ScanUiState {
     multOverride: new Array(n).fill(null),
     removed: new Array(n).fill(false),
     pillOffset: new Array(n).fill(null),
+    versionOk: new Array(n).fill(false),
   };
 }
 
@@ -231,6 +241,7 @@ const VALID: { [K in Exclude<keyof ScanUiState, 'rev'>]: (v: unknown) => boolean
   multOverride: v => v === null || (Number.isFinite(v) && (v as number) >= 0),
   removed: v => typeof v === 'boolean',
   pillOffset: v => v === null || (Number.isFinite((v as PillOffset)?.dx) && Number.isFinite((v as PillOffset)?.dy)),
+  versionOk: v => typeof v === 'boolean',
 };
 
 // A scan's saved per-card state, made safe to use: one entry per card, each

@@ -27,6 +27,8 @@ export interface SavedScan extends ScanResponse {
   created_at: string | null;
   // Whatever was last saved; checked by normalizeUiState before use.
   ui_state: unknown;
+  // The bbox of each of its cards that is on the checklist.
+  listed?: number[][];
 }
 
 // One page of saved scans, newest first: the SCANS_PAGE newest with an id

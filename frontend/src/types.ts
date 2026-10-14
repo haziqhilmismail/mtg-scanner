@@ -134,6 +134,8 @@ export interface ScanUiState {
   multOverride: (number | null)[];
   removed: boolean[];
   pillOffset: (PillOffset | null)[];
+  // The seller said an unsure printing guess (see CardRow) is right.
+  versionOk: boolean[];
   // Raised on every save so the server ignores a save that arrives after a
   // newer one. Not a per-card field.
   rev?: number;
@@ -143,6 +145,7 @@ export interface Batch extends ScanUiState {
   id: string;
   scanId: number | null;          // backend Scan.id once saved — null while scanning
   postId: number | null;          // the post this photo is filed under; null = unfiled
+  listed: string[];               // bboxKey of each card on the checklist (added to the post)
   filename: string;
   status: 'scanning' | 'done' | 'error';
   // Set with status 'error' when the server refused the scan for lack of

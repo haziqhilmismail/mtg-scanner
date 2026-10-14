@@ -3,7 +3,7 @@
 // knowing before opening it (how many cards, what it's worth, what's wrong).
 
 import type { Batch, Settings } from '../types.ts';
-import { computeCardData, formatMyr } from '../utils.ts';
+import { computeCardData, formatMyr, notAdded } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import type { T } from '../hooks/useLang.ts';
 
@@ -11,6 +11,7 @@ export interface BatchSummary {
   batch: Batch;
   cards: number;      // visible (not removed) cards
   needs: number;      // things to fix: unpriced cards, or 1 if the photo itself failed
+  pending: number;    // priced cards not added to the post's card list yet
   total: number;      // priced value of the visible cards
   haystack: string;   // lower-cased filename + card names, for search
 }
@@ -18,7 +19,7 @@ export interface BatchSummary {
 export function summarise(batch: Batch, settings: Settings): BatchSummary {
   if (!batch.response) {
     return {
-      batch, cards: 0, total: 0,
+      batch, cards: 0, total: 0, pending: 0,
       needs: batch.status === 'error' ? 1 : 0,
       haystack: batch.filename.toLowerCase(),
     };
@@ -27,6 +28,7 @@ export function summarise(batch: Batch, settings: Settings): BatchSummary {
   return {
     batch,
     cards: visible.length,
+    pending: notAdded(batch, visible).length,
     needs: visible.filter(cd => cd.needsPrice).length,
     total: visible.reduce((sum, cd) => sum + (isFinite(cd.lineTotal) ? cd.lineTotal : 0), 0),
     haystack: [batch.filename, ...visible.map(cd => cd.sel.name || '')].join('\n').toLowerCase(),
@@ -40,6 +42,11 @@ function NeedsBadge({ n, t }: { n: number; t: T }) {
       <Icon name="warning" size={14} />{t('scans_to_fix', { n })}
     </span>
   );
+}
+
+function PendingBadge({ text }: { text: string | null }) {
+  if (!text) return null;
+  return <span className="needs-badge pending-badge"><Icon name="addList" size={14} />{text}</span>;
 }
 
 function photosLabel(n: number, t: T) {
@@ -71,13 +78,14 @@ interface PostTileProps {
   covers: string[];
   photos: number;
   needs: number;
+  pending: number;    // photos with cards not added yet
   total: number;
   settings: Settings;
   t: T;
   onOpen: () => void;
 }
 
-export function PostTile({ title, covers, photos, needs, total, settings, t, onOpen }: PostTileProps) {
+export function PostTile({ title, covers, photos, needs, pending, total, settings, t, onOpen }: PostTileProps) {
   return (
     <button type="button" className="scan-tile" onClick={onOpen}>
       <Cover srcs={covers} photos={photos} />
@@ -87,6 +95,7 @@ export function PostTile({ title, covers, photos, needs, total, settings, t, onO
           {photosLabel(photos, t)}{total > 0 ? ` · ${formatMyr(total, settings)}` : ''}
         </span>
         <NeedsBadge n={needs} t={t} />
+        <PendingBadge text={pending > 0 ? t('scans_photos_not_added', { n: pending }) : null} />
       </span>
     </button>
   );
@@ -103,7 +112,7 @@ interface PhotoTileProps {
 }
 
 export function PhotoTile({ summary, settings, t, selecting, selected, onOpen, onToggle }: PhotoTileProps) {
-  const { batch, cards, needs, total } = summary;
+  const { batch, cards, needs, pending, total } = summary;
   const src = batch.response ? (batch.response.thumb_url ?? batch.response.image_b64) : null;
   let meta: string;
   if (batch.status === 'scanning') meta = t('tab_status_scanning');
@@ -130,6 +139,7 @@ export function PhotoTile({ summary, settings, t, selecting, selected, onOpen, o
         <span className="scan-tile-title">{batch.filename}</span>
         <span className="scan-tile-meta">{meta}</span>
         <NeedsBadge n={needs} t={t} />
+        <PendingBadge text={pending > 0 ? t('scans_cards_not_added', { n: pending }) : null} />
       </span>
     </button>
   );

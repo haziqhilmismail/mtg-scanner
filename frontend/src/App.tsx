@@ -151,7 +151,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         <Scanner
           scanner={scanner}
           nav={navStore}
-          userId={auth.user?.id ?? null}
           pricing={pricing}
           health={health}
           t={t}

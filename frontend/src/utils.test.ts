@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, normalizeUiState } from './utils.ts';
+import { applyRounding, computeCardData, normalizeUiState, notAdded } from './utils.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
@@ -35,9 +35,9 @@ test('no rounding, and the minimum price', () => {
 test('a price box holding only "." is no price, not RM0', () => {
   const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
   const batch: Batch = {
-    id: 'b', scanId: 1, postId: null, filename: '', status: 'done',
+    id: 'b', scanId: 1, postId: null, listed: [], filename: '', status: 'done',
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ candidates: [sel] } as DetectedCard] },
-    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null],
+    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false],
     relookupBusy: [false], relookupMsg: [null],
   };
   const settings = { ...DEFAULT_SETTINGS, multNormal: 3 };
@@ -66,9 +66,24 @@ test('saved per-card state is fitted to the cards, entry by entry', () => {
     multOverride: [null, 2.5, null],
     removed: [false, false, false],
     pillOffset: [{ dx: 1, dy: 2 }, null, null],
+    versionOk: [false, false, false],
     rev: 1700000000000,
   });
   assert.deepEqual(normalizeUiState(null, [card(true)]).isFoil, [true]);
   assert.equal('rev' in normalizeUiState({ rev: '5' }, []), false);
   assert.equal('rev' in normalizeUiState({ rev: 1.5 }, []), false);
+});
+
+test('a photo still has to add its priced, kept cards that are not listed', () => {
+  const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
+  const card = (x: number) => ({ candidates: [sel], bbox: [x, 0, 5, 5] } as DetectedCard);
+  const batch: Batch = {
+    id: 'b', scanId: 1, postId: 7, listed: ['0,0,5,5'], filename: '', status: 'done',
+    response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [card(0), card(10), card(20), card(30)] },
+    isFoil: [false, false, false, false], priceOverride: [null, null, null, '0'], quantity: [1, 1, 1, 1],
+    multOverride: [null, null, null, null], removed: [false, false, true, false], pillOffset: [null, null, null, null],
+    versionOk: [false, false, false, false], relookupBusy: [], relookupMsg: [],
+  };
+  // Listed, not added, removed, priced at zero.
+  assert.deepEqual(notAdded(batch, computeCardData(batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
 });

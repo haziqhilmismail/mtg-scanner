@@ -417,7 +417,7 @@ button { position: relative; }
 }
 /* People who ask for less transparency or more contrast get solid bars. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .app-bar, .tab-bar, .float-back-top, .preview-close-btn, .frame-toolbar, .frame-action-bar, .glass {
+  .app-bar, .tab-bar, .float-back-top, .preview-close-btn, .frame-toolbar, .glass {
     background: var(--paper); -webkit-backdrop-filter: none; backdrop-filter: none;
   }
   :root { --rule: var(--ink-soft); }
@@ -563,6 +563,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   background: var(--warn-soft); color: var(--warn);
   border-radius: 6px; font-size: 12px; font-weight: 600;
 }
+.pending-badge { background: var(--accent-soft); color: var(--accent); }
 .gallery-empty { margin: 32px 0; text-align: center; font-size: 15px; color: var(--ink-soft); }
 .gallery-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 14px; }
 .gallery-bar-count { font-size: 15px; font-weight: 600; margin-right: auto; }
@@ -858,21 +859,25 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 /* ---------- Framing tool ----------
    User-driven "fix-it" overlay for cards the detector merged or missed.
    Lives inside the expanded preview only — the user needs room to draw cleanly.
-   Its bars float over the photo, so they use the glass material. */
-.frame-toolbar, .frame-action-bar {
+   Its one bar floats over the photo, so it uses the glass material. */
+.frame-toolbar {
   position: absolute; display: inline-flex; align-items: center;
   background: var(--glass);
   -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   border: 0.5px solid var(--glass-border); border-radius: var(--radius-pill);
   box-shadow: var(--shadow-lg);
-}
-.frame-toolbar {
   bottom: 16px; left: 50%; z-index: 2; transform: translateX(-50%);
   gap: 10px; flex-wrap: wrap; justify-content: center; padding: 6px;
-  /* Stay inside the photo without hugging either side edge. */
-  max-width: calc(100% - 32px);
+  /* .preview-wrap sets line-height 0 for the photo; without this, wrapped
+     hint lines stack on top of each other. */
+  line-height: 1.3; text-align: center;
+  /* Stay inside the photo without hugging either side edge. max-content
+     because left: 50% alone caps the shrink-to-fit width at half the photo. */
+  width: max-content; max-width: calc(100% - 32px);
 }
-.frame-toolbar-btn { background: var(--accent-fill); color: var(--on-accent); white-space: nowrap; }
+.preview-cell.framing .frame-toolbar { border-radius: var(--radius-xl); }
+.frame-toolbar button { white-space: nowrap; }
+.frame-toolbar-btn { background: var(--accent-fill); color: var(--on-accent); }
 .frame-toolbar-btn:hover { background: var(--accent-fill); filter: brightness(1.08); }
 .frame-toolbar-btn.ghost { background: var(--fill); color: var(--ink); }
 .frame-toolbar-btn.ghost:hover { background: var(--fill-strong); filter: none; }
@@ -900,16 +905,10 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
   filter: drop-shadow(0 0 10px rgba(255, 204, 0, 0.6));
 }
 @keyframes frame-march { to { stroke-dashoffset: -56; } }
-/* Action bar floats just below the drawn rect, horizontally centered on it. */
-.frame-action-bar { z-index: 3; transform: translate(-50%, 0); gap: 6px; padding: 4px; pointer-events: auto; }
 .frame-action-confirm { background: var(--accent-fill); color: var(--on-accent); }
 .frame-action-confirm:hover:not(:disabled) { background: var(--accent-fill); filter: brightness(1.08); }
 /* "Add blank" — secondary path next to Identify. */
 .frame-action-manual { background: var(--fill); color: var(--ink); }
-.frame-action-cancel {
-  width: 36px; height: 36px; min-height: 0; padding: 0;
-  background: var(--fill); color: var(--ink); border-radius: 50%; font-size: 15px;
-}
 .frame-action-error { font-size: 13px; font-weight: 600; color: var(--warn); padding: 0 8px; }
 
 /* ---------- Finalize block ----------
@@ -924,8 +923,9 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .finalize-picker-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .scan-post-label { font-size: 15px; font-weight: 600; color: var(--ink); }
 .scan-post-select { flex: 1 1 240px; min-width: 0; font-size: 15px; background-color: var(--paper); }
-.scan-post-hint { font-size: 13px; color: var(--green); }
-.scan-post-hint.muted { color: var(--ink-soft); }
+.scan-post-hint { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; color: var(--green); }
+.scan-post-hint svg { flex: none; margin-top: 1px; }
+.scan-post-hint.not-added { color: var(--warn); font-weight: 600; }
 .finalize-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .finalize-action-row button { flex: 1 1 0; min-width: 170px; min-height: var(--tap); }
 .finalize-action-row button.ghost { flex: 0 1 auto; min-width: 0; }

@@ -5,9 +5,9 @@ import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import type { NavStore } from '../hooks/useNav.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
-import { loadAdded, saveAdded, settleAdded } from '../lib/addedMarkers.ts';
+import { migrateAdded } from '../lib/addedMarkers.ts';
 import type { Batch, Candidate, Credits, Settings } from '../types.ts';
-import { computeCardData, downloadBlob, formatMyr, listingFields, pillLabel } from '../utils.ts';
+import { computeCardData, downloadBlob, formatMyr, listingFields, notAdded, pillLabel } from '../utils.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 interface Folder {
@@ -36,7 +36,6 @@ interface Props {
   scanner: ScannerStore;
   // Which post and photo are open; each is a browser history entry.
   nav: NavStore;
-  userId: number | null;
   // Pricing per post and the default; pricingFor() prices every photo.
   pricing: PricingStore;
   health: Health | null;
@@ -73,7 +72,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
   };
 }
 
-export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userId, pricing, health, t, lang, credits, onEnterVoucher }: Props) {
+export function Scanner({ scanner, nav: { nav, go, replace, up, current }, pricing, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
   const zoom = useImageZoom();
   const { pricingFor, listPosts, createPost } = pricing;
@@ -85,23 +84,15 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoaded, setPostsLoaded] = useState(false);
 
-  // Tracks which scanned cards have already been pushed to the checklist.
-  // Keyed by scanId (NOT batchId) so refresh-rehydrated batches keep their
-  // "added" memory and re-running Add-all becomes a no-op instead of a
-  // silent duplicate. Initialised eagerly from localStorage.
-  const [addedByScanId, setAddedByScanId] = useState(() => loadAdded(userId));
-  // As each page of saved scans arrives, take over its markers kept before
-  // they were per user, so Add-all on it already skips them. Once every page
-  // has loaded, also forget the markers of deleted scans; then stop (not on
-  // every edit of the list).
-  const addedSettled = useRef(false);
+  // Once every saved photo has loaded, tie cards added by older versions
+  // (remembered only on this device) to their photo on the server.
+  const migrated = useRef(false);
   useEffect(() => {
-    if (addedSettled.current) return;
-    const done = !scanner.loadingSaved;
-    if (settleAdded(userId, new Set(scanner.batches.map(b => b.scanId)), done) || done) setAddedByScanId(loadAdded(userId));
-    addedSettled.current = done;
+    if (migrated.current || scanner.loadingSaved) return;
+    migrated.current = true;
+    migrateAdded(scanner.batches, scanner.markListed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanner.batches, scanner.loadingSaved]);
+  }, [scanner.loadingSaved]);
 
   // Synchronous re-entry guard for per-batch Add-all. A ref (not state)
   // because React state updates are async — a fast double-click can fire
@@ -119,44 +110,33 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
 
   useEffect(() => { refreshPosts(); }, [refreshPosts]);
 
-  const markAdded = useCallback((scanId: number, origIdx: number, listingId: number) => {
-    setAddedByScanId(prev => {
-      const next = { ...prev, [scanId]: { ...(prev[scanId] || {}), [origIdx]: listingId } };
-      saveAdded(userId, scanId, next[scanId]);
-      return next;
-    });
-  }, [userId]);
-
   // Which batch's add-all is currently running (drives the button's loading
   // state) and whether the page-level "add all images" bulk run is in flight.
   const [addingBatchId, setAddingBatchId] = useState<string | null>(null);
   const [addingAll, setAddingAll] = useState(false);
 
-  // Core add-all: push every visible, priced card of a batch to the checklist.
-  // No dedup against earlier adds — re-running intentionally re-adds (the user
-  // asked to "always allow"). Accidental double-submits are prevented by the
-  // button's busy state, not by skipping cards. markAdded still runs so the
-  // per-card "added" badge stays informative. Returns how many cards failed.
+  // Core add-all: push every visible, priced card of a batch that is not on
+  // the checklist yet, each tied to the photo so deleting the photo takes it
+  // off again. Returns how many cards failed.
   const addBatchCore = useCallback(async (batch: Batch, postId: number | null) => {
     if (!batch.response || batch.scanId == null) return 0;
     let failed = 0;
-    const cardData = computeCardData(batch, pricingFor(batch.postId));
-    const visible = cardData.filter(cd => !cd.removed);
-    for (const cd of visible) {
-      if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) continue;
+    for (const cd of notAdded(batch, computeCardData(batch, pricingFor(batch.postId)))) {
       try {
-        const result = await listingsApi.create({
+        await listingsApi.create({
           ...listingFields(cd),
+          scan_id: batch.scanId,
+          bbox: cd.card.bbox,
           post_ids: postId != null ? [postId] : [],
         });
-        markAdded(batch.scanId, cd.origIdx, result.id);
+        scanner.markListed(batch.id, cd.card.bbox);
       } catch (e) {
         console.error('Add failed for', cd.sel.name, e);
         failed += 1;
       }
     }
     return failed;
-  }, [pricingFor, markAdded]);
+  }, [pricingFor, scanner.markListed]);
 
   const alertFailed = useCallback(async (failed: number) => {
     if (failed) await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_failed', { n: failed }) });
@@ -336,6 +316,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
           covers={f.items.flatMap(i => (i.batch.response ? [i.batch.response.thumb_url ?? i.batch.response.image_b64] : []))}
           photos={f.items.length}
           needs={f.items.filter(i => i.needs > 0).length}
+          pending={f.items.filter(i => i.pending > 0).length}
           total={f.total}
           settings={pricingFor(f.postId)}
           t={t}
@@ -577,11 +558,6 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
     return b?.response?.cards[printingsCtx.idx]?.candidates[0]?.scryfall_id || '';
   })();
 
-  // Slice of addedByScanId for the currently-active batch — handed to
-  // ActiveBatchView as `addedIdx`. Empty when the batch hasn't completed
-  // scanning yet (no scanId yet) so the "+ Add" buttons stay clickable.
-  const activeAddedSlice = (activeBatch?.scanId != null ? addedByScanId[activeBatch.scanId] : null) || {};
-
   const loading = (scanner.loadingSaved || !postsLoaded) && scanner.batches.length === 0;
   const progress = scanner.scanProgress ? (
     <div className="scan-progress">
@@ -696,20 +672,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
             t={t}
             onZoom={zoom.open}
             onBrowsePrintings={onBrowsePrintings}
-            posts={pickerPosts}
-            selectedPostId={activeBatch.postId != null && postsById.has(activeBatch.postId) ? activeBatch.postId : null}
-            onSelectPost={async (pid) => {
-              // Filing the photo under another post takes you there with it.
-              if (pid != null && !postsById.has(pid)) await refreshPosts();
-              await moveTo([activeBatch.id], pid);
-              replace({ folder: pid != null ? `p${pid}` : UNFILED });
-            }}
-            onPostsChanged={refreshPosts}
-            createPost={createPost}
-            addedIdx={activeAddedSlice}
-            onMarkAdded={(origIdx, listingId) => {
-              if (activeBatch.scanId != null) markAdded(activeBatch.scanId, origIdx, listingId);
-            }}
+            postTitle={activeBatch.postId != null && postsById.has(activeBatch.postId) ? postTitle(postsById.get(activeBatch.postId)!) : null}
             onAddAll={() => addBatchToChecklist(activeBatch, activeBatch.postId)}
             addAllBusy={addingBatchId === activeBatch.id || addingAll}
             onExport={() => exportBatch(activeBatch)}
