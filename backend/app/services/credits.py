@@ -165,7 +165,7 @@ async def grant(db: AsyncSession, user_id: int, *, credits: int = 0,
     if unlimited:
         if unlimited_days is None:
             user.unlimited_scans_until = FOREVER
-        else:
+        elif user.unlimited_scans_until != FOREVER:  # FOREVER + days overflows
             # Extend from whatever is left, so two 30-day vouchers make 60.
             start = max(user.unlimited_scans_until or _now(), _now())
             user.unlimited_scans_until = min(FOREVER, start + timedelta(days=unlimited_days))
