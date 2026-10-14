@@ -71,6 +71,9 @@ export interface ListingCreatePayload {
   qty_total?: number;
   notes?: string | null;
   post_ids?: number[];
+  // The photo the card was added from, and where on it.
+  scan_id?: number | null;
+  bbox?: number[] | null;
 }
 
 // ---------- Posts ----------

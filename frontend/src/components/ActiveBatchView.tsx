@@ -1,11 +1,10 @@
 import { Icon } from './Icon.tsx';
 import { useMemo, useRef, useState } from 'react';
 import { frameCard } from '../api.ts';
-import { listingsApi, type Post } from '../api/checklist.ts';
-import type { PricingStore } from '../hooks/usePricing.ts';
+import { listingsApi } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { computeCardData, formatMyr, listingFields } from '../utils.ts';
+import { bboxKey, computeCardData, formatMyr, listingFields, notAdded } from '../utils.ts';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow } from './CardRow.tsx';
 import { useDialog } from './DialogProvider.tsx';
@@ -18,21 +17,14 @@ interface Props {
   t: T;
   onZoom: (src: string, caption: string) => void;
   onBrowsePrintings: (idx: number) => void;
-  posts: Post[];
-  selectedPostId: number | null;
-  onSelectPost: (postId: number | null) => void;
-  onPostsChanged: () => void;
-  createPost: PricingStore['createPost'];
-  // Lifted from Scanner.tsx so bulk callers can dedupe and so the "added"
-  // badge survives batch-tab switches.
-  addedIdx: Record<number, number>;
-  onMarkAdded: (origIdx: number, listingId: number) => void;
+  // The post the photo is in (null when unfiled): its cards are added there.
+  postTitle: string | null;
   // Add-all and export now live in Scanner.tsx so the page-level bulk strip
   // can replay them against any batch. This component just triggers them.
   onAddAll: () => Promise<void>;
   // True while this batch's add-all (or the page-level bulk add) is running.
   // Drives the button's loading label and disables it so a double-click can't
-  // fire a second add — re-adding is otherwise always allowed.
+  // fire a second add.
   addAllBusy: boolean;
   onExport: () => Promise<void>;
   // Re-queries CK for this scan's cards. Disabled until the batch has a
@@ -41,19 +33,9 @@ interface Props {
   onRefreshPrices: () => Promise<void>;
 }
 
-// Convert a data: URL (the preview the backend returns) into a File so we
-// can multipart-upload it as a post's reminder image without an extra HTTP
-// round-trip to the server.
-async function dataUrlToFile(dataUrl: string, filename: string): Promise<File> {
-  const resp = await fetch(dataUrl);
-  const blob = await resp.blob();
-  return new File([blob], filename, { type: blob.type || 'image/jpeg' });
-}
-
 export function ActiveBatchView({
   batch, settings, scanner, t, onZoom, onBrowsePrintings,
-  posts, selectedPostId, onSelectPost, onPostsChanged, createPost,
-  addedIdx, onMarkAdded, onAddAll, addAllBusy, onExport, onRefreshPrices,
+  postTitle, onAddAll, addAllBusy, onExport, onRefreshPrices,
 }: Props) {
   const dialog = useDialog();
   const [refreshing, setRefreshing] = useState(false);
@@ -127,11 +109,14 @@ export function ActiveBatchView({
     finally { setRefreshing(false); }
   };
 
-  // POST a single card row to /api/listings, remembering it succeeded
-  // so the button can show its "added" state. Skips when this card is
-  // already added or has a POST in flight from a same-tick double-click.
+  const isAdded = (cd: CardRowData) => batch.listed.includes(bboxKey(cd.card.bbox));
+  const pending = notAdded(batch, visible).length;
+
+  // POST a single card row to /api/listings, tied to this photo. Skips when
+  // this card is already added or has a POST in flight from a same-tick
+  // double-click.
   const addOneToList = async (cd: CardRowData) => {
-    if (addedIdx[cd.origIdx]) return;
+    if (isAdded(cd) || addAllBusy) return;
     if (cardAddInFlightRef.current.has(cd.origIdx)) return;
     if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) {
       await dialog.alert({ title: t('alert_error_title'), message: t('add_to_list_failed', { err: 'no price set' }) });
@@ -139,43 +124,17 @@ export function ActiveBatchView({
     }
     cardAddInFlightRef.current.add(cd.origIdx);
     try {
-      const result = await listingsApi.create({
+      await listingsApi.create({
         ...listingFields(cd),
-        post_ids: selectedPostId != null ? [selectedPostId] : [],
+        scan_id: batch.scanId,
+        bbox: cd.card.bbox,
+        post_ids: batch.postId != null ? [batch.postId] : [],
       });
-      onMarkAdded(cd.origIdx, result.id);
+      scanner.markListed(batch.id, cd.card.bbox);
     } catch (e) {
       await dialog.alert({ title: t('alert_error_title'), message: t('add_to_list_failed', { err: (e as Error).message }) });
     } finally {
       cardAddInFlightRef.current.delete(cd.origIdx);
-    }
-  };
-
-  // Create a new Post seeded with this scan's preview image so it doubles as
-  // the post's reminder photo. We use the data: URL the backend already
-  // baked into the response — no extra round-trip needed.
-  const createPostFromScan = async () => {
-    const defaultTitle = batch.filename.replace(/\.[^.]+$/, '');
-    const title = await dialog.prompt({
-      title: t('scanner_post_prompt_title'),
-      defaultValue: defaultTitle,
-      placeholder: defaultTitle,
-      okLabel: t('scanner_post_prompt_ok'),
-    });
-    if (title == null) return;  // user cancelled
-    try {
-      let imageFile: File | null = null;
-      if (batch.response?.image_b64) {
-        imageFile = await dataUrlToFile(batch.response.image_b64, `${defaultTitle}.jpg`);
-      }
-      const created = await createPost({
-        title: title.trim() || defaultTitle,
-        image: imageFile,
-      });
-      onPostsChanged();
-      onSelectPost(created.id);
-    } catch (e) {
-      await dialog.alert({ title: t('alert_error_title'), message: t('scanner_post_create_failed', { err: (e as Error).message }) });
     }
   };
 
@@ -193,46 +152,27 @@ export function ActiveBatchView({
 
   // Shared finalize-block content. Rendered once at the top of the card list
   // and once at the bottom so mobile users don't have to scroll past long
-  // card lists to act. The picker + button state are bound to the same props,
-  // so both copies stay in sync automatically.
+  // card lists to act. Cards are not on the post until the seller adds them,
+  // so until then the hint says so and Add is the main button.
+  const addLabel = postTitle != null ? t('add_all_to_list') : t('add_all_to_list_loose');
   const finalizeContent = (
     <>
-      <div className="finalize-picker-row">
-        <span className="scan-post-label">{t('scanner_post_label')}</span>
-        <select
-          className="scan-post-select"
-          value={selectedPostId ?? ''}
-          onChange={(e) => {
-            const v = e.target.value;
-            onSelectPost(v === '' ? null : parseInt(v, 10));
-          }}
-        >
-          <option value="">{t('scanner_post_none')}</option>
-          {posts.map(p => (
-            <option key={p.id} value={p.id}>
-              {p.title || `#${p.id}`}
-              {p.fb_url ? ' · link' : ''}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="ghost"
-          onClick={createPostFromScan}
-          title={t('scanner_post_new_title')}
-        ><Icon name="plus" size={16} />{t('scanner_post_new_btn')}</button>
-      </div>
-      {selectedPostId != null ? (
-        <span className="scan-post-hint">{t('scanner_post_selected_hint')}</span>
-      ) : (
-        <span className="scan-post-hint muted">{t('scanner_post_unselected_hint')}</span>
-      )}
+      {pending > 0 ? (
+        <span className="scan-post-hint not-added">
+          <Icon name="warning" size={16} />
+          {t('scan_not_added', { n: pending, post: postTitle ?? t('scans_unfiled'), btn: addLabel })}
+        </span>
+      ) : batch.listed.length > 0 ? (
+        <span className="scan-post-hint">
+          <Icon name="check" size={16} />{t('scan_all_added', { post: postTitle ?? t('scans_unfiled') })}
+        </span>
+      ) : null}
       <div className="finalize-action-row">
-        <button className="accent" onClick={onExport}>
-          <Icon name="share" size={18} />{t('export_btn')}
+        <button className={pending > 0 ? 'accent' : ''} onClick={onAddAll} disabled={addAllBusy || pending === 0}>
+          <Icon name="addList" size={18} />{addAllBusy ? t('add_all_loading') : addLabel}
         </button>
-        <button onClick={onAddAll} disabled={addAllBusy}>
-          <Icon name="addList" size={18} />{addAllBusy ? t('add_all_loading') : t('add_all_to_list')}
+        <button className={pending > 0 ? '' : 'accent'} onClick={onExport}>
+          <Icon name="share" size={18} />{t('export_btn')}
         </button>
         {refreshButton}
       </div>
@@ -263,8 +203,7 @@ export function ActiveBatchView({
         />
         <div>
           {/* Top finalize block — same content as the bottom one so mobile
-              users with long card lists can act without scrolling. Picker +
-              button state are bound to shared props, so both stay in sync. */}
+              users with long card lists can act without scrolling. */}
           <div className="finalize-block finalize-block-top">
             {finalizeContent}
           </div>
@@ -288,11 +227,13 @@ export function ActiveBatchView({
                 cd={cd}
                 msg={batch.relookupMsg[cd.origIdx] ?? null}
                 busy={!!batch.relookupBusy[cd.origIdx]}
-                added={!!addedIdx[cd.origIdx]}
+                added={isAdded(cd)}
+                versionOk={batch.versionOk[cd.origIdx]}
                 settings={settings}
                 t={t}
                 onZoom={onZoom}
                 onAddToList={() => addOneToList(cd)}
+                onVersionOk={() => scanner.confirmVersion(batch.id, cd.origIdx)}
                 onRemove={() => scanner.setRemoved(batch.id, cd.origIdx, true)}
                 onQtyChange={(q) => scanner.setQuantity(batch.id, cd.origIdx, q)}
                 onQtyStep={(d) => scanner.stepQuantity(batch.id, cd.origIdx, d)}
@@ -344,8 +285,7 @@ export function ActiveBatchView({
 
           {/* Bottom finalize block — same content, same handlers, kept here
               so users who've scrolled all the way down don't need to scroll
-              back up. The post picker and action buttons are bound to shared
-              state, so changing one updates both. */}
+              back up. */}
           <div className="finalize-block">
             {finalizeContent}
           </div>

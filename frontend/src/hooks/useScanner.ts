@@ -11,7 +11,7 @@ import {
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
-import { freshState, generateBatchId, normalizeUiState } from '../utils.ts';
+import { bboxKey, freshState, generateBatchId, normalizeUiState } from '../utils.ts';
 import type { T } from './useLang.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
 
@@ -85,6 +85,7 @@ function uiStateOf(b: Batch): ScanUiState {
     multOverride: b.multOverride,
     removed: b.removed,
     pillOffset: b.pillOffset,
+    versionOk: b.versionOk,
   };
 }
 
@@ -94,6 +95,7 @@ function batchFromSavedScan(saved: SavedScan): Batch {
     id: `s${saved.scan_id}`,
     scanId: saved.scan_id,
     postId: saved.post_id ?? null,
+    listed: (saved.listed ?? []).map(bboxKey),
     filename: saved.filename,
     status: 'done',
     response: {
@@ -259,11 +261,12 @@ export function useScanner(userId: number | null, signOut: () => void) {
       id,
       scanId: null,
       postId,
+      listed: [],
       filename: file.name,
       status: 'scanning',
       response: null,
       isFoil: [], priceOverride: [], quantity: [],
-      multOverride: [], removed: [], pillOffset: [],
+      multOverride: [], removed: [], pillOffset: [], versionOk: [],
       relookupBusy: [], relookupMsg: [],
     }));
     commit(prev => [...prev, ...stubs]);
@@ -389,6 +392,17 @@ export function useScanner(userId: number | null, signOut: () => void) {
     [updateCardArray],
   );
 
+  // A card of this photo is now on the checklist.
+  const markListed = useCallback((batchId: string, bbox: number[]) => {
+    const key = bboxKey(bbox);
+    commit(prev => prev.map(b => (b.id === batchId && !b.listed.includes(key) ? { ...b, listed: [...b.listed, key] } : b)));
+  }, []);
+
+  const confirmVersion = useCallback(
+    (batchId: string, idx: number) => updateCardArray(batchId, 'versionOk', idx, true),
+    [updateCardArray],
+  );
+
   // Append a user-framed card (from the framing tool in BatchPreview's expand
   // mode). Pushes onto every parallel array so indices stay aligned. Seeded
   // foil=false, qty=1 unless the backend hint says otherwise.
@@ -410,6 +424,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
           multOverride: [...b.multOverride, null],
           removed: [...b.removed, false],
           pillOffset: [...b.pillOffset, null],
+          versionOk: [...b.versionOk, false],
           relookupBusy: [...b.relookupBusy, false],
           relookupMsg: [...b.relookupMsg, isManual
             ? { type: 'err', text: 'no match — type a name to look it up', action: 'use as-is' }
@@ -571,6 +586,8 @@ export function useScanner(userId: number | null, signOut: () => void) {
     stepMult,
     setRemoved,
     setPillOffset,
+    confirmVersion,
+    markListed,
     appendFramedCard,
     restoreAll,
     relookupByName,

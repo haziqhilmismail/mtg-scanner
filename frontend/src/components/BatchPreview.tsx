@@ -438,6 +438,27 @@ export function BatchPreview({
                     : frameStage === 'submitting' ? t('frame_hint_submitting')
                     : t('frame_hint_drawn')}
                 </span>
+                {frameError ? (
+                  <span className="frame-action-error">{frameError}</span>
+                ) : null}
+                {frameStage === 'drawn' || frameStage === 'submitting' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="frame-action-confirm"
+                      onClick={() => submitFrame(false)}
+                      disabled={frameStage === 'submitting'}
+                      title={t('frame_confirm_title')}
+                    >{frameStage === 'submitting' ? t('frame_submitting') : `✓ ${t('frame_confirm')}`}</button>
+                    <button
+                      type="button"
+                      className="frame-action-manual"
+                      onClick={() => submitFrame(true)}
+                      disabled={frameStage === 'submitting'}
+                      title={t('frame_manual_title')}
+                    >{t('frame_manual')}</button>
+                  </>
+                ) : null}
                 <label className="frame-toolbar-aspect">
                   <input
                     type="checkbox"
@@ -561,57 +582,6 @@ export function BatchPreview({
             );
           })}
         </svg>
-        {frameStage === 'drawn' || frameStage === 'submitting' ? (() => {
-          if (!drawnRect) return null;
-          // Position the action bar in viewport pixels just under the drawn
-          // rect's bottom edge. We compute the same letterbox transform the
-          // capture rect uses, in reverse — so the bar tracks the rect when
-          // the modal is resized.
-          const el = svgRef.current;
-          if (!el) return null;
-          const rect = el.getBoundingClientRect();
-          const containerAspect = rect.width / rect.height || 1;
-          const imageAspect = width / height || 1;
-          let renderedW: number, renderedH: number, offX: number, offY: number;
-          if (containerAspect > imageAspect) {
-            renderedH = rect.height; renderedW = renderedH * imageAspect;
-            offX = (rect.width - renderedW) / 2; offY = 0;
-          } else {
-            renderedW = rect.width; renderedH = renderedW / imageAspect;
-            offX = 0; offY = (rect.height - renderedH) / 2;
-          }
-          const scaleX = renderedW / width;
-          const scaleY = renderedH / height;
-          const left = offX + (drawnRect.x + drawnRect.w / 2) * scaleX;
-          const top = offY + (drawnRect.y + drawnRect.h) * scaleY + 12;
-          return (
-            <div className="frame-action-bar" style={{ left, top }}>
-              {frameError ? (
-                <span className="frame-action-error">{frameError}</span>
-              ) : null}
-              <button
-                type="button"
-                className="frame-action-confirm"
-                onClick={() => submitFrame(false)}
-                disabled={frameStage === 'submitting'}
-                title={t('frame_confirm_title')}
-              >{frameStage === 'submitting' ? t('frame_submitting') : `✓ ${t('frame_confirm')}`}</button>
-              <button
-                type="button"
-                className="frame-action-manual"
-                onClick={() => submitFrame(true)}
-                disabled={frameStage === 'submitting'}
-                title={t('frame_manual_title')}
-              >{t('frame_manual')}</button>
-              <button
-                type="button"
-                className="frame-action-cancel"
-                onClick={cancelFrame}
-                disabled={frameStage === 'submitting'}
-              >✕</button>
-            </div>
-          );
-        })() : null}
       </div>
       {!expanded ? (
         <div className="preview-expand-row">

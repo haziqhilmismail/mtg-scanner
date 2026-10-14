@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Icon } from './Icon.tsx';
 import type { CardRowData, RelookupMsg, Settings } from '../types.ts';
 import { ckSearchUrl, fmt2, formatMyrWithFoil } from '../utils.ts';
@@ -14,10 +13,12 @@ interface Props {
   msg: RelookupMsg | null;
   busy: boolean;
   added: boolean;
+  versionOk: boolean;
   settings: Settings;
   t: T;
   onZoom: (src: string, caption: string) => void;
   onAddToList: () => void;
+  onVersionOk: () => void;
   onRemove: () => void;
   onQtyChange: (qty: number) => void;
   onQtyStep: (delta: number) => void;
@@ -52,8 +53,8 @@ function renderTitleLink(cd: CardRowData, t: Props['t']) {
 }
 
 export function CardRow({
-  cd, msg, busy, added, settings, t,
-  onZoom, onAddToList, onRemove,
+  cd, msg, busy, added, versionOk, settings, t,
+  onZoom, onAddToList, onVersionOk, onRemove,
   onQtyChange, onQtyStep,
   onMultChange, onMultStep, onMultClear,
   onFoilToggle,
@@ -110,16 +111,15 @@ export function CardRow({
   // The local scanner couldn't read the collector line, so the printing (and
   // the foil default) is a visual best guess. Ask the seller to check it until
   // they pick another printing or say it's right.
-  const [versionConfirmed, setVersionConfirmed] = useState(false);
   const versionUnsure = !cd.isManual
     && cd.card.version_source === 'embedding'
     && cd.sel.scryfall_id === cd.card.candidates[0]?.scryfall_id
-    && !versionConfirmed;
+    && !versionOk;
   const versionNotice = versionUnsure ? (
     <div className="manual-banner version-check">
       <Icon name="warning" size={16} />
       <span>{t('version_unsure')}</span>
-      <button type="button" className="link-btn" onClick={() => setVersionConfirmed(true)}>
+      <button type="button" className="link-btn" onClick={onVersionOk}>
         {t('version_unsure_ok')}
       </button>
     </div>
