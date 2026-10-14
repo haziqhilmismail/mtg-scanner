@@ -23,12 +23,12 @@ const UNFILED = 'unfiled';
 import { ActiveBatchView } from '../components/ActiveBatchView.tsx';
 import { AddAllChecklistModal } from '../components/AddAllChecklistModal.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
+import { useImageZoom } from '../components/ImageZoomProvider.tsx';
 import { PrintingsModal } from '../components/PrintingsModal.tsx';
 import { PhotoTile, PostTile, summarise, type BatchSummary } from '../components/ScanGallery.tsx';
 import { SettingsPanel } from '../components/SettingsPanel.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { UploadZone } from '../components/UploadZone.tsx';
-import { ZoomModal } from '../components/ZoomModal.tsx';
 
 interface Props {
   scanner: ScannerStore;
@@ -97,7 +97,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
 
 export function Scanner({ scanner, settings, updateSetting, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
-  const [zoom, setZoom] = useState<{ src: string; caption: string } | null>(null);
+  const zoom = useImageZoom();
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
 
   // Posts double as the gallery's folders: every scan is filed under one (or
@@ -690,7 +690,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
             settings={settings}
             scanner={scanner}
             t={t}
-            onZoom={(src, caption) => setZoom({ src, caption })}
+            onZoom={zoom.open}
             onBrowsePrintings={onBrowsePrintings}
             posts={pickerPosts}
             selectedPostId={activeBatch.postId != null && postsById.has(activeBatch.postId) ? activeBatch.postId : null}
@@ -936,11 +936,6 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
         onClose={() => setPrintingsCtx(null)}
         onSelect={onPickPrinting}
         t={t}
-      />
-      <ZoomModal
-        src={zoom?.src ?? null}
-        caption={zoom?.caption || ''}
-        onClose={() => setZoom(null)}
       />
     </>
   );
