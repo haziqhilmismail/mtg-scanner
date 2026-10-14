@@ -21,6 +21,7 @@ class PostUpdate(BaseModel):
     fb_url: str | None = None
     note: str | None = None
     status: PostStatus | MISSING = MISSING
+    pricing: dict | None = None  # null clears: the post follows the user's default
 
 
 class PostRead(PostBase):
@@ -29,6 +30,7 @@ class PostRead(PostBase):
     user_id: int
     image_path: str | None
     image_mime: str | None
+    pricing: dict | None
     created_at: datetime
     updated_at: datetime
 

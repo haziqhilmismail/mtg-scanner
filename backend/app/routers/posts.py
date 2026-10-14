@@ -4,11 +4,12 @@ as regular Listing rows with `post_id` set.
 
 We never query Facebook. The URL is reference-only."""
 
+import json
 from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Json
 from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import selectinload
 
@@ -36,6 +37,11 @@ ALLOWED_IMAGE_MIME = {
     "image/heic", "image/heif", "image/gif",
 }
 MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MiB
+
+
+def check_pricing_size(pricing: dict | None) -> None:
+    if pricing is not None and len(json.dumps(pricing)) > 8 * 1024:
+        raise HTTPException(413, "Pricing too large (max 8 KB)")
 
 
 def _post_image_path(post_id: int) -> Path:
@@ -123,15 +129,19 @@ async def create_post(
     title: str | None = Form(None),
     fb_url: str | None = Form(None),
     note: str | None = Form(None),
+    pricing: Json[dict] | None = Form(None),
     image: UploadFile | None = File(None),
 ) -> PostReadWithStats:
     """Create a post. Image is optional — supply it now or upload later via
-    POST /api/posts/{id}/image. Empty strings become NULL."""
+    POST /api/posts/{id}/image. Empty strings become NULL. `pricing` is a JSON
+    object as a string."""
+    check_pricing_size(pricing)
     post = Post(
         user_id=user_id,
         title=(title or None) and title.strip() or None,
         fb_url=(fb_url or None) and fb_url.strip() or None,
         note=(note or None) and note.strip() or None,
+        pricing=pricing,
     )
     db.add(post)
     await db.flush()  # need post.id before writing image file
@@ -163,6 +173,7 @@ async def update_post(
     if not post or post.user_id != user_id:
         raise HTTPException(404, "Post not found")
     updates = payload.model_dump(exclude_unset=True)
+    check_pricing_size(updates.get("pricing"))
     for k, v in updates.items():
         if k == "status":
             # status is an enum — never empty-string-coerced
