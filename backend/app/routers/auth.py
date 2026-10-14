@@ -2,6 +2,7 @@
 
 POST /api/auth/google  — exchange a Google ID token for one of our session JWTs.
 GET  /api/auth/me      — return the current user (or 401 if not signed in).
+PUT  /api/auth/me/pricing — set the user's default pricing settings.
 Both also hand out an image-only token for <img src> URLs ("" in solo mode).
 GET  /api/auth/config  — exposes auth_enabled so the frontend can render the
                          login page vs. solo mode without a separate env var.
@@ -16,6 +17,7 @@ from sqlalchemy import select
 from ..config import settings
 from ..deps import CurrentUserId, DbSession
 from ..models import User
+from .posts import check_pricing_size
 from ..services.auth_service import (
     issue_image_token,
     issue_session_token,
@@ -39,6 +41,11 @@ class AuthUser(BaseModel):
 
 class Me(AuthUser):
     image_token: str
+    pricing: dict | None = None
+
+
+class PricingBody(BaseModel):
+    pricing: dict
 
 
 class AuthResponse(BaseModel):
@@ -129,5 +136,14 @@ async def me(db: DbSession, user_id: CurrentUserId):
         raise HTTPException(401, "User no longer exists")
     return Me(
         id=user.id, email=user.email, name=user.name, avatar_url=user.avatar_url,
-        image_token=_image_token(user.id),
+        image_token=_image_token(user.id), pricing=user.pricing,
     )
+
+
+@router.put("/me/pricing", status_code=204)
+async def set_default_pricing(body: PricingBody, db: DbSession, user_id: CurrentUserId):
+    check_pricing_size(body.pricing)
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(401, "User no longer exists")
+    user.pricing = body.pricing
