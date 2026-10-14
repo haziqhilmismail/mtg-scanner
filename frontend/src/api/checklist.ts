@@ -212,7 +212,6 @@ async function json<T>(method: string, url: string, body?: unknown): Promise<T> 
 export const buyersApi = {
   list: () => json<Buyer[]>('GET', '/api/buyers'),
   create: (payload: BuyerCreatePayload) => json<Buyer>('POST', '/api/buyers', payload),
-  get: (id: number) => json<Buyer>('GET', `/api/buyers/${id}`),
   update: (id: number, payload: Partial<BuyerCreatePayload>) =>
     json<Buyer>('PATCH', `/api/buyers/${id}`, payload),
   remove: (id: number) => json<void>('DELETE', `/api/buyers/${id}`),
@@ -223,7 +222,6 @@ export const listingsApi = {
   list: (status?: ListingStatus) =>
     json<Listing[]>('GET', `/api/listings${status ? `?status=${status}` : ''}`),
   create: (payload: ListingCreatePayload) => json<Listing>('POST', '/api/listings', payload),
-  get: (id: number) => json<Listing>('GET', `/api/listings/${id}`),
   update: (id: number, payload: Partial<ListingCreatePayload> & { status?: ListingStatus }) =>
     json<Listing>('PATCH', `/api/listings/${id}`, payload),
   archive: (id: number) => json<void>('DELETE', `/api/listings/${id}`),
@@ -236,13 +234,11 @@ export const ordersApi = {
   list: (includeArchived = false) =>
     json<Order[]>('GET', `/api/orders${includeArchived ? '?include_archived=true' : ''}`),
   create: (payload: OrderCreatePayload) => json<Order>('POST', '/api/orders', payload),
-  get: (id: number) => json<Order>('GET', `/api/orders/${id}`),
   update: (id: number, payload: { status?: OrderStatus; paid_at?: string | null; delivered_at?: string | null; dropoff_method?: string | null; dropoff_address?: string | null; notes?: string | null }) =>
     json<Order>('PATCH', `/api/orders/${id}`, payload),
   markPaid: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-paid`),
   markDelivered: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-delivered`),
   cancel: (id: number) => json<Order>('POST', `/api/orders/${id}/cancel`),
-  restore: (id: number) => json<Order>('POST', `/api/orders/${id}/restore`),
   archive: (id: number) => json<Order>('POST', `/api/orders/${id}/archive`),
   unarchive: (id: number) => json<Order>('POST', `/api/orders/${id}/unarchive`),
   uploadDeliveryPhoto: (id: number, image: File) =>
@@ -291,7 +287,6 @@ export const postsApi = {
       note: payload.note ?? undefined,
       image: payload.image ?? undefined,
     }),
-  get: (id: number) => json<Post>('GET', `/api/posts/${id}`),
   update: (id: number, payload: PostUpdatePayload) =>
     json<Post>('PATCH', `/api/posts/${id}`, payload),
   uploadImage: (id: number, image: File) =>

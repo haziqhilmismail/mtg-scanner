@@ -134,7 +134,6 @@ function batchFromSavedScan(saved: SavedScan): Batch {
 
 export function useScanner() {
   const [batches, setBatches] = useState<Batch[]>([]);
-  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [loadingSaved, setLoadingSaved] = useState(true);
 
   // Track which batches have been persisted this render — avoids re-writing
@@ -169,12 +168,8 @@ export function useScanner() {
         removeTombstones(orphanTombstones);
 
         const alive = saved.filter(s => !tombstones.has(s.scan_id));
-        // Reverse so newest is at the END of the array (matches "append on upload" UX);
-        // pick the most-recent as active.
-        const ordered = [...alive].reverse();
-        const seeded = ordered.map(batchFromSavedScan);
-        setBatches(seeded);
-        setActiveBatchId(seeded[seeded.length - 1]?.id ?? null);
+        // Reverse so newest is at the END of the array (matches "append on upload" UX).
+        setBatches([...alive].reverse().map(batchFromSavedScan));
         setLoadingSaved(false);
       },
       () => {
@@ -256,10 +251,6 @@ export function useScanner() {
       relookupBusy: [], relookupMsg: [],
     }));
     setBatches(prev => [...prev, ...stubs]);
-    // Activate the first newly-queued tab once. Bumping activeBatchId on
-    // every iteration retriggers BatchTabStrip's scrollIntoView and drags
-    // the strip around as each scan finishes.
-    setActiveBatchId(queued[0].id);
 
     setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + queued.length }));
     scanQueue.current.push(...queued.map(({ file, id }) => async () => {
@@ -509,24 +500,6 @@ export function useScanner() {
     [replaceCandidate, setRelookupMsg, updateCardArray],
   );
 
-  const clearAll = useCallback(async () => {
-    const toDelete = batches.filter(b => b.scanId).map(b => b.scanId as number);
-    // Persist intent BEFORE firing DELETEs so a refresh-mid-clear can't
-    // cause cleared scans to reappear on next rehydration.
-    addTombstones(toDelete);
-    setBatches([]);
-    setActiveBatchId(null);
-    toDelete.forEach(sid => {
-      try { localStorage.removeItem(STATE_KEY(sid)); } catch { /* ignore */ }
-    });
-    // Parallel deletes — much faster than the previous sequential await chain,
-    // and per-request failures don't block the rest. Survivors stay tombstoned
-    // and get retried by the rehydration effect on the next mount.
-    const results = await Promise.allSettled(toDelete.map(sid => apiDeleteScan(sid)));
-    const succeeded = toDelete.filter((_, i) => results[i].status === 'fulfilled');
-    removeTombstones(succeeded);
-  }, [batches]);
-
   // File photos under another post (or unfile them). Optimistic: the gallery
   // regroups at once; if the server refuses, they go back where they were.
   const moveBatches = useCallback(async (ids: string[], postId: number | null) => {
@@ -545,11 +518,6 @@ export function useScanner() {
   const removeBatch = useCallback(async (id: string) => {
     const b = batches.find(x => x.id === id);
     setBatches(prev => prev.filter(x => x.id !== id));
-    setActiveBatchId(prev => {
-      if (prev !== id) return prev;
-      const remaining = batches.filter(x => x.id !== id);
-      return remaining[0]?.id ?? null;
-    });
     if (b?.scanId) {
       const sid = b.scanId;
       addTombstones([sid]);
@@ -565,14 +533,11 @@ export function useScanner() {
 
   return {
     batches,
-    activeBatchId,
-    setActiveBatchId,
     loadingSaved,
     addFiles,
     scanProgress,
     removeBatch,
     moveBatches,
-    clearAll,
     toggleFoil,
     setAllFoil,
     setPriceOverride,
