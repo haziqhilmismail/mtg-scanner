@@ -29,13 +29,22 @@ export function saveAdded(userId: number | null, scanId: number, slice: Record<n
   catch { /* quota / disabled storage — silent */ }
 }
 
-// Forget the markers of this user's scans that no longer exist.
-export function forgetAddedExcept(userId: number | null, scanIds: Set<number | null>) {
+// Once this user's scans are known: take over the markers older versions
+// kept without a user (`mtg.scanner.added.<scan id>`) for those scans, and
+// forget this user's markers of scans that no longer exist. Unowned markers
+// of other scans are left for the account they belong to.
+export function settleAdded(userId: number | null, scanIds: Set<number | null>) {
   const p = prefix(userId);
   try {
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(p) && !scanIds.has(Number(key.slice(p.length)))) localStorage.removeItem(key);
+    for (const key of Object.keys(localStorage)) {
+      const old = /^mtg\.scanner\.added\.(\d+)$/.exec(key);
+      if (old && scanIds.has(Number(old[1]))) {
+        const mine = localStorage.getItem(p + old[1]);
+        localStorage.setItem(p + old[1], JSON.stringify({ ...JSON.parse(localStorage.getItem(key)!), ...JSON.parse(mine ?? '{}') }));
+        localStorage.removeItem(key);
+      } else if (key.startsWith(p) && !scanIds.has(Number(key.slice(p.length)))) {
+        localStorage.removeItem(key);
+      }
     }
-  } catch { /* storage disabled */ }
+  } catch { /* storage disabled or a corrupt entry */ }
 }
