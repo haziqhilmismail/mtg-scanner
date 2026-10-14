@@ -67,7 +67,7 @@ class BulkImportLine(BaseModel):
     ok: bool
     error: str | None = None
     listing_id: int | None = None
-    name: str | MISSING = MISSING
+    name: str | None = None
     set_code: str | None = None
     collector_number: str | None = None
     is_foil: bool = False
