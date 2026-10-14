@@ -73,7 +73,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
   };
 }
 
-export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricing, health, t, lang, credits, onEnterVoucher }: Props) {
+export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userId, pricing, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
   const zoom = useImageZoom();
   const { pricingFor, listPosts, createPost } = pricing;
@@ -464,12 +464,14 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricin
       destructive: true,
     });
     if (!ok) return;
-    // Deleting the open photo goes back to its post, so no entry is left for it.
-    if (photoId != null && ids.includes(photoId)) up();
+    // Deleting the open photo goes back to its post, so no entry is left for
+    // it. Asked after the confirm: the user may have gone back meanwhile.
+    const open = current().photo;
+    if (open != null && ids.includes(open)) up();
     for (const id of ids) await scanner.removeBatch(id);
     setSelected(new Set());
     setSelecting(false);
-  }, [dialog, scanner, photoId, up, t]);
+  }, [dialog, scanner, current, up, t]);
 
   // Renaming a post: click its name on the post page and type. Enter or
   // clicking away saves, Esc cancels. null = not editing.
