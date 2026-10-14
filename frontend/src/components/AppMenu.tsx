@@ -19,6 +19,8 @@ interface Props {
   onSignOut?: () => void;
   // Shown when scan credits apply to this account.
   onRedeemVoucher?: () => void;
+  // Signed in: opens the default-pricing sheet.
+  onDefaultPricing?: () => void;
 }
 
 const LANGS: Lang[] = ['en', 'ms'];
@@ -27,7 +29,7 @@ const APPEARANCES: Appearance[] = ['auto', 'light', 'dark'];
 // The "More" menu: display preferences, feedback and the account, tucked
 // behind one button so the bar stays clear for the content.
 export function AppMenu({
-  lang, onLangChange, appearance, onAppearanceChange, t, status, user, onSignOut, onRedeemVoucher,
+  lang, onLangChange, appearance, onAppearanceChange, t, status, user, onSignOut, onRedeemVoucher, onDefaultPricing,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -118,6 +120,14 @@ export function AppMenu({
           </div>
 
           <div className="menu-group">
+            {onDefaultPricing ? (
+              <button
+                type="button" role="menuitem" className="menu-item"
+                onClick={() => { setOpen(false); onDefaultPricing(); }}
+              >
+                <Icon name="tag" />{t('menu_default_pricing')}
+              </button>
+            ) : null}
             {onRedeemVoucher ? (
               <button
                 type="button" role="menuitem" className="menu-item"

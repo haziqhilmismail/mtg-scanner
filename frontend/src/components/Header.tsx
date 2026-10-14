@@ -17,12 +17,13 @@ interface Props {
   user?: AuthUser | null;
   onSignOut?: () => void;
   onRedeemVoucher?: () => void;
+  onDefaultPricing: () => void;
 }
 
 export function Header({
   title, healthLabel, healthState,
   lang, onLangChange, appearance, onAppearanceChange, t,
-  user, onSignOut, onRedeemVoucher,
+  user, onSignOut, onRedeemVoucher, onDefaultPricing,
 }: Props) {
   return (
     <header className="app-bar">
@@ -45,6 +46,7 @@ export function Header({
             user={user}
             onSignOut={onSignOut}
             onRedeemVoucher={onRedeemVoucher}
+            onDefaultPricing={onDefaultPricing}
           />
         </div>
       </div>

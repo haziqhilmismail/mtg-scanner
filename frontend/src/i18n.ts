@@ -175,6 +175,11 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     nav_scanner: 'Scanner',
 
     settings_title: 'Pricing settings',
+    menu_default_pricing: 'Default pricing',
+    pricing_default_sub: 'New posts start with this pricing, and unfiled photos use it. A post with its own pricing keeps it.',
+    pricing_set_default: 'Set as default',
+    pricing_is_default: 'This is your default',
+    pricing_save_failed: "Your pricing change couldn't be saved. Check your connection and change it again.",
     mult_normal: 'Multiplier · Non-foil',
     mult_foil: 'Multiplier · Foil',
     currency_label: 'Currency label',
@@ -832,6 +837,11 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     nav_scanner: 'Pengimbas',
 
     settings_title: 'Tetapan harga',
+    menu_default_pricing: 'Harga lalai',
+    pricing_default_sub: 'Post baharu bermula dengan tetapan harga ini, dan foto tanpa post menggunakannya. Post yang ada tetapan harga sendiri kekal dengannya.',
+    pricing_set_default: 'Jadikan lalai',
+    pricing_is_default: 'Ini tetapan lalai anda',
+    pricing_save_failed: 'Perubahan harga anda tidak dapat disimpan. Semak sambungan anda dan ubah sekali lagi.',
     mult_normal: 'Pengganda · Bukan foil',
     mult_foil: 'Pengganda · Foil',
     currency_label: 'Label mata wang',
