@@ -91,7 +91,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
   // of the list).
   useEffect(() => {
     if (scanner.loadingSaved) return;
-    settleAdded(userId, new Set(scanner.batches.map(b => b.scanId)));
+    settleAdded(userId, new Set(scanner.batches.map(b => b.scanId)), true);
     setAddedByScanId(loadAdded(userId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanner.loadingSaved]);

@@ -7,20 +7,28 @@ type Added = Record<number, Record<number, number>>;  // scan id → card index 
 
 const prefix = (userId: number | null) => `mtg.scanner.added.${userId}.`;
 
+// A marker, or null (and the key removed) if it is corrupt.
+function read(key: string): Record<number, number> | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? '');
+    if (v && typeof v === 'object') return v;
+  } catch { /* corrupt */ }
+  try { localStorage.removeItem(key); } catch { /* storage disabled */ }
+  return null;
+}
+
+function keys(): string[] {
+  try { return Object.keys(localStorage); } catch { return []; }
+}
+
 export function loadAdded(userId: number | null): Added {
   const p = prefix(userId);
   const out: Added = {};
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key?.startsWith(p)) continue;
-      const scanId = parseInt(key.slice(p.length), 10);
-      if (isNaN(scanId)) continue;
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      out[scanId] = JSON.parse(raw);
-    }
-  } catch { /* corrupted entries are ignored */ }
+  for (const key of keys()) {
+    if (!key.startsWith(p)) continue;
+    const v = read(key);
+    if (v) out[Number(key.slice(p.length))] = v;
+  }
   return out;
 }
 
@@ -29,22 +37,24 @@ export function saveAdded(userId: number | null, scanId: number, slice: Record<n
   catch { /* quota / disabled storage — silent */ }
 }
 
-// Once this user's scans are known: take over the markers older versions
-// kept without a user (`mtg.scanner.added.<scan id>`) for those scans, and
-// forget this user's markers of scans that no longer exist. Unowned markers
-// of other scans are left for the account they belong to.
-export function settleAdded(userId: number | null, scanIds: Set<number | null>) {
+// Take over the markers older versions kept without a user
+// (`mtg.scanner.added.<scan id>`) for these scans of this user; with `prune`
+// (once all of them are known), also forget this user's markers of scans that
+// no longer exist. Unowned markers of other scans are left for the account
+// they belong to. Says whether any marker was taken over.
+export function settleAdded(userId: number | null, scanIds: Set<number | null>, prune: boolean): boolean {
   const p = prefix(userId);
-  try {
-    for (const key of Object.keys(localStorage)) {
-      const old = /^mtg\.scanner\.added\.(\d+)$/.exec(key);
-      if (old && scanIds.has(Number(old[1]))) {
-        const mine = localStorage.getItem(p + old[1]);
-        localStorage.setItem(p + old[1], JSON.stringify({ ...JSON.parse(localStorage.getItem(key)!), ...JSON.parse(mine ?? '{}') }));
-        localStorage.removeItem(key);
-      } else if (key.startsWith(p) && !scanIds.has(Number(key.slice(p.length)))) {
-        localStorage.removeItem(key);
-      }
+  let took = false;
+  for (const key of keys()) {
+    const old = /^mtg\.scanner\.added\.(\d+)$/.exec(key);
+    if (old && scanIds.has(Number(old[1]))) {
+      const v = read(key);
+      if (v) saveAdded(userId, Number(old[1]), { ...v, ...read(p + old[1]) });
+      try { localStorage.removeItem(key); } catch { /* storage disabled */ }
+      took = true;
+    } else if (prune && key.startsWith(p) && !scanIds.has(Number(key.slice(p.length)))) {
+      try { localStorage.removeItem(key); } catch { /* storage disabled */ }
     }
-  } catch { /* storage disabled or a corrupt entry */ }
+  }
+  return took;
 }
