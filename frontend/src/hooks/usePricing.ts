@@ -112,6 +112,12 @@ export function usePricing() {
     };
   }, [state]);
 
+  // Whether a post is priced the same as the default.
+  const isDefault = useCallback(
+    (postId: number) => JSON.stringify(pricingFor(postId)) === JSON.stringify(pricingFor(null)),
+    [pricingFor],
+  );
+
   // Change one setting of a post's pricing, or (null) of the default.
   const update = useCallback(<K extends keyof Settings>(postId: number | null, key: K, value: Settings[K]) => {
     const cur = stateRef.current;
@@ -133,7 +139,7 @@ export function usePricing() {
   // Send waiting edits now (signing out: before the token goes).
   const flush = useCallback(() => saves.flush(true), [saves]);
 
-  return { pricingFor, update, makeDefault, listPosts, createPost, flush, notice, clearNotice };
+  return { pricingFor, isDefault, update, makeDefault, listPosts, createPost, flush, notice, clearNotice };
 }
 
 export type PricingStore = ReturnType<typeof usePricing>;

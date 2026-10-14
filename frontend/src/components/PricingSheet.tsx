@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { Health } from '../api.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
-import { SettingsPanel } from './SettingsPanel.tsx';
+import { PricingFields } from './SettingsPanel.tsx';
 import type { T } from '../hooks/useLang.ts';
 
 interface Props {
@@ -37,8 +37,7 @@ export function PricingSheet({ open, onClose, pricing, health, t }: Props) {
           <button type="button" className="feedback-close" onClick={onClose} aria-label={t('voucher_close')}>×</button>
         </div>
         <p className="feedback-sub">{t('pricing_default_sub')}</p>
-        <SettingsPanel
-          bare
+        <PricingFields
           settings={pricing.pricingFor(null)}
           update={(key, value) => pricing.update(null, key, value)}
           t={t}
