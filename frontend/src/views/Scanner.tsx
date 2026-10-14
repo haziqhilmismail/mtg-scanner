@@ -685,7 +685,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricin
               ><Icon name="trash" size={18} /></button>
             </span>
           </div>
-          {pricingPanel(activeBatch.postId != null && postsById.has(activeBatch.postId) ? activeBatch.postId : null)}
+          {pricingPanel(activeBatch.postId)}
           <ActiveBatchView
             batch={activeBatch}
             settings={pricingFor(activeBatch.postId)}
