@@ -13,6 +13,7 @@ interface Folder {
   key: string;
   postId: number | null;
   title: string;
+  archived: boolean;    // hidden from the posts list (shown under Archived) and from Claims
   items: BatchSummary[];
   needs: number;
   total: number;
@@ -301,7 +302,10 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
       const key = post ? `p${post.id}` : UNFILED;
       let f = byKey.get(key);
       if (!f) {
-        f = { key, postId: post?.id ?? null, title: post ? postTitle(post) : t('scans_unfiled'), items: [], needs: 0, total: 0 };
+        f = {
+          key, postId: post?.id ?? null, title: post ? postTitle(post) : t('scans_unfiled'),
+          archived: post?.status === 'archived', items: [], needs: 0, total: 0,
+        };
         byKey.set(key, f);
       }
       const sum = summarise(b, settings);
@@ -319,9 +323,11 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     if (folderKey == null) return null;
     const found = folders.find(f => f.key === folderKey);
     if (found) return found;
-    if (folderKey === UNFILED) return { key: UNFILED, postId: null, title: t('scans_unfiled'), items: [], needs: 0, total: 0 };
+    if (folderKey === UNFILED) return { key: UNFILED, postId: null, title: t('scans_unfiled'), archived: false, items: [], needs: 0, total: 0 };
     const post = postsById.get(Number(folderKey.slice(1)));
-    return post ? { key: folderKey, postId: post.id, title: postTitle(post), items: [], needs: 0, total: 0 } : null;
+    return post
+      ? { key: folderKey, postId: post.id, title: postTitle(post), archived: post.status === 'archived', items: [], needs: 0, total: 0 }
+      : null;
   }, [folderKey, folders, postsById, postTitle, t]);
 
   // A remembered post that no longer exists (deleted on the checklist): go
@@ -338,10 +344,32 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     () => (openFolder?.items ?? []).filter(s => (filter === 'needs' ? s.needs > 0 : true)).filter(matches),
     [openFolder, filter, matches],
   );
-  // Top level with a search typed: matching photos from every post.
+  // The posts list leaves archived posts out; they wait in their own section.
+  const liveFolders = useMemo(() => folders.filter(f => !f.archived), [folders]);
+  const archivedFolders = useMemo(() => folders.filter(f => f.archived), [folders]);
+  const [showArchived, setShowArchived] = useState(false);
+  // Top level with a search typed: matching photos from every live post.
   const searchHits = useMemo(
-    () => (q && !openFolder ? folders.flatMap(f => f.items.filter(matches).map(s => ({ s, folder: f }))) : []),
-    [q, openFolder, folders, matches],
+    () => (q && !openFolder ? liveFolders.flatMap(f => f.items.filter(matches).map(s => ({ s, folder: f }))) : []),
+    [q, openFolder, liveFolders, matches],
+  );
+
+  const postGrid = (list: Folder[]) => (
+    <div className="gallery-grid">
+      {list.map(f => (
+        <PostTile
+          key={f.key}
+          title={f.title}
+          covers={f.items.flatMap(i => (i.batch.response ? [i.batch.response.thumb_url ?? i.batch.response.image_b64] : []))}
+          photos={f.items.length}
+          needs={f.items.filter(i => i.needs > 0).length}
+          total={f.total}
+          settings={settings}
+          t={t}
+          onOpen={() => goTo(f.key)}
+        />
+      ))}
+    </div>
   );
 
   const goTo = useCallback((key: string | null) => {
@@ -479,6 +507,46 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
     }
   }, [titleDraft, dialog, refreshPosts, t]);
+
+  // Archiving hides a post without losing anything; unarchiving brings it back.
+  const setArchived = useCallback(async (folder: Folder, archived: boolean) => {
+    if (folder.postId == null) return;
+    const status = archived ? 'archived' : 'active';
+    setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, status } : p)));
+    try {
+      await postsApi.update(folder.postId, { status });
+      if (archived) goTo(null);
+    } catch (e) {
+      await refreshPosts();
+      await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
+    }
+  }, [dialog, refreshPosts, goTo, t]);
+
+  // Deleting a post takes its photos with it. The server refuses while any
+  // of its cards are still claimed, so no buyer's claim is lost silently.
+  const deletePost = useCallback(async (folder: Folder) => {
+    if (folder.postId == null) return;
+    const ok = await dialog.confirm({
+      title: t('scans_delete_post'),
+      message: t('scans_delete_post_msg', {
+        name: folder.title,
+        photos: folder.items.length === 1 ? t('scans_photo_one') : t('scans_photos', { n: folder.items.length }),
+      }),
+      okLabel: t('scans_delete'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await postsApi.remove(folder.postId);
+    } catch (e) {
+      const msg = (e as Error).message;
+      await dialog.alert({ title: t('alert_error_title'), message: /409/.test(msg) ? t('scans_delete_post_claimed') : msg });
+      return;
+    }
+    for (const s of folder.items) await scanner.removeBatch(s.batch.id);
+    goTo(null);
+    await refreshPosts();
+  }, [dialog, scanner, goTo, refreshPosts, t]);
 
   const addFolderToChecklist = useCallback(async (folder: Folder) => {
     const targets = folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null);
@@ -694,17 +762,34 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
                 <span className="value">{formatMyr(openFolder.total, settings)}</span>
               </span>
             ) : null}
-            {openFolder.items.some(s => s.batch.response) ? (
+            {openFolder.items.some(s => s.batch.response) || openFolder.postId != null ? (
               <span className="review-actions">
-                <button className="accent" disabled={addingAll || addingBatchId != null} onClick={() => addFolderToChecklist(openFolder)}>
-                  <Icon name="addList" size={18} />{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}
-                </button>
-                <button disabled={exportingAll} onClick={() => exportAllBatches(openFolder.items.map(s => s.batch))}>
-                  <Icon name="download" size={18} />{exportingAll ? t('export_all_loading') : t('export_all_btn')}
-                </button>
+                {openFolder.items.some(s => s.batch.response) ? (
+                  <>
+                    <button className="accent" disabled={addingAll || addingBatchId != null} onClick={() => addFolderToChecklist(openFolder)}>
+                      <Icon name="addList" size={18} />{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}
+                    </button>
+                    <button disabled={exportingAll} onClick={() => exportAllBatches(openFolder.items.map(s => s.batch))}>
+                      <Icon name="download" size={18} />{exportingAll ? t('export_all_loading') : t('export_all_btn')}
+                    </button>
+                  </>
+                ) : null}
+                {openFolder.postId != null ? (
+                  <>
+                    <button className="ghost" onClick={() => setArchived(openFolder, !openFolder.archived)}>
+                      <Icon name="archive" size={18} />{openFolder.archived ? t('scans_unarchive') : t('scans_archive')}
+                    </button>
+                    <button className="ghost destructive" onClick={() => deletePost(openFolder)}>
+                      <Icon name="trash" size={18} />{t('scans_delete_post')}
+                    </button>
+                  </>
+                ) : null}
               </span>
             ) : null}
           </div>
+          {openFolder.archived ? (
+            <p className="archived-note"><Icon name="archive" size={16} />{t('scans_archived_note')}</p>
+          ) : null}
           {upload}
           {pricing}
           {progress}
@@ -786,7 +871,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
           {progress}
           {loading ? (
             <Spinner label={t('scanner_loading_saved')} />
-          ) : folders.length === 0 ? (
+          ) : liveFolders.length === 0 && archivedFolders.length === 0 ? (
             <p className="gallery-empty">{t('scans_empty')}</p>
           ) : (
             <>
@@ -815,24 +900,22 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
                   </div>
                 )
               ) : (
-                <div className="gallery-grid">
-                  {folders.map(f => {
-                    const cover = [...f.items].reverse().find(i => i.batch.response)?.batch.response;
-                    return (
-                      <PostTile
-                        key={f.key}
-                        title={f.title}
-                        cover={cover ? (cover.thumb_url ?? cover.image_b64) : null}
-                        photos={f.items.length}
-                        needs={f.items.filter(i => i.needs > 0).length}
-                        total={f.total}
-                        settings={settings}
-                        t={t}
-                        onOpen={() => goTo(f.key)}
-                      />
-                    );
-                  })}
-                </div>
+                <>
+                  {liveFolders.length ? postGrid(liveFolders) : <p className="gallery-empty">{t('scans_empty')}</p>}
+                  {archivedFolders.length ? (
+                    <>
+                      <button
+                        type="button" className="ghost archived-toggle"
+                        aria-expanded={showArchived} onClick={() => setShowArchived(v => !v)}
+                      >
+                        <Icon name="archive" size={18} />
+                        {t('scans_archived')} · {archivedFolders.length}
+                        <Icon name={showArchived ? 'chevronDown' : 'chevronRight'} size={16} />
+                      </button>
+                      {showArchived ? postGrid(archivedFolders) : null}
+                    </>
+                  ) : null}
+                </>
               )}
             </>
           )}

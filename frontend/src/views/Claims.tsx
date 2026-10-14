@@ -119,17 +119,19 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
   useEffect(() => { reload(); }, [reload]);
 
   // ---------- which post ----------
+  // Archived posts are left out altogether (null), not dropped into Unfiled.
   const postsById = useMemo(() => new Map(posts.map(p => [p.id, p])), [posts]);
-  const keyOfBatch = useCallback(
-    (b: Batch) => (b.postId != null && postsById.has(b.postId) ? `p${b.postId}` : UNFILED),
-    [postsById],
-  );
+  const keyOfBatch = useCallback((b: Batch) => {
+    const post = b.postId != null ? postsById.get(b.postId) : undefined;
+    if (!post) return UNFILED;
+    return post.status === 'archived' ? null : `p${post.id}`;
+  }, [postsById]);
   const postOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const b of scanner.batches) {
       if (b.scanId == null || !b.response) continue;
       const key = keyOfBatch(b);
-      if (!seen.has(key)) {
+      if (key && !seen.has(key)) {
         seen.set(key, key === UNFILED ? t('scans_unfiled') : (postsById.get(b.postId!)?.title || `#${b.postId}`));
       }
     }
