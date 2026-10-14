@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS } from '../types.ts';
-import { defaultToUpload, legacyPricing, resolvePricing } from './pricing.ts';
+import { defaultToUpload, editPricing, legacyPricing, pricingKnown, resolvePricing } from './pricing.ts';
 
 const userDefault = { ...DEFAULT_SETTINGS, multNormal: 3.5 };
 const post = { ...DEFAULT_SETTINGS, multNormal: 4 };
@@ -35,4 +35,17 @@ test("the browser's old pricing is read and brought up to date", () => {
   assert.equal(v1?.roundStep, 0.5);
   assert.equal('rounding' in (v1 ?? {}), false);
   assert.equal(legacyPricing(JSON.stringify({ rounding: 'none' }), '2')?.roundDirection, 'none');
+});
+
+test("a post's pricing can be edited only once it is known, the default once /me has answered", () => {
+  const s = { userDefault, defaultKnown: false, posts: { 7: post, 8: null } };
+  assert.equal(pricingKnown(s, 9), false);
+  assert.equal(pricingKnown(s, 8), true);
+  assert.equal(pricingKnown(s, null), false);
+  assert.equal(editPricing(s, 9, 'multFoil', 9), null);
+  assert.equal(editPricing(s, null, 'multFoil', 9), null);
+  // Known: the edited field joins the rest of that pricing.
+  assert.deepEqual(editPricing(s, 7, 'multFoil', 9)?.pricing, { ...post, multFoil: 9 });
+  assert.deepEqual(editPricing(s, 8, 'multFoil', 9)?.state.posts[8], { ...userDefault, multFoil: 9 });
+  assert.deepEqual(editPricing({ ...s, defaultKnown: true }, null, 'multFoil', 9)?.state.userDefault, { ...userDefault, multFoil: 9 });
 });

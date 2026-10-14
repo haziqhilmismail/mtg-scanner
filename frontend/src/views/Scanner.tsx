@@ -625,8 +625,8 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
     />
   );
   // A post's pricing, which it can make the default; for unfiled photos
-  // (null), the default itself.
-  const pricingPanel = (postId: number | null) => (
+  // (null), the default itself. Shown once that pricing is known.
+  const pricingPanel = (postId: number | null) => pricing.pricingKnown(postId) && (
     <SettingsPanel title={postId == null ? t('menu_default_pricing') : t('settings_title')} settings={pricingFor(postId)} t={t}>
       <PricingFields
         settings={pricingFor(postId)}
