@@ -6,13 +6,15 @@ photo scans in any rolling 30-day window; a voucher (and later a payment) can
 add extra credits that don't expire, or switch the limit off.
 
 A scan *reserves* a credit before the Gemini call and hands it back if the
-scan fails, so three photos sent at once can't overshoot the limit and a
+scan fails (`async with spend(...)` does both), so three photos sent at once can't overshoot the limit and a
 failed scan costs nothing. Reserve/refund use their own short transactions:
 the request's session stays open across the multi-second Gemini call, and
 holding SQLite's write lock that long would stall every other writer.
 """
 
+import asyncio
 import secrets
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import DateTime, delete, func, insert, literal, select, update
@@ -31,6 +33,14 @@ UNLIMITED, FREE, BONUS = "unlimited", "free", "bonus"
 
 # No 0/O or 1/I/L: codes get read off a screen and typed on a phone.
 _CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+class OutOfCredits(Exception):
+    """No credit left. main.py turns it into the 402 the frontend knows."""
+
+    def __init__(self, credits: dict):
+        super().__init__("out_of_credits")
+        self.credits = credits
 
 
 class VoucherError(Exception):
@@ -105,6 +115,22 @@ async def refund(user_id: int, source: str) -> None:
                 .values(bonus_scan_credits=User.bonus_scan_credits + 1)
             )
         await s.commit()
+
+
+@asynccontextmanager
+async def spend(db: AsyncSession, user_id: int):
+    """Pay one credit for the block: taken before it runs (so parallel scans
+    can't overshoot), handed back if it raises or is cancelled. Raises
+    OutOfCredits when there is none."""
+    source = await reserve(user_id)
+    if source is None:
+        raise OutOfCredits(await status(db, user_id))
+    try:
+        yield
+    except BaseException:
+        # Shielded: a request cancelled mid-call must still get its credit back.
+        await asyncio.shield(refund(user_id, source))
+        raise
 
 
 async def status(db: AsyncSession, user_id: int) -> dict:
