@@ -46,3 +46,20 @@ def test_scans_follow_their_post(client):
     # Deleting a post unfiles its photos; they are not deleted.
     assert client.delete(f"/api/posts/{sunday}", headers=me).status_code == 204
     assert _by_post(client, me) == {a["scan_id"]: friday, b["scan_id"]: None, c["scan_id"]: None}
+
+
+def test_post_stats(client):
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    full = client.post("/api/posts", data={"title": "Full"}, headers=me).json()["id"]
+    empty = client.post("/api/posts", data={"title": "Empty"}, headers=me).json()["id"]
+    for price, qty, status in (("1.50", 2, "active"), ("3.00", 1, "archived")):
+        r = client.post("/api/listings", json={"name": "Sol Ring", "unit_price_myr": price, "qty_total": qty,
+                                               "status": status, "post_ids": [full]}, headers=me)
+        assert r.status_code == 201, r.text
+
+    stats = lambda p: (p["listing_count"], p["active_listing_count"], p["total_qty"], p["total_value_myr"])
+    listed = {p["id"]: stats(p) for p in client.get("/api/posts", headers=me).json()}
+    assert listed == {full: (2, 1, 3, "6.00"), empty: (0, 0, 0, "0.00")}
+    assert stats(client.get(f"/api/posts/{full}", headers=me).json()) == (2, 1, 3, "6.00")
