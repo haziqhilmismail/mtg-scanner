@@ -20,7 +20,10 @@ from ..config import DATA_DIR, settings
 # 7-day session window. Long enough to survive a weekend pasar malam without
 # re-logging in, short enough that a stolen token isn't a permanent compromise.
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
-IMAGE_TTL_SECONDS = 30 * 24 * 60 * 60
+# Image tokens start on the current week's Monday 00:00 UTC and last 5 weeks
+# (28 to 35 days left when issued).
+_WEEK = 7 * 24 * 60 * 60
+IMAGE_TTL_SECONDS = 5 * _WEEK
 _IMAGE_SCOPE = "img"
 
 _SECRET_PATH = DATA_DIR / "jwt_secret.txt"
@@ -93,9 +96,12 @@ def decode_session_token(token: str) -> int | None:
 
 def issue_image_token(user_id: int) -> str:
     """An image-only token: it rides in <img src> URLs (which end up in logs
-    and history), so it lives longer but opens nothing except the image routes."""
+    and history), so it lives longer but opens nothing except the image routes.
+    It is the same all week, so image URLs (and the browser's cache of them)
+    don't change on every /me."""
     now = int(time.time())
-    return _issue(user_id, now, now + IMAGE_TTL_SECONDS, scope=_IMAGE_SCOPE)
+    week = now - (now - 4 * 24 * 60 * 60) % _WEEK  # 1970-01-05 was a Monday
+    return _issue(user_id, week, week + IMAGE_TTL_SECONDS, scope=_IMAGE_SCOPE)
 
 
 def decode_image_token(token: str) -> int | None:
