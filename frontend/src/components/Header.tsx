@@ -17,7 +17,8 @@ interface Props {
   user?: AuthUser | null;
   onSignOut?: () => void;
   onRedeemVoucher?: () => void;
-  onDefaultPricing: () => void;
+  // Opens the default-pricing sheet.
+  onDefaultPricing?: () => void;
 }
 
 export function Header({
