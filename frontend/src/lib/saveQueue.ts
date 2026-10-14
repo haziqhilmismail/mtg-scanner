@@ -1,87 +1,104 @@
-import type { ScanUiState } from '../types.ts';
+// Sends values (a scan's per-card state, a post's pricing) to the server, one
+// slot per key. Every value queued gets a rev higher than any before it for
+// that key; where the server ignores a lower rev (scan states), saves may
+// overlap and arrive in any order. Where it doesn't (`overlap` false), a key's
+// next save waits for the one in flight.
 
-// Sends each scan's per-card state to the server. Every state sent carries a
-// rev higher than any before it for that scan, and the server ignores a lower
-// one, so saves may overlap and arrive in any order.
-
-// One scan: the fingerprint of the latest state seen (the first one seen is
-// what the server already has), the rev given to the latest queued state, the
-// latest state the server has not confirmed, and whether it has been sent.
-type Slot = { latest: string; rev: number; unsaved: ScanUiState | null; sent: boolean };
+// One key: the fingerprint of the latest value seen (the first one seen is
+// what the server already has), the rev given to the latest queued value, the
+// latest value the server has not confirmed, whether it has been sent (and
+// with keepalive), and how many of the key's saves are in flight.
+type Slot<V> = { latest: string; rev: number; unsaved: V | null; sent: boolean; keepalive: boolean; inFlight: number };
 
 // Saves in flight at once, outside a final flush, so hundreds of edited scans
 // don't all go at once.
 export const MAX_IN_FLIGHT = 4;
 
-export function createSaveQueue(
-  send: (scanId: number, state: ScanUiState, final: boolean) => Promise<void>,
-  // A save landed: the scan's old-browser copy can go.
-  saved: (scanId: number) => void,
+export function createSaveQueue<K, V>(
+  send: (key: K, value: V, final: boolean, rev: number) => Promise<void>,
+  // A save landed (the key may have a newer value still unsaved).
+  saved: (key: K) => void,
   // A save failed and should be tried again later.
   retry: () => void,
   // The server refused a save, so that edit is lost.
-  refused: (scanId: number) => void,
+  refused: (key: K) => void,
+  overlap = true,
 ) {
-  const slots = new Map<number, Slot>();
+  const slots = new Map<K, Slot<V>>();
   let inFlight = 0;
 
+  const add = (key: K, latest: string, rev: number) => {
+    const s: Slot<V> = { latest, rev, unsaved: null, sent: false, keepalive: false, inFlight: 0 };
+    slots.set(key, s);
+    return s;
+  };
+
   // Next rev: past the loaded one even if this clock is behind the device that saved it.
-  const queue = (slot: Slot, state: ScanUiState) => {
-    slot.rev = Math.max(Date.now(), slot.rev + 1);
-    slot.unsaved = { ...state, rev: slot.rev };
-    slot.sent = false;
+  const queue = (s: Slot<V>, value: V) => {
+    s.rev = Math.max(Date.now(), s.rev + 1);
+    s.unsaved = value;
+    s.sent = false;
+    s.keepalive = false;
   };
 
   const api = {
-    // A scan's current state (without rev), and the rev it was loaded with.
-    // Says whether it is a change to save.
-    update(scanId: number, state: ScanUiState, loadedRev = 0): boolean {
-      const fingerprint = JSON.stringify(state);
-      const slot = slots.get(scanId);
-      if (!slot) {
-        slots.set(scanId, { latest: fingerprint, rev: loadedRev, unsaved: null, sent: false });
-        return false;
-      }
-      if (slot.latest === fingerprint) return false;
-      slot.latest = fingerprint;
-      queue(slot, state);
+    // A key's current value, and the rev it was loaded with. The first value
+    // seen for a key is what the server has. Says whether it is a change to save.
+    update(key: K, value: V, loadedRev = 0): boolean {
+      const fingerprint = JSON.stringify(value);
+      const s = slots.get(key);
+      if (!s) { add(key, fingerprint, loadedRev); return false; }
+      if (s.latest === fingerprint) return false;
+      s.latest = fingerprint;
+      queue(s, value);
       return true;
     },
 
-    // A scan whose loaded state the server doesn't have yet (an old-browser copy).
-    seed(scanId: number, state: ScanUiState) {
-      const slot: Slot = { latest: JSON.stringify(state), rev: 0, unsaved: null, sent: false };
-      queue(slot, state);
-      slots.set(scanId, slot);
+    // A value the server doesn't have yet: an old-browser copy, an edit.
+    save(key: K, value: V) {
+      const fingerprint = JSON.stringify(value);
+      const s = slots.get(key) ?? add(key, fingerprint, 0);
+      s.latest = fingerprint;
+      queue(s, value);
     },
 
-    forget: (scanId: number) => slots.delete(scanId),
+    // Whether the key has a value the server hasn't confirmed.
+    busy: (key: K) => { const s = slots.get(key); return !!s && (s.unsaved != null || s.inFlight > 0); },
+
+    forget: (key: K) => slots.delete(key),
     clear: () => slots.clear(),
 
-    // Send every unsaved state not already sent, up to MAX_IN_FLIGHT at a
+    // Send every unsaved value not already sent, up to MAX_IN_FLIGHT at a
     // time; each one that ends sends the next. A final flush (leaving the
-    // page, signing out) sends all of them, those already on their way too,
-    // since the page may not live to see them land. A failed save is retried
-    // while it is still the scan's latest, unless the server refused it.
+    // page, signing out) sends all of them, those already on their way too
+    // unless sent with keepalive, since the page may not live to see them
+    // land. A failed save is retried while it is still the key's latest,
+    // unless the server refused it.
     flush(final = false) {
-      for (const [scanId, slot] of slots) {
-        const state = slot.unsaved;
-        if (!state || (slot.sent && !final)) continue;
+      for (const [key, s] of slots) {
+        const value = s.unsaved;
+        if (value == null || (s.sent && (!final || s.keepalive))) continue;
+        if (!final && !overlap && s.inFlight) continue;
         if (!final && inFlight >= MAX_IN_FLIGHT) return;
-        slot.sent = true;
+        s.sent = true;
+        s.keepalive = final;
+        s.inFlight++;
         inFlight++;
-        send(scanId, state, final).then(
+        send(key, value, final, s.rev).then(
           () => {
-            if (slot.unsaved === state) slot.unsaved = null;
-            saved(scanId);
+            s.inFlight--;
+            if (s.unsaved === value) s.unsaved = null;
+            saved(key);
           },
           (e: Error & { status?: number }) => {
+            s.inFlight--;
             // Superseded, or forgotten since (deleted, signed out).
-            if (slot.unsaved !== state || slots.get(scanId) !== slot) return;
+            if (s.unsaved !== value || slots.get(key) !== s) return;
             // Refused (gone, too big, signed out): sending it again won't help.
-            const s = e.status ?? 0;
-            if (s >= 400 && s < 500 && s !== 408 && s !== 429) { slot.unsaved = null; refused(scanId); return; }
-            slot.sent = false;
+            const status = e.status ?? 0;
+            if (status >= 400 && status < 500 && status !== 408 && status !== 429) { s.unsaved = null; refused(key); return; }
+            s.sent = false;
+            s.keepalive = false;
             retry();
             return true;
           },

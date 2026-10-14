@@ -11,16 +11,15 @@ import {
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
-import { createSaveQueue } from '../lib/saveQueue.ts';
 import { freshState, generateBatchId, normalizeUiState } from '../utils.ts';
 import type { T } from './useLang.ts';
+import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
 
 // Older versions kept per-card UI state in localStorage under this key. A
 // scan the server has no state for uses it, the save queue uploads it, and it
 // is removed once a save of that scan succeeds.
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
 const SAVE_DELAY_MS = 800;
-const RETRY_MS = 5000;
 
 // Tombstones: scan IDs the user has asked to delete but whose backend DELETE
 // hasn't been confirmed yet. Survives reload so a refresh-mid-clear can't
@@ -127,38 +126,13 @@ export function useScanner(userId: number | null, signOut: () => void) {
     setBatches(batchesRef.current);
   }, []);
 
-  // Per-card edits go to the server through the save queue; a final flush
-  // (leaving the page, signing out) is sent with keepalive.
-  const saveTimerRef = useRef<number | undefined>(undefined);
-  const flushLater = (ms: number) => {
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => saves.flush(), ms);
-  };
-  const [saves] = useState(() => createSaveQueue(
-    saveScanState,
+  // Per-card edits go to the server through the save queue. The server
+  // orders a scan's saves by rev, so they may overlap.
+  const { queue: saves, later: flushLater, flush: flushSaves } = useSaveQueue<number, ScanUiState>(
+    (scanId, state, final, rev) => saveScanState(scanId, { ...state, rev }, final),
     scanId => { try { localStorage.removeItem(STATE_KEY(scanId)); } catch { /* ignore */ } },
-    () => flushLater(RETRY_MS),
     () => setNotice('scans_save_failed'),
-  ));
-  const flushSaves = useCallback((final = false) => {
-    clearTimeout(saveTimerRef.current);
-    saves.flush(final);
-  }, [saves]);
-
-  // Leaving or hiding the page (phones rarely fire unload) sends what's
-  // unsaved. Unmounting (signing out) stops all saving.
-  useEffect(() => {
-    const onHide = () => { if (document.visibilityState === 'hidden') flushSaves(true); };
-    const onPageHide = () => flushSaves(true);
-    document.addEventListener('visibilitychange', onHide);
-    window.addEventListener('pagehide', onPageHide);
-    return () => {
-      document.removeEventListener('visibilitychange', onHide);
-      window.removeEventListener('pagehide', onPageHide);
-      clearTimeout(saveTimerRef.current);
-      saves.clear();
-    };
-  }, [flushSaves, saves]);
+  );
 
   // Initial rehydration from backend, a page at a time, newest first. Each
   // page shows as it arrives; loadingSaved stays true until the last one. A
@@ -199,7 +173,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
           if (!s.ui_state) try { local = JSON.parse(localStorage.getItem(STATE_KEY(s.scan_id)) ?? 'null'); } catch { /* corrupt: ignore */ }
           if (!local) return batchFromSavedScan(s);
           const b = batchFromSavedScan({ ...s, ui_state: local });
-          saves.seed(s.scan_id, uiStateOf(b));
+          saves.save(s.scan_id, uiStateOf(b));
           seeded = true;
           return b;
         });
