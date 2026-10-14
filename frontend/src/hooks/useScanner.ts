@@ -11,6 +11,7 @@ import {
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
+import { createSaveQueue } from '../lib/saveQueue.ts';
 import { freshState, generateBatchId, normalizeUiState } from '../utils.ts';
 import type { T } from './useLang.ts';
 
@@ -76,12 +77,6 @@ async function deleteSaved(key: string, sid: number) {
   } catch { /* tombstone persists */ }
 }
 
-// The save queue's record of one scan: the fingerprint of the latest
-// per-card state seen (the first one seen is what the server already has),
-// the rev given to the latest queued state, the latest state the server has
-// not confirmed, and whether that state has been sent.
-type SaveSlot = { latest: string; rev: number; unsaved: ScanUiState | null; sent: boolean };
-
 // What is saved to the server for a batch (its rev is added when queued).
 function uiStateOf(b: Batch): ScanUiState {
   return {
@@ -132,46 +127,26 @@ export function useScanner(userId: number | null, signOut: () => void) {
     setBatches(batchesRef.current);
   }, []);
 
-  // Per-card edits go to the server. Each saved state carries a rev higher
-  // than any before it for that scan, and the server ignores a lower one, so
-  // saves may overlap and arrive in any order.
-  const savesRef = useRef(new Map<number, SaveSlot>());
+  // Per-card edits go to the server through the save queue; a final flush
+  // (leaving the page, signing out) is sent with keepalive.
   const saveTimerRef = useRef<number | undefined>(undefined);
-
-  // Send every unsaved state not already sent. A final flush (leaving the
-  // page, signing out) sends those already on their way too, with keepalive,
-  // since the page may not live to see them land. A failed save is retried on
-  // a timer while it is still the scan's latest, unless the server refused it.
-  const flushSaves = useCallback(function flush(final = false) {
+  const flushLater = (ms: number) => {
     clearTimeout(saveTimerRef.current);
-    const saves = savesRef.current;
-    for (const [scanId, slot] of saves) {
-      const state = slot.unsaved;
-      if (!state || (slot.sent && !final)) continue;
-      slot.sent = true;
-      saveScanState(scanId, state, final).then(
-        () => {
-          if (slot.unsaved === state) slot.unsaved = null;
-          try { localStorage.removeItem(STATE_KEY(scanId)); } catch { /* ignore */ }
-        },
-        (e: Error & { status?: number }) => {
-          // Superseded, or forgotten since (deleted, signed out).
-          if (slot.unsaved !== state || saves.get(scanId) !== slot) return;
-          // Refused (gone, too big, signed out): sending it again won't help.
-          const s = e.status ?? 0;
-          if (s >= 400 && s < 500 && s !== 408 && s !== 429) { slot.unsaved = null; return; }
-          slot.sent = false;
-          clearTimeout(saveTimerRef.current);
-          saveTimerRef.current = window.setTimeout(flush, RETRY_MS);
-        },
-      );
-    }
-  }, []);
+    saveTimerRef.current = window.setTimeout(() => saves.flush(), ms);
+  };
+  const [saves] = useState(() => createSaveQueue(
+    saveScanState,
+    scanId => { try { localStorage.removeItem(STATE_KEY(scanId)); } catch { /* ignore */ } },
+    () => flushLater(RETRY_MS),
+  ));
+  const flushSaves = useCallback((final = false) => {
+    clearTimeout(saveTimerRef.current);
+    saves.flush(final);
+  }, [saves]);
 
   // Leaving or hiding the page (phones rarely fire unload) sends what's
   // unsaved. Unmounting (signing out) stops all saving.
   useEffect(() => {
-    const saves = savesRef.current;
     const onHide = () => { if (document.visibilityState === 'hidden') flushSaves(true); };
     const onPageHide = () => flushSaves(true);
     document.addEventListener('visibilitychange', onHide);
@@ -182,7 +157,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
       clearTimeout(saveTimerRef.current);
       saves.clear();
     };
-  }, [flushSaves]);
+  }, [flushSaves, saves]);
 
   // Initial rehydration from backend, a page at a time, newest first. Each
   // page shows as it arrives; loadingSaved stays true until the last one. A
@@ -217,17 +192,20 @@ export function useScanner(userId: number | null, signOut: () => void) {
         if (cancelled) return;
         page.forEach(s => serverIds.add(s.scan_id));
         const kept = page.filter(s => !tombstones.has(s.scan_id));
+        let seeded = false;
         const loaded = kept.reverse().map(s => {
           let local: unknown = null;
           if (!s.ui_state) try { local = JSON.parse(localStorage.getItem(STATE_KEY(s.scan_id)) ?? 'null'); } catch { /* corrupt: ignore */ }
           if (!local) return batchFromSavedScan(s);
-          // A fingerprint no state has, so the save queue sends this one.
-          savesRef.current.set(s.scan_id, { latest: '', rev: 0, unsaved: null, sent: false });
-          return batchFromSavedScan({ ...s, ui_state: local });
+          const b = batchFromSavedScan({ ...s, ui_state: local });
+          saves.seed(s.scan_id, uiStateOf(b));
+          seeded = true;
+          return b;
         });
         // Older pages go in front: newest is at the END of the array
         // (matches "append on upload" UX).
         commit(prev => [...loaded, ...prev]);
+        if (seeded) flushLater(SAVE_DELAY_MS);
         if (page.length < SCANS_PAGE) break;
         before = page[page.length - 1].scan_id;
       }
@@ -241,33 +219,18 @@ export function useScanner(userId: number | null, signOut: () => void) {
       setLoadingSaved(false);
     })();
     return () => { cancelled = true; };
-  }, [commit, tombKey, signOut]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commit, tombKey, signOut, saves]);
 
   // Queue a save for every finished batch whose per-card state changed.
   useEffect(() => {
     let changed = false;
     for (const b of batches) {
-      if (b.status !== 'done' || !b.scanId) continue;
-      const state = uiStateOf(b);
-      const fingerprint = JSON.stringify(state);
-      const slot = savesRef.current.get(b.scanId);
-      if (!slot) {
-        savesRef.current.set(b.scanId, { latest: fingerprint, rev: b.rev ?? 0, unsaved: null, sent: false });
-        continue;
-      }
-      if (slot.latest === fingerprint) continue;
-      slot.latest = fingerprint;
-      // Past the loaded rev even if this clock is behind the device that saved it.
-      slot.rev = Math.max(Date.now(), slot.rev + 1);
-      slot.unsaved = { ...state, rev: slot.rev };
-      slot.sent = false;
-      changed = true;
+      if (b.status === 'done' && b.scanId && saves.update(b.scanId, uiStateOf(b), b.rev)) changed = true;
     }
-    if (changed) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = window.setTimeout(flushSaves, SAVE_DELAY_MS);
-    }
-  }, [batches, flushSaves]);
+    if (changed) flushLater(SAVE_DELAY_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batches, saves]);
 
   const patchBatch = useCallback((id: string, patch: Partial<Batch>) => {
     commit(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)));
@@ -608,7 +571,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
     const b = batchesRef.current.find(x => x.id === id);
     commit(prev => prev.filter(x => x.id !== id));
     if (b?.scanId) {
-      savesRef.current.delete(b.scanId);
+      saves.forget(b.scanId);
       await deleteSaved(tombKey, b.scanId);
     }
   }, [tombKey]);
