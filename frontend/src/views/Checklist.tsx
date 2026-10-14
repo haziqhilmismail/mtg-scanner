@@ -8,8 +8,11 @@ import { OrderKanban } from '../components/checklist/OrderKanban.tsx';
 import { PostsView } from '../components/checklist/PostsView.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import type { T } from '../hooks/useLang.ts';
+import type { PricingStore } from '../hooks/usePricing.ts';
 
 interface Props {
+  // Creates a post with a copy of the default pricing.
+  createPost: PricingStore['createPost'];
   t: T;
 }
 
@@ -18,7 +21,7 @@ interface Props {
 //   2. Orders kanban — track who claimed what and move them through paid/delivered/done
 //   3. Stock — flat catalog view; useful when you don't care about post grouping
 // Cancelled orders live in a separate panel at the very bottom of the page.
-export function Checklist({ t }: Props) {
+export function Checklist({ createPost, t }: Props) {
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -142,6 +145,7 @@ export function Checklist({ t }: Props) {
               listings={listings}
               reload={reload}
               onCreateOrder={(l) => openNewOrder([l.id])}
+              createPost={createPost}
               t={t}
             />
           </section>

@@ -1,7 +1,8 @@
 import { Icon } from './Icon.tsx';
 import { useMemo, useRef, useState } from 'react';
 import { frameCard } from '../api.ts';
-import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
+import { listingsApi, type Post } from '../api/checklist.ts';
+import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
 import { computeCardData, formatMyr, listingFields } from '../utils.ts';
@@ -21,6 +22,7 @@ interface Props {
   selectedPostId: number | null;
   onSelectPost: (postId: number | null) => void;
   onPostsChanged: () => void;
+  createPost: PricingStore['createPost'];
   // Lifted from Scanner.tsx so bulk callers can dedupe and so the "added"
   // badge survives batch-tab switches.
   addedIdx: Record<number, number>;
@@ -50,7 +52,7 @@ async function dataUrlToFile(dataUrl: string, filename: string): Promise<File> {
 
 export function ActiveBatchView({
   batch, settings, scanner, t, onZoom, onBrowsePrintings,
-  posts, selectedPostId, onSelectPost, onPostsChanged,
+  posts, selectedPostId, onSelectPost, onPostsChanged, createPost,
   addedIdx, onMarkAdded, onAddAll, addAllBusy, onExport, onRefreshPrices,
 }: Props) {
   const dialog = useDialog();
@@ -166,7 +168,7 @@ export function ActiveBatchView({
       if (batch.response?.image_b64) {
         imageFile = await dataUrlToFile(batch.response.image_b64, `${defaultTitle}.jpg`);
       }
-      const created = await postsApi.create({
+      const created = await createPost({
         title: title.trim() || defaultTitle,
         image: imageFile,
       });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { postsApi, type Post } from '../../api/checklist.ts';
+import type { PricingStore } from '../../hooks/usePricing.ts';
 import { pastedImages } from '../../utils.ts';
 import type { T } from '../../hooks/useLang.ts';
 
@@ -7,13 +8,14 @@ interface Props {
   initial: Post | null;
   onSaved: (p: Post) => void;
   onCancel: () => void;
+  createPost: PricingStore['createPost'];
   t: T;
 }
 
 // Create or edit a Post. Image is pasted (Ctrl/⌘+V), drag-dropped, or chosen
 // via the file input. We hold the file in state and upload on save so a
 // canceled form doesn't leave orphaned bytes on disk.
-export function PostForm({ initial, onSaved, onCancel, t }: Props) {
+export function PostForm({ initial, onSaved, onCancel, createPost, t }: Props) {
   const isEdit = !!initial;
   const [title, setTitle] = useState(initial?.title ?? '');
   const [fbUrl, setFbUrl] = useState(initial?.fb_url ?? '');
@@ -82,7 +84,7 @@ export function PostForm({ initial, onSaved, onCancel, t }: Props) {
           saved = await postsApi.uploadImage(initial.id, pendingImage);
         }
       } else {
-        saved = await postsApi.create({
+        saved = await createPost({
           title: title.trim() || null,
           fb_url: fbUrl.trim() || null,
           note: note.trim() || null,
