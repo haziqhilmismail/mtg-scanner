@@ -4,28 +4,19 @@ import {
   fetchScans,
   SCANS_PAGE,
   relookup as apiRelookup,
+  saveScanState,
   scanImage,
   type SavedScan,
   moveScans as apiMoveScans,
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/auth.ts';
-import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg } from '../types.ts';
+import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
 import { generateBatchId } from '../utils.ts';
 
-// Per-card UI state is persisted to localStorage under `mtg.batchstate.{scanId}`.
-// We strip the heavy `response` blob — that lives on the server and comes back
-// via GET /api/scans on every page load.
-interface PersistedBatchState {
-  isFoil: boolean[];
-  priceOverride: (string | null)[];
-  quantity: number[];
-  multOverride: (number | null)[];
-  removed: boolean[];
-  // Optional — older saves predate this field; we tolerate undefined.
-  pillOffset?: (PillOffset | null)[];
-}
-
+// Older versions kept per-card UI state in localStorage under this key; it is
+// uploaded to the scan's ui_state once and then removed.
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
+const SAVE_DELAY_MS = 800;
 
 // Tombstones: scan IDs the user has asked to delete but whose backend DELETE
 // hasn't been confirmed yet. Survives reload so a refresh-mid-clear can't
@@ -69,9 +60,23 @@ function removeTombstones(ids: number[]) {
   if (changed) writeTombstones(s);
 }
 
-function persistBatch(b: Batch) {
-  if (!b.scanId) return;
-  const payload: PersistedBatchState = {
+// Per-card state for a scan nobody has edited yet: foil and quantity seeded
+// from Gemini's guesses, no overrides.
+function freshState(cards: DetectedCard[]): ScanUiState {
+  const n = cards.length;
+  return {
+    isFoil: cards.map(c => !!c.gemini?.is_foil),
+    priceOverride: new Array(n).fill(null),
+    quantity: cards.map(c => Math.max(1, c.gemini?.quantity || 1)),
+    multOverride: new Array(n).fill(null),
+    removed: new Array(n).fill(false),
+    pillOffset: new Array(n).fill(null),
+  };
+}
+
+// What is saved to the server for a batch.
+function uiStateOf(b: Batch): ScanUiState {
+  return {
     isFoil: b.isFoil,
     priceOverride: b.priceOverride,
     quantity: b.quantity,
@@ -79,33 +84,32 @@ function persistBatch(b: Batch) {
     removed: b.removed,
     pillOffset: b.pillOffset,
   };
-  try {
-    localStorage.setItem(STATE_KEY(b.scanId), JSON.stringify(payload));
-  } catch {
-    // localStorage quota or disabled — ignore, state just won't survive refresh
-  }
 }
 
-function loadPersistedState(scanId: number, cardCount: number): PersistedBatchState | null {
-  try {
-    const raw = localStorage.getItem(STATE_KEY(scanId));
-    if (!raw) return null;
-    const p = JSON.parse(raw) as PersistedBatchState;
-    // Only trust the saved state if the array lengths still match the scan;
-    // protects against schema drift / partial saves
-    if (p.isFoil?.length !== cardCount) return null;
-    return p;
-  } catch {
-    return null;
+// The scan's saved state, or this browser's old localStorage copy, uploaded
+// to the server on the way (the copy is removed once the server has it).
+function savedState(saved: SavedScan): ScanUiState | null {
+  // Only trust a state whose arrays still match the scan; protects against
+  // schema drift / partial saves.
+  const fits = (p: ScanUiState | null | undefined) => (p?.isFoil?.length === saved.cards.length ? p : null);
+  if (saved.ui_state) return fits(saved.ui_state);
+  const key = STATE_KEY(saved.scan_id);
+  let local: ScanUiState | null = null;
+  try { local = fits(JSON.parse(localStorage.getItem(key) ?? 'null')); } catch { /* corrupt: ignore */ }
+  if (local) {
+    saveScanState(saved.scan_id, local).then(
+      () => { try { localStorage.removeItem(key); } catch { /* ignore */ } },
+      () => { /* kept; uploaded on the next load */ },
+    );
   }
+  return local;
 }
 
 function batchFromSavedScan(saved: SavedScan): Batch {
   const n = saved.cards.length;
-  const id = `s${saved.scan_id}`;
-  const persisted = loadPersistedState(saved.scan_id, n);
+  const state = savedState(saved) ?? freshState(saved.cards);
   return {
-    id,
+    id: `s${saved.scan_id}`,
     scanId: saved.scan_id,
     postId: saved.post_id ?? null,
     filename: saved.filename,
@@ -118,16 +122,13 @@ function batchFromSavedScan(saved: SavedScan): Batch {
       height: saved.height,
       cards: saved.cards,
     },
-    isFoil: persisted?.isFoil ?? new Array(n).fill(false),
-    priceOverride: persisted?.priceOverride ?? new Array(n).fill(null),
-    quantity: persisted?.quantity ?? new Array(n).fill(1),
-    multOverride: persisted?.multOverride ?? new Array(n).fill(null),
-    removed: persisted?.removed ?? new Array(n).fill(false),
-    // Length-match the array length even when reloading from older saves
-    // that didn't have this field at all.
-    pillOffset: (persisted?.pillOffset && persisted.pillOffset.length === n)
-      ? persisted.pillOffset
-      : new Array(n).fill(null),
+    isFoil: state.isFoil,
+    priceOverride: state.priceOverride,
+    quantity: state.quantity,
+    multOverride: state.multOverride,
+    removed: state.removed,
+    // Older saves predate pill offsets.
+    pillOffset: state.pillOffset?.length === n ? state.pillOffset : new Array(n).fill(null),
     relookupBusy: new Array(n).fill(false),
     relookupMsg: new Array(n).fill(null),
   };
@@ -137,9 +138,37 @@ export function useScanner() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
 
-  // Track which batches have been persisted this render — avoids re-writing
-  // localStorage for batches whose state hasn't changed.
-  const lastPersistedRef = useRef<Map<string, string>>(new Map());
+  // Per-card edits go to the server: the last state seen per batch (the
+  // first one seen is what the server already has), the states waiting to be
+  // sent, and the timer that sends them once edits pause.
+  const lastSavedRef = useRef<Map<string, string>>(new Map());
+  const unsavedRef = useRef<Map<number, ScanUiState>>(new Map());
+  const saveTimerRef = useRef<number | undefined>(undefined);
+
+  // Send every waiting state. A failed one stays waiting and goes with the
+  // next edit's save, unless a newer state for that scan is already waiting.
+  const flushSaves = useCallback((keepalive = false) => {
+    clearTimeout(saveTimerRef.current);
+    const waiting = unsavedRef.current;
+    for (const [scanId, state] of waiting) {
+      waiting.delete(scanId);
+      saveScanState(scanId, state, keepalive).catch((e: Error & { status?: number }) => {
+        if (e.status !== 404 && !waiting.has(scanId)) waiting.set(scanId, state);
+      });
+    }
+  }, []);
+
+  // Leaving or hiding the page (phones rarely fire unload) sends what's waiting.
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') flushSaves(true); };
+    const onPageHide = () => flushSaves(true);
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [flushSaves]);
 
   // Initial rehydration from backend, a page at a time, newest first. Each
   // page shows as it arrives; loadingSaved stays true until the last one.
@@ -186,16 +215,25 @@ export function useScanner() {
     return () => { cancelled = true; };
   }, []);
 
-  // Persist on every state change (cheap — localStorage write per batch)
+  // Queue a save for every finished batch whose per-card state changed.
   useEffect(() => {
+    let changed = false;
     for (const b of batches) {
       if (b.status !== 'done' || !b.scanId) continue;
-      const fingerprint = JSON.stringify([b.isFoil, b.priceOverride, b.quantity, b.multOverride, b.removed, b.pillOffset]);
-      if (lastPersistedRef.current.get(b.id) === fingerprint) continue;
-      persistBatch(b);
-      lastPersistedRef.current.set(b.id, fingerprint);
+      const state = uiStateOf(b);
+      const fingerprint = JSON.stringify(state);
+      const last = lastSavedRef.current.get(b.id);
+      if (last === fingerprint) continue;
+      lastSavedRef.current.set(b.id, fingerprint);
+      if (last === undefined) continue;
+      unsavedRef.current.set(b.scanId, state);
+      changed = true;
     }
-  }, [batches]);
+    if (changed) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = window.setTimeout(flushSaves, SAVE_DELAY_MS);
+    }
+  }, [batches, flushSaves]);
 
   const patchBatch = useCallback((id: string, patch: Partial<Batch>) => {
     setBatches(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)));
@@ -269,14 +307,7 @@ export function useScanner() {
           status: 'done',
           scanId,
           response: resp,
-          // Seed foil from Gemini's per-card guess. User can still toggle.
-          isFoil: resp.cards.map(c => !!c.gemini?.is_foil),
-          priceOverride: new Array(n).fill(null),
-          // Seed quantity from Gemini's stack-detection hint (capped at 1+); user can adjust per row
-          quantity: resp.cards.map(c => Math.max(1, c.gemini?.quantity || 1)),
-          multOverride: new Array(n).fill(null),
-          removed: new Array(n).fill(false),
-          pillOffset: new Array(n).fill(null),
+          ...freshState(resp.cards),
           relookupBusy: new Array(n).fill(false),
           relookupMsg: new Array(n).fill(null),
         });
@@ -527,7 +558,7 @@ export function useScanner() {
     if (b?.scanId) {
       const sid = b.scanId;
       addTombstones([sid]);
-      try { localStorage.removeItem(STATE_KEY(sid)); } catch { /* ignore */ }
+      unsavedRef.current.delete(sid);
       try {
         await apiDeleteScan(sid);
         removeTombstones([sid]);
