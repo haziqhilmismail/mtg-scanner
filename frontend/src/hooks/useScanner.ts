@@ -138,7 +138,7 @@ export function useScanner(userId: number | null) {
   // Send every unsaved state not already sent. A final flush (leaving the
   // page, signing out) sends those already on their way too, with keepalive,
   // since the page may not live to see them land. A failed save is retried on
-  // a timer while it is still the scan's latest.
+  // a timer while it is still the scan's latest, unless the server refused it.
   const flushSaves = useCallback(function flush(final = false) {
     clearTimeout(saveTimerRef.current);
     const saves = savesRef.current;
@@ -154,7 +154,9 @@ export function useScanner(userId: number | null) {
         (e: Error & { status?: number }) => {
           // Superseded, or forgotten since (deleted, signed out).
           if (slot.unsaved !== state || saves.get(scanId) !== slot) return;
-          if (e.status === 404) { slot.unsaved = null; return; }
+          // Refused (gone, too big, signed out): sending it again won't help.
+          const s = e.status ?? 0;
+          if (s >= 400 && s < 500 && s !== 408 && s !== 429) { slot.unsaved = null; return; }
           slot.sent = false;
           clearTimeout(saveTimerRef.current);
           saveTimerRef.current = window.setTimeout(flush, RETRY_MS);
@@ -181,7 +183,8 @@ export function useScanner(userId: number | null) {
 
   // Initial rehydration from backend, a page at a time, newest first. Each
   // page shows as it arrives; loadingSaved stays true until the last one. A
-  // page that fails is retried (e.g. during a redeploy) after saying so.
+  // page that fails is retried (e.g. during a redeploy) after saying so,
+  // unless the session is gone.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -195,8 +198,9 @@ export function useScanner(userId: number | null) {
         let page: SavedScan[];
         try {
           page = await fetchScans(before);
-        } catch {
-          if (cancelled) return;
+        } catch (e) {
+          // Session gone: only signing in again helps, so not "still trying".
+          if (cancelled || (e as { status?: number }).status === 401) return;
           if (!told) setNotice('scans_load_failed');
           told = true;
           await new Promise(r => setTimeout(r, RETRY_MS));
