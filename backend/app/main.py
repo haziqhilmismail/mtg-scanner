@@ -2,7 +2,6 @@
 FastAPI app entry point.
 
 Routes:
-  GET  /                  -> static/index.html
   GET  /api/health        -> Gemini key + CK index status
   POST /api/scan          -> upload image, return detected cards
   POST /api/relookup      -> Scryfall fuzzy + search fallback, CK-enriched
@@ -32,8 +31,7 @@ from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, Response
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 from slowapi import _rate_limit_exceeded_handler
@@ -83,7 +81,6 @@ from .services.scryfall_lookup import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
 SCANS_DIR = DATA_DIR / "scans"
 SCANS_DIR.mkdir(exist_ok=True)
 
@@ -158,11 +155,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.get("/")
-def root():
-    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/api/health")
@@ -1301,5 +1293,3 @@ async def _capture_unexpected(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error"},
     )
-
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
