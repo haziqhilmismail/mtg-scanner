@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import MISSING, BaseModel, ConfigDict
 
 
 class BuyerBase(BaseModel):
@@ -17,7 +17,7 @@ class BuyerCreate(BuyerBase):
 
 
 class BuyerUpdate(BaseModel):
-    fb_name: str | None = None
+    fb_name: str | MISSING = MISSING
     fb_url: str | None = None
     phone: str | None = None
     default_dropoff_method: str | None = None

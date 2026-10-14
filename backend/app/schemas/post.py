@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import MISSING, BaseModel, ConfigDict
 
 from ..models.post import PostStatus
 
@@ -20,7 +20,7 @@ class PostUpdate(BaseModel):
     title: str | None = None
     fb_url: str | None = None
     note: str | None = None
-    status: PostStatus | None = None
+    status: PostStatus | MISSING = MISSING
 
 
 class PostRead(PostBase):

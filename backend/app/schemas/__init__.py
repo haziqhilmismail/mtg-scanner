@@ -1,4 +1,7 @@
-"""Pydantic schemas — the wire format for API requests/responses."""
+"""Pydantic schemas — the wire format for API requests/responses.
+
+PATCH bodies (*Update): a field left out keeps its value. A field typed
+`X | MISSING` can't be cleared, so an explicit null is a 422, not a DB error."""
 
 from .bug import BugReportCreate
 from .buyer import BuyerCreate, BuyerRead, BuyerReadWithStats, BuyerUpdate
