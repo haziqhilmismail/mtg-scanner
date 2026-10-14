@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Icon } from './Icon.tsx';
 import type { CardRowData, RelookupMsg, Settings } from '../types.ts';
 import { ckSearchUrl, fmt2, formatMyrWithFoil } from '../utils.ts';
@@ -105,6 +106,24 @@ export function CardRow({
     );
   }
 
+  // The local scanner couldn't read the collector line, so the printing (and
+  // the foil default) is a visual best guess. Ask the seller to check it until
+  // they pick another printing or say it's right.
+  const [versionConfirmed, setVersionConfirmed] = useState(false);
+  const versionUnsure = !cd.isManual
+    && cd.card.version_source === 'embedding'
+    && cd.sel.scryfall_id === cd.card.candidates[0]?.scryfall_id
+    && !versionConfirmed;
+  const versionNotice = versionUnsure ? (
+    <div className="manual-banner version-check">
+      <Icon name="warning" size={16} />
+      <span>{t('version_unsure')}</span>
+      <button type="button" className="link-btn" onClick={() => setVersionConfirmed(true)}>
+        {t('version_unsure_ok')}
+      </button>
+    </div>
+  ) : null;
+
   const rowClasses = ['card-row'];
   if (cd.isFoil) rowClasses.push('foil');
   if (cd.hasOverride) rowClasses.push('overridden');
@@ -144,6 +163,7 @@ export function CardRow({
       <div className="info">
         <div className="title">{renderTitleLink(cd, t)}</div>
         <VersionBadge cd={cd} t={t} />
+        {versionNotice}
         {priceLine}
         {manualBanner}
         <PriceBlock
