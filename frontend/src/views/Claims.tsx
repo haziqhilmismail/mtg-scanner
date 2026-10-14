@@ -137,7 +137,11 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
     }
     return [...seen.entries()].map(([key, title]) => ({ key, title })).reverse();
   }, [scanner.batches, keyOfBatch, postsById, t]);
-  const activeKey = postOptions.some(o => o.key === folderKey) ? folderKey : (postOptions[0]?.key ?? null);
+  // An intake in progress stays on the post it started on, even if the
+  // remembered post changes or a scan finishing elsewhere reorders the list.
+  const [intakeKey, setIntakeKey] = useState<string | null>(null);
+  const activeKey = intakeKey
+    ?? (postOptions.some(o => o.key === folderKey) ? folderKey : (postOptions[0]?.key ?? null));
   const postId = activeKey && activeKey !== UNFILED ? Number(activeKey.slice(1)) : null;
 
   // ---------- what can be claimed ----------
@@ -254,19 +258,16 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
   pagesRef.current = pages;
   const clearIntake = useCallback(() => {
     pagesRef.current.forEach(pg => pg.src && URL.revokeObjectURL(pg.src));
-    setPages([]); setDrafts([]); setPicking(null); setStage('idle');
+    setPages([]); setDrafts([]); setPicking(null); setStage('idle'); setIntakeKey(null);
   }, []);
   useEffect(() => () => pagesRef.current.forEach(pg => pg.src && URL.revokeObjectURL(pg.src)), []);
-
-  // Switching post abandons a half-finished intake rather than mixing posts.
-  useEffect(() => { clearIntake(); setError(''); }, [activeKey, clearIntake]);
 
   const onlyPhoto = photos.length === 1 ? (photos[0].batch.scanId as number) : null;
 
   const readFiles = useCallback(async (files: File[]) => {
     const images = files.filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
     if (!images.length || !photos.length) return;
-    setStage('reading'); setError('');
+    setStage('reading'); setError(''); setIntakeKey(activeKey);
     try {
       const read = await readClaimScreenshots(images, photos.map(p => p.batch.scanId as number));
       // A screenshot of comments alone (scrolled past the photo) is left for
@@ -289,7 +290,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       setError((e as Error).message);
       setStage(pages.length ? 'review' : 'idle');
     }
-  }, [photos, stage, pages, onlyPhoto]);
+  }, [photos, stage, pages, onlyPhoto, activeKey]);
 
   // Ctrl/⌘+V of a screenshot anywhere on the page (PC: Win+Shift+S, then paste).
   useEffect(() => {
@@ -538,7 +539,8 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
         {postOptions.length > 1 ? (
           <label className="claims-post">
             <span>{t('claims_switch_post')}</span>
-            <select value={activeKey ?? ''} onChange={e => setFolderKey(e.target.value)}>
+            {/* Switching post abandons a half-finished intake rather than mixing posts. */}
+            <select value={activeKey ?? ''} disabled={busy} onChange={e => { clearIntake(); setError(''); setFolderKey(e.target.value); }}>
               {postOptions.map(o => <option key={o.key} value={o.key}>{o.title}</option>)}
             </select>
           </label>
@@ -570,7 +572,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
                   type="button" className="ghost" disabled={busy}
                   onClick={() => {
                     setPages([{ name: t('claims_pasted'), text: '', src: null, scanId: onlyPhoto, found: false, suggest: null }]);
-                    setStage('review');
+                    setStage('review'); setIntakeKey(activeKey);
                   }}
                 >{t('claims_paste_instead')}</button>
               </div>
