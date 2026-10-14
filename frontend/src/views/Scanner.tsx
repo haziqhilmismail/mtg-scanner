@@ -497,12 +497,13 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
     setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, status } : p)));
     try {
       await postsApi.update(folder.postId, { status });
-      if (archived) up();
+      // Still on the post: the user may have left it meanwhile.
+      if (archived && current().folder === folder.key) up();
     } catch (e) {
       await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
     }
-  }, [dialog, refreshPosts, up, t]);
+  }, [dialog, refreshPosts, current, up, t]);
 
   // Deleting a post takes its photos with it. The server refuses while any
   // of its cards are still claimed, so no buyer's claim is lost silently.
@@ -526,9 +527,9 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
       return;
     }
     for (const s of folder.items) await scanner.removeBatch(s.batch.id);
-    up();
+    if (current().folder === folder.key) up();
     await refreshPosts();
-  }, [dialog, scanner, up, refreshPosts, t]);
+  }, [dialog, scanner, current, up, refreshPosts, t]);
 
   const addFolderToChecklist = useCallback(async (folder: Folder) => {
     const targets = folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null);
