@@ -30,13 +30,13 @@ from pathlib import Path
 import aiohttp
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 
 # iPhone uploads are HEIC by default; register once at import time so every
 # Image.open() in the app (scan, overlay, …) can decode them transparently.
@@ -49,13 +49,12 @@ register_heif_opener()
 # anyway, so 50 MP (≈ 8660×5773) is far above any real phone photo.
 Image.MAX_IMAGE_PIXELS = 50_000_000
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
 from .config import DATA_DIR, settings
 from .db import async_session_factory
-from .deps import CurrentUserId, DbSession, ImageUserId
+from .deps import CurrentUserId, DbSession, ImageUserId, limiter
 from pydantic import BaseModel
 from sqlalchemy import update
 
@@ -147,11 +146,8 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="MTG Pasar Malam Scanner", lifespan=lifespan)
 
-# Rate limiter — in-memory, keyed by client IP. Each external-API or CPU-heavy
-# endpoint is decorated with @limiter.limit("…") below. Internal CRUD routes
-# (listings/buyers/orders) are unlimited since they don't call out and the app
-# is single-user; if you ever expose this publicly, add decorators there too.
-limiter = Limiter(key_func=get_remote_address)
+# Rate limits (see deps.limiter) sit on the external-API and CPU-heavy routes.
+# Internal CRUD routes (listings/buyers/orders) are unlimited: they don't call out.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -202,12 +198,16 @@ async def health():
     return out
 
 
-@app.post("/api/refresh-ck")
+def _check_refresh_token(x_refresh_token: str | None = Header(default=None)):
+    if settings.refresh_ck_token and x_refresh_token != settings.refresh_ck_token:
+        raise HTTPException(403, "Invalid or missing refresh token")
+
+
+# The token is a dependency so a wrong one is refused before the limiter
+# counts it; otherwise 3 bad calls would 429 the nightly refresh.
+@app.post("/api/refresh-ck", dependencies=[Depends(_check_refresh_token)])
 @limiter.limit("3/hour")  # CK pricelist is ~50MB; don't hammer their CDN
-async def refresh_ck(
-    request: Request,
-    x_refresh_token: str | None = Header(default=None),
-):
+async def refresh_ck(request: Request):
     """Force a refresh from CK. 200 only when the download actually ran end
     to end; 502 if CK couldn't be reached. The previous fire-and-forget
     behaviour returned 200 even when the underlying download silently
@@ -217,8 +217,6 @@ async def refresh_ck(
     Guarded by `refresh_ck_token` when configured: the public Funnel URL means
     anyone could otherwise trigger a 50 MB rebuild. The scheduled GitHub Action
     sends the matching X-Refresh-Token header."""
-    if settings.refresh_ck_token and x_refresh_token != settings.refresh_ck_token:
-        raise HTTPException(403, "Invalid or missing refresh token")
     idx = await get_ck_index()
     try:
         await idx.refresh(force=True)
@@ -984,7 +982,7 @@ async def relookup_scan_prices(
 
 @app.post("/api/relookup")
 @limiter.limit("60/minute")  # Scryfall asks ~10 req/sec max — keep well below
-async def relookup(request: Request, payload: str = Form(...)):
+async def relookup(request: Request, _: CurrentUserId, payload: str = Form(...)):
     """Fuzzy lookup → search fallback → 404. Result is CK-enriched."""
     data = _json_payload(payload)
 
@@ -1072,7 +1070,7 @@ async def list_card_names(request: Request):
 
 @app.post("/api/printings")
 @limiter.limit("20/minute")  # Each call paginates Scryfall up to 4 pages
-async def printings(request: Request, payload: str = Form(...)):
+async def printings(request: Request, _: CurrentUserId, payload: str = Form(...)):
     """Every printing of a card name, paginated and CK-enriched."""
     data = _json_payload(payload)
 

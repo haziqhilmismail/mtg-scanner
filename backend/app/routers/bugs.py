@@ -8,20 +8,13 @@ Reports are read from the bug_events table or the Telegram push, never over the 
 """
 
 from fastapi import APIRouter, Header, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from ..config import settings
-from ..deps import DbSession, bearer_user_id
+from ..deps import DbSession, bearer_user_id, limiter
 from ..schemas import BugReportCreate
 from ..services import bug_reporter
 
 router = APIRouter(prefix="/api", tags=["bugs"])
-
-# Re-use a local limiter — the app-level one is wired in main.py but the
-# limit decorator just needs *a* Limiter instance with the same key_func.
-_limiter = Limiter(key_func=get_remote_address)
-
 
 def _resolve_user_id(authorization: str | None) -> int | None:
     """Best-effort user attribution for the public POST /api/bug endpoint.
@@ -37,10 +30,8 @@ def _resolve_user_id(authorization: str | None) -> int | None:
 
 @router.post("/bug", status_code=202)
 # Public (errors can fire pre-login), so cap it: a burst is fine for a real
-# crash loop, but the hourly ceiling bounds DB bloat from a spammer. Behind the
-# Funnel slowapi sees one shared IP, so these limits are effectively global —
-# acceptable for a solo deployment.
-@_limiter.limit("30/minute;100/hour")
+# crash loop, but the hourly ceiling bounds DB bloat from a spammer.
+@limiter.limit("30/minute;100/hour")
 async def report_bug(
     request: Request,
     payload: BugReportCreate,
