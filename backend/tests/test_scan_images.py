@@ -1,8 +1,11 @@
 """Saved scans load as a light list plus per-picture URLs (not one huge JSON)."""
 
 import base64
+import time
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
+import jwt
 from conftest import _dispose_then, _scan, new_user, run
 from PIL import Image
 
@@ -62,6 +65,18 @@ def test_image_tokens_and_session_tokens_are_not_interchangeable(client):
     # ...and the image token opens nothing else.
     assert client.get("/api/scans", headers={"Authorization": f"Bearer {image}"}).status_code == 401
     assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {image}"}).status_code == 401
+
+
+def test_image_token_is_the_same_all_week(client):
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = lambda: client.get("/api/auth/me", headers={"Authorization": f"Bearer {issue_session_token(uid)}"}).json()["image_token"]
+    first = me()
+    time.sleep(1.1)                          # iat/exp are whole seconds
+    assert me() == first
+    claims = jwt.decode(first, options={"verify_signature": False})
+    assert datetime.fromtimestamp(claims["iat"], timezone.utc).weekday() == 0
+    assert timedelta(days=28) < datetime.fromtimestamp(claims["exp"], timezone.utc) - datetime.now(timezone.utc) <= timedelta(days=35)
 
 
 def test_ui_state_round_trip(client):
