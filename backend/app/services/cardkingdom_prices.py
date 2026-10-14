@@ -150,17 +150,7 @@ _EMPTY_LOOKUP = {
 class CKPriceIndex:
     def __init__(self):
         self._conn: sqlite3.Connection | None = None
-        self.last_loaded: float = 0
-        self.product_count: int = 0
         self.matched_scryfall_count: int = 0
-        # True iff the most recent refresh actually re-downloaded from CK.
-        # Stays False after a startup that opened an existing fresh DB.
-        self.last_download_ok: bool = False
-
-    async def ensure_loaded(self, force: bool = False) -> None:
-        if self._conn is not None and not force:
-            return
-        await self.refresh(force=force)
 
     async def refresh(self, force: bool = False) -> None:
         """
@@ -204,9 +194,7 @@ class CKPriceIndex:
 
         old = self._conn
         self._conn = conn
-        self.product_count = total
         self.matched_scryfall_count = unique
-        self.last_loaded = time.time()
         del old  # refcount-close lets in-flight lookups release the old handle
         print(f"[cardkingdom] opened existing cache: {unique} unique scryfall_ids "
               f"({total} rows)", flush=True)
@@ -248,8 +236,6 @@ class CKPriceIndex:
             # Step 4 — always drop the transient download, success or fail.
             download_path.unlink(missing_ok=True)
 
-        self.last_download_ok = True
-        self.product_count = product_count
         self.matched_scryfall_count = unique_count
         print(f"[cardkingdom] indexed {unique_count} unique scryfall_ids "
               f"from {product_count} products", flush=True)
@@ -311,7 +297,6 @@ class CKPriceIndex:
         read_conn = sqlite3.connect(DB_FILE, check_same_thread=False, isolation_level=None)
         old = self._conn
         self._conn = read_conn
-        self.last_loaded = time.time()
         del old  # refcount-close; safe vs. in-flight lookups holding the prior ref
         return unique_count, product_count
 
@@ -374,5 +359,5 @@ async def get_index() -> CKPriceIndex:
     global _index
     if _index is None:
         _index = CKPriceIndex()
-        await _index.ensure_loaded()
+        await _index.refresh()
     return _index
