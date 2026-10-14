@@ -19,6 +19,19 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Which pipeline /api/scan runs:
+    #   "gemini" — cloud model locates + names the cards (classical bbox and
+    #              pHash assist as configured below). The production default.
+    #   "local"  — experimental, fully offline: YOLO-OBB detector → DINOv3
+    #              embedding retrieval → collector-line OCR for version + foil.
+    #              See services/card_scanner.py. Needs the three files below.
+    scanner_backend: str = "gemini"
+    # Local scanner files. Not in the repo or the image — they live in data/.
+    # README "Local scanner" covers how to produce them.
+    detector_model_path: str = str(DATA_DIR / "models" / "card_detector.onnx")
+    embedder_model_path: str = str(DATA_DIR / "models" / "card_embedder.onnx")
+    card_index_path: str = str(DATA_DIR / "card_index.npz")
+
     # Gemini
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3-flash-preview"
@@ -112,6 +125,10 @@ class Settings(BaseSettings):
     # are still written every time so the audit log stays complete; only the
     # Telegram push is throttled.
     bug_notify_window_minutes: int = 10
+
+    @property
+    def use_local_scanner(self) -> bool:
+        return self.scanner_backend.strip().lower() == "local"
 
     @property
     def auth_enabled(self) -> bool:
