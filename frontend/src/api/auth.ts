@@ -7,12 +7,14 @@ export interface AuthUser {
   email: string;
   name: string | null;
   avatar_url: string | null;
-  image_token?: string;
 }
+
+// /me also hands out a fresh image token ("" in solo mode).
+export type MeResponse = AuthUser & { image_token: string };
 
 export interface AuthResponse {
   token: string;
-  image_token?: string;
+  image_token: string;
   user: AuthUser;
 }
 
@@ -33,6 +35,6 @@ export async function loginWithGoogle(credential: string): Promise<AuthResponse>
   })).json();
 }
 
-export async function fetchMe(): Promise<AuthUser> {
+export async function fetchMe(): Promise<MeResponse> {
   return (await request('/api/auth/me')).json();
 }
