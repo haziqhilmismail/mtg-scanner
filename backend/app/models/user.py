@@ -1,10 +1,10 @@
 """Users — solo today, multi-user later. Carries each owner's payment + pricing defaults."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String
+from sqlalchemy import JSON, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
@@ -42,6 +42,9 @@ class User(Base, TimestampMixin):
     default_currency: Mapped[str] = mapped_column(String(8), default="RM")
     default_mult_normal: Mapped[float] = mapped_column(Float, default=2.8)
     default_mult_foil: Mapped[float] = mapped_column(Float, default=3.0)
+    # The frontend's default pricing settings, opaque to the backend; a post
+    # with no pricing of its own uses these.
+    pricing: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     # Scan credits (see services/credits.py). Extra scans from vouchers or
     # payments that don't expire, and "no limit until" (naive UTC; year 9999
