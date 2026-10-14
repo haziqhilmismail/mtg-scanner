@@ -171,7 +171,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           onOpenOldChecklist={() => go({ view: 'checklist' })}
         />
       ) : (
-        <Checklist t={t} />
+        <Checklist createPost={pricing.createPost} t={t} />
       )}
 
       <footer className="foot">

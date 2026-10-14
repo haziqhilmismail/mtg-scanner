@@ -4,6 +4,7 @@ import { postsApi, type Listing, type Post } from '../../api/checklist.ts';
 import { upgradeScryfallImage } from '../../utils.ts';
 import { useDialog } from '../DialogProvider.tsx';
 import { useImageZoom } from '../ImageZoomProvider.tsx';
+import type { PricingStore } from '../../hooks/usePricing.ts';
 import { PostForm } from './PostForm.tsx';
 import { StockPickerDialog } from './StockPickerDialog.tsx';
 import type { T } from '../../hooks/useLang.ts';
@@ -13,13 +14,14 @@ interface Props {
   listings: Listing[];
   reload: () => void;
   onCreateOrder?: (l: Listing) => void;
+  createPost: PricingStore['createPost'];
   t: T;
 }
 
 // Posts grouped panel. Each post is its own card showing image, FB link,
 // totals, and the listings inside. Each post has "+ Add cards (bulk)" so
 // users can paste a Moxfield list once and have N listings created at once.
-export function PostsView({ posts, listings, reload, onCreateOrder, t }: Props) {
+export function PostsView({ posts, listings, reload, onCreateOrder, createPost, t }: Props) {
   const dialog = useDialog();
   const [showNewPost, setShowNewPost] = useState(false);
   const [editing, setEditing] = useState<Post | null>(null);
@@ -78,6 +80,7 @@ export function PostsView({ posts, listings, reload, onCreateOrder, t }: Props) 
           initial={null}
           onCancel={() => setShowNewPost(false)}
           onSaved={() => { setShowNewPost(false); reload(); }}
+          createPost={createPost}
           t={t}
         />
       )}
@@ -87,6 +90,7 @@ export function PostsView({ posts, listings, reload, onCreateOrder, t }: Props) 
           initial={editing}
           onCancel={() => setEditing(null)}
           onSaved={() => { setEditing(null); reload(); }}
+          createPost={createPost}
           t={t}
         />
       )}

@@ -76,7 +76,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
 export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricing, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
   const zoom = useImageZoom();
-  const { pricingFor, listPosts } = pricing;
+  const { pricingFor, listPosts, createPost } = pricing;
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
 
   // Posts double as the gallery's folders: every scan is filed under one (or
@@ -439,14 +439,13 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricin
       const title = new Date().toLocaleString(lang === 'ms' ? 'ms-MY' : 'en-MY', {
         day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
       });
-      // A copy of the default, so changing the default later doesn't reprice it.
-      const post = await postsApi.create({ title, pricing: pricingFor(null) });
+      const post = await createPost({ title });
       postId = post.id;
       await refreshPosts();
     } catch { /* couldn't create the post: the photos are still scanned, unfiled */ }
     scanner.addFiles(files, postId);
     goTo(postId != null ? `p${postId}` : UNFILED);
-  }, [openFolder, scanner, lang, refreshPosts, goTo, pricingFor]);
+  }, [openFolder, scanner, lang, refreshPosts, goTo, createPost]);
 
   const moveTo = useCallback(async (ids: string[], postId: number | null) => {
     try {
@@ -696,6 +695,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricin
               replace({ folder: pid != null ? `p${pid}` : UNFILED });
             }}
             onPostsChanged={refreshPosts}
+            createPost={createPost}
             addedIdx={activeAddedSlice}
             onMarkAdded={(origIdx, listingId) => {
               if (activeBatch.scanId != null) markAdded(activeBatch.scanId, origIdx, listingId);

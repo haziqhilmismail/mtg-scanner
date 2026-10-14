@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMe, saveDefaultPricing } from '../api/auth.ts';
-import { postsApi } from '../api/checklist.ts';
+import { postsApi, type PostCreatePayload } from '../api/checklist.ts';
 import { defaultToUpload, LEGACY_KEY, LEGACY_VERSION_KEY, legacyPricing, resolvePricing } from '../lib/pricing.ts';
 import type { Settings } from '../types.ts';
 import { useSaveQueue } from './useSaveQueue.ts';
@@ -63,16 +63,19 @@ export function usePricing() {
 
   // The default from the server. If it has none, the browser's old pricing
   // becomes it, once; the browser's copy goes when the server has one.
+  // Resolves to whether the default is known.
+  const defaultKnown = useRef<Promise<boolean>>(Promise.resolve(false));
   useEffect(() => {
     const askedAt = ++clock.current;
-    fetchMe().then(me => {
+    defaultKnown.current = fetchMe().then(me => {
       // Edited here meanwhile: that edit becomes the default.
-      if (!fresh('default', askedAt)) return;
+      if (!fresh('default', askedAt)) return true;
       const upload = defaultToUpload(me.pricing, readLegacy());
       set({ ...stateRef.current, userDefault: upload ?? me.pricing });
       if (upload) save('default', upload, 0);
       else if (me.pricing != null) forgetLegacy();
-    }, () => { /* offline: the stand-in default stays */ });
+      return true;
+    }, () => false /* offline: the stand-in default stays */);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -85,6 +88,16 @@ export function usePricing() {
     for (const p of list) if (fresh(p.id, askedAt)) posts[p.id] = p.pricing;
     set({ ...stateRef.current, posts });
     return list;
+  }, [set]);
+
+  // Every new post starts with a copy of the default, once it is known, so
+  // changing the default later doesn't reprice it. Not known (offline): the
+  // post follows the default.
+  const createPost = useCallback(async (payload: Omit<PostCreatePayload, 'pricing'>) => {
+    const known = await defaultKnown.current;
+    const post = await postsApi.create({ ...payload, pricing: known ? resolvePricing(null, stateRef.current.userDefault) : null });
+    set({ ...stateRef.current, posts: { ...stateRef.current.posts, [post.id]: post.pricing } });
+    return post;
   }, [set]);
 
   // THE answer to "what pricing does this post's (or, for null, an unfiled
@@ -120,7 +133,7 @@ export function usePricing() {
   // Send waiting edits now (signing out: before the token goes).
   const flush = useCallback(() => saves.flush(true), [saves]);
 
-  return { pricingFor, update, makeDefault, listPosts, flush, notice, clearNotice };
+  return { pricingFor, update, makeDefault, listPosts, createPost, flush, notice, clearNotice };
 }
 
 export type PricingStore = ReturnType<typeof usePricing>;
