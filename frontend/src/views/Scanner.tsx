@@ -690,7 +690,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
             </button>
           </div>
           <div className="review-head">
-            <div className="review-title">
+            <div className={`review-title ${titleDraft != null ? 'is-editing' : ''}`}>
               {openFolder.postId == null ? (
                 <h2>{openFolder.title}</h2>
               ) : titleDraft != null ? (
