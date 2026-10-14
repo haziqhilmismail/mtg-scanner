@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMe, saveDefaultPricing } from '../api/auth.ts';
-import { postsApi, type Post } from '../api/checklist.ts';
+import { postsApi } from '../api/checklist.ts';
 import { defaultToUpload, LEGACY_KEY, LEGACY_VERSION_KEY, legacyPricing, resolvePricing } from '../lib/pricing.ts';
 import type { Settings } from '../types.ts';
+import { useSaveQueue } from './useSaveQueue.ts';
 
 // Edits are saved this long after the last change.
 const SAVE_DELAY_MS = 600;
@@ -14,8 +15,8 @@ interface State {
   posts: Record<number, Settings | null>;
 }
 
-// What gets saved: a post's pricing, or (null) the user's default.
-type Target = number | null;
+// What gets saved: a post's pricing, or the user's default.
+type Target = number | 'default';
 
 function readLegacy(): Settings | null {
   try { return legacyPricing(localStorage.getItem(LEGACY_KEY), localStorage.getItem(LEGACY_VERSION_KEY)); } catch { return null; }
@@ -34,64 +35,56 @@ export function usePricing() {
   const set = useCallback((next: State) => { stateRef.current = next; setState(next); }, []);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Edits waiting to be sent, and saves on their way (one per target at a
-  // time, so an older save can't land after a newer one).
-  const pending = useRef(new Map<Target, Settings>());
-  const inFlight = useRef(new Set<Target>());
-  const timer = useRef<number | undefined>(undefined);
+  // A clock ticked by every request and every save that settles. Per target,
+  // the tick since which the server has had what this page shows (Infinity
+  // while an edit is unsaved): an answer asked for before then is stale.
+  const clock = useRef(0);
+  const settledAt = useRef(new Map<Target, number>());
+  const settle = (target: Target) => {
+    if (!saves.queue.busy(target)) settledAt.current.set(target, ++clock.current);
+  };
+  const fresh = (target: Target, askedAt: number) => (settledAt.current.get(target) ?? 0) < askedAt;
 
-  const flush = useCallback((final = false) => {
-    window.clearTimeout(timer.current);
-    for (const [target, pricing] of [...pending.current]) {
-      if (inFlight.current.has(target) && !final) continue;
-      pending.current.delete(target);
-      inFlight.current.add(target);
-      (target == null ? saveDefaultPricing(pricing, final) : postsApi.update(target, { pricing }, final))
-        .catch(() => setNotice('pricing_save_failed'))
-        .finally(() => {
-          inFlight.current.delete(target);
-          if (pending.current.has(target)) flush();
-        });
-    }
-  }, []);
+  // One save per target at a time: the server keeps whichever lands last.
+  const saves = useSaveQueue<Target, Settings>(
+    (target, pricing, final) => (target === 'default'
+      ? saveDefaultPricing(pricing, final)
+      : postsApi.update(target, { pricing }, final).then(() => undefined)),
+    target => { settle(target); if (target === 'default') forgetLegacy(); },
+    target => { settle(target); setNotice('pricing_save_failed'); },
+    false,
+  );
 
-  const queue = useCallback((target: Target, pricing: Settings, delay = SAVE_DELAY_MS) => {
-    pending.current.set(target, pricing);
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => flush(), delay);
-  }, [flush]);
-
-  const busy = (target: Target) => pending.current.has(target) || inFlight.current.has(target);
-
-  useEffect(() => {
-    const onHide = () => { if (document.visibilityState === 'hidden') flush(true); };
-    const onPageHide = () => flush(true);
-    document.addEventListener('visibilitychange', onHide);
-    window.addEventListener('pagehide', onPageHide);
-    return () => {
-      document.removeEventListener('visibilitychange', onHide);
-      window.removeEventListener('pagehide', onPageHide);
-    };
-  }, [flush]);
+  const save = useCallback((target: Target, pricing: Settings, delay = SAVE_DELAY_MS) => {
+    settledAt.current.set(target, Infinity);
+    saves.queue.save(target, pricing);
+    saves.later(delay);
+  }, [saves]);
 
   // The default from the server. If it has none, the browser's old pricing
   // becomes it, once; the browser's copy goes when the server has one.
   useEffect(() => {
+    const askedAt = ++clock.current;
     fetchMe().then(me => {
+      // Edited here meanwhile: that edit becomes the default.
+      if (!fresh('default', askedAt)) return;
       const upload = defaultToUpload(me.pricing, readLegacy());
-      if (!busy(null)) set({ ...stateRef.current, userDefault: upload ?? me.pricing ?? null });
-      if (upload) saveDefaultPricing(upload).then(forgetLegacy, () => { /* tried again next visit */ });
+      set({ ...stateRef.current, userDefault: upload ?? me.pricing });
+      if (upload) save('default', upload, 0);
       else if (me.pricing != null) forgetLegacy();
     }, () => { /* offline: the stand-in default stays */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Post lists from the server bring each post's pricing; a post with an
-  // edit not yet saved keeps the edit.
-  const learn = useCallback((list: Post[]) => {
+  // Every post, archived too, from the server. Each brings its pricing,
+  // unless edited here since it was asked for.
+  const listPosts = useCallback(async () => {
+    const askedAt = ++clock.current;
+    const list = await postsApi.list(true);
     const posts = { ...stateRef.current.posts };
-    for (const p of list) if (!busy(p.id)) posts[p.id] = p.pricing ?? null;
+    for (const p of list) if (fresh(p.id, askedAt)) posts[p.id] = p.pricing;
     set({ ...stateRef.current, posts });
+    return list;
   }, [set]);
 
   // THE answer to "what pricing does this post's (or, for null, an unfiled
@@ -107,27 +100,27 @@ export function usePricing() {
   }, [state]);
 
   // Change one setting of a post's pricing, or (null) of the default.
-  const update = useCallback(<K extends keyof Settings>(target: Target, key: K, value: Settings[K]) => {
+  const update = useCallback(<K extends keyof Settings>(postId: number | null, key: K, value: Settings[K]) => {
     const cur = stateRef.current;
-    const next = { ...resolvePricing(target != null ? cur.posts[target] : null, cur.userDefault), [key]: value };
-    set(target != null ? { ...cur, posts: { ...cur.posts, [target]: next } } : { ...cur, userDefault: next });
-    queue(target, next);
-  }, [set, queue]);
+    const next = { ...resolvePricing(postId != null ? cur.posts[postId] : null, cur.userDefault), [key]: value };
+    set(postId != null ? { ...cur, posts: { ...cur.posts, [postId]: next } } : { ...cur, userDefault: next });
+    save(postId ?? 'default', next);
+  }, [set, save]);
 
   // A post's pricing becomes the default, saved straight away.
   const makeDefault = useCallback((postId: number) => {
     const cur = stateRef.current;
     const pricing = resolvePricing(cur.posts[postId], cur.userDefault);
     set({ ...cur, userDefault: pricing });
-    queue(null, pricing, 0);
-  }, [set, queue]);
+    save('default', pricing, 0);
+  }, [set, save]);
 
   const clearNotice = useCallback(() => setNotice(null), []);
 
   // Send waiting edits now (signing out: before the token goes).
-  const flushNow = useCallback(() => flush(true), [flush]);
+  const flush = useCallback(() => saves.flush(true), [saves]);
 
-  return { pricingFor, update, makeDefault, learn, flush: flushNow, notice, clearNotice };
+  return { pricingFor, update, makeDefault, listPosts, flush, notice, clearNotice };
 }
 
 export type PricingStore = ReturnType<typeof usePricing>;

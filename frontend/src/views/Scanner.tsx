@@ -76,7 +76,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
 export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricing, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
   const zoom = useImageZoom();
-  const { pricingFor, learn } = pricing;
+  const { pricingFor, listPosts } = pricing;
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
 
   // Posts double as the gallery's folders: every scan is filed under one (or
@@ -111,13 +111,11 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricin
 
   const refreshPosts = useCallback(async () => {
     try {
-      const list = await postsApi.list(true);
-      setPosts(list);
-      learn(list);
+      setPosts(await listPosts());
     }
     catch { /* offline or auth error — ignore, picker just stays empty */ }
     setPostsLoaded(true);
-  }, [learn]);
+  }, [listPosts]);
 
   useEffect(() => { refreshPosts(); }, [refreshPosts]);
 
@@ -443,13 +441,12 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricin
       });
       // A copy of the default, so changing the default later doesn't reprice it.
       const post = await postsApi.create({ title, pricing: pricingFor(null) });
-      learn([post]);
       postId = post.id;
       await refreshPosts();
     } catch { /* couldn't create the post: the photos are still scanned, unfiled */ }
     scanner.addFiles(files, postId);
     goTo(postId != null ? `p${postId}` : UNFILED);
-  }, [openFolder, scanner, lang, refreshPosts, goTo, learn, pricingFor]);
+  }, [openFolder, scanner, lang, refreshPosts, goTo, pricingFor]);
 
   const moveTo = useCallback(async (ids: string[], postId: number | null) => {
     try {
