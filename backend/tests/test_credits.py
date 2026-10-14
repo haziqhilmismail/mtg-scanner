@@ -5,50 +5,16 @@ Run with:  python -m pytest tests
 
 import asyncio
 from datetime import timedelta
-from io import BytesIO
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from PIL import Image  # noqa: E402
-from sqlalchemy import func, select  # noqa: E402
+import pytest
+from conftest import LIMIT, _dispose_then, _scan, new_user, run
+from sqlalchemy import func, select
 
-import app.main as main  # noqa: E402
-from app.db import async_session_factory, engine  # noqa: E402
-from app.models import ScanCreditEvent, User, Voucher  # noqa: E402
-from app.services import credits  # noqa: E402
-from app.services.auth_service import issue_session_token  # noqa: E402
-from app.services.gemini_scanner import CardDetection  # noqa: E402
-
-LIMIT = 10
-_emails = iter(f"user{i}@example.com" for i in range(1000))
-
-
-def run(coro):
-    return asyncio.run(coro)
-
-
-async def _dispose_then(coro):
-    # Each asyncio.run() gets a new event loop; drop pooled connections that
-    # belong to the previous one.
-    await engine.dispose()
-    return await coro
-
-
-@pytest.fixture(scope="session", autouse=True)
-def schema():
-    # Build the schema the way production does, so the migration is tested too.
-    from alembic import command
-    from alembic.config import Config
-    command.upgrade(Config(str(main.BASE_DIR.parent / "alembic.ini")), "head")
-    run(engine.dispose())
-
-
-async def new_user() -> int:
-    async with async_session_factory() as s:
-        u = User(email=next(_emails))
-        s.add(u)
-        await s.commit()
-        return u.id
+import app.main as main
+from app.db import async_session_factory, engine
+from app.models import ScanCreditEvent, User, Voucher
+from app.services import credits
+from app.services.auth_service import issue_session_token
 
 
 async def make_voucher(**kw) -> str:
@@ -223,52 +189,6 @@ def test_owner_testing_pair_toggles_between_unlimited_and_a_fresh_limit():
 
 
 # ---------- /api/scan ----------
-
-def _photo() -> bytes:
-    buf = BytesIO()
-    Image.new("RGB", (400, 300), (230, 230, 225)).save(buf, format="JPEG")
-    return buf.getvalue()
-
-
-class _FakeCK:
-    matched_scryfall_count = 1
-    def lookup(self, sid):
-        return {"retail_normal": 1.0, "retail_foil": 2.0, "buy_normal": None, "buy_foil": None,
-                "in_stock_normal": True, "in_stock_foil": False, "url_normal": "", "url_foil": ""}
-
-
-@pytest.fixture()
-def client(monkeypatch):
-    calls = {"gemini": 0, "fail": False}
-
-    def fake_scan(image_bytes, *a, **k):
-        calls["gemini"] += 1
-        if calls["fail"]:
-            raise RuntimeError("gemini is down")
-        return [CardDetection(name="Sol Ring", set_code="cmm", collector_number="1",
-                              is_foil=False, quantity=1, box_2d=[100, 100, 500, 400])]
-
-    async def fake_lookup(dets):
-        return [{"scryfall_id": "abc", "name": d.name, "set": d.set_code} for d in dets]
-
-    async def fake_ck():
-        return _FakeCK()
-
-    monkeypatch.setattr(main, "scan_image", fake_scan)
-    monkeypatch.setattr(main, "lookup_all", fake_lookup)
-    monkeypatch.setattr(main, "get_ck_index", fake_ck)
-    monkeypatch.setattr(main.limiter, "enabled", False)
-    run(engine.dispose())
-    with TestClient(main.app) as c:
-        c.calls = calls
-        yield c
-    run(engine.dispose())
-
-
-def _scan(client, token):
-    return client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")},
-                       headers={"Authorization": f"Bearer {token}"})
-
 
 def test_scan_spends_a_credit_and_refuses_when_out(client):
     uid = run(_dispose_then(new_user()))
