@@ -15,6 +15,7 @@ import {
   buyersApi, listingsApi, ordersApi, postsApi,
   type Buyer, type Listing, type Order, type Post,
 } from '../api/checklist.ts';
+import { OutOfCreditsError } from '../api/auth.ts';
 import {
   CardPicker, CardTile, PhotoPicker, photoThumb,
   type CardRef, type CardStatus, type Photo,
@@ -339,10 +340,14 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       setDrafts(found);
       setStage('drafts');
     } catch (e) {
-      setError((e as Error).message);
+      // Working out claims costs a scan credit; out of them, say so the way
+      // the upload area does.
+      setError(e instanceof OutOfCreditsError
+        ? t('credits_out_title') + (e.credits ? `. ${t('credits_out_body_plain', { limit: e.credits.limit })}` : '')
+        : (e as Error).message);
       setStage('review');
     }
-  }, [pages, photos, catalogue, cardsByKey, scanIds]);
+  }, [pages, photos, catalogue, cardsByKey, scanIds, t]);
 
   // Cards claimed more times than there are copies, counting earlier claims
   // first: existing ones, then drafts top to bottom (first comment wins).
