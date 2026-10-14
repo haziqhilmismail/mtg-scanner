@@ -36,6 +36,7 @@ const PATHS = {
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
   archive: 'M4 5h16v4H4V5ZM5.500 9v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9M10 13h4',
   expand: 'M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7',
+  tag: 'M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9ZM7.500 7.500h.01',
 } as const;
 
 export type IconName = keyof typeof PATHS;

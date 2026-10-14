@@ -10,9 +10,16 @@ interface Props {
   update: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   t: T;
   health: Health | null;
+  title?: string;
+  // The default-pricing sheet shows the fields alone, without the fold.
+  bare?: boolean;
+  // A post's panel: make this pricing the default (disabled while it already is).
+  onSetDefault?: () => void;
+  isDefault?: boolean;
 }
 
-export function SettingsPanel({ settings, update, t, health }: Props) {
+// One pricing: a post's, or the user's default (see usePricing).
+export function SettingsPanel({ settings, update, t, health, title, bare, onSetDefault, isDefault }: Props) {
   // Decimal inputs need local string state so typing "2." doesn't get
   // round-tripped through Number and lose the trailing dot. Empty box → 0.
   const multNormal = useDecimalInput(settings.multNormal, v => update('multNormal', v ?? 0));
@@ -42,23 +49,8 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
     }
   }
 
-  return (
-    <section className={`panel disclosure ${open ? 'is-open' : ''}`}>
-      <button
-        type="button"
-        className="disclosure-head"
-        aria-expanded={open}
-        aria-controls="pricing-settings"
-        onClick={() => setOpen(o => !o)}
-      >
-        <span className="disclosure-text">
-          <span className="disclosure-title">{t('settings_title')}</span>
-          {!open ? <span className="disclosure-summary">{summary}</span> : null}
-        </span>
-        <Icon name="chevronDown" className="disclosure-chevron" />
-      </button>
-      {open ? (
-      <div id="pricing-settings" className="disclosure-body">
+  const body = (
+      <>
       <div className="settings">
         <label>
           <span>{t('mult_normal')}</span>
@@ -185,8 +177,33 @@ export function SettingsPanel({ settings, update, t, health }: Props) {
       <p className="status">
         {t('formula_hint')} {healthBadge}
       </p>
-      </div>
+      {onSetDefault ? (
+        <div className="pricing-default-row">
+          <button type="button" disabled={isDefault} onClick={onSetDefault}>
+            {isDefault ? t('pricing_is_default') : t('pricing_set_default')}
+          </button>
+        </div>
       ) : null}
+      </>
+  );
+  if (bare) return body;
+
+  return (
+    <section className={`panel disclosure ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="disclosure-head"
+        aria-expanded={open}
+        aria-controls="pricing-settings"
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className="disclosure-text">
+          <span className="disclosure-title">{title ?? t('settings_title')}</span>
+          {!open ? <span className="disclosure-summary">{summary}</span> : null}
+        </span>
+        <Icon name="chevronDown" className="disclosure-chevron" />
+      </button>
+      {open ? <div id="pricing-settings" className="disclosure-body">{body}</div> : null}
     </section>
   );
 }

@@ -2822,6 +2822,11 @@ img.zoomable:hover {
 .feedback-success { font-size: 13px; color: var(--green); flex: 1; }
 .feedback-error { font-size: 13px; color: var(--warn); flex: 1; }
 .feedback-foot .accent { margin-left: auto; min-width: 96px; min-height: var(--tap); }
+/* The default-pricing sheet holds the whole pricing form, so it is wider
+   and scrolls on a short screen. */
+.pricing-sheet { max-width: 640px; max-height: 92dvh; overflow-y: auto; }
+.pricing-sheet .status { margin-top: 0; }
+.pricing-default-row { display: flex; justify-content: flex-end; margin-top: 14px; }
 @media (max-width: 480px) { .feedback-foot .accent { margin-left: 0; flex: 1 1 100%; } }
 
 /* ---------- Back to top ----------

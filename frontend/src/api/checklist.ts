@@ -1,6 +1,7 @@
 // Typed wrappers for the checklist endpoints (listings, buyers, orders).
 // Decimal values come back as strings (Pydantic Decimal serialization).
 
+import type { Settings } from '../types.ts';
 import { imageUrl, request } from './http.ts';
 
 export type ListingStatus = 'active' | 'archived';
@@ -89,6 +90,8 @@ export interface Post {
   total_qty: number;
   total_value_myr: string;
   has_image: boolean;
+  // The post's own pricing; null = it follows the user's default.
+  pricing?: Settings | null;
 }
 
 export interface PostCreatePayload {
@@ -96,6 +99,7 @@ export interface PostCreatePayload {
   fb_url?: string | null;
   note?: string | null;
   image?: File | null;
+  pricing?: Settings | null;
 }
 
 export interface PostUpdatePayload {
@@ -103,6 +107,7 @@ export interface PostUpdatePayload {
   fb_url?: string | null;
   note?: string | null;
   status?: PostStatus;
+  pricing?: Settings | null;
 }
 
 // ---------- Bulk import ----------
@@ -189,11 +194,12 @@ export interface OrderCreatePayload {
   notes?: string | null;
 }
 
-async function json<T>(method: string, url: string, body?: unknown): Promise<T> {
+async function json<T>(method: string, url: string, body?: unknown, keepalive = false): Promise<T> {
   const r = await request(url, {
     method,
     headers: body ? { 'content-type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
+    keepalive,
   });
   // 204 No Content
   if (r.status === 204) return undefined as T;
@@ -264,9 +270,11 @@ export const postsApi = {
       fb_url: payload.fb_url ?? undefined,
       note: payload.note ?? undefined,
       image: payload.image ?? undefined,
+      pricing: payload.pricing ? JSON.stringify(payload.pricing) : undefined,
     }),
-  update: (id: number, payload: PostUpdatePayload) =>
-    json<Post>('PATCH', `/api/posts/${id}`, payload),
+  // `keepalive` lets the save finish as the page closes.
+  update: (id: number, payload: PostUpdatePayload, keepalive = false) =>
+    json<Post>('PATCH', `/api/posts/${id}`, payload, keepalive),
   uploadImage: (id: number, image: File) =>
     postMultipart<Post>(`/api/posts/${id}/image`, { image }),
   deleteImage: (id: number) => json<void>('DELETE', `/api/posts/${id}/image`),

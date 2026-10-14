@@ -5,13 +5,14 @@ import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
 import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
+import { PricingSheet } from './components/PricingSheet.tsx';
 import { TopTabs } from './components/TopTabs.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useLang } from './hooks/useLang.ts';
 import { useNav } from './hooks/useNav.ts';
-import { useScanner, type ScannerStore } from './hooks/useScanner.ts';
-import { useSettings } from './hooks/useSettings.ts';
+import { usePricing } from './hooks/usePricing.ts';
+import { useScanner } from './hooks/useScanner.ts';
 import { useTheme } from './hooks/useTheme.ts';
 import type { Appearance, Credits, Lang } from './types.ts';
 import { Checklist } from './views/Checklist.tsx';
@@ -80,7 +81,8 @@ interface WorkspaceProps {
 }
 
 function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: WorkspaceProps) {
-  const { settings, update: updateSetting } = useSettings();
+  const pricing = usePricing();
+  const [pricingOpen, setPricingOpen] = useState(false);
   const scanner = useScanner(auth.user?.id ?? null, auth.signOut);
 
   const navStore = useNav();
@@ -135,8 +137,9 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         t={t}
         user={auth.config?.auth_enabled ? auth.user : null}
         // Waiting edits go first: request() reads the token before it awaits.
-        onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); auth.signOut(); } : undefined}
+        onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
         onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
+        onDefaultPricing={() => setPricingOpen(true)}
       />
     <TopTabs
       view={view === 'scanner' ? 'scanner' : 'claims'}
@@ -150,8 +153,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           scanner={scanner}
           nav={navStore}
           userId={auth.user?.id ?? null}
-          settings={settings}
-          updateSetting={updateSetting}
+          pricing={pricing}
           health={health}
           t={t}
           lang={lang}
@@ -161,7 +163,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       ) : view === 'claims' ? (
         <Claims
           scanner={scanner}
-          settings={settings}
+          pricing={pricing}
           t={t}
           lang={lang}
           folderKey={nav.folder}
@@ -177,7 +179,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         <span>{t('footer_right')}</span>
       </footer>
     </main>
-    <ScannerNotice scanner={scanner} t={t} />
+    <Notice source={scanner} t={t} />
+    <Notice source={pricing} t={t} />
     <FloatingBackToTop />
     <VoucherSheet
       open={voucherOpen}
@@ -185,15 +188,17 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       onRedeemed={setCredits}
       t={t}
     />
+    <PricingSheet open={pricingOpen} onClose={() => setPricingOpen(false)} pricing={pricing} health={health} t={t} />
     </ImageZoomProvider>
     </DialogProvider>
   );
 }
 
-// Tells the user when something the scanner did in the background failed.
-function ScannerNotice({ scanner, t }: { scanner: ScannerStore; t: T }) {
+// Tells the user when something done in the background (a scan, a save)
+// failed. `notice` is a string key.
+function Notice({ source, t }: { source: { notice: string | null; clearNotice: () => void }; t: T }) {
   const dialog = useDialog();
-  const { notice, clearNotice } = scanner;
+  const { notice, clearNotice } = source;
   useEffect(() => {
     if (!notice) return;
     clearNotice();

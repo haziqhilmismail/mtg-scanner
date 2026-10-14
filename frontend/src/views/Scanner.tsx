@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import type { NavStore } from '../hooks/useNav.ts';
+import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import { loadAdded, saveAdded, settleAdded } from '../lib/addedMarkers.ts';
 import type { Batch, Candidate, Credits, Settings } from '../types.ts';
@@ -36,8 +37,8 @@ interface Props {
   // Which post and photo are open; each is a browser history entry.
   nav: NavStore;
   userId: number | null;
-  settings: Settings;
-  updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+  // Pricing per post and the default; pricingFor() prices every photo.
+  pricing: PricingStore;
   health: Health | null;
   t: T;
   lang: string;
@@ -72,9 +73,10 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
   };
 }
 
-export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settings, updateSetting, health, t, lang, credits, onEnterVoucher }: Props) {
+export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricing, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
   const zoom = useImageZoom();
+  const { pricingFor, learn } = pricing;
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
 
   // Posts double as the gallery's folders: every scan is filed under one (or
@@ -108,10 +110,14 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
   const addBatchInFlightRef = useRef<Set<string>>(new Set());
 
   const refreshPosts = useCallback(async () => {
-    try { setPosts(await postsApi.list(true)); }
+    try {
+      const list = await postsApi.list(true);
+      setPosts(list);
+      learn(list);
+    }
     catch { /* offline or auth error — ignore, picker just stays empty */ }
     setPostsLoaded(true);
-  }, []);
+  }, [learn]);
 
   useEffect(() => { refreshPosts(); }, [refreshPosts]);
 
@@ -136,7 +142,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
   const addBatchCore = useCallback(async (batch: Batch, postId: number | null) => {
     if (!batch.response || batch.scanId == null) return 0;
     let failed = 0;
-    const cardData = computeCardData(batch, settings);
+    const cardData = computeCardData(batch, pricingFor(batch.postId));
     const visible = cardData.filter(cd => !cd.removed);
     for (const cd of visible) {
       if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) continue;
@@ -152,7 +158,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
       }
     }
     return failed;
-  }, [settings, markAdded]);
+  }, [pricingFor, markAdded]);
 
   const alertFailed = useCallback(async (failed: number) => {
     if (failed) await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_failed', { n: failed }) });
@@ -198,14 +204,14 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
   }, [addingAll, addBatchCore, alertFailed]);
 
   const exportBatch = useCallback(async (batch: Batch) => {
-    const payload = buildExportPayload(batch, settings);
+    const payload = buildExportPayload(batch, pricingFor(batch.postId));
     if (!payload) return;
     try {
       downloadBlob(await exportImage(payload), batch.filename.replace(/\.[^.]+$/, '') + '_priced.png');
     } catch (e) {
       await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
     }
-  }, [settings, dialog, t]);
+  }, [pricingFor, dialog, t]);
 
   // Bulk export: render every finished batch's priced overlay and download them
   // as a single zip. Guarded by `exportingAll` so a slow render (N images on the
@@ -214,7 +220,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
   const exportAllBatches = useCallback(async (batches: Batch[]) => {
     const images = batches
       .map(b => {
-        const payload = buildExportPayload(b, settings);
+        const payload = buildExportPayload(b, pricingFor(b.postId));
         return payload ? { ...payload, filename: b.filename } as ExportAllImage : null;
       })
       .filter((x): x is ExportAllImage => x !== null);
@@ -230,7 +236,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
     } finally {
       setExportingAll(false);
     }
-  }, [settings, dialog, t]);
+  }, [pricingFor, dialog, t]);
 
   // Re-fetch CK prices for an already-saved scan. Cheap on the backend
   // (local SQLite lookups, no Gemini, no network out). Returns the updated
@@ -282,7 +288,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
         };
         byKey.set(key, f);
       }
-      const sum = summarise(b, settings);
+      const sum = summarise(b, pricingFor(b.postId));
       f.items.push(sum);
       f.needs += sum.needs;
       f.total += sum.total;
@@ -290,7 +296,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
     // Newest activity first; a post that is still scanning counts as newest.
     const newest = (f: Folder) => Math.max(...f.items.map(i => i.batch.scanId ?? Infinity));
     return [...byKey.values()].sort((a, b) => newest(b) - newest(a));
-  }, [scanner.batches, postsById, postTitle, settings, t]);
+  }, [scanner.batches, postsById, postTitle, pricingFor, t]);
 
   // The open post. It may have no photos yet (just created, or all deleted).
   const openFolder = useMemo<Folder | null>(() => {
@@ -333,7 +339,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
           photos={f.items.length}
           needs={f.items.filter(i => i.needs > 0).length}
           total={f.total}
-          settings={settings}
+          settings={pricingFor(f.postId)}
           t={t}
           onOpen={() => goTo(f.key)}
         />
@@ -435,12 +441,15 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
       const title = new Date().toLocaleString(lang === 'ms' ? 'ms-MY' : 'en-MY', {
         day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
       });
-      postId = (await postsApi.create({ title })).id;
+      // A copy of the default, so changing the default later doesn't reprice it.
+      const post = await postsApi.create({ title, pricing: pricingFor(null) });
+      learn([post]);
+      postId = post.id;
       await refreshPosts();
     } catch { /* couldn't create the post: the photos are still scanned, unfiled */ }
     scanner.addFiles(files, postId);
     goTo(postId != null ? `p${postId}` : UNFILED);
-  }, [openFolder, scanner, lang, refreshPosts, goTo]);
+  }, [openFolder, scanner, lang, refreshPosts, goTo, learn, pricingFor]);
 
   const moveTo = useCallback(async (ids: string[], postId: number | null) => {
     try {
@@ -617,7 +626,18 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
       compact={openFolder != null}
     />
   );
-  const pricing = <SettingsPanel settings={settings} update={updateSetting} t={t} health={health} />;
+  // A post's pricing; for unfiled photos (null), the default's.
+  const pricingPanel = (postId: number | null) => (
+    <SettingsPanel
+      settings={pricingFor(postId)}
+      update={(key, value) => pricing.update(postId, key, value)}
+      t={t}
+      health={health}
+      title={postId == null ? t('menu_default_pricing') : undefined}
+      onSetDefault={postId != null ? () => pricing.makeDefault(postId) : undefined}
+      isDefault={JSON.stringify(pricingFor(postId)) === JSON.stringify(pricingFor(null))}
+    />
+  );
 
   return (
     <>
@@ -662,10 +682,10 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
               ><Icon name="trash" size={18} /></button>
             </span>
           </div>
-          {pricing}
+          {pricingPanel(activeBatch.postId != null && postsById.has(activeBatch.postId) ? activeBatch.postId : null)}
           <ActiveBatchView
             batch={activeBatch}
-            settings={settings}
+            settings={pricingFor(activeBatch.postId)}
             scanner={scanner}
             t={t}
             onZoom={zoom.open}
@@ -734,7 +754,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
             {openFolder.total > 0 ? (
               <span className="all-scans-total">
                 <span className="label">{openFolder.items.length === 1 ? t('scans_photo_one') : t('scans_photos', { n: openFolder.items.length })}</span>
-                <span className="value">{formatMyr(openFolder.total, settings)}</span>
+                <span className="value">{formatMyr(openFolder.total, pricingFor(openFolder.postId))}</span>
               </span>
             ) : null}
             {openFolder.items.some(s => s.batch.response) || openFolder.postId != null ? (
@@ -766,7 +786,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
             <p className="archived-note"><Icon name="archive" size={16} />{t('scans_archived_note')}</p>
           ) : null}
           {upload}
-          {pricing}
+          {pricingPanel(openFolder.postId)}
           {progress}
           {openFolder.items.length > 0 ? (
             <div className="gallery-bar">
@@ -823,7 +843,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
                 <PhotoTile
                   key={s.batch.id}
                   summary={s}
-                  settings={settings}
+                  settings={pricingFor(s.batch.postId)}
                   t={t}
                   selecting={selecting}
                   selected={selected.has(s.batch.id)}
@@ -842,7 +862,6 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settin
         /* ---------- All posts ---------- */
         <>
           {upload}
-          {pricing}
           {progress}
           {loading ? (
             <Spinner label={t('scanner_loading_saved')} />

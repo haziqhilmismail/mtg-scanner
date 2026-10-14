@@ -24,14 +24,15 @@ import { useDialog } from '../components/DialogProvider.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
+import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
-import type { Batch, CardRowData, Settings } from '../types.ts';
+import type { Batch, CardRowData } from '../types.ts';
 import { computeCardData, creditsOutText, formatMyr, formatMyrWithFoil, listingFields, pastedImages } from '../utils.ts';
 import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   scanner: ScannerStore;
-  settings: Settings;
+  pricing: PricingStore;
   t: T;
   lang: string;
   // The open post, shared with the Scans gallery so both pages open on it.
@@ -97,7 +98,7 @@ function payState(orders: Order[]): PayState {
   return 'unpaid';
 }
 
-export function Claims({ scanner, settings, t, lang, folderKey, onFolderChange, onOpenOldChecklist }: Props) {
+export function Claims({ scanner, pricing: { pricingFor, learn }, t, lang, folderKey, onFolderChange, onOpenOldChecklist }: Props) {
   const dialog = useDialog();
   const [posts, setPosts] = useState<Post[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -112,12 +113,12 @@ export function Claims({ scanner, settings, t, lang, folderKey, onFolderChange, 
       const [p, l, o, b] = await Promise.all([
         postsApi.list(true), listingsApi.list(), ordersApi.list(true), buyersApi.list(),
       ]);
-      setPosts(p); setListings(l); setOrders(o); setBuyers(b); setLoadError('');
+      setPosts(p); learn(p); setListings(l); setOrders(o); setBuyers(b); setLoadError('');
     } catch (e) {
       setLoadError((e as Error).message);
     }
     setLoaded(true);
-  }, []);
+  }, [learn]);
   useEffect(() => { reload(); }, [reload]);
 
   // ---------- which post ----------
@@ -145,6 +146,8 @@ export function Claims({ scanner, settings, t, lang, folderKey, onFolderChange, 
   const activeKey = intakeKey
     ?? (postOptions.some(o => o.key === folderKey) ? folderKey : (postOptions[0]?.key ?? null));
   const postId = activeKey && activeKey !== UNFILED ? Number(activeKey.slice(1)) : null;
+  // Every photo here is the open post's (or unfiled), so one pricing prices them all.
+  const settings = pricingFor(postId);
 
   // ---------- what can be claimed ----------
   const photos = useMemo<Photo[]>(() => {
