@@ -1,7 +1,7 @@
 // Typed wrappers over the FastAPI backend. Vite proxies /api/* to localhost:8000
 // in dev (see vite.config.ts).
 
-import { authHeaders, authToken } from './api/auth.ts';
+import { authToken, request } from './api/auth.ts';
 import type { Candidate, DetectedCard, ScanResponse } from './types.ts';
 
 export interface Health {
@@ -16,9 +16,7 @@ export interface Health {
 }
 
 export async function fetchHealth(): Promise<Health> {
-  const r = await fetch('/api/health');
-  if (!r.ok) throw new Error(`Health check failed: ${r.status}`);
-  return (await r.json()) as Health;
+  return (await request('/api/health')).json();
 }
 
 export interface SavedScan extends ScanResponse {
@@ -47,9 +45,7 @@ function scanImageUrl(path: string, params: Record<string, string | number> = {}
 // list is ~0.3 MB and the browser fetches only the pictures on screen, then
 // keeps them cached.
 export async function fetchScans(limit = 300): Promise<SavedScan[]> {
-  const r = await fetch(`/api/scans?limit=${limit}&lite=1`, { headers: authHeaders() });
-  if (!r.ok) throw new Error(`fetchScans failed: ${r.status}`);
-  const scans = (await r.json()) as SavedScan[];
+  const scans = (await (await request(`/api/scans?limit=${limit}&lite=1`)).json()) as SavedScan[];
   return scans.map(s => {
     // A server that predates `lite` ignores it and still embeds the pictures.
     if (s.image_b64) return s;
@@ -64,8 +60,7 @@ export async function fetchScans(limit = 300): Promise<SavedScan[]> {
 }
 
 export async function deleteScan(id: number): Promise<void> {
-  const r = await fetch(`/api/scans/${id}`, { method: 'DELETE', headers: authHeaders() });
-  if (!r.ok) throw new Error(`deleteScan failed: ${r.status}`);
+  await request(`/api/scans/${id}`, { method: 'DELETE' });
 }
 
 // Re-runs CK price enrichment for every candidate in a saved scan.
@@ -76,11 +71,7 @@ export interface RelookupPricesResponse extends SavedScan {
   updated: number;
 }
 export async function relookupScanPrices(scanId: number): Promise<RelookupPricesResponse> {
-  const r = await fetch(`/api/scans/${scanId}/relookup-prices`, {
-    method: 'POST', headers: authHeaders(),
-  });
-  if (!r.ok) throw new Error(`relookupScanPrices failed: ${r.status}`);
-  return (await r.json()) as RelookupPricesResponse;
+  return (await request(`/api/scans/${scanId}/relookup-prices`, { method: 'POST' })).json();
 }
 
 // Phone photos are usually 12 MP (~4032×3024). Gemini bills per ~768px image
@@ -150,26 +141,15 @@ export interface Credits {
 
 // File scans under a post, or unfile them with postId = null.
 export async function moveScans(scanIds: number[], postId: number | null): Promise<void> {
-  const r = await fetch('/api/scans/move', {
+  await request('/api/scans/move', {
     method: 'POST',
-    headers: authHeaders({ 'content-type': 'application/json' }),
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ scan_ids: scanIds, post_id: postId }),
   });
-  if (!r.ok) throw new Error(`Move failed: ${r.status}`);
-}
-
-export class OutOfCreditsError extends Error {
-  credits: Credits | null;
-  constructor(credits: Credits | null) {
-    super('Out of scan credits');
-    this.credits = credits;
-  }
 }
 
 export async function fetchCredits(): Promise<Credits> {
-  const r = await fetch('/api/credits', { headers: authHeaders() });
-  if (!r.ok) throw new Error(`Credits failed: ${r.status}`);
-  return (await r.json()) as Credits;
+  return (await request('/api/credits')).json();
 }
 
 export interface RedeemResult {
@@ -180,18 +160,17 @@ export interface RedeemResult {
 // Rejects with an Error carrying `.code`: invalid | expired | used_up |
 // already_redeemed | rate_limited.
 export async function redeemVoucher(code: string): Promise<RedeemResult> {
-  const r = await fetch('/api/vouchers/redeem', {
-    method: 'POST',
-    headers: authHeaders({ 'content-type': 'application/json' }),
-    body: JSON.stringify({ code }),
-  });
-  if (!r.ok) {
-    const body = await r.json().catch(() => null);
-    const err = new Error(`Redeem failed: ${r.status}`) as Error & { code?: string };
-    err.code = r.status === 429 ? 'rate_limited' : body?.detail?.code;
+  try {
+    return await (await request('/api/vouchers/redeem', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code }),
+    })).json();
+  } catch (e) {
+    const err = e as Error & { status?: number; detail?: { code?: string }; code?: string };
+    err.code = err.status === 429 ? 'rate_limited' : err.detail?.code;
     throw err;
   }
-  return (await r.json()) as RedeemResult;
 }
 
 // `postId` files the photo under that post; null leaves it unfiled.
@@ -200,40 +179,19 @@ export async function scanImage(file: File, postId: number | null = null): Promi
   const fd = new FormData();
   fd.append('image', upload);
   if (postId != null) fd.append('post_id', String(postId));
-  const r = await fetch('/api/scan', { method: 'POST', body: fd, headers: authHeaders() });
-  if (r.status === 402) {
-    const body = await r.json().catch(() => null);
-    throw new OutOfCreditsError(body?.detail?.credits ?? null);
-  }
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Scan failed: ${r.status} ${t.slice(0, 200)}`);
-  }
-  return (await r.json()) as ScanResponse;
+  return (await request('/api/scan', { method: 'POST', body: fd })).json();
 }
 
 export async function relookup(name: string, set?: string): Promise<Candidate> {
   const fd = new FormData();
   fd.append('payload', JSON.stringify({ name, set }));
-  const r = await fetch('/api/relookup', { method: 'POST', body: fd, headers: authHeaders() });
-  if (!r.ok) {
-    const err = new Error(`Relookup failed: ${r.status}`);
-    (err as Error & { status?: number }).status = r.status;
-    throw err;
-  }
-  return (await r.json()) as Candidate;
+  return (await request('/api/relookup', { method: 'POST', body: fd })).json();
 }
 
 export async function fetchPrintings(name: string): Promise<{ name: string; printings: Candidate[] }> {
   const fd = new FormData();
   fd.append('payload', JSON.stringify({ name }));
-  const r = await fetch('/api/printings', { method: 'POST', body: fd, headers: authHeaders() });
-  if (!r.ok) {
-    const err = new Error(`Printings lookup failed: ${r.status}`);
-    (err as Error & { status?: number }).status = r.status;
-    throw err;
-  }
-  return (await r.json()) as { name: string; printings: Candidate[] };
+  return (await request('/api/printings', { method: 'POST', body: fd })).json();
 }
 
 export interface ExportPayload {
@@ -254,37 +212,6 @@ export interface ExportPayload {
   font_scale?: number;
 }
 
-// Minimal payload to add a scanned card to the checklist. The full schema lives
-// in api/checklist.ts; this is the subset the scanner sends.
-export interface AddListingPayload {
-  name: string;
-  scryfall_id?: string | null;
-  set_code?: string | null;
-  set_name?: string | null;
-  collector_number?: string | null;
-  rarity?: string | null;
-  is_foil: boolean;
-  image_url?: string | null;
-  ck_url?: string | null;
-  unit_price_myr: string;  // Decimal as string
-  qty_total: number;
-  notes?: string | null;
-  post_ids?: number[];
-}
-
-export async function addToChecklist(payload: AddListingPayload): Promise<{ id: number }> {
-  const r = await fetch('/api/listings', {
-    method: 'POST',
-    headers: authHeaders({ 'content-type': 'application/json' }),
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Add to checklist failed: ${r.status} ${t.slice(0, 200)}`);
-  }
-  return (await r.json()) as { id: number };
-}
-
 // Frame a missed card. User draws a rectangle in BatchPreview expand mode;
 // the backend warps that quad, pHashes it, and returns either a fully-named
 // card (CK-priced) or a manual stub the user will rename.
@@ -298,22 +225,13 @@ export async function frameCard(
 ): Promise<DetectedCard> {
   const fd = new FormData();
   fd.append('payload', JSON.stringify({ corners, skip_identify: skipIdentify }));
-  const r = await fetch(`/api/scans/${scanId}/frame-card`, {
-    method: 'POST', body: fd, headers: authHeaders(),
-  });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Frame card failed: ${r.status} ${t.slice(0, 200)}`);
-  }
-  return (await r.json()) as DetectedCard;
+  return (await request(`/api/scans/${scanId}/frame-card`, { method: 'POST', body: fd })).json();
 }
 
 export async function exportImage(payload: ExportPayload): Promise<Blob> {
   const fd = new FormData();
   fd.append('payload', JSON.stringify(payload));
-  const r = await fetch('/api/export', { method: 'POST', body: fd, headers: authHeaders() });
-  if (!r.ok) throw new Error(`Export failed: ${r.status}`);
-  return await r.blob();
+  return (await request('/api/export', { method: 'POST', body: fd })).blob();
 }
 
 // One export payload plus the source filename, used to name its entry in the
@@ -328,9 +246,7 @@ export interface ExportAllImage extends ExportPayload {
 export async function exportAllImages(images: ExportAllImage[]): Promise<Blob> {
   const fd = new FormData();
   fd.append('payload', JSON.stringify({ images }));
-  const r = await fetch('/api/export-all', { method: 'POST', body: fd, headers: authHeaders() });
-  if (!r.ok) throw new Error(`Export all failed: ${r.status}`);
-  return await r.blob();
+  return (await request('/api/export-all', { method: 'POST', body: fd })).blob();
 }
 
 // ---------- Claims: read a comment thread, draft who claimed what ----------
@@ -346,11 +262,7 @@ export async function readClaimScreenshots(files: File[], scanIds: number[]): Pr
   const fd = new FormData();
   files.forEach(f => fd.append('images', f));
   fd.append('scan_ids', scanIds.join(','));
-  const r = await fetch('/api/claims/read', { method: 'POST', body: fd, headers: authHeaders() });
-  if (!r.ok) {
-    const body = await r.json().catch(() => null);
-    throw new Error(typeof body?.detail === 'string' ? body.detail : `Could not read the screenshots (${r.status})`);
-  }
+  const r = await request('/api/claims/read', { method: 'POST', body: fd });
   return ((await r.json()) as { pages: ClaimPage[] }).pages;
 }
 
@@ -368,15 +280,11 @@ export interface ClaimDraft {
 }
 
 export async function parseClaims(text: string, photos: CataloguePhoto[]): Promise<ClaimDraft[]> {
-  const r = await fetch('/api/claims/parse', {
+  const r = await request('/api/claims/parse', {
     method: 'POST',
-    headers: authHeaders({ 'content-type': 'application/json' }),
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, photos }),
   });
-  if (!r.ok) {
-    const body = await r.json().catch(() => null);
-    throw new Error(typeof body?.detail === 'string' ? body.detail : `Could not work out the claims (${r.status})`);
-  }
   return ((await r.json()) as { claims: ClaimDraft[] }).claims;
 }
 
@@ -393,10 +301,9 @@ export interface ConfirmClaim {
 }
 
 export async function confirmClaims(postId: number | null, claims: ConfirmClaim[]): Promise<void> {
-  const r = await fetch('/api/claims/confirm', {
+  await request('/api/claims/confirm', {
     method: 'POST',
-    headers: authHeaders({ 'content-type': 'application/json' }),
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ post_id: postId, claims }),
   });
-  if (!r.ok) throw new Error(`Could not save the claims (${r.status})`);
 }

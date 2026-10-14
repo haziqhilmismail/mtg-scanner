@@ -1,8 +1,8 @@
 import type { Credits } from '../api.ts';
 import { Icon } from '../components/Icon.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { addToChecklist, exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
-import { postsApi, type Post } from '../api/checklist.ts';
+import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
+import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
@@ -155,7 +155,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
           ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
           : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
         const ck = ckDirect || ckSearchUrl(cd.sel.name || '');
-        const result = await addToChecklist({
+        const result = await listingsApi.create({
           name: cd.sel.name || '(unknown)',
           scryfall_id: cd.sel.scryfall_id || null,
           set_code: cd.sel.set || null,

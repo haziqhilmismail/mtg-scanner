@@ -1,7 +1,7 @@
 // Typed wrappers for the checklist endpoints (listings, buyers, orders).
 // Decimal values come back as strings (Pydantic Decimal serialization).
 
-import { authHeaders, authToken } from './auth.ts';
+import { authToken, request } from './auth.ts';
 
 export type ListingStatus = 'active' | 'archived';
 export type OrderStatus = 'claimed' | 'cancelled';
@@ -190,19 +190,11 @@ export interface OrderCreatePayload {
 }
 
 async function json<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const r = await fetch(url, {
+  const r = await request(url, {
     method,
-    headers: authHeaders(body ? { 'content-type': 'application/json' } : undefined),
+    headers: body ? { 'content-type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!r.ok) {
-    let detail = `${method} ${url} → ${r.status}`;
-    try {
-      const j = await r.json();
-      if (j.detail) detail += `: ${j.detail}`;
-    } catch { /* ignore */ }
-    throw new Error(detail);
-  }
   // 204 No Content
   if (r.status === 204) return undefined as T;
   return (await r.json()) as T;
@@ -264,15 +256,7 @@ async function postMultipart<T>(url: string, fields: Record<string, string | Blo
     if (v === undefined || v === null) continue;
     fd.append(k, v);
   }
-  const r = await fetch(url, { method, body: fd, headers: authHeaders() });
-  if (!r.ok) {
-    let detail = `${method} ${url} → ${r.status}`;
-    try {
-      const j = await r.json();
-      if (j.detail) detail += `: ${j.detail}`;
-    } catch { /* ignore */ }
-    throw new Error(detail);
-  }
+  const r = await request(url, { method, body: fd });
   if (r.status === 204) return undefined as T;
   return (await r.json()) as T;
 }
