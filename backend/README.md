@@ -1,76 +1,58 @@
-# Backend
+# MTG scanner backend
 
-New consolidated backend for the scanner + order/checklist layer.
+FastAPI + SQLAlchemy 2 (async) + SQLite, behind the React frontend
+(`mtg-scanner-frontend`, on Vercel). It prices Magic cards from photos
+(Gemini, or the local scanner below; prices from CardKingdom, card data from
+Scryfall) and keeps the seller's stock, posts, buyers and orders.
 
-## Directory layout
+## Layout
 
 ```
-backend/
-├── requirements.txt
-├── .env.example
-├── data/                     # SQLite DB (app.db) + CK pricelist cache once moved over
-└── app/
-    ├── config.py             # env-based settings (pydantic-settings)
-    ├── db.py                 # async engine + session factory
-    ├── deps.py               # FastAPI deps: get_db, get_current_user_id
-    ├── main.py               # (to be created — wires routers + lifespan)
-    ├── models/               # SQLAlchemy 2.0 schema
-    │   ├── base.py
-    │   ├── user.py
-    │   ├── scan.py
-    │   ├── listing.py
-    │   ├── buyer.py
-    │   ├── order.py
-    │   ├── order_item.py
-    │   └── payment.py
-    ├── schemas/              # Pydantic API contracts (request/response shapes)
-    │   ├── user.py
-    │   ├── scan.py
-    │   ├── listing.py
-    │   ├── buyer.py
-    │   ├── order.py
-    │   └── payment.py
-    ├── services/             # (to be filled — gemini_scanner, scryfall_lookup, etc.)
-    └── routers/              # (to be filled — listings, buyers, orders, etc.)
+app/
+├── main.py       # app, lifespan (migrations, CK index), scan / export / Scryfall routes
+├── config.py     # settings from env / .env (see .env.example)
+├── db.py         # async engine + session (commits on success)
+├── deps.py       # DbSession, CurrentUserId (bearer), ImageUserId (?token=), the rate limiter
+├── models/       # SQLAlchemy tables
+├── schemas/      # Pydantic request/response shapes
+├── routers/      # auth, bugs, buyers, claims, credits, listings, orders, posts
+└── services/     # Gemini, Scryfall, CardKingdom, overlay render, credits, local scanner...
+migrations/       # Alembic; `alembic upgrade head` runs on every start
+scripts/          # make_voucher.py, build_embedding_index.py
+tests/
 ```
 
-## Schema overview
+## Auth
 
-| Table         | Purpose                                                                      |
-|---------------|------------------------------------------------------------------------------|
-| `users`       | Account + payment defaults (bank info, QR, default multipliers)              |
-| `scans`       | Uploaded photo + raw Gemini response                                         |
-| `listings`    | A card put up for sale. Card identity is denormalized at listing time        |
-| `buyers`      | FB buyer profiles                                                            |
-| `orders`      | Buyer's claim. `paid_at` and `delivered_at` are independent (credit drop-offs supported) |
-| `order_items` | Line items with price + name snapshots                                       |
-| `payments`    | Multiple payments per order allowed (partial payments)                       |
+With `GOOGLE_CLIENT_ID` set, `POST /api/auth/google` swaps a Google ID token
+for a 7-day session JWT (sent as `Authorization: Bearer`) plus a 30-day
+image-only token for `<img src="...?token=">` URLs. `GET /api/auth/me` returns
+both again. Without `GOOGLE_CLIENT_ID` the app runs in solo mode: no login,
+everything belongs to user `SOLO_USER_ID`.
 
-Status state machines:
-- **Listing** → `active` ↔ `archived`. Quantity availability is computed from active order items.
-- **Order** → `claimed` | `cancelled`. The paid/delivered axes are tracked via `paid_at` and `delivered_at` separately, so `delivered_at` set without `paid_at` represents "took on credit".
+## Tables
 
-## Migration plan from existing `app/`
+| Table | Purpose |
+|---|---|
+| `users` | Account + pricing defaults, scan-credit state |
+| `scans` | Uploaded photo (file in `data/scans/`), detected cards, the seller's per-card edits (`ui_state`) |
+| `posts`, `listing_post_links` | Facebook posts and the listings under each |
+| `listings` | A card put up for sale; card identity is copied in at listing time |
+| `buyers`, `orders`, `order_items` | Claims; `paid_at` and `delivered_at` are independent (credit drop-offs) |
+| `payments` | Reserved for partial payments (no routes yet) |
+| `scan_credit_events`, `vouchers`, `voucher_redemptions` | Scan credits, see `services/credits.py` |
+| `bug_events` | Backend 500s and frontend crash reports (also pushed to Telegram) |
 
-The old scanner-only backend at `mtg-scanner/app/` keeps running untouched while this
-new structure is filled out. Steps:
-
-1. **Schema + data model (done)** — this commit.
-2. Add `db.init_db()` + Alembic baseline so the SQLite file is created on first run.
-3. Move `app/gemini_scanner.py`, `app/scryfall_lookup.py`, `app/cardkingdom_prices.py`, `app/price_overlay.py` → `backend/app/services/`. Update imports.
-4. Recreate `app/main.py` as `backend/app/main.py` with the existing scan/export routes pulled into `routers/scan.py`.
-5. Build the new routers: `listings`, `buyers`, `orders`, `payments`.
-6. Wire React frontend to the new endpoints.
-7. Delete the old `app/` once the new backend has parity.
-
-## Running (once main.py + routers exist)
+## Running
 
 ```bash
-cd backend
-pip install -r requirements.txt
-cp .env.example .env  # then fill in GEMINI_API_KEY
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env          # then fill in GEMINI_API_KEY
 uvicorn app.main:app --reload
+python -m pytest tests
 ```
+
+Production runs in Docker on the home server; see `DEPLOY_HOMESERVER.md`.
 
 ## Local scanner (experimental)
 
