@@ -1,7 +1,7 @@
 // Typed wrappers for the checklist endpoints (listings, buyers, orders).
 // Decimal values come back as strings (Pydantic Decimal serialization).
 
-import { authToken, request } from './auth.ts';
+import { imageUrl, request } from './auth.ts';
 
 export type ListingStatus = 'active' | 'archived';
 export type OrderStatus = 'claimed' | 'cancelled';
@@ -160,7 +160,7 @@ export interface Order {
   dropoff_address: string | null;
   notes: string | null;
   // Optional delivery-proof photo metadata. Bytes are fetched via
-  // ordersApi.deliveryPhotoUrl(id) — auth via ?token=... query string.
+  // ordersApi.deliveryPhotoUrl(id) — auth via the image token in the URL.
   has_delivery_photo: boolean;
   delivery_photo_uploaded_at: string | null;
   items: OrderItem[];
@@ -237,16 +237,10 @@ export const ordersApi = {
     postMultipart<Order>(`/api/orders/${id}/delivery-photo`, { image }),
   deleteDeliveryPhoto: (id: number) =>
     json<void>('DELETE', `/api/orders/${id}/delivery-photo`),
-  // <img src=...> compatible URL with the session JWT in the query string.
   // A cache-busting `v=` is appended so a freshly uploaded photo replaces the
   // cached version in the browser without a hard refresh.
-  deliveryPhotoUrl: (id: number, version?: string | null) => {
-    const t = authToken.get();
-    const params: string[] = [];
-    if (t) params.push(`token=${encodeURIComponent(t)}`);
-    if (version) params.push(`v=${encodeURIComponent(version)}`);
-    return `/api/orders/${id}/delivery-photo${params.length ? `?${params.join('&')}` : ''}`;
-  },
+  deliveryPhotoUrl: (id: number, version?: string | null) =>
+    imageUrl(`/api/orders/${id}/delivery-photo`, { v: version }),
 };
 
 // ---------- Posts ----------
@@ -277,12 +271,7 @@ export const postsApi = {
     postMultipart<Post>(`/api/posts/${id}/image`, { image }),
   deleteImage: (id: number) => json<void>('DELETE', `/api/posts/${id}/image`),
   remove: (id: number) => json<void>('DELETE', `/api/posts/${id}`),
-  // <img src=…> can't send Authorization headers, so we pass the session JWT
-  // via a query string. In solo mode (no token) the backend ignores it.
-  imageUrl: (id: number) => {
-    const t = authToken.get();
-    return t ? `/api/posts/${id}/image?token=${encodeURIComponent(t)}` : `/api/posts/${id}/image`;
-  },
+  imageUrl: (id: number) => imageUrl(`/api/posts/${id}/image`),
   // Replace the full set of stock items linked to this post (set-membership semantics).
   setListings: (id: number, listing_ids: number[]) =>
     json<Post>('PUT', `/api/posts/${id}/listings`, { listing_ids }),

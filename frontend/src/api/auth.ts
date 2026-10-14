@@ -4,17 +4,18 @@
 
 import type { Credits } from '../api.ts';
 
-const TOKEN_KEY = 'mtg.auth.token';
 
 export interface AuthUser {
   id: number;
   email: string;
   name: string | null;
   avatar_url: string | null;
+  image_token?: string;
 }
 
 export interface AuthResponse {
   token: string;
+  image_token?: string;
   user: AuthUser;
 }
 
@@ -23,17 +24,35 @@ export interface AuthConfig {
   google_client_id: string;
 }
 
-export const authToken = {
-  get: (): string | null => {
-    try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
-  },
-  set: (token: string) => {
-    try { localStorage.setItem(TOKEN_KEY, token); } catch { /* ignore */ }
-  },
-  clear: () => {
-    try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
-  },
-};
+function storedToken(key: string) {
+  return {
+    get: (): string | null => {
+      try { return localStorage.getItem(key); } catch { return null; }
+    },
+    set: (token: string) => {
+      try { localStorage.setItem(key, token); } catch { /* ignore */ }
+    },
+    clear: () => {
+      try { localStorage.removeItem(key); } catch { /* ignore */ }
+    },
+  };
+}
+
+export const authToken = storedToken('mtg.auth.token');
+// Image-only token: <img src> can't send headers, so pictures carry this in
+// the URL. It can load images and nothing else, unlike the session token.
+export const imageToken = storedToken('mtg.auth.image_token');
+
+// URL for an image route, with the image token (empty in solo mode) and any
+// non-empty params in the query string.
+export function imageUrl(path: string, params: Record<string, string | number | null | undefined> = {}): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v != null && v !== '') q.set(k, String(v));
+  const t = imageToken.get();
+  if (t) q.set('token', t);
+  const qs = q.toString();
+  return qs ? `${path}?${qs}` : path;
+}
 
 // Builds a Headers object pre-populated with the session token when present.
 export function authHeaders(extra?: HeadersInit): Headers {
