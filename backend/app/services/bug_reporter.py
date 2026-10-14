@@ -33,6 +33,16 @@ if TYPE_CHECKING:
 # fingerprint → (window_start_utc, suppressed_count_during_window)
 _DEDUP: dict[str, tuple[datetime, int]] = {}
 
+# The event loop only holds weak references to tasks; keep pending pushes
+# here so one can't be garbage-collected before it is sent.
+_PUSHES: set[asyncio.Task] = set()
+
+
+def _push(event: BugEvent) -> None:
+    task = asyncio.create_task(_send_telegram(_format_push(event)))
+    _PUSHES.add(task)
+    task.add_done_callback(_PUSHES.discard)
+
 
 def _fingerprint(source: str, route: str | None, exc_type: str, top_frame: str) -> str:
     raw = f"{source}|{route or ''}|{exc_type}|{top_frame}".encode()
@@ -190,7 +200,7 @@ async def report_exception(
     notify, _ = _should_notify(fp)
     if notify:
         # Fire-and-forget — never block the response on Telegram I/O.
-        asyncio.create_task(_send_telegram(_format_push(event)))
+        _push(event)
 
 
 async def report_frontend(
@@ -224,5 +234,5 @@ async def report_frontend(
 
     notify, _ = _should_notify(fp)
     if notify:
-        asyncio.create_task(_send_telegram(_format_push(event)))
+        _push(event)
     return event
