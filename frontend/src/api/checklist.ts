@@ -91,7 +91,7 @@ export interface Post {
   total_value_myr: string;
   has_image: boolean;
   // The post's own pricing; null = it follows the user's default.
-  pricing?: Settings | null;
+  pricing: Settings | null;
 }
 
 export interface PostCreatePayload {

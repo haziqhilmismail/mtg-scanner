@@ -12,7 +12,7 @@ export interface AuthUser {
 
 // /me also hands out a fresh image token ("" in solo mode) and the user's
 // default pricing (null until one is set).
-export type MeResponse = AuthUser & { image_token: string; pricing?: Settings | null };
+export type MeResponse = AuthUser & { image_token: string; pricing: Settings | null };
 
 export interface AuthResponse {
   token: string;

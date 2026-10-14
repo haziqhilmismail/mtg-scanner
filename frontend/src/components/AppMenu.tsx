@@ -19,7 +19,7 @@ interface Props {
   onSignOut?: () => void;
   // Shown when scan credits apply to this account.
   onRedeemVoucher?: () => void;
-  // Signed in: opens the default-pricing sheet.
+  // Opens the default-pricing sheet; absent on the sign-in screen.
   onDefaultPricing?: () => void;
 }
 
