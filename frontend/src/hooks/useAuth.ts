@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   authToken,
+  imageToken,
   fetchAuthConfig,
   fetchMe,
   loginWithGoogle,
@@ -15,6 +16,18 @@ import {
 } from '../api/auth.ts';
 
 type Status = 'loading' | 'unauthenticated' | 'authenticated';
+
+// Take the image token /me hands out, unless the stored one still has a week
+// left: image URLs then stay the same between visits and the browser cache
+// keeps working.
+function keepImageToken(fresh: string | undefined) {
+  const cur = imageToken.get();
+  try {
+    const { exp } = JSON.parse(atob(cur!.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (exp * 1000 > Date.now() + 7 * 864e5) return;
+  } catch { /* none stored, or not a JWT: replace it */ }
+  imageToken.set(fresh ?? '');
+}
 
 interface UseAuth {
   status: Status;
@@ -43,6 +56,7 @@ export function useAuth(): UseAuth {
         if (!cfg.auth_enabled) {
           // Solo mode — /api/auth/me returns the solo user without a token
           const me = await fetchMe();
+          keepImageToken(me.image_token);
           setUser(me);
           setStatus('authenticated');
           return;
@@ -51,12 +65,14 @@ export function useAuth(): UseAuth {
         if (authToken.get()) {
           try {
             const me = await fetchMe();
+            keepImageToken(me.image_token);
             setUser(me);
             setStatus('authenticated');
             return;
           } catch {
             // Token expired / invalid → clear and fall through to login
             authToken.clear();
+            imageToken.clear();
           }
         }
         setStatus('unauthenticated');
@@ -72,6 +88,7 @@ export function useAuth(): UseAuth {
     try {
       const resp: AuthResponse = await loginWithGoogle(credential);
       authToken.set(resp.token);
+      imageToken.set(resp.image_token ?? '');
       setUser(resp.user);
       setStatus('authenticated');
     } catch (e) {
@@ -82,6 +99,7 @@ export function useAuth(): UseAuth {
 
   const signOut = useCallback(() => {
     authToken.clear();
+    imageToken.clear();
     setUser(null);
     setStatus('unauthenticated');
     // Hint to Google to disable auto-select on the next visit

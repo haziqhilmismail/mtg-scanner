@@ -1,7 +1,7 @@
 // Typed wrappers over the FastAPI backend. Vite proxies /api/* to localhost:8000
 // in dev (see vite.config.ts).
 
-import { authToken, request } from './api/auth.ts';
+import { imageUrl, request } from './api/auth.ts';
 import type { Candidate, DetectedCard, ScanResponse } from './types.ts';
 
 export interface Health {
@@ -27,16 +27,6 @@ export interface SavedScan extends ScanResponse {
   created_at: string | null;
 }
 
-// <img src=…> can't send Authorization headers, so scan pictures carry the
-// session JWT in the query string (same as post images).
-function scanImageUrl(path: string, params: Record<string, string | number> = {}): string {
-  const q = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]));
-  const t = authToken.get();
-  if (t) q.set('token', t);
-  const qs = q.toString();
-  return qs ? `${path}?${qs}` : path;
-}
-
 // Loads all saved scans (most-recent first) for rehydration after a page refresh.
 //
 // Asks for the list without its embedded pictures (`lite=1`) and points each
@@ -52,9 +42,9 @@ export async function fetchScans(limit = 300): Promise<SavedScan[]> {
     const base = `/api/scans/${s.scan_id}`;
     return {
       ...s,
-      image_b64: scanImageUrl(`${base}/preview`),
-      thumb_url: scanImageUrl(`${base}/preview`, { w: 480 }),
-      cards: s.cards.map(c => ({ ...c, crop_b64: scanImageUrl(`${base}/crops/${c.id}`) })),
+      image_b64: imageUrl(`${base}/preview`),
+      thumb_url: imageUrl(`${base}/preview`, { w: 480 }),
+      cards: s.cards.map(c => ({ ...c, crop_b64: imageUrl(`${base}/crops/${c.id}`) })),
     };
   });
 }
