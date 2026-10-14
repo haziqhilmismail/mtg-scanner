@@ -603,12 +603,75 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   font-size: 13px; line-height: 1.35; color: var(--warn);
 }
 .claims-note .icon { margin-top: 2px; }
+.claims-note.is-ok { color: var(--green); }
 .claims-page { padding: 12px; margin-bottom: 10px; background: var(--surface-2); border-radius: var(--radius); }
-.claims-page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.claims-page-name { font-size: 13px; color: var(--ink-soft); margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
-.claims-page-head label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); min-width: 0; flex: 1 1 220px; }
-.claims-page-head select { flex: 1; min-width: 0; font-size: 15px; background-color: var(--paper); }
-.claims-page textarea { width: 100%; font-size: 15px; line-height: 1.4; background: var(--paper); resize: vertical; }
+.claims-page.is-open { box-shadow: inset 0 0 0 1.5px var(--warn); }
+.claims-page-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.claims-page-shot { flex: none; display: block; width: 56px; height: 72px; border-radius: 8px; overflow: hidden; background: var(--paper); }
+.claims-page-shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.claims-page-name { flex: 1; min-width: 0; font-size: 13px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.claims-page textarea { width: 100%; margin-top: 10px; font-size: 15px; line-height: 1.4; background: var(--paper); resize: vertical; }
+
+/* Pictures to tap: which photo, which card. */
+.photo-picker { display: flex; gap: 8px; margin-top: 8px; overflow-x: auto; padding: 2px; scrollbar-width: thin; }
+.photo-pick {
+  flex: none; position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 92px; min-height: 44px; padding: 4px 4px 6px; border: 0; border-radius: 10px;
+  background: var(--paper); color: var(--ink); font-size: 13px; font-weight: 500; box-shadow: inset 0 0 0 1px var(--rule);
+}
+.photo-pick-img { display: grid; place-items: center; width: 84px; height: 64px; border-radius: 7px; overflow: hidden; background: var(--surface-2); color: var(--ink-soft); }
+.photo-pick-img img { width: 100%; height: 100%; object-fit: cover; }
+.photo-pick.is-selected { box-shadow: inset 0 0 0 2.5px var(--accent); color: var(--accent); }
+.photo-pick-hint {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  padding: 1px 6px; border-radius: 6px; background: var(--accent-fill); color: var(--on-accent); font-size: 11px; font-weight: 600;
+}
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.card-tile {
+  display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 6px;
+  border: 0; border-radius: 10px; background: var(--paper); color: var(--ink); text-align: left; font: inherit;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+button.card-tile { cursor: pointer; }
+button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.card-tile.is-selected { box-shadow: inset 0 0 0 2.5px var(--accent); }
+.card-tile-img { flex: none; width: 40px; height: 56px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
+.card-tile-img img { width: 100%; height: 100%; object-fit: cover; }
+.card-tile-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.card-tile-name { font-size: 13px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.card-tile-meta { font-size: 12px; color: var(--ink-soft); }
+.card-tile-status { font-size: 12px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+.card-tile-status.is-free { color: var(--green); }
+.card-tile-status.is-part { color: var(--accent); }
+.card-tile-status.is-taken { color: var(--ink-soft); }
+.card-picker { margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--rule); }
+.card-picker .card-tile { background: var(--surface-2); box-shadow: none; }
+.card-picker .card-tile.is-selected, .card-picker .card-tile:hover { box-shadow: inset 0 0 0 2px var(--accent); }
+.card-picker-hint { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.card-picker-photo { margin: 0 0 6px; font-size: 12px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.card-picker > div + div { margin-top: 12px; }
+.card-picker > .link-btn { margin-top: 8px; }
+
+/* The post's inventory sits beside the comments on a wide screen, so what a
+   comment points at is always in view; on a phone it follows the intake. */
+.claims-work { display: grid; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1000px) {
+  .claims-work { grid-template-columns: minmax(0, 1fr) 340px; column-gap: 24px; grid-template-areas: "intake inv" "claimed inv"; }
+  .claims-intake { grid-area: intake; }
+  .claims-claimed { grid-area: claimed; min-width: 0; }
+  .claims-inventory {
+    grid-area: inv; align-self: start; position: sticky; top: 76px;
+    max-height: calc(100vh - 96px); overflow-y: auto; overscroll-behavior: contain;
+  }
+  .claims-inventory .card-grid { grid-template-columns: 1fr 1fr; }
+}
+.claims-inventory h2 { margin-bottom: 4px; }
+.inv-photo + .inv-photo { margin-top: 16px; }
+.inv-photo-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.inv-photo-head img { width: 56px; height: 42px; object-fit: cover; border-radius: 6px; background: var(--surface-2); }
+.inv-photo-head > span { display: flex; flex-direction: column; font-size: 15px; }
+.inv-photo-head .meta { font-size: 12px; color: var(--ink-soft); }
+.inv-foot { margin: 14px 0 0; font-size: 12px; }
 .claims-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
 .claims-actions .spacer, .claim-row-foot .spacer { flex: 1; }
 .claim-draft { padding: 12px; margin-bottom: 10px; background: var(--surface-2); border-radius: var(--radius); }
@@ -617,8 +680,11 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .claim-quote { margin: 6px 2px 8px; font-size: 13px; color: var(--ink-soft); }
 .claim-item { margin-top: 8px; }
 .claim-item-row { display: flex; align-items: center; gap: 8px; }
-.claim-item-row select { flex: 1; min-width: 0; font-size: 15px; background-color: var(--paper); }
-.claim-item.is-open select { border-color: var(--warn); }
+.claim-item-card { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.claim-item-card .card-tile { flex: 1; min-width: 0; }
+.claim-item-photo { flex: none; font-size: 12px; color: var(--ink-soft); }
+.claim-item-q { flex: 1; min-width: 0; margin: 0; }
+.claim-change { flex: none; }
 .claim-qty { display: flex; align-items: center; gap: 4px; font-size: 15px; color: var(--ink-soft); }
 .claim-qty input { width: 48px; text-align: center; background: var(--paper); }
 .claim-draft > .link-btn { margin-top: 8px; }

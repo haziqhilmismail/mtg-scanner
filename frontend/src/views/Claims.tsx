@@ -15,6 +15,10 @@ import {
   buyersApi, listingsApi, ordersApi, postsApi,
   type Buyer, type Listing, type Order, type Post,
 } from '../api/checklist.ts';
+import {
+  CardPicker, CardTile, PhotoPicker, photoThumb,
+  type CardRef, type CardStatus, type Photo,
+} from '../components/ClaimPickers.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Spinner } from '../components/Spinner.tsx';
@@ -34,25 +38,17 @@ interface Props {
 
 const UNFILED = 'unfiled';
 
-// One card that can be claimed: a scanned card in one of the post's photos.
-interface CardRef {
-  key: string;          // `${scanId}:${cardId}`
-  scanId: number;
-  photo: number;        // 1-based position of its photo in the post
-  filename: string;
-  cd: CardRowData;
-  position: string;
-}
-
-interface Photo {
-  batch: Batch;
-  index: number;        // 1-based
-  cards: CardRef[];
-}
-
-interface DraftItem { key: string | null; qty: number; said: string; unclear: string }
+// hint: the photo the comment is about, when known, so its cards come first.
+interface DraftItem { key: string | null; qty: number; said: string; unclear: string; hint: number | null }
 interface Draft { buyer: string; comment: string; unclear: string; items: DraftItem[] }
-interface Page { name: string; text: string; scanId: number | null; assumed: boolean }
+// scanId: the photo the comments are about; 'all' = several photos; null =
+// not known yet, which the seller must settle before claims are looked for.
+// found: the app saw the photo in the screenshot itself.
+// suggest: the photo of the screenshot before, offered as a likely answer.
+interface Page {
+  name: string; text: string; src: string | null;
+  scanId: number | 'all' | null; found: boolean; suggest: number | null;
+}
 
 type Stage = 'idle' | 'reading' | 'review' | 'parsing' | 'drafts' | 'saving';
 type PayState = 'unpaid' | 'paid' | 'done';
@@ -168,11 +164,10 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
     (p: Photo) => t('claims_photo_label', { n: p.index, name: p.batch.filename }),
     [t],
   );
-  const cardLabel = useCallback((c: CardRef) => {
-    const price = Number.isFinite(c.cd.unitPrice) ? ` · ${formatMyrWithFoil(c.cd.unitPrice, c.cd.isFoil, settings)}` : '';
-    const where = photos.length > 1 ? `${t('claims_photo_short', { n: c.photo })} · ` : '';
-    return `${where}${c.cd.sel.name || '?'}${price}`;
-  }, [photos.length, settings, t]);
+  const priceOf = useCallback(
+    (c: CardRef) => (Number.isFinite(c.cd.unitPrice) ? formatMyrWithFoil(c.cd.unitPrice, c.cd.isFoil, settings) : ''),
+    [settings],
+  );
 
   const catalogue = useCallback((subset: Photo[]): CataloguePhoto[] => subset.map(p => ({
     scan_id: p.batch.scanId as number,
@@ -250,8 +245,21 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [picking, setPicking] = useState<string | null>(null);  // `${draft}:${item}` whose card is being changed
+
+  // Screenshots are shown from object URLs; let them go with the pages.
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+  const clearIntake = useCallback(() => {
+    pagesRef.current.forEach(pg => pg.src && URL.revokeObjectURL(pg.src));
+    setPages([]); setDrafts([]); setPicking(null); setStage('idle');
+  }, []);
+  useEffect(() => () => pagesRef.current.forEach(pg => pg.src && URL.revokeObjectURL(pg.src)), []);
+
   // Switching post abandons a half-finished intake rather than mixing posts.
-  useEffect(() => { setStage('idle'); setPages([]); setDrafts([]); setError(''); }, [activeKey]);
+  useEffect(() => { clearIntake(); setError(''); }, [activeKey, clearIntake]);
+
+  const onlyPhoto = photos.length === 1 ? (photos[0].batch.scanId as number) : null;
 
   const readFiles = useCallback(async (files: File[]) => {
     const images = files.filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
@@ -259,13 +267,19 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
     setStage('reading'); setError('');
     try {
       const read = await readClaimScreenshots(images, photos.map(p => p.batch.scanId as number));
-      // A screenshot of comments alone (scrolled past the photo) most likely
-      // continues the one before it. Assumed, and shown as such.
-      let last: number | null = photos.length === 1 ? (photos[0].batch.scanId as number) : null;
-      const next = read.map((pg, i) => {
-        const assumed = pg.scan_id == null && last != null;
-        if (pg.scan_id != null) last = pg.scan_id;
-        return { name: images[i].name || `screenshot ${i + 1}`, text: pg.text, scanId: pg.scan_id ?? last, assumed };
+      // A screenshot of comments alone (scrolled past the photo) is left for
+      // the seller to place; the photo of the one before is offered first.
+      const prev = stage === 'review' ? pages[pages.length - 1]?.scanId : null;
+      let last: number | null = typeof prev === 'number' ? prev : null;
+      const next: Page[] = read.map((pg, i) => {
+        const found = pg.scan_id != null && photos.some(p => p.batch.scanId === pg.scan_id);
+        const page: Page = {
+          name: images[i].name || `screenshot ${i + 1}`, text: pg.text,
+          src: URL.createObjectURL(images[i]),
+          scanId: found ? pg.scan_id : onlyPhoto, found, suggest: found ? null : last,
+        };
+        if (found) last = pg.scan_id;
+        return page;
       });
       setPages(prev => (stage === 'review' ? [...prev, ...next] : next));
       setStage('review');
@@ -273,7 +287,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       setError((e as Error).message);
       setStage(pages.length ? 'review' : 'idle');
     }
-  }, [photos, stage, pages.length]);
+  }, [photos, stage, pages, onlyPhoto]);
 
   // Ctrl/⌘+V of a screenshot anywhere on the page (PC: Win+Shift+S, then paste).
   useEffect(() => {
@@ -292,28 +306,29 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
 
   const findClaims = useCallback(async () => {
     const filled = pages.filter(pg => pg.text.trim());
-    if (!filled.length) return;
+    if (!filled.length || filled.some(pg => pg.scanId == null)) return;
     setStage('parsing'); setError('');
     try {
       // Screenshots of the same photo are read as one thread, in order, so
-      // numbers and "top left" mean that photo. Pages with no photo are read
+      // "top left" means that photo. Pages about several photos are read
       // against the whole post, and anything ambiguous comes back as a question.
-      const order: Array<number | null> = [];
-      const text = new Map<number | null, string[]>();
+      const order: Array<number | 'all' | null> = [];
+      const text = new Map<number | 'all' | null, string[]>();
       for (const pg of filled) {
         if (!text.has(pg.scanId)) { text.set(pg.scanId, []); order.push(pg.scanId); }
         text.get(pg.scanId)!.push(pg.text.trim());
       }
       const found: Draft[] = [];
       for (const scanId of order) {
-        const subset = scanId == null ? photos : photos.filter(p => p.batch.scanId === scanId);
+        const subset = typeof scanId === 'number' ? photos.filter(p => p.batch.scanId === scanId) : photos;
         const got = await parseClaims(text.get(scanId)!.join('\n\n'), catalogue(subset.length ? subset : photos));
         for (const d of got) {
           found.push({
             buyer: d.buyer, comment: d.comment, unclear: d.unclear,
             items: d.items.map(i => {
               const key = `${i.scan_id}:${i.card_id}`;
-              return { key: cardsByKey.has(key) ? key : null, qty: Math.max(1, i.qty), said: i.said, unclear: i.unclear };
+              const hint = scanIds.has(i.scan_id) ? i.scan_id : (typeof scanId === 'number' ? scanId : null);
+              return { key: cardsByKey.has(key) ? key : null, qty: Math.max(1, i.qty), said: i.said, unclear: i.unclear, hint };
             }),
           });
         }
@@ -324,7 +339,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       setError((e as Error).message);
       setStage('review');
     }
-  }, [pages, photos, catalogue, cardsByKey]);
+  }, [pages, photos, catalogue, cardsByKey, scanIds]);
 
   // Cards claimed more times than there are copies, counting earlier claims
   // first: existing ones, then drafts top to bottom (first comment wins).
@@ -348,8 +363,38 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
     setDrafts(prev => prev.map((d, i) => (i !== di ? d : {
       ...d, items: d.items.map((it, j) => (j === ii ? { ...it, ...patch } : it)),
     })));
-  const removeItem = (di: number, ii: number) =>
+  const removeItem = (di: number, ii: number) => {
+    setPicking(null);
     setDrafts(prev => prev.map((d, i) => (i !== di ? d : { ...d, items: d.items.filter((_, j) => j !== ii) })));
+  };
+
+  // What the inventory and the pickers say about each card: who has it
+  // already, and who the drafts on screen would give it to.
+  const draftedBy = useMemo(() => {
+    const out = new Map<string, string[]>();
+    if (stage !== 'drafts' && stage !== 'saving') return out;
+    for (const d of drafts) {
+      for (const it of d.items) {
+        if (!it.key) continue;
+        const names = out.get(it.key) ?? [];
+        const name = d.buyer.trim() || '?';
+        if (!names.includes(name)) names.push(name);
+        out.set(it.key, names);
+      }
+    }
+    return out;
+  }, [drafts, stage]);
+  const statusOf = useCallback((c: CardRef): CardStatus => {
+    const taken = claimedBy.get(c.key);
+    const fresh = draftedBy.get(c.key);
+    if (!taken && !fresh) return { text: t('claims_inv_free'), kind: 'free' };
+    const left = c.cd.qty - (taken?.qty ?? 0);
+    const parts: string[] = [];
+    if (taken) parts.push(taken.names.join(', '));
+    if (taken && left > 0 && c.cd.qty > 1) parts.push(t('claims_inv_left', { n: left, total: c.cd.qty }));
+    if (fresh) parts.push(t('claims_inv_new', { names: fresh.join(', ') }));
+    return { text: parts.join(' · '), kind: taken && left <= 0 ? 'taken' : 'part' };
+  }, [claimedBy, draftedBy, t]);
 
   const ready = drafts.filter(d => d.items.length > 0);
   const unresolved = ready.some(d => !d.buyer.trim() || d.items.some(it => !it.key));
@@ -377,12 +422,12 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
     try {
       await confirmClaims(postId, payload);
       await reload();
-      setDrafts([]); setPages([]); setStage('idle');
+      clearIntake();
     } catch (e) {
       setError((e as Error).message);
       setStage('drafts');
     }
-  }, [ready, cardsByKey, postId, reload]);
+  }, [ready, cardsByKey, postId, reload, clearIntake]);
 
   // ---------- acting on saved claims ----------
   const setState = useCallback(async (os: Order[], to: PayState) => {
@@ -509,231 +554,282 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       {loadError ? <div className="form-error">{t('ck_backend_error', { err: loadError })}</div> : null}
       {help}
 
-      {/* ---------- bring comments in ---------- */}
-      <section className="panel">
-        <h2>{t('claims_add_title')}</h2>
-        {stage === 'idle' || stage === 'reading' ? (
-          <>
-            <div
-              className="drop"
-              role="button" tabIndex={0}
-              onClick={() => !busy && fileRef.current?.click()}
-              onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); fileRef.current?.click(); } }}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => { e.preventDefault(); if (!busy) readFiles(Array.from(e.dataTransfer.files)); }}
-            >
-              <Icon name="feedback" size={34} className="drop-icon" />
-              <strong>{stage === 'reading' ? t('claims_reading') : t('claims_drop_strong')}</strong>
-              <p>{t('claims_drop_sub')}</p>
-            </div>
-            <div className="claims-alt">
-              <button
-                type="button" className="ghost" disabled={busy}
-                onClick={() => {
-                  setPages([{ name: t('claims_pasted'), text: '', scanId: photos.length === 1 ? (photos[0].batch.scanId as number) : null, assumed: false }]);
-                  setStage('review');
-                }}
-              >{t('claims_paste_instead')}</button>
-            </div>
-          </>
-        ) : null}
-
-        {stage === 'review' || stage === 'parsing' ? (
-          <>
-            <p className="claims-hint">{t('claims_review_hint')}</p>
-            {pages.map((pg, pi) => (
-              <div className="claims-page" key={pi}>
-                <div className="claims-page-head">
-                  <span className="claims-page-name">{pg.name}</span>
-                  <label>
-                    <span>{t('claims_page_about')}</span>
-                    <select
-                      value={pg.scanId ?? ''}
-                      onChange={e => setPages(prev => prev.map((p, i) => (i === pi
-                        ? { ...p, scanId: e.target.value ? Number(e.target.value) : null, assumed: false } : p)))}
-                    >
-                      <option value="">{t('claims_whole_post')}</option>
-                      {photos.map(p => <option key={p.batch.id} value={p.batch.scanId as number}>{photoLabel(p)}</option>)}
-                    </select>
-                  </label>
-                  <button
-                    type="button" className="round-btn destructive"
-                    aria-label={t('claims_page_remove')} title={t('claims_page_remove')}
-                    onClick={() => setPages(prev => prev.filter((_, i) => i !== pi))}
-                  ><Icon name="close" size={16} /></button>
-                </div>
-                {pg.assumed ? <p className="claims-note">{t('claims_page_assumed')}</p> : null}
-                {pg.scanId == null && photos.length > 1 ? <p className="claims-note">{t('claims_page_unmatched')}</p> : null}
-                <textarea
-                  value={pg.text}
-                  rows={Math.min(12, Math.max(4, pg.text.split('\n').length + 1))}
-                  placeholder={t('claims_text_placeholder')}
-                  aria-label={t('claims_text_label', { name: pg.name })}
-                  onChange={e => setPages(prev => prev.map((p, i) => (i === pi ? { ...p, text: e.target.value } : p)))}
-                />
+      <div className="claims-work">
+        {/* ---------- bring comments in ---------- */}
+        <section className="panel claims-intake">
+          <h2>{t('claims_add_title')}</h2>
+          {stage === 'idle' || stage === 'reading' ? (
+            <>
+              <div
+                className="drop"
+                role="button" tabIndex={0}
+                onClick={() => !busy && fileRef.current?.click()}
+                onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); fileRef.current?.click(); } }}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); if (!busy) readFiles(Array.from(e.dataTransfer.files)); }}
+              >
+                <Icon name="feedback" size={34} className="drop-icon" />
+                <strong>{stage === 'reading' ? t('claims_reading') : t('claims_drop_strong')}</strong>
+                <p>{t('claims_drop_sub')}</p>
               </div>
-            ))}
-            <div className="claims-actions">
-              <button type="button" className="ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
-                <Icon name="plus" size={16} />{t('claims_add_more')}
-              </button>
-              <span className="spacer" />
-              <button type="button" className="ghost" disabled={busy} onClick={() => { setPages([]); setStage('idle'); }}>{t('claims_discard')}</button>
-              <button type="button" className="accent" disabled={busy || !pages.some(p => p.text.trim())} onClick={findClaims}>
-                {stage === 'parsing' ? t('claims_finding') : t('claims_find')}
-              </button>
-            </div>
-          </>
-        ) : null}
+              <div className="claims-alt">
+                <button
+                  type="button" className="ghost" disabled={busy}
+                  onClick={() => {
+                    setPages([{ name: t('claims_pasted'), text: '', src: null, scanId: onlyPhoto, found: false, suggest: null }]);
+                    setStage('review');
+                  }}
+                >{t('claims_paste_instead')}</button>
+              </div>
+            </>
+          ) : null}
 
-        {stage === 'drafts' || stage === 'saving' ? (
-          <>
-            {drafts.length === 0 ? (
-              <p className="claims-hint">{t('claims_none_found')}</p>
-            ) : (
-              <p className="claims-hint">{t('claims_drafts_hint')}</p>
-            )}
-            {drafts.map((d, di) => (
-              <div className="claim-draft" key={di}>
-                <div className="claim-draft-head">
-                  <input
-                    type="text" value={d.buyer}
-                    aria-label={t('claims_buyer')} placeholder={t('claims_buyer')}
-                    onChange={e => patchDraft(di, { buyer: e.target.value })}
-                  />
-                  <button
-                    type="button" className="round-btn destructive"
-                    aria-label={t('claims_draft_remove')} title={t('claims_draft_remove')}
-                    onClick={() => setDrafts(prev => prev.filter((_, i) => i !== di))}
-                  ><Icon name="trash" size={16} /></button>
-                </div>
-                {d.comment ? <p className="claim-quote">“{d.comment}”</p> : null}
-                {d.unclear ? <p className="claims-note"><Icon name="warning" size={14} />{d.unclear}</p> : null}
-                {d.items.map((it, ii) => {
-                  const taken = it.key ? claimedBy.get(it.key) : undefined;
-                  return (
-                    <div className={`claim-item ${it.key ? '' : 'is-open'}`} key={ii}>
-                      <div className="claim-item-row">
-                        <select
-                          value={it.key ?? ''}
-                          aria-label={t('claims_which_card')}
-                          aria-invalid={!it.key}
-                          onChange={e => patchItem(di, ii, { key: e.target.value || null, unclear: '' })}
-                        >
-                          <option value="">{t('claims_which_card')}</option>
-                          {photos.map(p => (
-                            <optgroup key={p.batch.id} label={photoLabel(p)}>
-                              {p.cards.map(c => <option key={c.key} value={c.key}>{cardLabel(c)}</option>)}
-                            </optgroup>
-                          ))}
-                        </select>
-                        <label className="claim-qty">
-                          <span>×</span>
-                          <input
-                            type="text" inputMode="numeric" value={it.qty}
-                            aria-label={t('qty')}
-                            onChange={e => patchItem(di, ii, { qty: Math.max(1, parseInt(e.target.value.replace(/\D/g, '')) || 1) })}
-                          />
-                        </label>
-                        <button
-                          type="button" className="round-btn"
-                          aria-label={t('claims_item_remove')} title={t('claims_item_remove')}
-                          onClick={() => removeItem(di, ii)}
-                        ><Icon name="close" size={16} /></button>
-                      </div>
-                      {!it.key ? (
-                        <p className="claims-note"><Icon name="warning" size={14} />{it.unclear || t('claims_which_card')}{it.said ? ` (“${it.said}”)` : ''}</p>
-                      ) : overClaimed.has(`${di}:${ii}`) ? (
-                        <p className="claims-note">
-                          <Icon name="warning" size={14} />
-                          {taken ? t('claims_taken_by', { names: taken.names.join(', ') }) : t('claims_taken_earlier')}
-                        </p>
+          {stage === 'review' || stage === 'parsing' ? (
+            <>
+              <p className="claims-hint">{t('claims_review_hint')}</p>
+              {pages.map((pg, pi) => {
+                const setPhoto = (v: number | 'all') => setPages(prev => prev.map((p, i) => (i === pi ? { ...p, scanId: v } : p)));
+                const shown = photos.find(p => p.batch.scanId === pg.scanId);
+                return (
+                  <div className={`claims-page ${pg.scanId == null ? 'is-open' : ''}`} key={pi}>
+                    <div className="claims-page-head">
+                      {pg.src ? (
+                        <a className="claims-page-shot" href={pg.src} target="_blank" rel="noreferrer" title={t('claims_view_screenshot')}>
+                          <img src={pg.src} alt={t('claims_view_screenshot')} />
+                        </a>
                       ) : null}
+                      <span className="claims-page-name">{pg.name}</span>
+                      <button
+                        type="button" className="round-btn destructive"
+                        aria-label={t('claims_page_remove')} title={t('claims_page_remove')}
+                        onClick={() => {
+                          if (pg.src) URL.revokeObjectURL(pg.src);
+                          setPages(prev => prev.filter((_, i) => i !== pi));
+                        }}
+                      ><Icon name="close" size={16} /></button>
                     </div>
-                  );
-                })}
-                <button
-                  type="button" className="link-btn"
-                  onClick={() => patchDraft(di, { items: [...d.items, { key: null, qty: 1, said: '', unclear: '' }] })}
-                >{t('claims_add_card')}</button>
-              </div>
-            ))}
-            {unresolved ? <p className="claims-note"><Icon name="warning" size={14} />{t('claims_unresolved')}</p> : null}
-            {!unresolved && unpriced ? <p className="claims-note"><Icon name="warning" size={14} />{t('claims_unpriced')}</p> : null}
-            <div className="claims-actions">
-              <button type="button" className="ghost" disabled={busy} onClick={() => setStage('review')}>{t('claims_back')}</button>
-              <span className="spacer" />
-              <button type="button" className="ghost" disabled={busy} onClick={() => { setDrafts([]); setPages([]); setStage('idle'); }}>{t('claims_discard')}</button>
-              <button type="button" className="accent" disabled={busy || ready.length === 0 || unresolved || unpriced} onClick={save}>
-                {stage === 'saving' ? t('ck_saving') : t('claims_save', { n: ready.length })}
-              </button>
-            </div>
-          </>
-        ) : null}
-
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <input
-          ref={fileRef} type="file" multiple accept="image/*" style={{ display: 'none' }}
-          onChange={e => { if (e.target.files?.length) readFiles(Array.from(e.target.files)); e.target.value = ''; }}
-        />
-      </section>
-
-      {/* ---------- who has claimed what ---------- */}
-      <div className="review-head">
-        <div className="review-title">
-          <h2>{t('claims_list_title')}</h2>
-          <span className="meta">{groups.length}</span>
-        </div>
-        {groups.length ? (
-          <span className="all-scans-total">
-            <span className="label">{t('claims_paid_of', { paid: formatMyr(totals.paid, settings) })}</span>
-            <span className="value">{formatMyr(totals.all, settings)}</span>
-          </span>
-        ) : null}
-      </div>
-      {groups.length === 0 ? (
-        <p className="gallery-empty">{t('claims_empty')}</p>
-      ) : (
-        <div className="claims-list">
-          {groups.map(g => (
-            <div className={`claim-row is-${g.state}`} key={g.buyerId}>
-              <div className="claim-row-main">
-                <span className="claim-row-name">{g.name}</span>
-                <span className="claim-row-total">{formatMyr(g.total, settings)}</span>
-              </div>
-              <ul className="claim-row-items">
-                {g.items.map(i => (
-                  <li key={i.id}>
-                    <span>{itemLine(i)}</span>
-                    <span>{formatMyr(Number(i.line_total_myr), settings)}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="claim-row-foot">
-                <div className="segmented" role="group" aria-label={t('claims_status')}>
-                  {(['unpaid', 'paid', 'done'] as PayState[]).map(s => (
-                    <button
-                      key={s} type="button"
-                      className={g.state === s ? 'active' : ''} aria-pressed={g.state === s}
-                      onClick={() => g.state !== s && setState(g.orders, s)}
-                    >{t(`claims_state_${s}`)}</button>
-                  ))}
-                </div>
-                <span className="spacer" />
-                <button type="button" className="ghost" onClick={() => copySummary(g)}>
-                  <Icon name={copied === g.buyerId ? 'check' : 'copy'} size={16} />
-                  {copied === g.buyerId ? t('claims_copied') : t('claims_copy')}
+                    {photos.length > 1 ? (
+                      <>
+                        {pg.found && shown ? (
+                          <p className="claims-note is-ok"><Icon name="check" size={14} />{t('claims_page_found', { photo: t('claims_photo_short', { n: shown.index }) })}</p>
+                        ) : pg.scanId == null ? (
+                          <p className="claims-note"><Icon name="warning" size={14} />{t('claims_page_pick')}</p>
+                        ) : null}
+                        <PhotoPicker photos={photos} value={pg.scanId} suggest={pg.suggest} onPick={setPhoto} t={t} />
+                      </>
+                    ) : null}
+                    <textarea
+                      value={pg.text}
+                      rows={Math.min(12, Math.max(4, pg.text.split('\n').length + 1))}
+                      placeholder={t('claims_text_placeholder')}
+                      aria-label={t('claims_text_label', { name: pg.name })}
+                      onChange={e => setPages(prev => prev.map((p, i) => (i === pi ? { ...p, text: e.target.value } : p)))}
+                    />
+                  </div>
+                );
+              })}
+              {pages.some(pg => pg.text.trim() && pg.scanId == null) ? (
+                <p className="claims-note"><Icon name="warning" size={14} />{t('claims_pick_photos_first')}</p>
+              ) : null}
+              <div className="claims-actions">
+                <button type="button" className="ghost" disabled={busy} onClick={() => fileRef.current?.click()}>
+                  <Icon name="plus" size={16} />{t('claims_add_more')}
                 </button>
+                <span className="spacer" />
+                <button type="button" className="ghost" disabled={busy} onClick={clearIntake}>{t('claims_discard')}</button>
                 <button
-                  type="button" className="round-btn destructive"
-                  aria-label={t('claims_remove_title')} title={t('claims_remove_title')}
-                  onClick={() => removeClaim(g.name, g.orders)}
-                ><Icon name="trash" size={16} /></button>
+                  type="button" className="accent" onClick={findClaims}
+                  disabled={busy || !pages.some(p => p.text.trim()) || pages.some(p => p.text.trim() && p.scanId == null)}
+                >
+                  {stage === 'parsing' ? t('claims_finding') : t('claims_find')}
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {stage === 'drafts' || stage === 'saving' ? (
+            <>
+              {drafts.length === 0 ? (
+                <p className="claims-hint">{t('claims_none_found')}</p>
+              ) : (
+                <p className="claims-hint">{t('claims_drafts_hint')}</p>
+              )}
+              {drafts.map((d, di) => (
+                <div className="claim-draft" key={di}>
+                  <div className="claim-draft-head">
+                    <input
+                      type="text" value={d.buyer}
+                      aria-label={t('claims_buyer')} placeholder={t('claims_buyer')}
+                      onChange={e => patchDraft(di, { buyer: e.target.value })}
+                    />
+                    <button
+                      type="button" className="round-btn destructive"
+                      aria-label={t('claims_draft_remove')} title={t('claims_draft_remove')}
+                      onClick={() => setDrafts(prev => prev.filter((_, i) => i !== di))}
+                    ><Icon name="trash" size={16} /></button>
+                  </div>
+                  {d.comment ? <p className="claim-quote">“{d.comment}”</p> : null}
+                  {d.unclear ? <p className="claims-note"><Icon name="warning" size={14} />{d.unclear}</p> : null}
+                  {d.items.map((it, ii) => {
+                    const taken = it.key ? claimedBy.get(it.key) : undefined;
+                    const card = it.key ? cardsByKey.get(it.key) : undefined;
+                    const open = !card || picking === `${di}:${ii}`;
+                    return (
+                      <div className={`claim-item ${card ? '' : 'is-open'}`} key={ii}>
+                        <div className="claim-item-row">
+                          {card ? (
+                            <div className="claim-item-card">
+                              <CardTile card={card} price={priceOf(card)} />
+                              {photos.length > 1 ? <span className="claim-item-photo">{t('claims_photo_short', { n: card.photo })}</span> : null}
+                            </div>
+                          ) : (
+                            <p className="claims-note claim-item-q">
+                              <Icon name="warning" size={14} />
+                              {it.unclear || t('claims_which_card')}{it.said ? ` (“${it.said}”)` : ''}
+                            </p>
+                          )}
+                          <label className="claim-qty">
+                            <span>×</span>
+                            <input
+                              type="text" inputMode="numeric" value={it.qty}
+                              aria-label={t('qty')}
+                              onChange={e => patchItem(di, ii, { qty: Math.max(1, parseInt(e.target.value.replace(/\D/g, '')) || 1) })}
+                            />
+                          </label>
+                          {card ? (
+                            <button
+                              type="button" className="ghost claim-change"
+                              aria-expanded={open}
+                              onClick={() => setPicking(open ? null : `${di}:${ii}`)}
+                            >{t('claims_change_card')}</button>
+                          ) : null}
+                          <button
+                            type="button" className="round-btn"
+                            aria-label={t('claims_item_remove')} title={t('claims_item_remove')}
+                            onClick={() => removeItem(di, ii)}
+                          ><Icon name="close" size={16} /></button>
+                        </div>
+                        {open ? (
+                          <CardPicker
+                            photos={photos} hint={card ? card.scanId : it.hint} value={it.key}
+                            priceOf={priceOf} statusOf={statusOf} photoLabel={photoLabel} t={t}
+                            onPick={key => { patchItem(di, ii, { key, unclear: '' }); setPicking(null); }}
+                          />
+                        ) : overClaimed.has(`${di}:${ii}`) ? (
+                          <p className="claims-note">
+                            <Icon name="warning" size={14} />
+                            {taken ? t('claims_taken_by', { names: taken.names.join(', ') }) : t('claims_taken_earlier')}
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button" className="link-btn"
+                    onClick={() => patchDraft(di, { items: [...d.items, { key: null, qty: 1, said: '', unclear: '', hint: null }] })}
+                  >{t('claims_add_card')}</button>
+                </div>
+              ))}
+              {unresolved ? <p className="claims-note"><Icon name="warning" size={14} />{t('claims_unresolved')}</p> : null}
+              {!unresolved && unpriced ? <p className="claims-note"><Icon name="warning" size={14} />{t('claims_unpriced')}</p> : null}
+              <div className="claims-actions">
+                <button type="button" className="ghost" disabled={busy} onClick={() => { setPicking(null); setStage('review'); }}>{t('claims_back')}</button>
+                <span className="spacer" />
+                <button type="button" className="ghost" disabled={busy} onClick={clearIntake}>{t('claims_discard')}</button>
+                <button type="button" className="accent" disabled={busy || ready.length === 0 || unresolved || unpriced} onClick={save}>
+                  {stage === 'saving' ? t('ck_saving') : t('claims_save', { n: ready.length })}
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <input
+            ref={fileRef} type="file" multiple accept="image/*" style={{ display: 'none' }}
+            onChange={e => { if (e.target.files?.length) readFiles(Array.from(e.target.files)); e.target.value = ''; }}
+          />
+        </section>
+
+        {/* ---------- every card in the post, beside the comments ---------- */}
+        <aside className="panel claims-inventory" aria-label={t('claims_inventory_title')}>
+          <h2>{t('claims_inventory_title')}</h2>
+          <p className="claims-hint">{t('claims_inventory_hint')}</p>
+          {photos.map(p => (
+            <div className="inv-photo" key={p.batch.id}>
+              <div className="inv-photo-head">
+                <img src={photoThumb(p)} alt="" loading="lazy" decoding="async" />
+                <span>
+                  <strong>{t('claims_photo_short', { n: p.index })}</strong>
+                  <span className="meta">{t('claims_inv_count', { n: p.cards.length })}</span>
+                </span>
+              </div>
+              <div className="card-grid">
+                {p.cards.map(c => <CardTile key={c.key} card={c} price={priceOf(c)} status={statusOf(c)} />)}
               </div>
             </div>
           ))}
+          <p className="claims-hint inv-foot">{t('claims_inv_removed_hint')}</p>
+        </aside>
+
+        {/* ---------- who has claimed what ---------- */}
+        <div className="claims-claimed">
+          <div className="review-head">
+            <div className="review-title">
+              <h2>{t('claims_list_title')}</h2>
+              <span className="meta">{groups.length}</span>
+            </div>
+            {groups.length ? (
+              <span className="all-scans-total">
+                <span className="label">{t('claims_paid_of', { paid: formatMyr(totals.paid, settings) })}</span>
+                <span className="value">{formatMyr(totals.all, settings)}</span>
+              </span>
+            ) : null}
+          </div>
+          {groups.length === 0 ? (
+            <p className="gallery-empty">{t('claims_empty')}</p>
+          ) : (
+            <div className="claims-list">
+              {groups.map(g => (
+                <div className={`claim-row is-${g.state}`} key={g.buyerId}>
+                  <div className="claim-row-main">
+                    <span className="claim-row-name">{g.name}</span>
+                    <span className="claim-row-total">{formatMyr(g.total, settings)}</span>
+                  </div>
+                  <ul className="claim-row-items">
+                    {g.items.map(i => (
+                      <li key={i.id}>
+                        <span>{itemLine(i)}</span>
+                        <span>{formatMyr(Number(i.line_total_myr), settings)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="claim-row-foot">
+                    <div className="segmented" role="group" aria-label={t('claims_status')}>
+                      {(['unpaid', 'paid', 'done'] as PayState[]).map(s => (
+                        <button
+                          key={s} type="button"
+                          className={g.state === s ? 'active' : ''} aria-pressed={g.state === s}
+                          onClick={() => g.state !== s && setState(g.orders, s)}
+                        >{t(`claims_state_${s}`)}</button>
+                      ))}
+                    </div>
+                    <span className="spacer" />
+                    <button type="button" className="ghost" onClick={() => copySummary(g)}>
+                      <Icon name={copied === g.buyerId ? 'check' : 'copy'} size={16} />
+                      {copied === g.buyerId ? t('claims_copied') : t('claims_copy')}
+                    </button>
+                    <button
+                      type="button" className="round-btn destructive"
+                      aria-label={t('claims_remove_title')} title={t('claims_remove_title')}
+                      onClick={() => removeClaim(g.name, g.orders)}
+                    ><Icon name="trash" size={16} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
       <p className="claims-old">
         <button type="button" className="link-btn" onClick={onOpenOldChecklist}>{t('claims_old_checklist')}</button>
       </p>
