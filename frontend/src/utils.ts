@@ -119,6 +119,25 @@ export function smallScryfallImage(url: string): string {
   return url.replace('/normal/', '/small/').replace('/large/', '/small/');
 }
 
+// The images in a paste (Ctrl/⌘+V), named for when they were pasted.
+export function pastedImages(e: ClipboardEvent): File[] {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  return Array.from(e.clipboardData?.items ?? [])
+    .filter(i => i.kind === 'file' && i.type.startsWith('image/'))
+    .map(i => i.getAsFile())
+    .filter((f): f is File => !!f)
+    .map(f => new File([f], `pasted-${stamp}.${(f.type.split('/')[1] || 'png').split('+')[0]}`, { type: f.type }));
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function generateBatchId(): string {
   return 'b' + Date.now() + Math.random().toString(36).slice(2, 6);
 }

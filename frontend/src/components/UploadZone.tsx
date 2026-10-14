@@ -1,6 +1,7 @@
 import type { Credits } from '../api.ts';
 import { Icon } from './Icon.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { pastedImages } from '../utils.ts';
 
 interface Props {
   onFiles: (files: File[]) => void;
@@ -95,23 +96,7 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact 
   // Paste (Ctrl/Cmd+V from clipboard)
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
-      if (!e.clipboardData) return;
-      const items = e.clipboardData.items;
-      if (!items?.length) return;
-      const files: File[] = [];
-      for (const item of items) {
-        if (item.kind === 'file' && item.type?.startsWith('image/')) {
-          const blob = item.getAsFile();
-          if (!blob) continue;
-          const ext = (blob.type.split('/')[1] || 'png').split('+')[0];
-          const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-          try {
-            files.push(new File([blob], `pasted-${stamp}.${ext}`, { type: blob.type }));
-          } catch {
-            files.push(blob);
-          }
-        }
-      }
+      const files = pastedImages(e);
       if (!files.length) return;
       e.preventDefault();
       // Brief drop-zone flash for feedback

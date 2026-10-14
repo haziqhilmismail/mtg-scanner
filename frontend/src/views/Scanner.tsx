@@ -6,7 +6,7 @@ import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
-import { computeCardData, formatMyr, listingFields, pillLabel } from '../utils.ts';
+import { computeCardData, downloadBlob, formatMyr, listingFields, pillLabel } from '../utils.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 interface Folder {
@@ -212,13 +212,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     const payload = buildExportPayload(batch, settings);
     if (!payload) return;
     try {
-      const blob = await exportImage(payload);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = batch.filename.replace(/\.[^.]+$/, '') + '_priced.png';
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(await exportImage(payload), batch.filename.replace(/\.[^.]+$/, '') + '_priced.png');
     } catch (e) {
       await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
     }
@@ -241,13 +235,7 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     }
     setExportingAll(true);
     try {
-      const blob = await exportAllImages(images);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'mtg_prices.zip';
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(await exportAllImages(images), 'mtg_prices.zip');
     } catch (e) {
       await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
     } finally {

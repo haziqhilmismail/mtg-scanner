@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ordersApi, type Order } from '../../api/checklist.ts';
 import { useDialog } from '../DialogProvider.tsx';
 import { useImageZoom } from '../ImageZoomProvider.tsx';
+import { pastedImages } from '../../utils.ts';
 
 type T = (k: string, vars?: Record<string, string | number>) => string;
 
@@ -143,24 +144,10 @@ export function DeliveryPhotoWidget({ orders, onChange, t }: Props) {
   useEffect(() => {
     if (hasPhoto || !hovered) return;
     const onPaste = (e: ClipboardEvent) => {
-      if (!e.clipboardData) return;
-      for (const item of e.clipboardData.items) {
-        if (item.kind === 'file' && item.type?.startsWith('image/')) {
-          const blob = item.getAsFile();
-          if (!blob) continue;
-          const ext = (blob.type.split('/')[1] || 'png').split('+')[0];
-          const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-          let file: File;
-          try {
-            file = new File([blob], `pasted-${stamp}.${ext}`, { type: blob.type });
-          } catch {
-            file = blob;
-          }
-          e.preventDefault();
-          onUpload(file);
-          break;
-        }
-      }
+      const [file] = pastedImages(e);
+      if (!file) return;
+      e.preventDefault();
+      onUpload(file);
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
