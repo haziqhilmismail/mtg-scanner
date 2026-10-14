@@ -25,7 +25,8 @@ export interface SavedScan extends ScanResponse {
   post_id?: number | null;
   filename: string;
   created_at: string | null;
-  ui_state: ScanUiState | null;
+  // Whatever was last saved; checked by normalizeUiState before use.
+  ui_state: unknown;
 }
 
 // One page of saved scans, newest first: the SCANS_PAGE newest with an id

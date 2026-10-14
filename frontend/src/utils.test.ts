@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData } from './utils.ts';
+import { applyRounding, computeCardData, normalizeUiState } from './utils.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
@@ -44,4 +44,27 @@ test('a price box holding only "." is no price, not RM0', () => {
   assert.equal(computeCardData(batch, settings)[0].unitPrice, 30);
   batch.priceOverride = ['12.5'];
   assert.equal(computeCardData(batch, settings)[0].unitPrice, 12.5);
+});
+
+test('saved per-card state is fitted to the cards, entry by entry', () => {
+  const card = (is_foil: boolean, quantity?: number) => ({ gemini: { is_foil, quantity } } as DetectedCard);
+  const cards = [card(false), card(true, 2), card(false)];
+  // Saved by a device that knew two cards, with one bad entry of each kind.
+  const saved = {
+    isFoil: [true, 'yes'],
+    priceOverride: ['5', 7],
+    quantity: [0, 3, 4, 9],
+    multOverride: [null, 2.5],
+    removed: 'no',
+    pillOffset: [{ dx: 1, dy: 2 }, { dx: 'x', dy: 0 }],
+  };
+  assert.deepEqual(normalizeUiState(saved, cards), {
+    isFoil: [true, true, false],
+    priceOverride: ['5', null, null],
+    quantity: [1, 3, 4],
+    multOverride: [null, 2.5, null],
+    removed: [false, false, false],
+    pillOffset: [{ dx: 1, dy: 2 }, null, null],
+  });
+  assert.deepEqual(normalizeUiState(null, [card(true)]).isFoil, [true]);
 });
