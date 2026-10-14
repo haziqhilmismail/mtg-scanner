@@ -73,7 +73,13 @@ async function deleteSaved(key: string, sid: number) {
   } catch { /* tombstone persists */ }
 }
 
-// What is saved to the server for a batch.
+// The save queue's record of one scan: the fingerprint of the latest
+// per-card state seen (the first one seen is what the server already has),
+// the rev given to the latest queued state, the latest state the server has
+// not confirmed, and whether that state has been sent.
+type SaveSlot = { latest: string; rev: number; unsaved: ScanUiState | null; sent: boolean };
+
+// What is saved to the server for a batch (its rev is added when queued).
 function uiStateOf(b: Batch): ScanUiState {
   return {
     isFoil: b.isFoil,
@@ -138,47 +144,41 @@ export function useScanner(userId: number | null) {
     setBatches(batchesRef.current);
   }, []);
 
-  // Per-card edits go to the server, one save at a time per scan so they
-  // land in order. Per scan id: the fingerprint of the latest state seen (the
-  // first one seen is what the server already has), whether a save is in
-  // flight, and the state waiting to be sent. Plus the timer that sends
-  // waiting states once edits pause.
-  const savesRef = useRef(new Map<number, { latest: string; inFlight: boolean; pending: ScanUiState | null }>());
+  // Per-card edits go to the server. Each saved state carries a rev higher
+  // than any before it for that scan, and the server ignores a lower one, so
+  // saves may overlap and arrive in any order.
+  const savesRef = useRef(new Map<number, SaveSlot>());
   const saveTimerRef = useRef<number | undefined>(undefined);
 
-  // Send every waiting state whose scan has no save in flight. A failed save
-  // is retried on a timer if it is still the scan's latest state.
-  const flushSaves = useCallback(function flush(keepalive = false) {
+  // Send every unsaved state not already sent. A final flush (leaving the
+  // page, signing out) sends those already on their way too, with keepalive,
+  // since the page may not live to see them land. A failed save is retried on
+  // a timer while it is still the scan's latest.
+  const flushSaves = useCallback(function flush(final = false) {
     clearTimeout(saveTimerRef.current);
     const saves = savesRef.current;
-    const later = (ms: number) => {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = window.setTimeout(flush, ms);
-    };
     for (const [scanId, slot] of saves) {
-      const state = slot.pending;
-      if (slot.inFlight || !state) continue;
-      const sent = slot.latest;
-      slot.pending = null;
-      slot.inFlight = true;
-      saveScanState(scanId, state, keepalive).then(
+      const state = slot.unsaved;
+      if (!state || (slot.sent && !final)) continue;
+      slot.sent = true;
+      saveScanState(scanId, state, final).then(
         () => {
-          slot.inFlight = false;
-          if (slot.pending && saves.get(scanId) === slot) later(0);
+          if (slot.unsaved === state) slot.unsaved = null;
         },
         (e: Error & { status?: number }) => {
-          slot.inFlight = false;
-          // Gone (404), or forgotten since (deleted, signed out): drop it.
-          if (e.status === 404 || saves.get(scanId) !== slot) return;
-          if (slot.latest === sent) slot.pending = state;
-          later(RETRY_MS);
+          // Superseded, or forgotten since (deleted, signed out).
+          if (slot.unsaved !== state || saves.get(scanId) !== slot) return;
+          if (e.status === 404) { slot.unsaved = null; return; }
+          slot.sent = false;
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = window.setTimeout(flush, RETRY_MS);
         },
       );
     }
   }, []);
 
   // Leaving or hiding the page (phones rarely fire unload) sends what's
-  // waiting. Unmounting (signing out) stops all saving.
+  // unsaved. Unmounting (signing out) stops all saving.
   useEffect(() => {
     const saves = savesRef.current;
     const onHide = () => { if (document.visibilityState === 'hidden') flushSaves(true); };
@@ -246,12 +246,15 @@ export function useScanner(userId: number | null) {
       const fingerprint = JSON.stringify(state);
       const slot = savesRef.current.get(b.scanId);
       if (!slot) {
-        savesRef.current.set(b.scanId, { latest: fingerprint, inFlight: false, pending: null });
+        savesRef.current.set(b.scanId, { latest: fingerprint, rev: b.rev ?? 0, unsaved: null, sent: false });
         continue;
       }
       if (slot.latest === fingerprint) continue;
       slot.latest = fingerprint;
-      slot.pending = state;
+      // Past the loaded rev even if this clock is behind the device that saved it.
+      slot.rev = Math.max(Date.now(), slot.rev + 1);
+      slot.unsaved = { ...state, rev: slot.rev };
+      slot.sent = false;
       changed = true;
     }
     if (changed) {
@@ -607,8 +610,8 @@ export function useScanner(userId: number | null) {
   return {
     batches,
     loadingSaved,
-    // Send waiting edits now (before signing out).
-    flush: flushSaves,
+    // Send unsaved edits now (before signing out).
+    flush: () => flushSaves(true),
     notice,
     clearNotice,
     addFiles,
