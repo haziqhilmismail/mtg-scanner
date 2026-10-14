@@ -69,6 +69,7 @@ from .services import bug_reporter
 from .services import credits
 from .services import local_scan
 from .services.cardkingdom_prices import DB_FILE as CK_DB_FILE
+from .services.cardkingdom_prices import enrich as enrich_with_ck
 from .services.cardkingdom_prices import get_index as get_ck_index
 from .services.classical_detector import detect_card_quads, iou_xywh
 from .services.gemini_scanner import CardDetection, get_client, scan_image
@@ -248,42 +249,6 @@ def _json_payload(payload: str) -> dict:
         raise HTTPException(400, "Invalid JSON in 'payload'")
 
 
-def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
-    """Merge CK prices/URLs into a Scryfall summary. CK is the *only* price
-    source — no Scryfall/TCG fallback. If CK has no entry, the card is priced
-    at 0 with `price_source_*` = "none" so the UI can flag it for a manual
-    override."""
-    if not summary:
-        return None
-    sid = summary.get("scryfall_id", "")
-    ck = ck_index.lookup(sid) if sid else {
-        "retail_normal": None, "retail_foil": None,
-        "buy_normal": None, "buy_foil": None,
-        "in_stock_normal": False, "in_stock_foil": False,
-        "url_normal": "", "url_foil": "",
-    }
-
-    def _ck_full_url(path: str) -> str:
-        if not path:
-            return ""
-        return "https://www.cardkingdom.com/" + path.lstrip("/")
-
-    summary = {**summary}
-    summary["usd"] = ck["retail_normal"] or 0.0
-    summary["usd_foil"] = ck["retail_foil"] or 0.0
-    summary["price_source_normal"] = "cardkingdom" if ck["retail_normal"] else "none"
-    summary["price_source_foil"] = "cardkingdom" if ck["retail_foil"] else "none"
-    summary["ck_retail_normal"] = ck["retail_normal"]
-    summary["ck_retail_foil"] = ck["retail_foil"]
-    summary["ck_buy_normal"] = ck["buy_normal"]
-    summary["ck_buy_foil"] = ck["buy_foil"]
-    summary["ck_in_stock_normal"] = ck["in_stock_normal"]
-    summary["ck_in_stock_foil"] = ck["in_stock_foil"]
-    summary["ck_url_normal"] = _ck_full_url(ck.get("url_normal", ""))
-    summary["ck_url_foil"] = _ck_full_url(ck.get("url_foil", ""))
-    return summary
-
-
 def _decode_upright(raw: bytes) -> Image.Image:
     """Decode a photo and turn it the right way up (EXIF); 400 if it can't be read."""
     try:
@@ -361,7 +326,7 @@ async def _scan_pipeline(
 
     if settings.use_local_scanner:
         # Offline pipeline — replaces steps 1-5 below wholesale.
-        cards_out = await local_scan.scan_cards(pil, _enrich_with_ck)
+        cards_out = await local_scan.scan_cards(pil)
         return await _store_scan(db, user_id, filename, pil, norm_bytes, cards_out, post_id)
 
     # ---------- Step 1: classical bbox + quad detection (cheap, no API call) ----------
@@ -444,7 +409,7 @@ async def _scan_pipeline(
     # ---------- Step 4: Scryfall lookup + CK enrichment ----------
     summaries = await lookup_all([r.det for r in resolved])
     ck_index = await get_ck_index()
-    summaries = [_enrich_with_ck(s, ck_index) for s in summaries]
+    summaries = [enrich_with_ck(s, ck_index) for s in summaries]
 
     # ---------- Step 5: pack output ----------
     cards_out = []
@@ -606,7 +571,7 @@ async def frame_card(
         det = local_det.det
         summaries = await lookup_all([det])
         ck_index = await get_ck_index()
-        sf = _enrich_with_ck(summaries[0] if summaries else None, ck_index)
+        sf = enrich_with_ck(summaries[0] if summaries else None, ck_index)
         gemini_hint = {
             "name": det.name, "set_code": det.set_code,
             "collector_number": det.collector_number,
@@ -831,7 +796,7 @@ async def relookup_scan_prices(
         for i, cand in enumerate(cands):
             if not cand:
                 continue
-            new_cand = _enrich_with_ck(cand, ck_index)
+            new_cand = enrich_with_ck(cand, ck_index)
             if new_cand:
                 cands[i] = new_cand
                 updated += 1
@@ -896,7 +861,7 @@ async def relookup(request: Request, _: CurrentUserId, payload: str = Form(...))
 
     summary = to_card_summary(sf, fallback_name=name)
     ck_index = await get_ck_index()
-    return _enrich_with_ck(summary, ck_index)
+    return enrich_with_ck(summary, ck_index)
 
 
 # In-process cache for Scryfall's slow-moving catalogs, keyed by API path.
@@ -987,7 +952,7 @@ async def printings(request: Request, _: CurrentUserId, payload: str = Form(...)
     for card in cards:
         s = to_card_summary(card)
         if s:
-            out.append(_enrich_with_ck(s, ck_index))
+            out.append(enrich_with_ck(s, ck_index))
     return {"name": name, "printings": out}
 
 

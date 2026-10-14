@@ -361,3 +361,39 @@ async def get_index() -> CKPriceIndex:
         _index = CKPriceIndex()
         await _index.refresh()
     return _index
+
+
+def enrich(summary: dict | None, ck_index: CKPriceIndex) -> dict | None:
+    """Merge CK prices/URLs into a Scryfall summary. CK is the *only* price
+    source — no Scryfall/TCG fallback. If CK has no entry, the card is priced
+    at 0 with `price_source_*` = "none" so the UI can flag it for a manual
+    override."""
+    if not summary:
+        return None
+    sid = summary.get("scryfall_id", "")
+    ck = ck_index.lookup(sid) if sid else {
+        "retail_normal": None, "retail_foil": None,
+        "buy_normal": None, "buy_foil": None,
+        "in_stock_normal": False, "in_stock_foil": False,
+        "url_normal": "", "url_foil": "",
+    }
+
+    def _ck_full_url(path: str) -> str:
+        if not path:
+            return ""
+        return "https://www.cardkingdom.com/" + path.lstrip("/")
+
+    summary = {**summary}
+    summary["usd"] = ck["retail_normal"] or 0.0
+    summary["usd_foil"] = ck["retail_foil"] or 0.0
+    summary["price_source_normal"] = "cardkingdom" if ck["retail_normal"] else "none"
+    summary["price_source_foil"] = "cardkingdom" if ck["retail_foil"] else "none"
+    summary["ck_retail_normal"] = ck["retail_normal"]
+    summary["ck_retail_foil"] = ck["retail_foil"]
+    summary["ck_buy_normal"] = ck["buy_normal"]
+    summary["ck_buy_foil"] = ck["buy_foil"]
+    summary["ck_in_stock_normal"] = ck["in_stock_normal"]
+    summary["ck_in_stock_foil"] = ck["in_stock_foil"]
+    summary["ck_url_normal"] = _ck_full_url(ck.get("url_normal", ""))
+    summary["ck_url_foil"] = _ck_full_url(ck.get("url_foil", ""))
+    return summary

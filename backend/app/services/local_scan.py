@@ -13,12 +13,13 @@ from __future__ import annotations
 import asyncio
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 from PIL import Image
 
 from ..config import settings
+from .cardkingdom_prices import enrich as enrich_with_ck
 from .cardkingdom_prices import get_index as get_ck_index
 from .scryfall_lookup import lookup_all
 
@@ -58,7 +59,6 @@ def _require() -> "CardScanner":
 
 async def scan_cards(
     pil: Image.Image,
-    enrich_with_ck: Callable[[dict | None, object], dict | None],
 ) -> list[dict]:
     """Run the local pipeline on an RGB photo and return the `cards` list of
     the /api/scan response — same shape the Gemini path produces."""
