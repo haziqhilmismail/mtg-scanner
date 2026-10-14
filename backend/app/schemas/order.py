@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import MISSING, BaseModel, ConfigDict, Field
 
 from ..models.order import OrderStatus
 
@@ -44,7 +44,7 @@ class OrderCreate(BaseModel):
 class OrderUpdate(BaseModel):
     """PATCH update — drives the paid/delivered transitions.
     Pass an ISO timestamp to mark, or null to unmark."""
-    status: OrderStatus = None  # not nullable: null is a 422, omit it to keep the status
+    status: OrderStatus | MISSING = MISSING
     paid_at: datetime | None = None
     delivered_at: datetime | None = None
     archived_at: datetime | None = None

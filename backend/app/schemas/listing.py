@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import MISSING, BaseModel, ConfigDict, Field
 
 from ..models.listing import ListingStatus
 
@@ -34,17 +34,17 @@ class ListingCreate(ListingBase):
 class ListingUpdate(BaseModel):
     """PATCH-style partial update. When `post_ids` is provided we replace the
     full set of linked posts — pass [] to unlink from every post."""
-    name: str | None = None
+    name: str | MISSING = MISSING
     set_code: str | None = None
     set_name: str | None = None
     collector_number: str | None = None
     rarity: str | None = None
-    is_foil: bool | None = None
+    is_foil: bool | MISSING = MISSING
     image_url: str | None = None
     ck_url: str | None = None
-    unit_price_myr: Decimal | None = Field(None, ge=0, decimal_places=2)
-    qty_total: int | None = Field(None, ge=1)
-    status: ListingStatus | None = None
+    unit_price_myr: Decimal | MISSING = Field(MISSING, ge=0, decimal_places=2)
+    qty_total: int | MISSING = Field(MISSING, ge=1)
+    status: ListingStatus | MISSING = MISSING
     post_ids: list[int] | None = None
     notes: str | None = None
 
@@ -67,7 +67,7 @@ class BulkImportLine(BaseModel):
     ok: bool
     error: str | None = None
     listing_id: int | None = None
-    name: str | None = None
+    name: str | MISSING = MISSING
     set_code: str | None = None
     collector_number: str | None = None
     is_foil: bool = False
