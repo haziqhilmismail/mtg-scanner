@@ -57,23 +57,29 @@ async def _save_image(post: Post, image: UploadFile) -> None:
     post.image_mime = image.content_type or "application/octet-stream"
 
 
-async def _build_read_with_stats(db, post: Post) -> PostReadWithStats:
-    """Build the read schema with computed stats (listing counts, total qty, value)."""
-    # Pull stats in one round-trip via the M:N join. A listing linked to two
-    # posts contributes its qty/value to BOTH posts' totals — that's intentional
-    # (each post's "inventory under it" is the natural measure for the user).
-    stats = (await db.execute(
+async def _stats_by_post(db, post_ids: list[int]) -> dict:
+    """{post_id: (listing count, active count, total qty, total value)}, one
+    query for all the posts. A listing linked to two posts contributes its
+    qty/value to BOTH posts' totals — that's intentional (each post's
+    "inventory under it" is the natural measure for the user). Posts with no
+    listings are missing from the dict."""
+    rows = (await db.execute(
         select(
+            listing_post_links.c.post_id,
             func.count(Listing.id),
             func.sum(case((Listing.status == ListingStatus.active, 1), else_=0)),
             func.coalesce(func.sum(Listing.qty_total), 0),
             func.coalesce(func.sum(Listing.qty_total * Listing.unit_price_myr), Decimal("0.00")),
         )
         .join(listing_post_links, listing_post_links.c.listing_id == Listing.id)
-        .where(listing_post_links.c.post_id == post.id)
-    )).one()
-    listing_count, active_count, total_qty, total_value = stats
+        .where(listing_post_links.c.post_id.in_(post_ids))
+        .group_by(listing_post_links.c.post_id)
+    )).all()
+    return {r[0]: r[1:] for r in rows}
 
+
+def _read_with_stats(post: Post, stats: dict) -> PostReadWithStats:
+    listing_count, active_count, total_qty, total_value = stats.get(post.id, (0, 0, 0, 0))
     return PostReadWithStats.model_validate({
         **{c.name: getattr(post, c.name) for c in Post.__table__.columns},
         "listing_count": int(listing_count or 0),
@@ -82,6 +88,11 @@ async def _build_read_with_stats(db, post: Post) -> PostReadWithStats:
         "total_value_myr": f"{Decimal(total_value or 0):.2f}",
         "has_image": bool(post.image_path) and _post_image_path(post.id).exists(),
     })
+
+
+async def _build_read_with_stats(db, post: Post) -> PostReadWithStats:
+    """Build the read schema with computed stats (listing counts, total qty, value)."""
+    return _read_with_stats(post, await _stats_by_post(db, [post.id]))
 
 
 @router.get("", response_model=list[PostReadWithStats])
@@ -101,7 +112,8 @@ async def list_posts(
         from ..models import PostStatus as _PS
         q = q.where(Post.status != _PS.archived)
     rows = (await db.execute(q)).scalars().all()
-    return [await _build_read_with_stats(db, p) for p in rows]
+    stats = await _stats_by_post(db, [p.id for p in rows])
+    return [_read_with_stats(p, stats) for p in rows]
 
 
 @router.post("", response_model=PostReadWithStats, status_code=201)
