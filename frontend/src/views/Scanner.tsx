@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
-import { ADDED_STORAGE_PREFIX, type ScannerStore } from '../hooks/useScanner.ts';
+import type { ScannerStore } from '../hooks/useScanner.ts';
+import { forgetAddedExcept, loadAdded, saveAdded } from '../lib/addedMarkers.ts';
 import type { Batch, Candidate, Credits, Settings } from '../types.ts';
 import { computeCardData, downloadBlob, formatMyr, listingFields, pillLabel } from '../utils.ts';
 
@@ -32,6 +33,7 @@ import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   scanner: ScannerStore;
+  userId: number | null;
   settings: Settings;
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   health: Health | null;
@@ -39,31 +41,6 @@ interface Props {
   lang: string;
   credits: Credits | null;
   onEnterVoucher: () => void;
-}
-
-// Persist "this card from this scan was already added" so a refresh doesn't
-// silently re-enable Add-all and create duplicate listings on the next click.
-// Keyed by server-side scanId (stable across reloads); the client-side
-// batchId is regenerated on every load and can't be used here.
-function loadAddedFromStorage(): Record<number, Record<number, number>> {
-  const out: Record<number, Record<number, number>> = {};
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key?.startsWith(ADDED_STORAGE_PREFIX)) continue;
-      const scanId = parseInt(key.slice(ADDED_STORAGE_PREFIX.length), 10);
-      if (isNaN(scanId)) continue;
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      out[scanId] = JSON.parse(raw);
-    }
-  } catch { /* corrupted entries are ignored */ }
-  return out;
-}
-
-function persistAddedSlice(scanId: number, slice: Record<number, number>) {
-  try { localStorage.setItem(ADDED_STORAGE_PREFIX + scanId, JSON.stringify(slice)); }
-  catch { /* quota / disabled storage — silent */ }
 }
 
 // Build the /api/export payload for one batch (shared by single-batch export and
@@ -93,7 +70,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
   };
 }
 
-export function Scanner({ scanner, settings, updateSetting, health, t, lang, credits, onEnterVoucher }: Props) {
+export function Scanner({ scanner, userId, settings, updateSetting, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
   const zoom = useImageZoom();
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
@@ -108,7 +85,13 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
   // Keyed by scanId (NOT batchId) so refresh-rehydrated batches keep their
   // "added" memory and re-running Add-all becomes a no-op instead of a
   // silent duplicate. Initialised eagerly from localStorage.
-  const [addedByScanId, setAddedByScanId] = useState<Record<number, Record<number, number>>>(loadAddedFromStorage);
+  const [addedByScanId, setAddedByScanId] = useState(() => loadAdded(userId));
+  // Once every saved scan has loaded, forget the markers of deleted ones
+  // (once, not on every edit of the list).
+  useEffect(() => {
+    if (!scanner.loadingSaved) forgetAddedExcept(userId, new Set(scanner.batches.map(b => b.scanId)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanner.loadingSaved]);
 
   // Synchronous re-entry guard for per-batch Add-all. A ref (not state)
   // because React state updates are async — a fast double-click can fire
@@ -127,10 +110,10 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
   const markAdded = useCallback((scanId: number, origIdx: number, listingId: number) => {
     setAddedByScanId(prev => {
       const next = { ...prev, [scanId]: { ...(prev[scanId] || {}), [origIdx]: listingId } };
-      persistAddedSlice(scanId, next[scanId]);
+      saveAdded(userId, scanId, next[scanId]);
       return next;
     });
-  }, []);
+  }, [userId]);
 
   // Which batch's add-all is currently running (drives the button's loading
   // state) and whether the page-level "add all images" bulk run is in flight.

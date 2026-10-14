@@ -85,7 +85,7 @@ interface WorkspaceProps {
 
 function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: WorkspaceProps) {
   const { settings, update: updateSetting } = useSettings();
-  const scanner = useScanner();
+  const scanner = useScanner(auth.user?.id ?? null);
 
   const [view, setView] = usePersistedState<View>('mtg.tab', 'scanner');
   const [health, setHealth] = useState<Health | null>(null);
@@ -150,6 +150,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       {view === 'scanner' ? (
         <Scanner
           scanner={scanner}
+          userId={auth.user?.id ?? null}
           settings={settings}
           updateSetting={updateSetting}
           health={health}
