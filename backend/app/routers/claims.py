@@ -1,12 +1,9 @@
 """Claims: read a Facebook comment thread, draft who claimed what, confirm into orders."""
 
 import asyncio
-import base64
 from decimal import Decimal
-from io import BytesIO
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -38,16 +35,12 @@ async def read_screenshots(
     if len(images) > MAX_SCREENSHOTS:
         raise HTTPException(400, f"Too many screenshots (max {MAX_SCREENSHOTS})")
     ids = [int(x) for x in scan_ids.split(",") if x.strip().isdigit()][:MAX_PHOTOS]
-    photos: dict[int, Image.Image] = {}
+    photos = {}
     if ids:
         rows = (await db.scalars(select(Scan).where(Scan.id.in_(ids), Scan.user_id == user_id))).all()
-        for scan in rows:
-            data_url = (scan.gemini_raw or {}).get("image_b64", "")
-            if data_url:
-                try:
-                    photos[scan.id] = Image.open(BytesIO(base64.b64decode(data_url.split(",", 1)[-1]))).convert("RGB")
-                except Exception:
-                    pass  # an unreadable preview just can't be matched
+        # Up to 60 previews to decode: off the event loop.
+        photos = await asyncio.to_thread(
+            claims.decode_photos, {s.id: (s.gemini_raw or {}).get("image_b64", "") for s in rows})
     pages = []
     for image in images:
         raw = await image.read()

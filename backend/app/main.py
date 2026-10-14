@@ -236,6 +236,11 @@ def _preview_b64(pil: Image.Image) -> str:
     return _jpeg_data_url(p)
 
 
+def _scan_pictures(pil: Image.Image, bboxes: list[list[int]]) -> tuple[str, list[str]]:
+    """A scan's preview and one thumbnail per [x, y, w, h] box, as data URLs."""
+    return _preview_b64(pil), [_make_thumb_b64(pil, x, y, x + w, y + h) for x, y, w, h in bboxes]
+
+
 def _json_payload(payload: str) -> dict:
     try:
         return json.loads(payload)
@@ -279,19 +284,24 @@ def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
     return summary
 
 
-def _normalise_upload(raw: bytes) -> tuple[Image.Image, bytes]:
-    """Decode an uploaded photo, upright it, cap its size; returns the RGB
-    image and the JPEG bytes that get stored and sent to Gemini."""
+def _decode_upright(raw: bytes) -> Image.Image:
+    """Decode a photo and turn it the right way up (EXIF); 400 if it can't be read."""
     try:
         pil = Image.open(BytesIO(raw))
         pil.load()
     except Exception:
         raise HTTPException(400, "Could not decode image")
-
     try:
         pil = ImageOps.exif_transpose(pil)
     except Exception:
         pass
+    return pil
+
+
+def _normalise_upload(raw: bytes) -> tuple[Image.Image, bytes]:
+    """Decode an uploaded photo, upright it, cap its size; returns the RGB
+    image and the JPEG bytes that get stored and sent to Gemini."""
+    pil = _decode_upright(raw)
 
     # Cap working resolution. The client-side downscale (api.ts) handles JPEG /
     # PNG / WebP but silently falls through on HEIC because non-Safari browsers
@@ -351,7 +361,7 @@ async def _scan_pipeline(
 
     if settings.use_local_scanner:
         # Offline pipeline — replaces steps 1-5 below wholesale.
-        cards_out = await local_scan.scan_cards(pil, _enrich_with_ck, _make_thumb_b64)
+        cards_out = await local_scan.scan_cards(pil, _enrich_with_ck)
         return await _store_scan(db, user_id, filename, pil, norm_bytes, cards_out, post_id)
 
     # ---------- Step 1: classical bbox + quad detection (cheap, no API call) ----------
@@ -441,7 +451,6 @@ async def _scan_pipeline(
     for i, (r, sf) in enumerate(zip(resolved, summaries)):
         x, y, w, h = r.bbox_px
         x2, y2 = x + w, y + h
-        crop_b64 = _make_thumb_b64(pil, x, y, x2, y2)
 
         if sf is None:
             sf = {
@@ -468,7 +477,7 @@ async def _scan_pipeline(
             "id": i,
             "bbox": [x, y, w, h],
             "corners": corners,
-            "crop_b64": crop_b64,
+            "crop_b64": "",  # filled in by _store_scan
             "bbox_source": r.bbox_source,
             "name_source": "gemini",
             "name_confidence": None,
@@ -492,7 +501,9 @@ async def _store_scan(
 ) -> dict:
     """Persist a finished scan (photo + cards) and build the /api/scan response."""
     W, H = pil.size
-    preview_b64 = _preview_b64(pil)
+    preview_b64, thumbs = await asyncio.to_thread(_scan_pictures, pil, [c["bbox"] for c in cards_out])
+    for card, thumb in zip(cards_out, thumbs):
+        card["crop_b64"] = thumb
 
     # Persist: write the original image to disk and record a Scan row.
     # We stash the full response payload (cards + preview) inside gemini_raw so
@@ -563,15 +574,7 @@ async def frame_card(
 
     raw = await _resolve_export_image(db, user_id, str(scan_id))
 
-    try:
-        pil = Image.open(BytesIO(raw))
-        pil.load()
-        try:
-            pil = ImageOps.exif_transpose(pil)
-        except Exception:
-            pass
-    except Exception:
-        raise HTTPException(400, "Could not decode original image")
+    pil = await asyncio.to_thread(_decode_upright, raw)
 
     W, H = pil.size
     # Clamp corners inside the image and compute an axis-aligned bbox for
@@ -595,7 +598,7 @@ async def frame_card(
         except Exception as e:
             print(f"[frame-card] identification failed: {e}", flush=True)
 
-    crop_b64 = _make_thumb_b64(pil, x0, y0, x1, y1)
+    crop_b64 = await asyncio.to_thread(_make_thumb_b64, pil, x0, y0, x1, y1)
 
     # Build the card record. Two flavours: locally named (full Scryfall + CK)
     # or manual stub (user types the name via existing relookup).
@@ -774,7 +777,8 @@ async def scan_preview(
     """The scan's photo preview. `w` caps the longest edge, for the small
     thumbnails in the scan strip."""
     scan_row = await _scan_for_image(db, scan_id, user_id)
-    return _data_url_jpeg((scan_row.gemini_raw or {}).get("image_b64", ""), w)
+    # Resizing for ?w= is a decode + re-encode; a strip of thumbnails is many at once.
+    return await asyncio.to_thread(_data_url_jpeg, (scan_row.gemini_raw or {}).get("image_b64", ""), w)
 
 
 @app.get("/api/scans/{scan_id}/crops/{card_id}")
