@@ -25,7 +25,7 @@ import { Spinner } from '../components/Spinner.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { ckSearchUrl, computeCardData, formatMyr, formatMyrWithFoil } from '../utils.ts';
+import { computeCardData, formatMyr, formatMyrWithFoil, listingFields } from '../utils.ts';
 
 type T = (k: string, vars?: Record<string, string | number>) => string;
 
@@ -409,16 +409,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       note: d.comment || null,
       items: d.items.map(it => {
         const c = cardsByKey.get(it.key!)!;
-        const sel = c.cd.sel;
-        const ck = (c.cd.isFoil ? (sel.ck_url_foil || sel.ck_url_normal) : (sel.ck_url_normal || sel.ck_url_foil))
-          || ckSearchUrl(sel.name || '');
-        return {
-          scan_id: c.scanId, card_id: c.cd.card.id, bbox: c.cd.card.bbox, name: sel.name || '(unknown)',
-          scryfall_id: sel.scryfall_id || null, set_code: sel.set || null, set_name: sel.set_name || null,
-          collector_number: sel.collector_number || null, rarity: sel.rarity || null,
-          is_foil: c.cd.isFoil, image_url: sel.image_url || null, ck_url: ck || null,
-          unit_price_myr: c.cd.unitPrice.toFixed(2), qty_total: c.cd.qty, qty: it.qty,
-        };
+        return { ...listingFields(c.cd), scan_id: c.scanId, card_id: c.cd.card.id, bbox: c.cd.card.bbox, qty: it.qty };
       }),
     }));
     try {

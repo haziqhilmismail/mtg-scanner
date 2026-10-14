@@ -6,7 +6,7 @@ import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
-import { ckSearchUrl, computeCardData, formatMyr, pillLabel } from '../utils.ts';
+import { computeCardData, formatMyr, listingFields, pillLabel } from '../utils.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 interface Folder {
@@ -151,22 +151,8 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     for (const cd of visible) {
       if (!isFinite(cd.unitPrice) || cd.unitPrice <= 0) continue;
       try {
-        const ckDirect = cd.isFoil
-          ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
-          : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
-        const ck = ckDirect || ckSearchUrl(cd.sel.name || '');
         const result = await listingsApi.create({
-          name: cd.sel.name || '(unknown)',
-          scryfall_id: cd.sel.scryfall_id || null,
-          set_code: cd.sel.set || null,
-          set_name: cd.sel.set_name || null,
-          collector_number: cd.sel.collector_number || null,
-          rarity: cd.sel.rarity || null,
-          is_foil: cd.isFoil,
-          image_url: cd.sel.image_url || null,
-          ck_url: ck || null,
-          unit_price_myr: cd.unitPrice.toFixed(2),
-          qty_total: cd.qty,
+          ...listingFields(cd),
           post_ids: postId != null ? [postId] : [],
         });
         markAdded(batch.scanId, cd.origIdx, result.id);

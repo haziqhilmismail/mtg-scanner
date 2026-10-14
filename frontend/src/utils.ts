@@ -83,6 +83,28 @@ export function ckSearchUrl(name: string): string {
   return `https://www.cardkingdom.com/catalog/search?search=header&filter%5Bname%5D=${encodeURIComponent(name)}`;
 }
 
+// What a scanned card becomes on the checklist. One function for adding a
+// card, adding a whole photo and saving claims, so they can't drift apart.
+// With no direct CK product URL the listing gets a CK search-by-name link.
+export function listingFields(cd: CardRowData) {
+  const sel = cd.sel;
+  const ck = (cd.isFoil ? (sel.ck_url_foil || sel.ck_url_normal) : (sel.ck_url_normal || sel.ck_url_foil))
+    || ckSearchUrl(sel.name || '');
+  return {
+    name: sel.name || '(unknown)',
+    scryfall_id: sel.scryfall_id || null,
+    set_code: sel.set || null,
+    set_name: sel.set_name || null,
+    collector_number: sel.collector_number || null,
+    rarity: sel.rarity || null,
+    is_foil: cd.isFoil,
+    image_url: sel.image_url || null,
+    ck_url: ck || null,
+    unit_price_myr: cd.unitPrice.toFixed(2),
+    qty_total: cd.qty,
+  };
+}
+
 // Scryfall stores multiple sizes; for zoom we want the higher-res "large" variant
 export function upgradeScryfallImage(url: string): string {
   if (!url) return url;
