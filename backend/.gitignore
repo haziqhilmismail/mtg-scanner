@@ -21,23 +21,13 @@ data/orders/
 # Auto-generated session-signing secret — MUST NOT be committed
 data/jwt_secret.txt
 
-# pHash index build artifacts. The index itself (~4MB) CAN be committed so
-# deploys skip the 30-min rebuild on the Fly VM; the bulk JSON cache (~240MB)
-# and resume file stay local.
-data/scryfall_unique_artwork.json
-data/phash_build_progress.json
-# data/phash_index.npz  # uncomment to keep the index out of the repo
-
-# v2 pHash experiment + YOLO model files — not used in production
-# (see CLAUDE.md: detection-algo work is paused; YOLO is out-of-scope).
-data/phash_index_v2_144.npz
-*.pt
-
 # Local scanner models + card embedding index (~95 MB of ONNX, ~90 MB index)
 # and the index builder's image cache. See README "Local scanner".
 data/models/
 data/card_index.npz
 data/index_build_cache/
+# PyTorch weights the ONNX models are exported from
+*.pt
 
 # OS / editor
 .DS_Store
