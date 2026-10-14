@@ -1,14 +1,14 @@
 // Sends values (a scan's per-card state, a post's pricing) to the server, one
 // slot per key. Every value queued gets a rev higher than any before it for
 // that key; where the server ignores a lower rev (scan states), saves may
-// overlap and arrive in any order. Where it doesn't (`overlap` false), a key's
-// next save waits for the one in flight.
+// overlap and arrive in any order. Where it doesn't (`ordered`), a key's next
+// save waits for the one in flight.
 
 // One key: the fingerprint of the latest value seen (the first one seen is
 // what the server already has), the rev given to the latest queued value, the
-// latest value the server has not confirmed, whether it has been sent (and
-// with keepalive), and how many of the key's saves are in flight.
-type Slot<V> = { latest: string; rev: number; unsaved: V | null; sent: boolean; keepalive: boolean; inFlight: number };
+// latest value the server has not confirmed, how it has been sent (null: not
+// yet), and how many of the key's saves are in flight.
+type Slot<V> = { latest: string; rev: number; unsaved: V | null; sentWith: null | 'normal' | 'keepalive'; inFlight: number };
 
 // Saves in flight at once, outside a final flush, so hundreds of edited scans
 // don't all go at once.
@@ -22,13 +22,13 @@ export function createSaveQueue<K, V>(
   retry: () => void,
   // The server refused a save, so that edit is lost.
   refused: (key: K) => void,
-  overlap = true,
+  { ordered = false } = {},
 ) {
   const slots = new Map<K, Slot<V>>();
   let inFlight = 0;
 
   const add = (key: K, latest: string, rev: number) => {
-    const s: Slot<V> = { latest, rev, unsaved: null, sent: false, keepalive: false, inFlight: 0 };
+    const s: Slot<V> = { latest, rev, unsaved: null, sentWith: null, inFlight: 0 };
     slots.set(key, s);
     return s;
   };
@@ -37,8 +37,7 @@ export function createSaveQueue<K, V>(
   const queue = (s: Slot<V>, value: V) => {
     s.rev = Math.max(Date.now(), s.rev + 1);
     s.unsaved = value;
-    s.sent = false;
-    s.keepalive = false;
+    s.sentWith = null;
   };
 
   const api = {
@@ -77,11 +76,10 @@ export function createSaveQueue<K, V>(
     flush(final = false) {
       for (const [key, s] of slots) {
         const value = s.unsaved;
-        if (value == null || (s.sent && (!final || s.keepalive))) continue;
-        if (!final && !overlap && s.inFlight) continue;
+        if (value == null || (s.sentWith && (!final || s.sentWith === 'keepalive'))) continue;
+        if (!final && ordered && s.inFlight) continue;
         if (!final && inFlight >= MAX_IN_FLIGHT) return;
-        s.sent = true;
-        s.keepalive = final;
+        s.sentWith = final ? 'keepalive' : 'normal';
         s.inFlight++;
         inFlight++;
         send(key, value, final, s.rev).then(
@@ -97,8 +95,7 @@ export function createSaveQueue<K, V>(
             // Refused (gone, too big, signed out): sending it again won't help.
             const status = e.status ?? 0;
             if (status >= 400 && status < 500 && status !== 408 && status !== 429) { s.unsaved = null; refused(key); return; }
-            s.sent = false;
-            s.keepalive = false;
+            s.sentWith = null;
             retry();
             return true;
           },
