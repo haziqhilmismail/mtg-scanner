@@ -210,7 +210,11 @@ class ClaimDraft(BaseModel):
 
 PROMPT = """You are helping a Malaysian Magic: The Gathering seller work out who claimed which cards from a Facebook comment thread.
 
-The thread text below was read from screenshots by OCR, so expect small misreadings (l/1/I, O/0, missing diacritics, stray symbols), and Facebook chrome mixed in ("Like", "Reply", "2h", "Top fan", "Author", "View more replies", "Write a comment").
+The thread text below was read from screenshots by OCR, so expect small misreadings (l/1/I, O/0, missing diacritics, stray symbols), and Facebook chrome mixed in ("Like", "Reply", "2h", "Top fan", "Author", "View more replies", "Write a comment", "All comments", a bare reaction count such as "1" or "👍1").
+
+HOW A COMMENT LOOKS
+Each comment is the commenter's name on its own line (often with a time after it, e.g. "Amir Rahman · 1d"), then their words on the next line or lines, then chrome such as "Reply". The commenter is the name on the line ABOVE the words, never a name inside the words.
+A reply usually starts by tagging the person it answers, most often the seller: under "Amir Rahman · 1d", the words "Haziq Hilmi claim abrupt decay" are Amir Rahman claiming "abrupt decay", and the leading "Haziq Hilmi" is only a tag. Drop a leading tag from `comment` and `said`.
 
 Comments are in Malay, English or a mix. Buyers claim with words like: "nak", "nak 1", "mine", "claim", "booking", "book", "ambil", "ambik", "amik", "lock", "sy nak", "saya nak", "+1", or by just naming a card. Cards carry no numbers; buyers describe them in their own words:
 - the card's name, often shortened, nicknamed or misspelt ("sol ring", "rhystic", "bolt", "kitsune tu")
@@ -226,7 +230,7 @@ THE CARDS ON SALE
 {scope}
 
 THE SELLER
-The seller's own name is "{seller}". Never treat the seller's comments or replies as claims. A seller reply such as "ok", "noted", "sold", "pm" changes nothing.
+The seller's own name is "{seller}". Never treat the seller's comments or replies as claims: the post text, price notes ("NF - x2.5", "F - 2.8", "beledros witherbloom JP x2.2"), pickup details, and replies such as "ok", "noted", "sold", "pm" change nothing. A buyer's comment that merely tags the seller's name is still that buyer's claim.
 
 WHAT TO RETURN
 One entry per buyer comment that claims something, in the order the comments appear (earlier comments have first right to a card).

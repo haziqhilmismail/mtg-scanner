@@ -1,5 +1,6 @@
 """Claims: OCR a thread, draft claims (Gemini mocked), confirm into orders."""
 
+import os
 import shutil
 from io import BytesIO
 
@@ -186,3 +187,77 @@ def test_parse_spends_a_credit_and_refuses_when_out(client, monkeypatch):
     assert out.status_code == 402 and out.json()["detail"]["code"] == "out_of_credits"
     assert out.json()["detail"]["credits"]["remaining"] == 0
     assert calls == []                                   # refused before any Gemini call
+
+
+# The seller's own Facebook post, as OCR hands it over. Replies start with a
+# tag of the person answered (the seller), which is not the commenter.
+DESKTOP_THREAD = """NF - x2.5
+F - 2.8
+Dice indicate foil
+Drop off CnH NEXT WEEK Tuesday earliest
+All comments
+30
+Haziq Hilmi · 1d
+Reply
+Haziq Hilmi · 1d
+beledros witherbloom JP x2.2
+Reply
+Amir Rahman · 1d
+Haziq Hilmi claim abrupt decay
+Reply 👍1
+Daniel Tan · 1d
+Haziq Hilmi claim Rakdos Charm
+Reply 👍1
+Write a comment..."""
+
+MOBILE_THREAD = """Haziq Hilmi's post
+Haziq Hilmi · 1d
+Reply
+Haziq Hilmi · 1d
+beledros witherbloom JP x2.2
+Reply
+Amir Rahman · 1d
+Haziq Hilmi claim abrupt decay
+Reply
+1
+Daniel Tan · 1d
+Haziq Hilmi claim Rakdos Charm
+Reply
+1
+Reply to Haz..."""
+
+TAGGED_PHOTO = claims.CataloguePhoto(scan_id=3, label="Photo 1", cards=[
+    claims.CatalogueCard(card_id=0, name="Beledros Witherbloom", price="RM22"),
+    claims.CatalogueCard(card_id=1, name="Abrupt Decay", price="RM25"),
+    claims.CatalogueCard(card_id=2, name="Rakdos Charm", price="RM3"),
+])
+
+
+@pytest.mark.parametrize("thread", [DESKTOP_THREAD, MOBILE_THREAD])
+def test_prompt_explains_seller_tags_in_replies(monkeypatch, thread):
+    sent = []
+
+    class _Models:
+        def generate_content(self, **kw):
+            sent.append(kw["contents"][0])
+            return type("R", (), {"parsed": []})()
+    monkeypatch.setattr(claims, "get_client", lambda: type("Cl", (), {"models": _Models()})())
+
+    claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi")
+    prompt = sent[0]
+    assert thread in prompt
+    # The rule Gemini needs for "Amir Rahman · 1d / Haziq Hilmi claim abrupt decay".
+    assert 'The seller\'s own name is "Haziq Hilmi"' in prompt
+    assert "name on the line ABOVE the words" in prompt
+    assert "leading \"Haziq Hilmi\" is only a tag" in prompt
+    assert "merely tags the seller's name is still that buyer's claim" in prompt
+
+
+@pytest.mark.skipif(not os.environ.get("GEMINI_LIVE_API_KEY"), reason="set GEMINI_LIVE_API_KEY to run against Gemini")
+@pytest.mark.parametrize("thread", [DESKTOP_THREAD, MOBILE_THREAD])
+def test_live_gemini_reads_tagged_replies_as_the_buyers_claims(monkeypatch, thread):
+    monkeypatch.setattr(claims.settings, "gemini_api_key", os.environ["GEMINI_LIVE_API_KEY"])
+    drafts = claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi")
+    got = {d.buyer: [(i.card_id, i.qty) for i in d.items] for d in drafts}
+    assert got == {"Amir Rahman": [(1, 1)], "Daniel Tan": [(2, 1)]}, drafts
+    assert all("Haziq Hilmi" not in d.comment for d in drafts), drafts
