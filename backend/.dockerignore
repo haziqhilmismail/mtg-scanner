@@ -18,6 +18,9 @@ data/scans/
 data/posts/
 data/ck_pricelist.json
 data/jwt_secret.txt
+data/models/
+data/card_index.npz
+data/index_build_cache/
 
 # Misc
 .git/

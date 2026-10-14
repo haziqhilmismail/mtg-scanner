@@ -33,6 +33,12 @@ data/phash_build_progress.json
 data/phash_index_v2_144.npz
 *.pt
 
+# Local scanner models + card embedding index (~95 MB of ONNX, ~90 MB index)
+# and the index builder's image cache. See README "Local scanner".
+data/models/
+data/card_index.npz
+data/index_build_cache/
+
 # OS / editor
 .DS_Store
 *.log

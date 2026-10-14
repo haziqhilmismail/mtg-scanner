@@ -1,13 +1,15 @@
 """
 scryfall_lookup.py
 ------------------
-Take Gemini's card detections and look each up on Scryfall to get the
+Take the scanner's card detections and look each up on Scryfall to get the
 real price data, image URL, and confirmed metadata.
 
 Lookup strategy per card (best -> last resort):
-  1. Exact: GET /cards/{set}/{collector_number}     (if both present)
-  2. Named with set hint: GET /cards/named?fuzzy=<name>&set=<set>
-  3. Named only: GET /cards/named?fuzzy=<name>
+  0. By id: GET /cards/{scryfall_id}                (the scanner's index match)
+  1. Name + collector number search, preferring the detected set
+  2. Exact: GET /cards/{set}/{collector_number}     (if both present)
+  3. Named with set hint: GET /cards/named?fuzzy=<name>&set=<set>
+  4. Named only: GET /cards/named?fuzzy=<name>
 
 In parallel with a semaphore + small delay to respect Scryfall's rate limit.
 """
@@ -74,12 +76,19 @@ async def _lookup_one(session, sem, detection):
         set_code = (detection.set_code or "").strip().lower()
         cnum = (detection.collector_number or "").strip()
 
-        # Strategy 1: name + collector_number via Scryfall search.
-        # The collector number is much more reliable than the set symbol — symbols
-        # can be worn, glared, or stylized, but the cn is small printed text the
-        # model usually reads cleanly. We search ALL printings of this name, filter
-        # to the matching cn, and prefer the printing in the (possibly wrong)
-        # Gemini-supplied set hint only if it's actually one of the matches.
+        # Strategy 0: the scanner matched a specific printing in its index, so
+        # fetch exactly that card. The strategies below only run if the id is
+        # missing or Scryfall no longer knows it (stale index).
+        scryfall_id = (getattr(detection, "scryfall_id", "") or "").strip()
+        if scryfall_id:
+            url = f"https://api.scryfall.com/cards/{urllib.parse.quote(scryfall_id)}"
+            data = await _fetch_json(session, url)
+            if data and "name" in data:
+                return data
+
+        # Strategy 1: name + collector_number via Scryfall search. We search
+        # ALL printings of this name, filter to the matching cn, and prefer the
+        # printing in the detected set only if it's actually one of the matches.
         if name and cnum:
             q = f'!"{name}" cn:{cnum}'
             data = await _fetch_json(
@@ -96,7 +105,7 @@ async def _lookup_one(session, sem, detection):
                 # No matching set hint — return the first (Scryfall orders by release)
                 return cards[0]
 
-        # Strategy 2: exact set + collector_number (works when Gemini got the set right)
+        # Strategy 2: exact set + collector_number
         if set_code and cnum:
             url = f"https://api.scryfall.com/cards/{urllib.parse.quote(set_code)}/{urllib.parse.quote(cnum)}"
             data = await _fetch_json(session, url)

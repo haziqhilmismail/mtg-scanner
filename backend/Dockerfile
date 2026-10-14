@@ -19,8 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install Python deps first so layer caching kicks in on code-only changes.
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-local-scanner.txt ./
+# The local scanner's deps (onnxruntime, rapidocr) are installed too so
+# SCANNER_BACKEND=local works without a rebuild. rapidocr's wheel bundles its
+# OCR models, so nothing is downloaded at runtime.
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-local-scanner.txt
 
 # Copy the rest of the backend (alembic.ini, migrations/, app/).
 COPY . .

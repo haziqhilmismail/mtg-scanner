@@ -72,6 +72,7 @@ from .services import bug_reporter
 from .services import credits
 from .services.auth_service import decode_session_token
 from .services import local_card_id
+from .services import local_scan
 from .services.cardkingdom_prices import DB_FILE as CK_DB_FILE
 from .services.cardkingdom_prices import get_index as get_ck_index
 from .services.classical_detector import detect_card_quads, iou_xywh, perspective_warp
@@ -132,6 +133,16 @@ async def lifespan(_app: FastAPI):
                 print(f"[startup] WARNING — pHash index failed to load: {e}", flush=True)
         else:
             print(f"[startup] pHash enabled but {phash_path} missing — run scripts/build_phash_index.py", flush=True)
+
+    # 5) Optional: the local scanner (SCANNER_BACKEND=local). Missing models
+    # don't crash startup — /api/scan answers 503 until the files are in
+    # place, everything else keeps working.
+    if settings.use_local_scanner:
+        try:
+            n = await asyncio.to_thread(local_scan.load)
+            print(f"[startup] local scanner ready: {n} printings indexed", flush=True)
+        except Exception as e:
+            print(f"[startup] WARNING — local scanner failed to load: {e}", flush=True)
     yield
 
 
@@ -162,11 +173,17 @@ def root():
 @app.get("/api/health")
 async def health():
     out: dict = {"ok": True, "model": settings.gemini_model}
-    try:
-        get_client()
-    except Exception as e:
-        out["ok"] = False
-        out["gemini_error"] = str(e)
+    if settings.use_local_scanner:
+        out["model"] = local_scan.MODEL_NAME
+        out["ok"] = local_scan.is_loaded()
+        if not out["ok"]:
+            out["scanner_error"] = "local scanner models or card index not loaded"
+    else:
+        try:
+            get_client()
+        except Exception as e:
+            out["ok"] = False
+            out["gemini_error"] = str(e)
     try:
         idx = await get_ck_index()
         out["cardkingdom_cards"] = idx.matched_scryfall_count
@@ -417,6 +434,11 @@ async def _scan_pipeline(
     """Everything /api/scan does once it has a decoded photo and a credit."""
     W, H = pil.size
 
+    if settings.use_local_scanner:
+        # Offline pipeline — replaces steps 1-6 below wholesale.
+        cards_out = await local_scan.scan_cards(pil, _enrich_with_ck, _make_thumb_b64)
+        return await _store_scan(db, user_id, filename, pil, norm_bytes, cards_out, post_id)
+
     # ---------- Step 1: classical bbox + quad detection (cheap, no API call) ----------
     # The classical detector finds tight, card-shaped blobs in the photo and
     # returns both the axis-aligned bbox (for IoU matching against Gemini)
@@ -607,6 +629,16 @@ async def _scan_pipeline(
             "candidates": [sf],
         })
 
+    return await _store_scan(db, user_id, filename, pil, norm_bytes, cards_out, post_id)
+
+
+async def _store_scan(
+    db: DbSession, user_id: int, filename: str | None,
+    pil: Image.Image, norm_bytes: bytes, cards_out: list[dict],
+    post_id: int | None = None,
+) -> dict:
+    """Persist a finished scan (photo + cards) and build the /api/scan response."""
+    W, H = pil.size
     preview_b64 = _preview_b64(pil)
 
     # Persist: write the original image to disk and record a Scan row.
@@ -711,18 +743,22 @@ async def frame_card(
     # the user has signalled they'll fill the card in by hand via the row's
     # edit controls.
     matched: local_card_id.Candidate | None = None
+    local_det = None  # set instead of `matched` when the local scanner names it
     if not data.get("skip_identify"):
         try:
-            matched = _phash_match(pil.convert("RGB"), clamped, (x0, y0, x1, y1))
+            if settings.use_local_scanner:
+                local_det = await local_scan.identify_quad(pil.convert("RGB"), clamped)
+            else:
+                matched = _phash_match(pil.convert("RGB"), clamped, (x0, y0, x1, y1))
         except Exception as e:
-            print(f"[frame-card] phash search failed: {e}", flush=True)
+            print(f"[frame-card] identification failed: {e}", flush=True)
 
     crop_b64 = _make_thumb_b64(pil, x0, y0, x1, y1)
 
     # Build the card record. Two flavours: pHash-named (full Scryfall + CK)
     # or manual stub (user types the name via existing relookup).
-    if matched is not None:
-        det = CardDetection(
+    if matched is not None or local_det is not None:
+        det = local_det.det if local_det is not None else CardDetection(
             name=matched.name,
             set_code=matched.set,
             collector_number=matched.collector_number,
@@ -736,10 +772,14 @@ async def frame_card(
         gemini_hint = {
             "name": det.name, "set_code": det.set_code,
             "collector_number": det.collector_number,
-            "is_foil": False, "quantity": 1,
+            "is_foil": det.is_foil, "quantity": 1,
         }
-        name_source = "phash"
-        name_confidence = matched.distance
+        if local_det is not None:
+            name_source = local_det.name_source
+            name_confidence = round(local_det.score, 3)
+        else:
+            name_source = "phash"
+            name_confidence = matched.distance
     else:
         sf = {
             "scryfall_id": "",
