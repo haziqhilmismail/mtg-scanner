@@ -136,7 +136,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         onAppearanceChange={setAppearance}
         t={t}
         user={auth.config?.auth_enabled ? auth.user : null}
-        onSignOut={auth.config?.auth_enabled ? auth.signOut : undefined}
+        // Waiting edits go first: request() reads the token before it awaits.
+        onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); auth.signOut(); } : undefined}
         onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
       />
     <TopTabs
