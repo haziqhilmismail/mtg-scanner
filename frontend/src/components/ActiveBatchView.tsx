@@ -4,7 +4,7 @@ import { frameCard } from '../api.ts';
 import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { ckSearchUrl, computeCardData, formatMyr } from '../utils.ts';
+import { computeCardData, formatMyr, listingFields } from '../utils.ts';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow } from './CardRow.tsx';
 import { useDialog } from './DialogProvider.tsx';
@@ -136,24 +136,8 @@ export function ActiveBatchView({
     }
     cardAddInFlightRef.current.add(cd.origIdx);
     try {
-      const ckDirect = cd.isFoil
-        ? (cd.sel.ck_url_foil || cd.sel.ck_url_normal || '')
-        : (cd.sel.ck_url_normal || cd.sel.ck_url_foil || '');
-      // Fall back to CK search-by-name if there's no direct product URL, so
-      // the saved listing carries *some* CK link rather than going to Scryfall.
-      const ck = ckDirect || ckSearchUrl(cd.sel.name || '');
       const result = await listingsApi.create({
-        name: cd.sel.name || '(unknown)',
-        scryfall_id: cd.sel.scryfall_id || null,
-        set_code: cd.sel.set || null,
-        set_name: cd.sel.set_name || null,
-        collector_number: cd.sel.collector_number || null,
-        rarity: cd.sel.rarity || null,
-        is_foil: cd.isFoil,
-        image_url: cd.sel.image_url || null,
-        ck_url: ck || null,
-        unit_price_myr: cd.unitPrice.toFixed(2),
-        qty_total: cd.qty,
+        ...listingFields(cd),
         post_ids: selectedPostId != null ? [selectedPostId] : [],
       });
       onMarkAdded(cd.origIdx, result.id);
