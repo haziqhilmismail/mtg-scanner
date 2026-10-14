@@ -27,7 +27,7 @@ class ListingCreate(ListingBase):
     `post_ids` ties the listing to N Facebook post groups (often just one)."""
     scan_id: int | None = None
     post_ids: list[int] = Field(default_factory=list)
-    bbox: list[int] | None = None  # [x, y, w, h]
+    bbox: list[int] | None = Field(None, min_length=4, max_length=4)  # [x, y, w, h]
     status: ListingStatus = ListingStatus.active
 
 
@@ -47,6 +47,9 @@ class ListingUpdate(BaseModel):
     status: ListingStatus | MISSING = MISSING
     post_ids: list[int] | None = None
     notes: str | None = None
+    # Ties a card added before listings recorded their scan to its photo.
+    scan_id: int | None = None
+    bbox: list[int] | None = Field(None, min_length=4, max_length=4)
 
 
 class ListingRead(ListingBase):

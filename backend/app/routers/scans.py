@@ -15,7 +15,8 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm.attributes import flag_modified
 
 from ..deps import CurrentUserId, DbSession, ImageUserId, limiter
-from ..models import Post, Scan
+from ..models import Listing, ListingStatus, Order, OrderItem, OrderStatus, Post, Scan
+from ..services.listings import drop_listing
 from ..services.cardkingdom_prices import enrich as enrich_with_ck
 from ..services.cardkingdom_prices import get_index as get_ck_index
 
@@ -37,7 +38,10 @@ async def list_scans(
     client then loads each picture from /preview and /crops/{id} below, only
     when it is on screen, and the browser caches them.
 
-    `before=<scan id>` pages back: the scans with a smaller id than that one."""
+    `before=<scan id>` pages back: the scans with a smaller id than that one.
+
+    `listed` holds the bbox of each card of the scan that is on the checklist,
+    so the client can tell which cards are not added yet."""
     q = (
         select(Scan)
         .where(Scan.user_id == user_id)
@@ -47,6 +51,14 @@ async def list_scans(
     if before is not None:
         q = q.where(Scan.id < before)
     rows = (await db.execute(q)).scalars().all()
+    listed: dict[int, list[list[int]]] = {}
+    for scan_id, bbox in (await db.execute(
+        select(Listing.scan_id, Listing.bbox)
+        .where(Listing.scan_id.in_([s.id for s in rows]), Listing.bbox.is_not(None),
+               Listing.status != ListingStatus.archived)
+        .order_by(Listing.id)
+    )).all():
+        listed.setdefault(scan_id, []).append(bbox)
     out = []
     for s in rows:
         payload = s.gemini_raw or {}
@@ -64,6 +76,7 @@ async def list_scans(
             "cards": cards,
             "created_at": s.created_at.isoformat() if s.created_at else None,
             "ui_state": s.ui_state,
+            "listed": listed.get(s.id, []),
         })
     return out
 
@@ -167,10 +180,21 @@ async def scan_card_crop(
 
 @router.delete("/{scan_id}", status_code=204)
 async def delete_scan(scan_id: int, db: DbSession, user_id: CurrentUserId):
-    """Drop a scan from the dashboard. Removes the DB row + the image bytes on disk."""
+    """Drop a scan from the dashboard. Removes the DB row, the image bytes on
+    disk, and the checklist cards added from it. A card in an open order
+    stays (unlinked from the scan), so no buyer's claim is lost."""
     scan_row = await db.get(Scan, scan_id)
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
+    claimed = (
+        select(OrderItem.listing_id)
+        .join(Order, Order.id == OrderItem.order_id)
+        .where(Order.status != OrderStatus.cancelled)
+    )
+    for listing in (await db.execute(
+        select(Listing).where(Listing.scan_id == scan_id, Listing.id.not_in(claimed))
+    )).scalars().all():
+        await drop_listing(db, listing)
     if scan_row.image_path:
         try:
             Path(scan_row.image_path).unlink(missing_ok=True)

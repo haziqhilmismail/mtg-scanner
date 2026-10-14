@@ -64,3 +64,36 @@ def test_post_stats(client):
     listed = {p["id"]: stats(p) for p in client.get("/api/posts", headers=me).json()}
     assert listed == {full: (2, 1, 3, "6.00"), empty: (0, 0, 0, "0.00")}
     assert stats(client.get(f"/api/posts/{full}", headers=me).json()) == (2, 1, 3, "6.00")
+
+
+def test_cards_follow_their_photo(client):
+    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
+    scan = _upload(client, me, post)["scan_id"]
+
+    def add(name, bbox, headers=me, scan_id=scan):
+        return client.post("/api/listings", json={"name": name, "unit_price_myr": "5.00", "post_ids": [post],
+                                                  "scan_id": scan_id, "bbox": bbox}, headers=headers)
+
+    assert add("Not yours", [0, 0, 1, 1], headers=them).status_code == 404
+    loose = add("Sol Ring", [1, 2, 3, 4]).json()["id"]
+    sold = add("Mana Crypt", [5, 6, 7, 8]).json()["id"]
+    legacy = add("Old add", None, scan_id=None).json()["id"]
+    # A card added before listings recorded their photo is tied to it later.
+    assert client.patch(f"/api/listings/{legacy}", json={"scan_id": scan, "bbox": [9, 9, 9, 9]}, headers=me).status_code == 200
+    assert client.patch(f"/api/listings/{legacy}", json={"scan_id": scan}, headers=them).status_code == 404
+
+    listed = {s["scan_id"]: s["listed"] for s in client.get("/api/scans?lite=1", headers=me).json()}
+    assert listed == {scan: [[1, 2, 3, 4], [5, 6, 7, 8], [9, 9, 9, 9]]}
+
+    r = client.post("/api/orders", json={"buyer_fb_name": "Siti", "items": [{"listing_id": sold}]}, headers=me)
+    assert r.status_code == 201, r.text
+
+    # Deleting the photo takes its cards off the checklist, except a claimed one.
+    assert client.delete(f"/api/scans/{scan}", headers=me).status_code == 204
+    left = {l["id"]: l["scan_id"] for l in client.get("/api/listings", headers=me).json()}
+    assert left == {sold: None}
+    assert loose not in left and legacy not in left
