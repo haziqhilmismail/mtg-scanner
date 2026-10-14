@@ -93,3 +93,16 @@ test('a failed save is retried, a refused one is dropped and reported', async ()
   assert.deepEqual(saved, []);
   assert.deepEqual(refused, [3]);
 });
+
+test('at most 4 saves are in flight outside a final flush; each one ending sends the next', async () => {
+  const { q, sends } = harness();
+  for (let id = 1; id <= 6; id++) { q.update(id, st(1), LOADED); q.update(id, st(2)); }
+  q.flush();
+  q.flush();
+  assert.deepEqual(sends.map(s => s.scanId), [1, 2, 3, 4]);
+  sends[0].ok();
+  await tick();
+  assert.deepEqual(sends.map(s => s.scanId), [1, 2, 3, 4, 5]);
+  q.flush(true);
+  assert.deepEqual(sends.slice(5).map(s => [s.scanId, s.final]), [[2, true], [3, true], [4, true], [5, true], [6, true]]);
+});
