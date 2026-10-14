@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 from PIL import Image
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm.attributes import flag_modified
 
 from ..deps import CurrentUserId, DbSession, ImageUserId, limiter
@@ -81,10 +81,14 @@ async def save_scan_state(scan_id: int, body: ScanState, db: DbSession, user_id:
         raise HTTPException(404, "Scan not found")
     if len(json.dumps(body.state)) > 64 * 1024:
         raise HTTPException(413, "State too large (max 64 KB)")
-    new, old = body.state.get("rev"), (scan_row.ui_state or {}).get("rev")
-    if isinstance(new, int) and isinstance(old, int) and old > new:
-        return
-    scan_row.ui_state = body.state
+    # One conditional UPDATE, so two saves arriving together can't both pass a
+    # read-then-compare and leave the older one stored.
+    rev = body.state.get("rev")
+    newer = Scan.id == scan_id
+    if type(rev) is int:
+        stored_is_int = func.coalesce(func.json_type(Scan.ui_state, "$.rev"), "") == "integer"
+        newer = newer & ~(stored_is_int & (func.json_extract(Scan.ui_state, "$.rev") > rev))
+    await db.execute(update(Scan).where(newer).values(ui_state=body.state).execution_options(synchronize_session=False))
 
 
 class MoveScans(BaseModel):
