@@ -3,19 +3,17 @@
 POST /api/bug   — frontend → record an unexpected JS error / React crash.
                   Optional auth: if a JWT is present the user_id is attached,
                   otherwise the report is anonymous. Rate limited.
-GET  /api/bugs  — admin list (most recent first). Requires auth in auth mode;
-                  in solo mode it just returns the solo user's events.
+
+Reports are read from the bug_events table or the Telegram push, never over the API.
 """
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession
-from ..models import BugEvent
-from ..schemas import BugEventRead, BugReportCreate
+from ..deps import DbSession
+from ..schemas import BugReportCreate
 from ..services import bug_reporter
 from ..services.auth_service import decode_session_token
 
@@ -66,26 +64,3 @@ async def report_bug(
     )
     return {"id": event.id}
 
-
-@router.get("/bugs", response_model=list[BugEventRead])
-async def list_bugs(
-    db: DbSession,
-    user_id: CurrentUserId,
-    limit: int = 100,
-    source: str | None = None,
-) -> list[BugEvent]:
-    """List recent bug events for the current user (solo or signed-in).
-
-    Frontend reports may be anonymous (user_id NULL); they're surfaced to the
-    solo user in solo mode so they're never lost.
-    """
-    if limit < 1 or limit > 500:
-        raise HTTPException(422, "limit must be between 1 and 500")
-    q = select(BugEvent).order_by(BugEvent.id.desc()).limit(limit)
-    if settings.auth_enabled:
-        # Auth mode: each user only sees their own + anon reports.
-        q = q.where((BugEvent.user_id == user_id) | (BugEvent.user_id.is_(None)))
-    if source in ("backend", "frontend"):
-        q = q.where(BugEvent.source == source)
-    result = await db.execute(q)
-    return list(result.scalars().all())

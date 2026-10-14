@@ -1,6 +1,4 @@
-from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class BugReportCreate(BaseModel):
@@ -12,19 +10,3 @@ class BugReportCreate(BaseModel):
     stack: str | None = Field(default=None, max_length=20_000)
     route: str | None = Field(default=None, max_length=512)
 
-
-class BugEventRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    user_id: int | None
-    source: str
-    fingerprint: str
-    route: str | None
-    method: str | None
-    status_code: int | None
-    exception_type: str
-    message: str
-    stack: str | None
-    user_agent: str | None
-    created_at: datetime

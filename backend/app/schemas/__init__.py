@@ -1,6 +1,6 @@
 """Pydantic schemas — the wire format for API requests/responses."""
 
-from .bug import BugEventRead, BugReportCreate
+from .bug import BugReportCreate
 from .buyer import BuyerCreate, BuyerRead, BuyerReadWithStats, BuyerUpdate
 from .listing import (
     BulkImportLine,
@@ -24,7 +24,7 @@ from .scan import ScanRead
 from .user import UserRead, UserUpdate
 
 __all__ = [
-    "BugEventRead", "BugReportCreate",
+    "BugReportCreate",
     "BuyerCreate", "BuyerRead", "BuyerReadWithStats", "BuyerUpdate",
     "BulkImportLine", "BulkImportPayload", "BulkImportResult",
     "ListingCreate", "ListingRead", "ListingReadWithAvailability", "ListingUpdate",
