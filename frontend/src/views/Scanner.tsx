@@ -320,11 +320,6 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
   const liveFolders = useMemo(() => folders.filter(f => !f.archived), [folders]);
   const archivedFolders = useMemo(() => folders.filter(f => f.archived), [folders]);
   const [showArchived, setShowArchived] = useState(false);
-  // Top level with a search typed: matching photos from every live post.
-  const searchHits = useMemo(
-    () => (q && !openFolder ? liveFolders.flatMap(f => f.items.filter(matches).map(s => ({ s, folder: f }))) : []),
-    [q, openFolder, liveFolders, matches],
-  );
 
   const postGrid = (list: Folder[]) => (
     <div className="gallery-grid">
@@ -353,13 +348,12 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
     setSelected(new Set());
   }, [setFolderKey]);
 
-  const openPhoto = useCallback((id: string, ids: string[], key?: string) => {
-    if (key) setFolderKey(key);
+  const openPhoto = useCallback((id: string, ids: string[]) => {
     setNavIds(ids);
     setPhotoId(id);
     setSelecting(false);
     window.scrollTo({ top: 0 });
-  }, [setFolderKey]);
+  }, []);
 
   const activeBatch = scanner.batches.find(b => b.id === photoId) ?? null;
   // An open photo that has gone (deleted): fall back to its post.
@@ -377,7 +371,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
   // Keyboard shortcuts (never while typing in a field, or under a dialog):
   //   one photo   ← / → previous / next photo, Esc back to the post
   //   a post      arrows move between tiles (Enter opens), Esc back to posts
-  //   any gallery / jumps to search
+  //   a post      / jumps to its search
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -849,46 +843,21 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
             <>
               <div className="review-head">
                 <div className="review-title"><h2>{t('scans_title')}</h2></div>
-                {searchField}
               </div>
-              {q ? (
-                searchHits.length === 0 ? (
-                  <p className="gallery-empty">{t('scans_no_matches')}</p>
-                ) : (
-                  <div className="gallery-grid">
-                    {searchHits.map(({ s, folder }) => (
-                      <PhotoTile
-                        key={s.batch.id}
-                        summary={s}
-                        settings={settings}
-                        t={t}
-                        caption={folder.title}
-                        selecting={false}
-                        selected={false}
-                        onOpen={() => openPhoto(s.batch.id, searchHits.map(h => h.s.batch.id), folder.key)}
-                        onToggle={() => { /* no selection in search results */ }}
-                      />
-                    ))}
-                  </div>
-                )
-              ) : (
+              {liveFolders.length ? postGrid(liveFolders) : <p className="gallery-empty">{t('scans_empty')}</p>}
+              {archivedFolders.length ? (
                 <>
-                  {liveFolders.length ? postGrid(liveFolders) : <p className="gallery-empty">{t('scans_empty')}</p>}
-                  {archivedFolders.length ? (
-                    <>
-                      <button
-                        type="button" className="ghost archived-toggle"
-                        aria-expanded={showArchived} onClick={() => setShowArchived(v => !v)}
-                      >
-                        <Icon name="archive" size={18} />
-                        {t('scans_archived')} · {archivedFolders.length}
-                        <Icon name={showArchived ? 'chevronDown' : 'chevronRight'} size={16} />
-                      </button>
-                      {showArchived ? postGrid(archivedFolders) : null}
-                    </>
-                  ) : null}
+                  <button
+                    type="button" className="ghost archived-toggle"
+                    aria-expanded={showArchived} onClick={() => setShowArchived(v => !v)}
+                  >
+                    <Icon name="archive" size={18} />
+                    {t('scans_archived')} · {archivedFolders.length}
+                    <Icon name={showArchived ? 'chevronDown' : 'chevronRight'} size={16} />
+                  </button>
+                  {showArchived ? postGrid(archivedFolders) : null}
                 </>
-              )}
+              ) : null}
             </>
           )}
         </>
