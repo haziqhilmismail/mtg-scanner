@@ -5,9 +5,9 @@ import {
   relookup as apiRelookup,
   scanImage,
   type SavedScan,
-  OutOfCreditsError,
   moveScans as apiMoveScans,
 } from '../api.ts';
+import { OutOfCreditsError } from '../api/auth.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg } from '../types.ts';
 import { generateBatchId } from '../utils.ts';
 

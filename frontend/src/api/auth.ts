@@ -2,6 +2,8 @@
 // other API helper. Token is read fresh on each request so logout is
 // instantaneous (no in-memory copy to invalidate).
 
+import type { Credits } from '../api.ts';
+
 const TOKEN_KEY = 'mtg.auth.token';
 
 export interface AuthUser {
@@ -34,7 +36,6 @@ export const authToken = {
 };
 
 // Builds a Headers object pre-populated with the session token when present.
-// Other API helpers (api.ts, api/checklist.ts) thread this through their fetches.
 export function authHeaders(extra?: HeadersInit): Headers {
   const h = new Headers(extra);
   const t = authToken.get();
@@ -42,31 +43,43 @@ export function authHeaders(extra?: HeadersInit): Headers {
   return h;
 }
 
+export class OutOfCreditsError extends Error {
+  credits: Credits | null;
+  constructor(credits: Credits | null) {
+    super('Out of scan credits');
+    this.credits = credits;
+  }
+}
+
+// Every API call goes through here. A failed response throws an Error whose
+// message carries the status and the server's detail, with `.status` and the
+// raw `.detail` attached for callers that branch on them. 402 is always
+// "out of scan credits".
+export async function request(url: string, init: RequestInit = {}): Promise<Response> {
+  const r = await fetch(url, { ...init, headers: authHeaders(init.headers) });
+  if (r.ok) return r;
+  const text = await r.text().catch(() => '');
+  let detail: unknown = text.slice(0, 200);
+  try { detail = JSON.parse(text).detail; } catch { /* not JSON: keep the text */ }
+  if (r.status === 402) {
+    throw new OutOfCreditsError((detail as { credits?: Credits } | undefined)?.credits ?? null);
+  }
+  const msg = `${init.method ?? 'GET'} ${url} → ${r.status}${typeof detail === 'string' && detail ? `: ${detail}` : ''}`;
+  throw Object.assign(new Error(msg), { status: r.status, detail });
+}
+
 export async function fetchAuthConfig(): Promise<AuthConfig> {
-  const r = await fetch('/api/auth/config');
-  if (!r.ok) throw new Error(`Auth config fetch failed: ${r.status}`);
-  return (await r.json()) as AuthConfig;
+  return (await request('/api/auth/config')).json();
 }
 
 export async function loginWithGoogle(credential: string): Promise<AuthResponse> {
-  const r = await fetch('/api/auth/google', {
+  return (await request('/api/auth/google', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ credential }),
-  });
-  if (!r.ok) {
-    let detail = `Login failed: ${r.status}`;
-    try {
-      const j = await r.json();
-      if (j.detail) detail = j.detail;
-    } catch { /* ignore */ }
-    throw new Error(detail);
-  }
-  return (await r.json()) as AuthResponse;
+  })).json();
 }
 
 export async function fetchMe(): Promise<AuthUser> {
-  const r = await fetch('/api/auth/me', { headers: authHeaders() });
-  if (!r.ok) throw new Error(`fetchMe failed: ${r.status}`);
-  return (await r.json()) as AuthUser;
+  return (await request('/api/auth/me')).json();
 }

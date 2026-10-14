@@ -1,7 +1,7 @@
 import { Icon } from './Icon.tsx';
 import { useMemo, useRef, useState } from 'react';
-import { addToChecklist, frameCard } from '../api.ts';
-import { postsApi, type Post } from '../api/checklist.ts';
+import { frameCard } from '../api.ts';
+import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
 import { ckSearchUrl, computeCardData, formatMyr } from '../utils.ts';
@@ -142,7 +142,7 @@ export function ActiveBatchView({
       // Fall back to CK search-by-name if there's no direct product URL, so
       // the saved listing carries *some* CK link rather than going to Scryfall.
       const ck = ckDirect || ckSearchUrl(cd.sel.name || '');
-      const result = await addToChecklist({
+      const result = await listingsApi.create({
         name: cd.sel.name || '(unknown)',
         scryfall_id: cd.sel.scryfall_id || null,
         set_code: cd.sel.set || null,
