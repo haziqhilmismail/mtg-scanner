@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
-import { translate } from '../i18n.ts';
+import { translate, type T } from '../i18n.ts';
 import { usePersistedState } from './usePersistedState.ts';
 import type { Lang } from '../types.ts';
 
-export type T = (k: string, vars?: Record<string, string | number>) => string;
+export type { T };
 
 export function useLang() {
   const [lang, setLang] = usePersistedState<Lang>('mtg.lang', 'en');
