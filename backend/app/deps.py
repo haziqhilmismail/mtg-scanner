@@ -28,18 +28,22 @@ def bearer_user_id(authorization: str | None) -> int | None:
     return decode_session_token(authorization.split(" ", 1)[1].strip())
 
 
-def get_current_user_id(authorization: str | None = Header(default=None)) -> int:
-    """Resolve the current user.
-
-    - When Google auth is not configured (`GOOGLE_CLIENT_ID` empty), every call
-      is attributed to the solo user — this keeps local dev working without
-      forcing OAuth setup.
-    - Otherwise, require an `Authorization: Bearer <jwt>` header issued by
-      `/api/auth/google`. Missing, expired or image-only tokens return 401.
-    """
+def get_optional_user_id(authorization: str | None = Header(default=None)) -> int | None:
+    """The signed-in user, or None (anonymous) when the token is missing,
+    expired or image-only. When Google auth is not configured
+    (`GOOGLE_CLIENT_ID` empty), every call is the solo user — this keeps
+    local dev working without forcing OAuth setup."""
     if not settings.auth_enabled:
         return settings.solo_user_id
-    user_id = bearer_user_id(authorization)
+    return bearer_user_id(authorization)
+
+
+OptionalUserId = Annotated[int | None, Depends(get_optional_user_id)]
+
+
+def get_current_user_id(user_id: OptionalUserId) -> int:
+    """The signed-in user (an `Authorization: Bearer <jwt>` header issued by
+    `/api/auth/google`); 401 without one. Solo user when auth is off."""
     if user_id is None:
         raise HTTPException(401, "Missing, invalid or expired token")
     return user_id
