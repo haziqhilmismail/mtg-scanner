@@ -19,18 +19,17 @@ import type { T } from './useLang.ts';
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
 const SAVE_DELAY_MS = 800;
 const RETRY_MS = 5000;
-// Scanner.tsx remembers per scan which cards went to the checklist.
-export const ADDED_STORAGE_PREFIX = 'mtg.scanner.added.';
 
 // Tombstones: scan IDs the user has asked to delete but whose backend DELETE
 // hasn't been confirmed yet. Survives reload so a refresh-mid-clear can't
 // cause deleted scans to reappear, and so the unsent deletes get retried.
-const TOMBSTONE_KEY = 'mtg.scan_tombstones';
+// Per user, so another account signing in here doesn't clear them.
+const tombstoneKey = (userId: number | null) => `mtg.scan_tombstones.${userId}`;
 const SCAN_CONCURRENCY = 3;
 
-function readTombstones(): Set<number> {
+function readTombstones(key: string): Set<number> {
   try {
-    const raw = localStorage.getItem(TOMBSTONE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return new Set();
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return new Set();
@@ -40,37 +39,37 @@ function readTombstones(): Set<number> {
   }
 }
 
-function writeTombstones(s: Set<number>) {
+function writeTombstones(key: string, s: Set<number>) {
   try {
-    if (s.size === 0) localStorage.removeItem(TOMBSTONE_KEY);
-    else localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(Array.from(s)));
+    if (s.size === 0) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(Array.from(s)));
   } catch {
     // quota / disabled — best effort
   }
 }
 
-function addTombstones(ids: number[]) {
+function addTombstones(key: string, ids: number[]) {
   if (!ids.length) return;
-  const s = readTombstones();
+  const s = readTombstones(key);
   ids.forEach(id => s.add(id));
-  writeTombstones(s);
+  writeTombstones(key, s);
 }
 
-function removeTombstones(ids: number[]) {
+function removeTombstones(key: string, ids: number[]) {
   if (!ids.length) return;
-  const s = readTombstones();
+  const s = readTombstones(key);
   let changed = false;
   ids.forEach(id => { if (s.delete(id)) changed = true; });
-  if (changed) writeTombstones(s);
+  if (changed) writeTombstones(key, s);
 }
 
 // Delete a saved scan. Tombstoned until the server confirms, so a failed
 // delete is retried by the rehydration effect on the next mount.
-async function deleteSaved(sid: number) {
-  addTombstones([sid]);
+async function deleteSaved(key: string, sid: number) {
+  addTombstones(key, [sid]);
   try {
     await apiDeleteScan(sid);
-    removeTombstones([sid]);
+    removeTombstones(key, [sid]);
   } catch { /* tombstone persists */ }
 }
 
@@ -124,7 +123,8 @@ function batchFromSavedScan(saved: SavedScan): Batch {
   };
 }
 
-export function useScanner() {
+export function useScanner(userId: number | null) {
+  const tombKey = tombstoneKey(userId);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
   // Translation key of a background failure to tell the user about.
@@ -199,7 +199,7 @@ export function useScanner() {
       // backend DELETE never confirmed (e.g. refresh-mid-clear, backend
       // --reload kicked in, network blip). Filter them out of the UI and
       // fire the DELETE again so they're actually gone next time.
-      const tombstones = readTombstones();
+      const tombstones = readTombstones(tombKey);
       const serverIds = new Set<number>();
       for (let before: number | undefined, told = false; ;) {
         let page: SavedScan[];
@@ -224,34 +224,14 @@ export function useScanner() {
         before = page[page.length - 1].scan_id;
       }
 
-      const stillAlive = Array.from(tombstones).filter(id => serverIds.has(id));
-      stillAlive.forEach(id => {
-        apiDeleteScan(id).then(
-          () => removeTombstones([id]),
-          () => { /* keep tombstone; retried next mount */ },
-        );
-      });
-
-      // GC tombstones for IDs the server no longer has (the previous
-      // DELETE actually succeeded, we just never got to clear them).
-      const orphanTombstones = Array.from(tombstones).filter(id => !serverIds.has(id));
-      removeTombstones(orphanTombstones);
-
-      // Drop "added" markers of scans that are gone (kept for any scanned
-      // since this load started).
-      batchesRef.current.forEach(b => b.scanId != null && serverIds.add(b.scanId));
-      try {
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const key = localStorage.key(i);
-          if (key?.startsWith(ADDED_STORAGE_PREFIX) && !serverIds.has(Number(key.slice(ADDED_STORAGE_PREFIX.length)))) {
-            localStorage.removeItem(key);
-          }
-        }
-      } catch { /* storage disabled */ }
+      // Still on the server: delete again. Gone: the earlier DELETE worked,
+      // we just never got to clear its tombstone.
+      tombstones.forEach(id => serverIds.has(id) && deleteSaved(tombKey, id));
+      removeTombstones(tombKey, Array.from(tombstones).filter(id => !serverIds.has(id)));
       setLoadingSaved(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [tombKey]);
 
   // Queue a save for every finished batch whose per-card state changed.
   useEffect(() => {
@@ -352,7 +332,7 @@ export function useScanner() {
         const scanId = (resp as unknown as { scan_id?: number }).scan_id ?? null;
         const b = current(id);
         if (!b) {
-          if (scanId != null) deleteSaved(scanId);
+          if (scanId != null) deleteSaved(tombKey, scanId);
           return;
         }
         if (scanId != null && b.postId !== postId) {
@@ -378,7 +358,7 @@ export function useScanner() {
       }
     }));
     pumpScanQueue();
-  }, [patchBatch, pumpScanQueue]);
+  }, [patchBatch, pumpScanQueue, tombKey]);
 
   const toggleFoil = useCallback((batchId: string, idx: number) => {
     setBatches(prev =>
@@ -618,9 +598,9 @@ export function useScanner() {
     setBatches(prev => prev.filter(x => x.id !== id));
     if (b?.scanId) {
       savesRef.current.delete(b.scanId);
-      await deleteSaved(b.scanId);
+      await deleteSaved(tombKey, b.scanId);
     }
-  }, []);
+  }, [tombKey]);
 
   return {
     batches,
