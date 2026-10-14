@@ -14,8 +14,9 @@ import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiSta
 import { freshState, generateBatchId, normalizeUiState } from '../utils.ts';
 import type { T } from './useLang.ts';
 
-// Older versions kept per-card UI state in localStorage under this key; it is
-// uploaded to the scan's ui_state once and then removed.
+// Older versions kept per-card UI state in localStorage under this key. A
+// scan the server has no state for uses it, the save queue uploads it, and it
+// is removed once a save of that scan succeeds.
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
 const SAVE_DELAY_MS = 800;
 const RETRY_MS = 5000;
@@ -91,22 +92,6 @@ function uiStateOf(b: Batch): ScanUiState {
   };
 }
 
-// Older versions kept per-card edits in this browser; upload that copy once
-// to a scan that has none on the server (and use it), then forget it.
-function uploadLegacyState(saved: SavedScan) {
-  if (saved.ui_state) return;
-  const key = STATE_KEY(saved.scan_id);
-  let local: unknown = null;
-  try { local = JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { /* corrupt: ignore */ }
-  if (!local) return;
-  const state = normalizeUiState(local, saved.cards);
-  saved.ui_state = state;
-  saveScanState(saved.scan_id, state).then(
-    () => { try { localStorage.removeItem(key); } catch { /* ignore */ } },
-    () => { /* kept; uploaded on the next load */ },
-  );
-}
-
 function batchFromSavedScan(saved: SavedScan): Batch {
   const n = saved.cards.length;
   return {
@@ -164,6 +149,7 @@ export function useScanner(userId: number | null) {
       saveScanState(scanId, state, final).then(
         () => {
           if (slot.unsaved === state) slot.unsaved = null;
+          try { localStorage.removeItem(STATE_KEY(scanId)); } catch { /* ignore */ }
         },
         (e: Error & { status?: number }) => {
           // Superseded, or forgotten since (deleted, signed out).
@@ -220,10 +206,17 @@ export function useScanner(userId: number | null) {
         if (cancelled) return;
         page.forEach(s => serverIds.add(s.scan_id));
         const kept = page.filter(s => !tombstones.has(s.scan_id));
-        kept.forEach(uploadLegacyState);
+        const loaded = kept.reverse().map(s => {
+          let local: unknown = null;
+          if (!s.ui_state) try { local = JSON.parse(localStorage.getItem(STATE_KEY(s.scan_id)) ?? 'null'); } catch { /* corrupt: ignore */ }
+          if (!local) return batchFromSavedScan(s);
+          // A fingerprint no state has, so the save queue sends this one.
+          savesRef.current.set(s.scan_id, { latest: '', rev: 0, unsaved: null, sent: false });
+          return batchFromSavedScan({ ...s, ui_state: local });
+        });
         // Older pages go in front: newest is at the END of the array
         // (matches "append on upload" UX).
-        commit(prev => [...kept.reverse().map(batchFromSavedScan), ...prev]);
+        commit(prev => [...loaded, ...prev]);
         if (page.length < SCANS_PAGE) break;
         before = page[page.length - 1].scan_id;
       }
@@ -235,7 +228,7 @@ export function useScanner(userId: number | null) {
       setLoadingSaved(false);
     })();
     return () => { cancelled = true; };
-  }, [tombKey]);
+  }, [commit, tombKey]);
 
   // Queue a save for every finished batch whose per-card state changed.
   useEffect(() => {
