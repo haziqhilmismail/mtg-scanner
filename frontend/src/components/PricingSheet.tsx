@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import type { Health } from '../api.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import { PricingFields } from './SettingsPanel.tsx';
@@ -15,26 +15,12 @@ interface Props {
 // The user's default pricing: what new posts start with, and what unfiled
 // photos and posts without their own pricing use.
 export function PricingSheet({ open, onClose, pricing, health, t }: Props) {
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  // While open the sheet is its own history entry (a copy of the page's), so
-  // back, the phone's gesture too, closes it instead of changing the page
-  // under it. Closed otherwise, it takes its entry back off.
   useEffect(() => {
     if (!open) return;
-    const close = () => closeRef.current();
-    let popped = false;
-    const onPop = () => { popped = true; close(); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
-    history.pushState(history.state, '');
-    window.addEventListener('popstate', onPop);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('popstate', onPop);
-      window.removeEventListener('keydown', onKey);
-      if (!popped) history.back();
-    };
-  }, [open]);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
 
   if (!open) return null;
   return (

@@ -6,15 +6,17 @@ import { readStored, writeStored } from './usePersistedState.ts';
 export type View = 'scanner' | 'claims' | 'checklist';
 
 // Where the user is: the tab, the open post (gallery folder key, shared with
-// Claims) and the open photo. Every level is its own browser history entry,
-// so the browser's and the phone's back and forward move between them.
+// Claims), the open photo and a sheet open over any of them. Every level is
+// its own browser history entry, so the browser's and the phone's back and
+// forward move between them.
 // `up`: the entry was pushed from its parent level, so going up is going back.
-export interface Nav { view: View; folder: string | null; photo: string | null; up?: boolean }
+export interface Nav { view: View; folder: string | null; photo: string | null; sheet?: 'pricing'; up?: boolean }
 
 const TAB_KEY = 'mtg.tab';
 const FOLDER_KEY = 'mtg.scans.folder';
 
 function parentOf(n: Nav): Nav | null {
+  if (n.sheet) return { ...n, sheet: undefined };
   if (n.view === 'checklist') return { ...n, view: 'claims' };
   if (n.view !== 'scanner') return null;
   if (n.photo != null) return { ...n, photo: null };
@@ -23,7 +25,7 @@ function parentOf(n: Nav): Nav | null {
 }
 
 const same = (a: Nav | null, b: Nav | null) =>
-  !!a && !!b && a.view === b.view && a.folder === b.folder && a.photo === b.photo;
+  !!a && !!b && a.view === b.view && a.folder === b.folder && a.photo === b.photo && a.sheet === b.sheet;
 
 const isNav = (s: unknown): s is Nav => !!s && typeof s === 'object' && 'view' in s;
 

@@ -82,11 +82,10 @@ interface WorkspaceProps {
 
 function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: WorkspaceProps) {
   const pricing = usePricing();
-  const [pricingOpen, setPricingOpen] = useState(false);
   const scanner = useScanner(auth.user?.id ?? null, auth.signOut);
 
   const navStore = useNav();
-  const { nav, go, replace } = navStore;
+  const { nav, go, replace, up } = navStore;
   const view = nav.view;
   const [health, setHealth] = useState<Health | null>(null);
   const [healthErr, setHealthErr] = useState(false);
@@ -139,7 +138,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         // Waiting edits go first: request() reads the token before it awaits.
         onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
         onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
-        onDefaultPricing={() => setPricingOpen(true)}
+        onDefaultPricing={() => go({ sheet: 'pricing' })}
       />
     <TopTabs
       view={view === 'scanner' ? 'scanner' : 'claims'}
@@ -188,7 +187,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       onRedeemed={setCredits}
       t={t}
     />
-    <PricingSheet open={pricingOpen} onClose={() => setPricingOpen(false)} pricing={pricing} health={health} t={t} />
+    {/* A history level (see useNav), so back closes it instead of changing the page under it. */}
+    <PricingSheet open={nav.sheet === 'pricing'} onClose={up} pricing={pricing} health={health} t={t} />
     </ImageZoomProvider>
     </DialogProvider>
   );
