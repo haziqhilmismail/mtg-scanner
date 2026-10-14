@@ -16,9 +16,12 @@ export function applyRounding(price: number, settings: Settings): number {
     // Multiply / divide via inverse to dodge FP noise on 0.1 / 0.5 steps —
     // 0.1 + 0.2 === 0.30000000000000004, etc.
     const inv = 1 / step;
-    if (dir === 'up') p = Math.ceil(p * inv) / inv;
-    else if (dir === 'down') p = Math.floor(p * inv) / inv;
-    else p = Math.round(p * inv) / inv;
+    // Snap the product's own noise away before rounding: 12.5 × 4.4 is
+    // 55.00000000000001, which would otherwise round "up" to 56.
+    const x = Math.round(p * inv * 1e6) / 1e6;
+    if (dir === 'up') p = Math.ceil(x) / inv;
+    else if (dir === 'down') p = Math.floor(x) / inv;
+    else p = Math.round(x) / inv;
   }
   if (p < settings.minPrice) p = settings.minPrice;
   return p;

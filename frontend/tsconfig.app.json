@@ -18,5 +18,7 @@
     "noUncheckedSideEffectImports": true,
     "isolatedModules": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests run under plain Node (npm test), which has no types installed here.
+  "exclude": ["src/**/*.test.ts"]
 }
