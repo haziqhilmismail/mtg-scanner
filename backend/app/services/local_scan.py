@@ -59,7 +59,6 @@ def _require() -> "CardScanner":
 async def scan_cards(
     pil: Image.Image,
     enrich_with_ck: Callable[[dict | None, object], dict | None],
-    make_thumb_b64: Callable[[Image.Image, int, int, int, int], str],
 ) -> list[dict]:
     """Run the local pipeline on an RGB photo and return the `cards` list of
     the /api/scan response — same shape the Gemini path produces."""
@@ -104,7 +103,7 @@ async def scan_cards(
             "bbox": [x, y, x2 - x, y2 - y],
             # The card's own quad (TL, TR, BR, BL), so outlines follow its tilt.
             "corners": [[int(round(px)), int(round(py))] for px, py in card.quad],
-            "crop_b64": make_thumb_b64(pil, x, y, x2, y2),
+            "crop_b64": "",  # filled in by main._store_scan
             "bbox_source": "detector",
             "name_source": card.name_source,  # "title" | "embedding"
             # Cosine similarity of the embedding match, 0..1. Higher = better.

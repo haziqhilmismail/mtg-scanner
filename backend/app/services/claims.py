@@ -17,6 +17,7 @@ apart on purpose:
 Nothing here saves anything; the seller confirms the drafts first.
 """
 
+import base64
 import subprocess
 import tempfile
 from io import BytesIO
@@ -117,6 +118,18 @@ def _thread_region(shot: Image.Image, box: tuple[int, int, int, int] | None) -> 
     if below > 0.15 * shot.height:         # phone: thread under the photo
         return shot.crop((0, y + h, shot.width, shot.height))
     return shot
+
+
+def decode_photos(data_urls: dict[int, str]) -> dict[int, Image.Image]:
+    """Stored scan previews (data URLs) as RGB images, by scan id. An
+    unreadable or missing preview is left out: it just can't be matched."""
+    photos = {}
+    for scan_id, data_url in data_urls.items():
+        try:
+            photos[scan_id] = Image.open(BytesIO(base64.b64decode(data_url.split(",", 1)[-1]))).convert("RGB")
+        except Exception:
+            pass
+    return photos
 
 
 def read_screenshot(
