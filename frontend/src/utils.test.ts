@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_SETTINGS, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding } from './utils.ts';
+import { DEFAULT_SETTINGS, type Batch, type Candidate, type RoundDirection, type RoundStep } from './types.ts';
+import { applyRounding, computeCardData } from './utils.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
@@ -30,4 +30,16 @@ test('no rounding, and the minimum price', () => {
   assert.equal(round(12.34, 'none', 1), 12.34);
   assert.equal(round(0.2, 'up', 1, 1), 1);
   assert.equal(round(0.2, 'up', 0.1, 1), 1);
+});
+
+test('a price box holding only "." is no price, not RM0', () => {
+  const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
+  const batch = {
+    response: { cards: [{ candidates: [sel] }] },
+    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false],
+  } as unknown as Batch;
+  const settings = { ...DEFAULT_SETTINGS, multNormal: 3 };
+  assert.equal(computeCardData(batch, settings)[0].unitPrice, 30);
+  batch.priceOverride = ['12.5'];
+  assert.equal(computeCardData(batch, settings)[0].unitPrice, 12.5);
 });
