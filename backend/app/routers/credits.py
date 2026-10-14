@@ -8,6 +8,19 @@ from ..services import credits
 
 router = APIRouter(prefix="/api", tags=["credits"])
 
+
+async def reserve_or_402(db: DbSession, user_id: int) -> str:
+    """Take one credit for a Gemini call, or fail the request the way the
+    frontend knows: 402 {"code": "out_of_credits", "credits": status}."""
+    credit = await credits.reserve(user_id)
+    if credit is None:
+        raise HTTPException(402, detail={
+            "code": "out_of_credits",
+            "credits": await credits.status(db, user_id),
+        })
+    return credit
+
+
 class RedeemRequest(BaseModel):
     code: str = Field(..., min_length=1, max_length=64)
 

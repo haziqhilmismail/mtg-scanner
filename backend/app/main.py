@@ -395,12 +395,7 @@ async def scan(
 
     # One credit per photo, taken before the Gemini call (so parallel scans
     # can't overshoot the limit) and handed back if anything below fails.
-    credit = await credits.reserve(user_id)
-    if credit is None:
-        raise HTTPException(402, detail={
-            "code": "out_of_credits",
-            "credits": await credits.status(db, user_id),
-        })
+    credit = await credits_router.reserve_or_402(db, user_id)
     try:
         result = await _scan_pipeline(db, user_id, image.filename, pil, norm_bytes, post_id)
     except BaseException:

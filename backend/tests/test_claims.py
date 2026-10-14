@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from app.services import claims
 from test_credits import (  # noqa: F401  (fixtures are used by name)
-    _dispose_then, _photo, client, engine, issue_session_token, new_user, run, schema,
+    LIMIT, _dispose_then, _photo, client, credits, engine, issue_session_token, new_user, run, schema,
 )
 
 
@@ -155,3 +155,32 @@ def test_read_and_parse_endpoints(client, monkeypatch):
     assert r.status_code == 200 and r.json()["claims"][0]["items"][0]["card_id"] == 0
     assert seen["text"] == "Aiman\nnak 1" and seen["photos"] == 1
     assert client.post("/api/claims/parse", json={"text": "x", "photos": []}).status_code in (401, 422)
+
+
+def test_parse_spends_a_credit_and_refuses_when_out(client, monkeypatch):
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    body = {"text": "Aiman\nnak 1", "photos": [{"scan_id": 5, "label": "Photo 1", "cards": [{"card_id": 0, "name": "Sol Ring"}]}]}
+    calls = []
+    def fake_parse(text, photos, seller):
+        calls.append(text)
+        if text == "fail":
+            raise RuntimeError("gemini is down")
+        return []
+    monkeypatch.setattr(claims, "parse_claims", fake_parse)
+    remaining = lambda: client.get("/api/credits", headers=me).json()["remaining"]
+
+    assert client.post("/api/claims/parse", headers=me, json=body).status_code == 200
+    assert remaining() == LIMIT - 1
+    assert client.post("/api/claims/parse", headers=me, json={**body, "text": "fail"}).status_code == 502
+    assert remaining() == LIMIT - 1                      # a failed call is handed back
+
+    for _ in range(LIMIT - 1):
+        run(_dispose_then(credits.reserve(uid)))
+    run(engine.dispose())
+    calls.clear()
+    out = client.post("/api/claims/parse", headers=me, json=body)
+    assert out.status_code == 402 and out.json()["detail"]["code"] == "out_of_credits"
+    assert out.json()["detail"]["credits"]["remaining"] == 0
+    assert calls == []                                   # refused before any Gemini call
