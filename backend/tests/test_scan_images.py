@@ -7,7 +7,7 @@ from conftest import _dispose_then, _scan, new_user, run
 from PIL import Image
 
 from app.db import engine
-from app.services.auth_service import issue_session_token
+from app.services.auth_service import issue_image_token, issue_session_token
 
 
 def test_lite_list_drops_embedded_pictures_and_serves_them_by_url(client):
@@ -43,7 +43,7 @@ def test_lite_list_drops_embedded_pictures_and_serves_them_by_url(client):
     # Only the owner, and only signed in.
     assert client.get(f"/api/scans/{sid}/preview").status_code == 401
     assert client.get(f"/api/scans/{sid}/preview?token=nonsense").status_code == 401
-    assert client.get(f"/api/scans/{sid}/preview?token={issue_session_token(other, 'img')}").status_code == 404
+    assert client.get(f"/api/scans/{sid}/preview?token={issue_image_token(other)}").status_code == 404
     assert client.get(f"/api/scans/{sid}/crops/999?token={token}").status_code == 404
     assert client.get(f"/api/scans/{sid}/preview?w=5000&token={token}").status_code == 422
 
