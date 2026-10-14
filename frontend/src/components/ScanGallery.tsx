@@ -96,15 +96,13 @@ interface PhotoTileProps {
   summary: BatchSummary;
   settings: Settings;
   t: T;
-  // Shown under the filename when results span several posts (search).
-  caption?: string;
   selecting: boolean;
   selected: boolean;
   onOpen: () => void;
   onToggle: () => void;
 }
 
-export function PhotoTile({ summary, settings, t, caption, selecting, selected, onOpen, onToggle }: PhotoTileProps) {
+export function PhotoTile({ summary, settings, t, selecting, selected, onOpen, onToggle }: PhotoTileProps) {
   const { batch, cards, needs, total } = summary;
   const src = batch.response ? (batch.response.thumb_url ?? batch.response.image_b64) : null;
   let meta: string;
@@ -130,7 +128,6 @@ export function PhotoTile({ summary, settings, t, caption, selecting, selected, 
       </span>
       <span className="scan-tile-body">
         <span className="scan-tile-title">{batch.filename}</span>
-        {caption ? <span className="scan-tile-meta">{caption}</span> : null}
         <span className="scan-tile-meta">{meta}</span>
         <NeedsBadge n={needs} t={t} />
       </span>
