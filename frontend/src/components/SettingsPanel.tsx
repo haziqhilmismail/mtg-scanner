@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Health } from '../api.ts';
 import type { LabelPosition, FoilStyle, RoundDirection, RoundStep, Settings } from '../types.ts';
 import { useDecimalInput } from '../hooks/useDecimalInput.ts';
@@ -5,33 +6,20 @@ import { usePersistedState } from '../hooks/usePersistedState.ts';
 import { Icon } from './Icon.tsx';
 import type { T } from '../hooks/useLang.ts';
 
-interface Props {
+interface FieldsProps {
   settings: Settings;
   update: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   t: T;
   health: Health | null;
-  title?: string;
-  // The default-pricing sheet shows the fields alone, without the fold.
-  bare?: boolean;
-  // A post's panel: make this pricing the default (disabled while it already is).
-  onSetDefault?: () => void;
-  isDefault?: boolean;
 }
 
-// One pricing: a post's, or the user's default (see usePricing).
-export function SettingsPanel({ settings, update, t, health, title, bare, onSetDefault, isDefault }: Props) {
+// The fields of one pricing: a post's, or the user's default (see usePricing).
+export function PricingFields({ settings, update, t, health }: FieldsProps) {
   // Decimal inputs need local string state so typing "2." doesn't get
   // round-tripped through Number and lose the trailing dot. Empty box → 0.
   const multNormal = useDecimalInput(settings.multNormal, v => update('multNormal', v ?? 0));
   const multFoil = useDecimalInput(settings.multFoil, v => update('multFoil', v ?? 0));
   const minPrice = useDecimalInput(settings.minPrice, v => update('minPrice', v ?? 0));
-  // Pricing is set once per market night, so it stays folded away with a
-  // one-line summary until someone wants to change it.
-  const [open, setOpen] = usePersistedState('mtg.settingsOpen', false);
-  const roundSummary = settings.roundDirection === 'none'
-    ? t('round_none')
-    : `${t(`round_dir_${settings.roundDirection}`)} ${t('round_to')} ${settings.currencyLabel} ${settings.roundStep}`;
-  const summary = `×${settings.multNormal} · ${t('foil_on')} ×${settings.multFoil} · ${roundSummary}`;
   let healthBadge = (
     <span className="health-badge">{t('ck_checking')}</span>
   );
@@ -49,8 +37,8 @@ export function SettingsPanel({ settings, update, t, health, title, bare, onSetD
     }
   }
 
-  const body = (
-      <>
+  return (
+    <>
       <div className="settings">
         <label>
           <span>{t('mult_normal')}</span>
@@ -177,16 +165,26 @@ export function SettingsPanel({ settings, update, t, health, title, bare, onSetD
       <p className="status">
         {t('formula_hint')} {healthBadge}
       </p>
-      {onSetDefault ? (
-        <div className="pricing-default-row">
-          <button type="button" disabled={isDefault} onClick={onSetDefault}>
-            {isDefault ? t('pricing_is_default') : t('pricing_set_default')}
-          </button>
-        </div>
-      ) : null}
-      </>
+    </>
   );
-  if (bare) return body;
+}
+
+interface PanelProps {
+  title: string;
+  // For the one-line summary while folded.
+  settings: Settings;
+  t: T;
+  children: ReactNode;
+}
+
+// A pricing folded away under its title. Pricing is set once per market
+// night, so it shows a one-line summary until someone wants to change it.
+export function SettingsPanel({ title, settings, t, children }: PanelProps) {
+  const [open, setOpen] = usePersistedState('mtg.settingsOpen', false);
+  const roundSummary = settings.roundDirection === 'none'
+    ? t('round_none')
+    : `${t(`round_dir_${settings.roundDirection}`)} ${t('round_to')} ${settings.currencyLabel} ${settings.roundStep}`;
+  const summary = `×${settings.multNormal} · ${t('foil_on')} ×${settings.multFoil} · ${roundSummary}`;
 
   return (
     <section className={`panel disclosure ${open ? 'is-open' : ''}`}>
@@ -198,12 +196,12 @@ export function SettingsPanel({ settings, update, t, health, title, bare, onSetD
         onClick={() => setOpen(o => !o)}
       >
         <span className="disclosure-text">
-          <span className="disclosure-title">{title ?? t('settings_title')}</span>
+          <span className="disclosure-title">{title}</span>
           {!open ? <span className="disclosure-summary">{summary}</span> : null}
         </span>
         <Icon name="chevronDown" className="disclosure-chevron" />
       </button>
-      {open ? <div id="pricing-settings" className="disclosure-body">{body}</div> : null}
+      {open ? <div id="pricing-settings" className="disclosure-body">{children}</div> : null}
     </section>
   );
 }

@@ -27,7 +27,7 @@ import { useDialog } from '../components/DialogProvider.tsx';
 import { useImageZoom } from '../components/ImageZoomProvider.tsx';
 import { PrintingsModal } from '../components/PrintingsModal.tsx';
 import { PhotoTile, PostTile, summarise, type BatchSummary } from '../components/ScanGallery.tsx';
-import { SettingsPanel } from '../components/SettingsPanel.tsx';
+import { PricingFields, SettingsPanel } from '../components/SettingsPanel.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { UploadZone } from '../components/UploadZone.tsx';
 import type { T } from '../hooks/useLang.ts';
@@ -622,17 +622,24 @@ export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, pricin
       compact={openFolder != null}
     />
   );
-  // A post's pricing; for unfiled photos (null), the default's.
+  // A post's pricing, which it can make the default; for unfiled photos
+  // (null), the default itself.
   const pricingPanel = (postId: number | null) => (
-    <SettingsPanel
-      settings={pricingFor(postId)}
-      update={(key, value) => pricing.update(postId, key, value)}
-      t={t}
-      health={health}
-      title={postId == null ? t('menu_default_pricing') : undefined}
-      onSetDefault={postId != null ? () => pricing.makeDefault(postId) : undefined}
-      isDefault={JSON.stringify(pricingFor(postId)) === JSON.stringify(pricingFor(null))}
-    />
+    <SettingsPanel title={postId == null ? t('menu_default_pricing') : t('settings_title')} settings={pricingFor(postId)} t={t}>
+      <PricingFields
+        settings={pricingFor(postId)}
+        update={(key, value) => pricing.update(postId, key, value)}
+        t={t}
+        health={health}
+      />
+      {postId != null ? (
+        <div className="pricing-default-row">
+          <button type="button" disabled={pricing.isDefault(postId)} onClick={() => pricing.makeDefault(postId)}>
+            {pricing.isDefault(postId) ? t('pricing_is_default') : t('pricing_set_default')}
+          </button>
+        </div>
+      ) : null}
+    </SettingsPanel>
   );
 
   return (
