@@ -143,9 +143,10 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
   // No dedup against earlier adds — re-running intentionally re-adds (the user
   // asked to "always allow"). Accidental double-submits are prevented by the
   // button's busy state, not by skipping cards. markAdded still runs so the
-  // per-card "added" badge stays informative.
+  // per-card "added" badge stays informative. Returns how many cards failed.
   const addBatchCore = useCallback(async (batch: Batch, postId: number | null) => {
-    if (!batch.response || batch.scanId == null) return;
+    if (!batch.response || batch.scanId == null) return 0;
+    let failed = 0;
     const cardData = computeCardData(batch, settings);
     const visible = cardData.filter(cd => !cd.removed);
     for (const cd of visible) {
@@ -158,9 +159,15 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
         markAdded(batch.scanId, cd.origIdx, result.id);
       } catch (e) {
         console.error('Add failed for', cd.sel.name, e);
+        failed += 1;
       }
     }
+    return failed;
   }, [settings, markAdded]);
+
+  const alertFailed = useCallback(async (failed: number) => {
+    if (failed) await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_failed', { n: failed }) });
+  }, [dialog, t]);
 
   // Per-batch add-all handler. Synchronously gated by addBatchInFlightRef to
   // block same-tick double-clicks (state updates are async), and surfaces a
@@ -170,13 +177,15 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     if (addBatchInFlightRef.current.has(batch.id)) return;
     addBatchInFlightRef.current.add(batch.id);
     setAddingBatchId(batch.id);
+    let failed = 0;
     try {
-      await addBatchCore(batch, postId);
+      failed = await addBatchCore(batch, postId);
     } finally {
       addBatchInFlightRef.current.delete(batch.id);
       setAddingBatchId(null);
     }
-  }, [addBatchCore]);
+    await alertFailed(failed);
+  }, [addBatchCore, alertFailed]);
 
   // Bulk add: push the cards of several photos to the checklist in one go.
   // Inside a post they go under that post (after a confirm); for unfiled
@@ -188,14 +197,16 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     setAddAllTargets(null);
     if (addingAll || targets.length === 0) return;
     setAddingAll(true);
+    let failed = 0;
     try {
       for (const b of targets) {
-        await addBatchCore(b, postId);
+        failed += await addBatchCore(b, postId);
       }
     } finally {
       setAddingAll(false);
     }
-  }, [addingAll, addBatchCore]);
+    await alertFailed(failed);
+  }, [addingAll, addBatchCore, alertFailed]);
 
   const exportBatch = useCallback(async (batch: Batch) => {
     const payload = buildExportPayload(batch, settings);
