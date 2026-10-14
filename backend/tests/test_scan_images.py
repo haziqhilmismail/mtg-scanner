@@ -1,5 +1,6 @@
 """Saved scans load as a light list plus per-picture URLs (not one huge JSON)."""
 
+import asyncio
 import base64
 import time
 from datetime import datetime, timedelta, timezone
@@ -103,6 +104,28 @@ def test_ui_state_round_trip(client):
     assert save({"rev": 4, "a": 2}) == 204 and state_of() == {"rev": 5, "a": 1}    # late, ignored
     assert save({"rev": 5, "a": 3}) == 204 and state_of() == {"rev": 5, "a": 3}    # equal writes
     assert save({"a": 4}) == 204 and state_of() == {"a": 4}                       # no rev writes
+    assert save({"rev": 9}) == 204 and save({"rev": True}) == 204 and state_of() == {"rev": True}  # a bool is not a rev
+
+
+def test_ui_state_concurrent_saves_keep_the_newest(client):
+    import httpx
+
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    sid = _scan(client, issue_session_token(uid)).json()["scan_id"]
+    run(engine.dispose())
+
+    async def race():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client.app), base_url="http://t") as c:
+            for i in range(1, 41):
+                # Both read the old rev before either writes; whichever commits last wins without the conditional update.
+                await asyncio.gather(*(c.patch(f"/api/scans/{sid}/state", json={"state": {"rev": r}}, headers=me)
+                                       for r in (2 * i, 2 * i + 1)))
+            return (await c.get("/api/scans?lite=1", headers=me)).json()
+        
+    scans = run(_dispose_then(race()))
+    assert next(s["ui_state"] for s in scans if s["scan_id"] == sid) == {"rev": 81}
 
 
 def test_before_pages_back_through_scans(client):
