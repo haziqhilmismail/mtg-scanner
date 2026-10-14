@@ -59,7 +59,7 @@ async def main(args) -> int:
             code=credits.normalise_code(code),
             credits=args.credits,
             unlimited=args.unlimited,
-            unlimited_days=args.days if args.unlimited else None,
+            unlimited_days=args.days,
             max_uses=args.max_uses,
             expires_at=now + timedelta(days=args.expires_in_days) if args.expires_in_days else None,
             note=args.note,
