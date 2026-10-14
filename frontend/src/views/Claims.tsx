@@ -34,6 +34,9 @@ interface Props {
   settings: Settings;
   t: T;
   lang: string;
+  // The open post, shared with the Scans gallery so both pages open on it.
+  folderKey: string | null;
+  onFolderChange: (key: string) => void;
   onOpenOldChecklist: () => void;
 }
 
@@ -94,7 +97,7 @@ function payState(orders: Order[]): PayState {
   return 'unpaid';
 }
 
-export function Claims({ scanner, settings, t, lang, onOpenOldChecklist }: Props) {
+export function Claims({ scanner, settings, t, lang, folderKey, onFolderChange, onOpenOldChecklist }: Props) {
   const dialog = useDialog();
   const [posts, setPosts] = useState<Post[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -102,8 +105,6 @@ export function Claims({ scanner, settings, t, lang, onOpenOldChecklist }: Props
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
-  // Shared with the Scans gallery, so both pages open on the same post.
-  const [folderKey, setFolderKey] = usePersistedState<string | null>('mtg.scans.folder', null);
   const [helpOpen, setHelpOpen] = usePersistedState('mtg.claims.help', true);
 
   const reload = useCallback(async () => {
@@ -555,7 +556,7 @@ export function Claims({ scanner, settings, t, lang, onOpenOldChecklist }: Props
           <label className="claims-post">
             <span>{t('claims_switch_post')}</span>
             {/* Switching post abandons a half-finished intake rather than mixing posts. */}
-            <select value={activeKey ?? ''} disabled={busy} onChange={e => { clearIntake(); setError(''); setFolderKey(e.target.value); }}>
+            <select value={activeKey ?? ''} disabled={busy} onChange={e => { clearIntake(); setError(''); onFolderChange(e.target.value); }}>
               {postOptions.map(o => <option key={o.key} value={o.key}>{o.title}</option>)}
             </select>
           </label>

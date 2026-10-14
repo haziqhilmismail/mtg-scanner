@@ -9,7 +9,7 @@ import { TopTabs } from './components/TopTabs.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useLang } from './hooks/useLang.ts';
-import { usePersistedState } from './hooks/usePersistedState.ts';
+import { useNav } from './hooks/useNav.ts';
 import { useScanner, type ScannerStore } from './hooks/useScanner.ts';
 import { useSettings } from './hooks/useSettings.ts';
 import { useTheme } from './hooks/useTheme.ts';
@@ -19,10 +19,6 @@ import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
 import { Scanner } from './views/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
-
-// 'checklist' is the page Claims replaced; still reachable from a link at the
-// bottom of Claims for anyone with stock or orders in it.
-type View = 'scanner' | 'claims' | 'checklist';
 
 export default function App() {
   const { theme, appearance, setAppearance } = useTheme();
@@ -87,7 +83,9 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   const { settings, update: updateSetting } = useSettings();
   const scanner = useScanner(auth.user?.id ?? null, auth.signOut);
 
-  const [view, setView] = usePersistedState<View>('mtg.tab', 'scanner');
+  const navStore = useNav();
+  const { nav, go, replace } = navStore;
+  const view = nav.view;
   const [health, setHealth] = useState<Health | null>(null);
   const [healthErr, setHealthErr] = useState(false);
 
@@ -142,7 +140,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       />
     <TopTabs
       view={view === 'scanner' ? 'scanner' : 'claims'}
-      onChange={setView}
+      onChange={v => go({ view: v, photo: null })}
       scannerLabel={t('nav_scanner')}
       claimsLabel={t('nav_claims')}
     />
@@ -150,6 +148,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       {view === 'scanner' ? (
         <Scanner
           scanner={scanner}
+          nav={navStore}
           userId={auth.user?.id ?? null}
           settings={settings}
           updateSetting={updateSetting}
@@ -165,7 +164,9 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           settings={settings}
           t={t}
           lang={lang}
-          onOpenOldChecklist={() => setView('checklist')}
+          folderKey={nav.folder}
+          onFolderChange={key => replace({ folder: key })}
+          onOpenOldChecklist={() => go({ view: 'checklist' })}
         />
       ) : (
         <Checklist t={t} />
