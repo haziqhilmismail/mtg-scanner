@@ -27,24 +27,31 @@ export interface SavedScan extends ScanResponse {
   created_at: string | null;
 }
 
-// Loads all saved scans (most-recent first) for rehydration after a page refresh.
+// One page of saved scans, newest first: the SCANS_PAGE newest with an id
+// below `before` (or the newest overall). A page shorter than SCANS_PAGE is
+// the last one.
 //
 // Asks for the list without its embedded pictures (`lite=1`) and points each
 // picture at its own URL instead. With 30 scans the embedded version is ~22 MB
 // in one response, and nothing showed until all of it arrived; this way the
 // list is ~0.3 MB and the browser fetches only the pictures on screen, then
 // keeps them cached.
-export async function fetchScans(limit = 300): Promise<SavedScan[]> {
-  const scans = (await (await request(`/api/scans?limit=${limit}&lite=1`)).json()) as SavedScan[];
+export const SCANS_PAGE = 500;
+
+export async function fetchScans(before?: number): Promise<SavedScan[]> {
+  const url = `/api/scans?lite=1&limit=${SCANS_PAGE}${before != null ? `&before=${before}` : ''}`;
+  const scans = (await (await request(url)).json()) as SavedScan[];
   return scans.map(s => {
     // A server that predates `lite` ignores it and still embeds the pictures.
     if (s.image_b64) return s;
     const base = `/api/scans/${s.scan_id}`;
+    // v= keeps a reused scan id from showing a cached older picture.
+    const v = s.created_at;
     return {
       ...s,
-      image_b64: imageUrl(`${base}/preview`),
-      thumb_url: imageUrl(`${base}/preview`, { w: 480 }),
-      cards: s.cards.map(c => ({ ...c, crop_b64: imageUrl(`${base}/crops/${c.id}`) })),
+      image_b64: imageUrl(`${base}/preview`, { v }),
+      thumb_url: imageUrl(`${base}/preview`, { w: 480, v }),
+      cards: s.cards.map(c => ({ ...c, crop_b64: imageUrl(`${base}/crops/${c.id}`, { v }) })),
     };
   });
 }
