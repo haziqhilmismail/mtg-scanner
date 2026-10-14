@@ -9,6 +9,10 @@ import type { ScanUiState } from '../types.ts';
 // latest state the server has not confirmed, and whether it has been sent.
 type Slot = { latest: string; rev: number; unsaved: ScanUiState | null; sent: boolean };
 
+// Saves in flight at once, outside a final flush, so hundreds of edited scans
+// don't all go at once.
+export const MAX_IN_FLIGHT = 4;
+
 export function createSaveQueue(
   send: (scanId: number, state: ScanUiState, final: boolean) => Promise<void>,
   // A save landed: the scan's old-browser copy can go.
@@ -19,6 +23,7 @@ export function createSaveQueue(
   refused: (scanId: number) => void,
 ) {
   const slots = new Map<number, Slot>();
+  let inFlight = 0;
 
   // Next rev: past the loaded one even if this clock is behind the device that saved it.
   const queue = (slot: Slot, state: ScanUiState) => {
@@ -27,7 +32,7 @@ export function createSaveQueue(
     slot.sent = false;
   };
 
-  return {
+  const api = {
     // A scan's current state (without rev), and the rev it was loaded with.
     // Says whether it is a change to save.
     update(scanId: number, state: ScanUiState, loadedRev = 0): boolean {
@@ -53,15 +58,18 @@ export function createSaveQueue(
     forget: (scanId: number) => slots.delete(scanId),
     clear: () => slots.clear(),
 
-    // Send every unsaved state not already sent. A final flush (leaving the
-    // page, signing out) sends those already on their way too, since the page
-    // may not live to see them land. A failed save is retried while it is
-    // still the scan's latest, unless the server refused it.
+    // Send every unsaved state not already sent, up to MAX_IN_FLIGHT at a
+    // time; each one that ends sends the next. A final flush (leaving the
+    // page, signing out) sends all of them, those already on their way too,
+    // since the page may not live to see them land. A failed save is retried
+    // while it is still the scan's latest, unless the server refused it.
     flush(final = false) {
       for (const [scanId, slot] of slots) {
         const state = slot.unsaved;
         if (!state || (slot.sent && !final)) continue;
+        if (!final && inFlight >= MAX_IN_FLIGHT) return;
         slot.sent = true;
+        inFlight++;
         send(scanId, state, final).then(
           () => {
             if (slot.unsaved === state) slot.unsaved = null;
@@ -75,9 +83,15 @@ export function createSaveQueue(
             if (s >= 400 && s < 500 && s !== 408 && s !== 429) { slot.unsaved = null; refused(scanId); return; }
             slot.sent = false;
             retry();
+            return true;
           },
-        );
+        ).then(retrying => {
+          inFlight--;
+          // Not after a failure to retry: that waits for the retry.
+          if (!retrying) api.flush();
+        });
       }
     },
   };
+  return api;
 }
