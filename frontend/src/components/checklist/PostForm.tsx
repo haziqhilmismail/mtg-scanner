@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { postsApi, type Post } from '../../api/checklist.ts';
+import { pastedImages } from '../../utils.ts';
 
 interface Props {
   initial: Post | null;
@@ -37,19 +38,10 @@ export function PostForm({ initial, onSaved, onCancel, t }: Props) {
   // image becomes the reminder image without a file picker round-trip.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i];
-        if (it.kind === 'file' && it.type.startsWith('image/')) {
-          const f = it.getAsFile();
-          if (f) {
-            setPendingImage(f);
-            e.preventDefault();
-            return;
-          }
-        }
-      }
+      const [f] = pastedImages(e);
+      if (!f) return;
+      setPendingImage(f);
+      e.preventDefault();
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);

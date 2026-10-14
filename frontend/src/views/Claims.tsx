@@ -26,7 +26,7 @@ import { Spinner } from '../components/Spinner.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { computeCardData, formatMyr, formatMyrWithFoil, listingFields } from '../utils.ts';
+import { computeCardData, formatMyr, formatMyrWithFoil, listingFields, pastedImages } from '../utils.ts';
 
 type T = (k: string, vars?: Record<string, string | number>) => string;
 
@@ -297,9 +297,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       if (stage !== 'idle' && stage !== 'review') return;
-      const files = Array.from(e.clipboardData?.items ?? [])
-        .filter(i => i.kind === 'file' && i.type.startsWith('image/'))
-        .map(i => i.getAsFile()).filter((f): f is File => !!f);
+      const files = pastedImages(e);
       if (!files.length) return;
       e.preventDefault();
       readFiles(files);
