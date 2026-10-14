@@ -13,6 +13,7 @@ const LOADED = 1e15;
 function harness() {
   const sends: { scanId: number; rev: number; q: number; final: boolean; ok: () => void; fail: (status: number) => void }[] = [];
   const saved: number[] = [];
+  const refused: number[] = [];
   let retries = 0;
   const q = createSaveQueue(
     (scanId, state, final) => new Promise((res, rej) => sends.push({
@@ -21,8 +22,9 @@ function harness() {
     })),
     scanId => saved.push(scanId),
     () => { retries++; },
+    scanId => refused.push(scanId),
   );
-  return { q, sends, saved, retries: () => retries };
+  return { q, sends, saved, refused, retries: () => retries };
 }
 
 test('rev rises by one from the loaded rev on every change', () => {
@@ -72,8 +74,8 @@ test('a seeded state is sent without an edit', () => {
   assert.deepEqual(sends.map(s => [s.scanId, s.q]), [[1, 5]]);
 });
 
-test('a failed save is retried, a refused one is dropped', async () => {
-  const { q, sends, saved, retries } = harness();
+test('a failed save is retried, a refused one is dropped and reported', async () => {
+  const { q, sends, saved, refused, retries } = harness();
   q.update(1, st(1), LOADED);
   q.update(2, st(1), LOADED);
   q.update(3, st(1), LOADED);
@@ -89,4 +91,5 @@ test('a failed save is retried, a refused one is dropped', async () => {
   q.flush();
   assert.deepEqual(sends.slice(3).map(s => s.scanId), [1, 2]);
   assert.deepEqual(saved, []);
+  assert.deepEqual(refused, [3]);
 });
