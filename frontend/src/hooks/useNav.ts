@@ -37,6 +37,8 @@ function initial(): Nav {
 export function useNav() {
   const [nav, setNav] = useState<Nav>(initial);
   const navRef = useRef(nav);
+  // A history.back() of up() not yet arrived: another up() would go two levels.
+  const goingBack = useRef(false);
 
   const commit = useCallback((next: Nav, push: boolean) => {
     navRef.current = next;
@@ -51,6 +53,7 @@ export function useNav() {
     const onPop = (e: PopStateEvent) => {
       const next = isNav(e.state) ? e.state : { view: 'scanner' as const, folder: null, photo: null };
       navRef.current = next;
+      goingBack.current = false;
       setNav(next);
     };
     window.addEventListener('popstate', onPop);
@@ -83,12 +86,15 @@ export function useNav() {
   const up = useCallback(() => {
     const cur = navRef.current;
     const parent = parentOf(cur);
-    if (!parent) return;
-    if (cur.up) history.back();
+    if (!parent || goingBack.current) return;
+    if (cur.up) { goingBack.current = true; history.back(); }
     else commit({ ...parent, up: false }, false);
   }, [commit]);
 
-  return { nav, go, replace, up };
+  // Where the user is now, for code that resumes after awaiting the user.
+  const current = useCallback(() => navRef.current, []);
+
+  return { nav, go, replace, up, current };
 }
 
 export type NavStore = ReturnType<typeof useNav>;
