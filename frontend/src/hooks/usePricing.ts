@@ -47,7 +47,7 @@ export function usePricing() {
       : postsApi.update(target, { pricing }, final).then(() => undefined)),
     target => { settle(target); if (target === 'default') forgetLegacy(); },
     target => { settle(target); setNotice('pricing_save_failed'); },
-    false,
+    { ordered: true },
   );
 
   const save = useCallback((target: Target, pricing: Settings, delay = SAVE_DELAY_MS) => {

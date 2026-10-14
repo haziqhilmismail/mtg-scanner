@@ -131,12 +131,12 @@ function pricingHarness() {
     key => saved.push(key),
     () => { retries++; },
     key => refused.push(key),
-    false,
+    { ordered: true },
   );
   return { q, sends, saved, refused, retries: () => retries };
 }
 
-test("without overlap a key's next save waits for the one in flight; other keys don't", async () => {
+test("ordered, a key's next save waits for the one in flight; other keys don't", async () => {
   const { q, sends, saved } = pricingHarness();
   q.save('7', { mult: 2 });
   q.save('default', { mult: 3 });

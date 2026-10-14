@@ -11,7 +11,7 @@ export function useSaveQueue<K, V>(
   send: (key: K, value: V, final: boolean, rev: number) => Promise<void>,
   saved: (key: K) => void,
   refused: (key: K) => void,
-  overlap = true,
+  options: { ordered?: boolean } = {},
 ) {
   const timer = useRef<number | undefined>(undefined);
   const [saves] = useState(() => {
@@ -19,7 +19,7 @@ export function useSaveQueue<K, V>(
       clearTimeout(timer.current);
       timer.current = window.setTimeout(() => queue.flush(), ms);
     };
-    const queue = createSaveQueue(send, saved, () => later(RETRY_MS), refused, overlap);
+    const queue = createSaveQueue(send, saved, () => later(RETRY_MS), refused, options);
     // Send now; final (leaving, signing out) also resends what is in flight.
     const flush = (final = false) => {
       clearTimeout(timer.current);
