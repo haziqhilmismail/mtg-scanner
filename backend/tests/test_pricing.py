@@ -1,4 +1,4 @@
-"""Pricing settings per post."""
+"""Pricing settings: per post, and the user's default on /me."""
 
 import json
 
@@ -45,3 +45,16 @@ def test_post_pricing(client):
     assert patch({"pricing": None}).json()["pricing"] is None                 # null clears
     assert single() is None and listed() is None
 
+
+def test_default_pricing_on_me(client):
+    me, them = _users(2)
+    get = lambda h=me: client.get("/api/auth/me", headers=h).json()
+    put = lambda body, h=me: client.put("/api/auth/me/pricing", json=body, headers=h)
+    assert get()["pricing"] is None and "image_token" in get()
+
+    assert put({"pricing": PRICING}).status_code == 204
+    assert get()["pricing"] == PRICING and get(them)["pricing"] is None
+    assert put({"pricing": {"x": "y" * 9000}}).status_code == 413
+    for bad in ({"pricing": [1]}, {"pricing": None}, {"pricing": "x"}, {}):
+        assert put(bad).status_code == 422
+    assert get()["pricing"] == PRICING
