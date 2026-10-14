@@ -1,4 +1,4 @@
-import type { Credits } from '../api.ts';
+import type { Credits } from '../types.ts';
 import { Icon } from './Icon.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { pastedImages } from '../utils.ts';

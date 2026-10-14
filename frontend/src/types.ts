@@ -161,6 +161,17 @@ export interface Batch {
   relookupMsg: (RelookupMsg | null)[];
 }
 
+// Scan-credit balance, as returned by GET /api/credits and alongside each scan.
+export interface Credits {
+  enforced: boolean;          // false in solo mode: nothing is limited
+  unlimited: boolean;
+  limit: number;              // free scans per rolling 30 days
+  used: number;               // free scans used in the current window
+  bonus: number;              // extra scans from vouchers; don't expire
+  remaining: number | null;   // free + extra left; null when unlimited
+  next_free_at: string | null; // when the oldest free scan drops out of the window
+}
+
 // Computed per-card row data used for rendering
 export interface CardRowData {
   card: DetectedCard;

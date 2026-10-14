@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchCredits, fetchHealth, type Credits, type Health } from './api.ts';
+import { fetchCredits, fetchHealth, type Health } from './api.ts';
 import { formatRelativeTime } from './utils.ts';
 import { DialogProvider } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
@@ -13,7 +13,7 @@ import { usePersistedState } from './hooks/usePersistedState.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useSettings } from './hooks/useSettings.ts';
 import { useTheme } from './hooks/useTheme.ts';
-import type { Appearance, Lang } from './types.ts';
+import type { Appearance, Credits, Lang } from './types.ts';
 import { Checklist } from './views/Checklist.tsx';
 import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { redeemVoucher, type Credits } from '../api.ts';
+import { redeemVoucher } from '../api.ts';
+import type { Credits } from '../types.ts';
 import type { T } from '../hooks/useLang.ts';
 
 interface Props {

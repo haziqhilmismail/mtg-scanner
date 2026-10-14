@@ -1,11 +1,10 @@
-import type { Credits } from '../api.ts';
 import { Icon } from '../components/Icon.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import { ADDED_STORAGE_PREFIX, type ScannerStore } from '../hooks/useScanner.ts';
-import type { Batch, Candidate, Settings } from '../types.ts';
+import type { Batch, Candidate, Credits, Settings } from '../types.ts';
 import { computeCardData, downloadBlob, formatMyr, listingFields, pillLabel } from '../utils.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
@@ -523,8 +522,8 @@ export function Scanner({ scanner, settings, updateSetting, health, t, lang, cre
     try {
       await postsApi.remove(folder.postId);
     } catch (e) {
-      const msg = (e as Error).message;
-      await dialog.alert({ title: t('alert_error_title'), message: /409/.test(msg) ? t('scans_delete_post_claimed') : msg });
+      const err = e as Error & { status?: number };
+      await dialog.alert({ title: t('alert_error_title'), message: err.status === 409 ? t('scans_delete_post_claimed') : err.message });
       return;
     }
     for (const s of folder.items) await scanner.removeBatch(s.batch.id);

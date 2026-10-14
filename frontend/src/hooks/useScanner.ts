@@ -9,7 +9,7 @@ import {
   type SavedScan,
   moveScans as apiMoveScans,
 } from '../api.ts';
-import { OutOfCreditsError } from '../api/auth.ts';
+import { OutOfCreditsError } from '../api/http.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
 import { generateBatchId } from '../utils.ts';
 import type { T } from './useLang.ts';

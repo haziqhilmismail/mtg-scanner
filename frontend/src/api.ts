@@ -1,8 +1,8 @@
 // Typed wrappers over the FastAPI backend. Vite proxies /api/* to localhost:8000
 // in dev (see vite.config.ts).
 
-import { imageUrl, request } from './api/auth.ts';
-import type { Candidate, DetectedCard, ScanResponse, ScanUiState } from './types.ts';
+import { imageUrl, request } from './api/http.ts';
+import type { Candidate, Credits, DetectedCard, ScanResponse, ScanUiState } from './types.ts';
 
 export interface Health {
   ok: boolean;
@@ -135,17 +135,6 @@ async function downscaleForScan(file: File): Promise<File> {
 
   const base = file.name.replace(/\.[^.]+$/, '') || 'scan';
   return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
-}
-
-// Scan-credit balance, as returned by GET /api/credits and alongside each scan.
-export interface Credits {
-  enforced: boolean;          // false in solo mode: nothing is limited
-  unlimited: boolean;
-  limit: number;              // free scans per rolling 30 days
-  used: number;               // free scans used in the current window
-  bonus: number;              // extra scans from vouchers; don't expire
-  remaining: number | null;   // free + extra left; null when unlimited
-  next_free_at: string | null; // when the oldest free scan drops out of the window
 }
 
 // File scans under a post, or unfile them with postId = null.
