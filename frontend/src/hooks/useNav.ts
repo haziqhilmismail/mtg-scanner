@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { readStored, writeStored } from './usePersistedState.ts';
 
 // 'checklist' is the page Claims replaced; still reachable from a link at the
 // bottom of Claims for anyone with stock or orders in it.
@@ -26,15 +27,11 @@ const same = (a: Nav | null, b: Nav | null) =>
 
 const isNav = (s: unknown): s is Nav => !!s && typeof s === 'object' && 'view' in s;
 
-function stored<T>(key: string, fallback: T): T {
-  try { return JSON.parse(localStorage.getItem(key) ?? 'null') ?? fallback; } catch { return fallback; }
-}
-
 // A reload keeps the entry's own state; a fresh visit opens the last tab and
 // post, as remembered in localStorage (the open photo isn't remembered).
 function initial(): Nav {
   if (isNav(history.state)) return history.state;
-  return { view: stored<View>(TAB_KEY, 'scanner'), folder: stored<string | null>(FOLDER_KEY, null), photo: null };
+  return { view: readStored<View>(TAB_KEY, 'scanner'), folder: readStored<string | null>(FOLDER_KEY, null), photo: null };
 }
 
 export function useNav() {
@@ -61,10 +58,8 @@ export function useNav() {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(TAB_KEY, JSON.stringify(nav.view));
-      localStorage.setItem(FOLDER_KEY, JSON.stringify(nav.folder));
-    } catch { /* ignore quota errors */ }
+    writeStored(TAB_KEY, nav.view);
+    writeStored(FOLDER_KEY, nav.folder);
   }, [nav.view, nav.folder]);
 
   // A new level: its own history entry.
