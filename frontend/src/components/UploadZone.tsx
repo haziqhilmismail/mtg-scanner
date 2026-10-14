@@ -2,10 +2,11 @@ import type { Credits } from '../api.ts';
 import { Icon } from './Icon.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { pastedImages } from '../utils.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   onFiles: (files: File[]) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   lang: string;
   // Scan-credit balance; null until loaded (and in solo mode it isn't enforced).
   credits: Credits | null;

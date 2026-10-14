@@ -1,4 +1,5 @@
 import type { Batch, CardRowData, Settings } from './types.ts';
+import type { T } from './hooks/useLang.ts';
 
 export function fmt2(n: number | null | undefined): string {
   if (n == null || isNaN(n as number)) return '—';
@@ -145,8 +146,7 @@ export function generateBatchId(): string {
 // Short relative time ("just now", "5m ago", "2h ago", "3d ago"). Used for
 // the CK pricelist freshness chip in the masthead, but generic enough that
 // any other "when was this last updated" indicator can reuse it.
-type TFn = (k: string, vars?: Record<string, string | number>) => string;
-export function formatRelativeTime(epochSeconds: number, t: TFn): string {
+export function formatRelativeTime(epochSeconds: number, t: T): string {
   const diffMs = Date.now() - epochSeconds * 1000;
   if (diffMs < 0) return t('relative_now');  // clock skew → "just now"
   const diffMin = Math.floor(diffMs / 60000);

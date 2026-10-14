@@ -9,8 +9,7 @@ import { FoilToggle } from './FoilToggle.tsx';
 import { NamePicker } from './NamePicker.tsx';
 import { PrintingPicker } from './PrintingPicker.tsx';
 import { StockEditDialog } from './StockEditDialog.tsx';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   listings: Listing[];

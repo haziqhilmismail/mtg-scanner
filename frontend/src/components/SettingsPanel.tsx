@@ -3,11 +3,12 @@ import type { LabelPosition, FoilStyle, RoundDirection, RoundStep, Settings } fr
 import { useDecimalInput } from '../hooks/useDecimalInput.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import { Icon } from './Icon.tsx';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   settings: Settings;
   update: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   health: Health | null;
 }
 

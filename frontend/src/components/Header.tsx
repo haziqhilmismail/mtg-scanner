@@ -1,6 +1,7 @@
 import type { AuthUser } from '../api/auth.ts';
 import type { Appearance, Lang } from '../types.ts';
 import { AppMenu } from './AppMenu.tsx';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   title: string;
@@ -10,7 +11,7 @@ interface Props {
   onLangChange: (l: Lang) => void;
   appearance: Appearance;
   onAppearanceChange: (a: Appearance) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   // Only shown when Google auth is enabled on the backend. In solo mode both
   // are undefined and the account rows stay hidden.
   user?: AuthUser | null;

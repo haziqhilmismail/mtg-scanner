@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { postsApi, type Post } from '../../api/checklist.ts';
 import { pastedImages } from '../../utils.ts';
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   initial: Post | null;
   onSaved: (p: Post) => void;
   onCancel: () => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 // Create or edit a Post. Image is pasted (Ctrl/⌘+V), drag-dropped, or chosen

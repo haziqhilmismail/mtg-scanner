@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import type { CardRowData, Settings } from '../types.ts';
 import { formatMyrWithFoil } from '../utils.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   cd: CardRowData;
   settings: Settings;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   onClearOverride: () => void;
   // Optional trailing content rendered inside `.price-block` so it joins the
   // same baseline-aligned flex row as the big RM number — used by CardRow to

@@ -29,13 +29,14 @@ import { PhotoTile, PostTile, summarise, type BatchSummary } from '../components
 import { SettingsPanel } from '../components/SettingsPanel.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { UploadZone } from '../components/UploadZone.tsx';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   scanner: ScannerStore;
   settings: Settings;
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   health: Health | null;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   lang: string;
   credits: Credits | null;
   onEnterVoucher: () => void;

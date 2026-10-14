@@ -2,8 +2,7 @@ import { ordersApi, type Buyer, type Listing, type Order } from '../../api/check
 import { upgradeScryfallImage } from '../../utils.ts';
 import { useDialog } from '../DialogProvider.tsx';
 import { useImageZoom } from '../ImageZoomProvider.tsx';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   orders: Order[];          // pass all orders; we'll filter archived here

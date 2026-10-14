@@ -4,11 +4,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { reportBug } from '../lib/bugReporter.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 type Status = 'idle' | 'sending' | 'sent' | 'error';

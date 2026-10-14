@@ -10,9 +10,9 @@ import {
   DEMO_IMAGE_W,
   type DemoCard,
 } from '../../data/demoScan.ts';
+import type { T } from '../../hooks/useLang.ts';
 
 type Phase = 'idle' | 'uploading' | 'thinking' | 'detecting' | 'pricing' | 'done';
-type T = (key: string, vars?: Record<string, string | number>) => string;
 
 // Per-phase millisecond budgets. Tweak these together — the whole demo runs in
 // PHASE_MS.uploading + thinking + detecting + pricing, and detecting staggers

@@ -4,13 +4,14 @@ import type { AuthUser } from '../api/auth.ts';
 import type { Appearance, Lang } from '../types.ts';
 import { FeedbackModal } from './FeedbackModal.tsx';
 import { Icon } from './Icon.tsx';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   lang: Lang;
   onLangChange: (l: Lang) => void;
   appearance: Appearance;
   onAppearanceChange: (a: Appearance) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   // Shown as a status row at the top of the menu when provided.
   status?: { label: string; state: 'ok' | 'err' | null };
   // Only set when Google auth is enabled on the backend.

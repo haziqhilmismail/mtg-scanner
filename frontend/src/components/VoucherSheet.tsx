@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { redeemVoucher, type Credits } from '../api.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   // Called with the new balance after a voucher is accepted.
   onRedeemed: (credits: Credits) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 type Status = 'idle' | 'sending' | 'done';

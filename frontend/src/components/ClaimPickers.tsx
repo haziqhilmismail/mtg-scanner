@@ -5,8 +5,7 @@
 import { useState } from 'react';
 import type { Batch, CardRowData } from '../types.ts';
 import { Icon } from './Icon.tsx';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../hooks/useLang.ts';
 
 // One card that can be claimed: a scanned card in one of the post's photos.
 export interface CardRef {

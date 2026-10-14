@@ -18,6 +18,7 @@ import { Checklist } from './views/Checklist.tsx';
 import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
 import { Scanner } from './views/Scanner.tsx';
+import type { T } from './hooks/useLang.ts';
 
 // 'checklist' is the page Claims replaced; still reachable from a link at the
 // bottom of Claims for anyone with stock or orders in it.
@@ -77,7 +78,7 @@ interface WorkspaceProps {
   auth: ReturnType<typeof useAuth>;
   lang: Lang;
   setLang: (l: Lang) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;
 }

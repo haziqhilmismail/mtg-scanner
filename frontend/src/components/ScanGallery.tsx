@@ -5,8 +5,7 @@
 import type { Batch, Settings } from '../types.ts';
 import { computeCardData, formatMyr } from '../utils.ts';
 import { Icon } from './Icon.tsx';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../hooks/useLang.ts';
 
 export interface BatchSummary {
   batch: Batch;

@@ -6,13 +6,14 @@ import { useDialog } from '../DialogProvider.tsx';
 import { useImageZoom } from '../ImageZoomProvider.tsx';
 import { PostForm } from './PostForm.tsx';
 import { StockPickerDialog } from './StockPickerDialog.tsx';
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   posts: Post[];
   listings: Listing[];
   reload: () => void;
   onCreateOrder?: (l: Listing) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 // Posts grouped panel. Each post is its own card showing image, FB link,
@@ -150,7 +151,7 @@ function PostCard({
   onDelete: () => void;
   onCreateOrder?: (l: Listing) => void;
   reload: () => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }) {
   const dialog = useDialog();
   const zoom = useImageZoom();

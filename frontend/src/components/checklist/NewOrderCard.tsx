@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ordersApi, type Buyer, type Listing, type OrderItemPayload } from '../../api/checklist.ts';
 import { BuyerNamePicker } from './BuyerNamePicker.tsx';
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   buyers: Buyer[];
@@ -10,7 +11,7 @@ interface Props {
   initialListingIds?: number[];
   onCreated: () => void;
   onCancel: () => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 // Inline form: buyer is identified by FB name (with optional URL). Backend

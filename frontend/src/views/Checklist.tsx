@@ -7,9 +7,10 @@ import { NewOrderCard } from '../components/checklist/NewOrderCard.tsx';
 import { OrderKanban } from '../components/checklist/OrderKanban.tsx';
 import { PostsView } from '../components/checklist/PostsView.tsx';
 import { Spinner } from '../components/Spinner.tsx';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 // Three-step workflow surface:

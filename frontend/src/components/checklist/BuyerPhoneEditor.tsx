@@ -3,8 +3,7 @@ import { useEffect, useState } from 'react';
 import { buyersApi, type Buyer } from '../../api/checklist.ts';
 import { useDialog } from '../DialogProvider.tsx';
 import { BuyerNamePicker } from './BuyerNamePicker.tsx';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   buyer: Buyer | undefined;

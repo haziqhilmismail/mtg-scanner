@@ -4,8 +4,7 @@ import { ordersApi, type Order } from '../../api/checklist.ts';
 import { useDialog } from '../DialogProvider.tsx';
 import { useImageZoom } from '../ImageZoomProvider.tsx';
 import { pastedImages } from '../../utils.ts';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   // One or more orders that share a single delivery-proof photo. Pass a

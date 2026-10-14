@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Post } from '../api/checklist.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   // Number of scanned images whose cards will be added.
@@ -7,7 +8,7 @@ interface Props {
   posts: Post[];
   onClose: () => void;
   onConfirm: (postId: number | null) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 // Confirmation + post picker for the page-level "Add all to checklist" bulk

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { CardRowData, PillOffset, Settings } from '../types.ts';
 import { pillLabel } from '../utils.ts';
+import type { T } from '../hooks/useLang.ts';
 
 // Card aspect (width / height). The framing tool's default snap.
 const CARD_ASPECT = 488 / 680;
@@ -21,7 +22,7 @@ interface Props {
   // `skipIdentify=true` is the "just add a blank row" path; the user fills in
   // the name via the existing per-row edit controls below the preview.
   onFrameCard?: (corners: [number, number][], skipIdentify: boolean) => Promise<void>;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 type FrameStage = 'idle' | 'active' | 'drawing' | 'drawn' | 'submitting';
