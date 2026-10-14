@@ -364,10 +364,10 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, userI
 
   const activeBatch = scanner.batches.find(b => b.id === photoId) ?? null;
   // An open photo that has gone (deleted), once every saved photo has
-  // loaded: fall back to its post.
+  // loaded: up to its post, back through history when that is the entry below.
   useEffect(() => {
-    if (photoId != null && !activeBatch && !scanner.loadingSaved) replace({ photo: null });
-  }, [photoId, activeBatch, scanner.loadingSaved, replace]);
+    if (photoId != null && !activeBatch && !scanner.loadingSaved) up();
+  }, [photoId, activeBatch, scanner.loadingSaved, up]);
 
   // Reached through history (or a reload) rather than a tile, a photo steps
   // through its post in gallery order.
