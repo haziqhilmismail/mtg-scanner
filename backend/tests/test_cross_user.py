@@ -3,10 +3,10 @@
 import json
 
 import pytest
+from conftest import _dispose_then, _photo, new_user, run
 
-from test_credits import (  # noqa: F401  (fixtures are used by name)
-    _dispose_then, _photo, client, engine, issue_session_token, new_user, run, schema,
-)
+from app.db import engine
+from app.services.auth_service import issue_session_token
 
 # (method, url, body) — {scan}/{post}/{order} are the owner's ids. "img" routes
 # authenticate with ?token=<image token>, the rest with the bearer header.

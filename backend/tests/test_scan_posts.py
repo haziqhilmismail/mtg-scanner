@@ -1,8 +1,9 @@
 """Scans are filed under posts: upload into one, move between them, unfile on delete."""
 
-from test_credits import (  # noqa: F401  (fixtures are used by name)
-    _dispose_then, _photo, client, engine, issue_session_token, new_user, run, schema,
-)
+from conftest import _dispose_then, _photo, new_user, run
+
+from app.db import engine
+from app.services.auth_service import issue_session_token
 
 
 def _upload(client, headers, post_id=None):

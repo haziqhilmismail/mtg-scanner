@@ -3,11 +3,11 @@
 import base64
 from io import BytesIO
 
+from conftest import _dispose_then, _scan, new_user, run
 from PIL import Image
 
-from test_credits import (  # noqa: F401  (fixtures are used by name)
-    _dispose_then, _scan, client, engine, issue_session_token, new_user, run, schema,
-)
+from app.db import engine
+from app.services.auth_service import issue_session_token
 
 
 def test_lite_list_drops_embedded_pictures_and_serves_them_by_url(client):
