@@ -2,7 +2,7 @@ import { Icon } from '../components/Icon.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
-import { usePersistedState } from '../hooks/usePersistedState.ts';
+import type { NavStore } from '../hooks/useNav.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import { loadAdded, saveAdded, settleAdded } from '../lib/addedMarkers.ts';
 import type { Batch, Candidate, Credits, Settings } from '../types.ts';
@@ -33,6 +33,8 @@ import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   scanner: ScannerStore;
+  // Which post and photo are open; each is a browser history entry.
+  nav: NavStore;
   userId: number | null;
   settings: Settings;
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
@@ -70,7 +72,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
   };
 }
 
-export function Scanner({ scanner, userId, settings, updateSetting, health, t, lang, credits, onEnterVoucher }: Props) {
+export function Scanner({ scanner, nav: { nav, go, replace, up }, userId, settings, updateSetting, health, t, lang, credits, onEnterVoucher }: Props) {
   const dialog = useDialog();
   const zoom = useImageZoom();
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
@@ -248,10 +250,10 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
   }, [scanner, dialog, t]);
 
   // ---------- Gallery navigation ----------
-  // Three levels: all posts → one post's photos → one photo. Which post is
-  // open survives a refresh; the open photo doesn't need to.
-  const [folderKey, setFolderKey] = usePersistedState<string | null>('mtg.scans.folder', null);
-  const [photoId, setPhotoId] = useState<string | null>(null);
+  // Three levels: all posts → one post's photos → one photo, each a browser
+  // history entry (see useNav).
+  const folderKey = nav.folder;
+  const photoId = nav.photo;
   // The photos Prev/Next step through, fixed when a photo is opened so the
   // order doesn't shift under you as you fix things.
   const [navIds, setNavIds] = useState<string[]>([]);
@@ -306,9 +308,9 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
   // back to the list rather than show an empty screen.
   useEffect(() => {
     if (folderKey != null && postsLoaded && !scanner.loadingSaved && !openFolder && photoId == null) {
-      setFolderKey(null);
+      replace({ folder: null });
     }
-  }, [folderKey, postsLoaded, scanner.loadingSaved, openFolder, photoId, setFolderKey]);
+  }, [folderKey, postsLoaded, scanner.loadingSaved, openFolder, photoId, replace]);
 
   const q = query.trim().toLowerCase();
   const matches = useCallback((s: BatchSummary) => !q || s.haystack.includes(q), [q]);
@@ -339,34 +341,39 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
     </div>
   );
 
-  const goTo = useCallback((key: string | null) => {
-    setFolderKey(key);
-    setPhotoId(null);
+  const goTo = useCallback((key: string | null) => go({ folder: key, photo: null }), [go]);
+
+  // Another post (opened, or come back to through history) starts unfiltered.
+  useEffect(() => {
     setFilter('all');
     setQuery('');
     setSelecting(false);
     setSelected(new Set());
-  }, [setFolderKey]);
+  }, [folderKey]);
 
   const openPhoto = useCallback((id: string, ids: string[]) => {
     setNavIds(ids);
-    setPhotoId(id);
+    go({ photo: id });
     setSelecting(false);
     window.scrollTo({ top: 0 });
-  }, []);
+  }, [go]);
 
   const activeBatch = scanner.batches.find(b => b.id === photoId) ?? null;
-  // An open photo that has gone (deleted): fall back to its post.
+  // An open photo that has gone (deleted), once every saved photo has
+  // loaded: fall back to its post.
   useEffect(() => {
-    if (photoId != null && !activeBatch) setPhotoId(null);
-  }, [photoId, activeBatch]);
+    if (photoId != null && !activeBatch && !scanner.loadingSaved) replace({ photo: null });
+  }, [photoId, activeBatch, scanner.loadingSaved, replace]);
 
-  const liveNavIds = navIds.filter(id => scanner.batches.some(b => b.id === id));
+  // Reached through history (or a reload) rather than a tile, a photo steps
+  // through its post in gallery order.
+  const stepIds = photoId != null && navIds.includes(photoId) ? navIds : (openFolder?.items.map(s => s.batch.id) ?? []);
+  const liveNavIds = stepIds.filter(id => scanner.batches.some(b => b.id === id));
   const navIndex = photoId ? liveNavIds.indexOf(photoId) : -1;
   const step = useCallback((delta: number) => {
     const next = liveNavIds[navIndex + delta];
-    if (next) { setPhotoId(next); window.scrollTo({ top: 0 }); }
-  }, [liveNavIds, navIndex]);
+    if (next) { replace({ photo: next }); window.scrollTo({ top: 0 }); }
+  }, [liveNavIds, navIndex, replace]);
 
   // Keyboard shortcuts (never while typing in a field, or under a dialog):
   //   one photo   ← / → previous / next photo, Esc back to the post
@@ -382,7 +389,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
       if (photoId != null) {
         if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
-        else if (e.key === 'Escape') setPhotoId(null);
+        else if (e.key === 'Escape') up();
         return;
       }
       if (e.key === '/') {
@@ -392,7 +399,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
       }
       if (e.key === 'Escape' && folderKey != null) {
         if (selecting) { setSelecting(false); setSelected(new Set()); }
-        else goTo(null);
+        else up();
         return;
       }
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
@@ -410,7 +417,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [photoId, step, folderKey, selecting, goTo]);
+  }, [photoId, step, folderKey, selecting, up]);
 
   // Swipe left/right on the photo's header to step, like a photo roll. Kept
   // to the header so it can't fight dragging a price pill or scrolling a row.
@@ -452,10 +459,12 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
       destructive: true,
     });
     if (!ok) return;
+    // Deleting the open photo goes back to its post, so no entry is left for it.
+    if (photoId != null && ids.includes(photoId)) up();
     for (const id of ids) await scanner.removeBatch(id);
     setSelected(new Set());
     setSelecting(false);
-  }, [dialog, scanner, t]);
+  }, [dialog, scanner, photoId, up, t]);
 
   // Renaming a post: click its name on the post page and type. Enter or
   // clicking away saves, Esc cancels. null = not editing.
@@ -481,12 +490,12 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
     setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, status } : p)));
     try {
       await postsApi.update(folder.postId, { status });
-      if (archived) goTo(null);
+      if (archived) up();
     } catch (e) {
       await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
     }
-  }, [dialog, refreshPosts, goTo, t]);
+  }, [dialog, refreshPosts, up, t]);
 
   // Deleting a post takes its photos with it. The server refuses while any
   // of its cards are still claimed, so no buyer's claim is lost silently.
@@ -510,9 +519,9 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
       return;
     }
     for (const s of folder.items) await scanner.removeBatch(s.batch.id);
-    goTo(null);
+    up();
     await refreshPosts();
-  }, [dialog, scanner, goTo, refreshPosts, t]);
+  }, [dialog, scanner, up, refreshPosts, t]);
 
   const addFolderToChecklist = useCallback(async (folder: Folder) => {
     const targets = folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null);
@@ -626,7 +635,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
               if (Math.abs(dx) > 60 && Math.abs(dy) < 40) step(dx < 0 ? 1 : -1);
             }}
           >
-            <button type="button" className="ghost photo-nav-back" onClick={() => setPhotoId(null)}>
+            <button type="button" className="ghost photo-nav-back" onClick={up}>
               <Icon name="chevronLeft" size={18} />
               <span>{openFolder?.title ?? t('scans_title')}</span>
             </button>
@@ -667,7 +676,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
               // Filing the photo under another post takes you there with it.
               if (pid != null && !postsById.has(pid)) await refreshPosts();
               await moveTo([activeBatch.id], pid);
-              setFolderKey(pid != null ? `p${pid}` : UNFILED);
+              replace({ folder: pid != null ? `p${pid}` : UNFILED });
             }}
             onPostsChanged={refreshPosts}
             addedIdx={activeAddedSlice}
@@ -684,7 +693,7 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
         /* ---------- One post's photos ---------- */
         <>
           <div className="photo-nav">
-            <button type="button" className="ghost photo-nav-back" onClick={() => goTo(null)}>
+            <button type="button" className="ghost photo-nav-back" onClick={up}>
               <Icon name="chevronLeft" size={18} />
               <span>{t('scans_title')}</span>
             </button>
