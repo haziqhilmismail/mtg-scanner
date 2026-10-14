@@ -67,11 +67,10 @@ from .routers import orders as orders_router
 from .routers import posts as posts_router
 from .services import bug_reporter
 from .services import credits
-from .services import local_card_id
 from .services import local_scan
 from .services.cardkingdom_prices import DB_FILE as CK_DB_FILE
 from .services.cardkingdom_prices import get_index as get_ck_index
-from .services.classical_detector import detect_card_quads, iou_xywh, perspective_warp
+from .services.classical_detector import detect_card_quads, iou_xywh
 from .services.gemini_scanner import CardDetection, get_client, scan_image
 from .services.price_overlay import render_overlay
 from .services.scryfall_lookup import (
@@ -114,22 +113,7 @@ async def lifespan(_app: FastAPI):
         print(f"[startup] WARNING — CK index failed to load: {e}", flush=True)
         print("[startup] Server will start anyway; cards will be unpriced until CK comes back.", flush=True)
 
-    # 4) Optional: load the local pHash card-ID index.
-    # Build it once with scripts/build_phash_index.py — the .npz lives on the
-    # Fly volume so it survives restarts. We don't crash on missing index;
-    # the scan path falls back to Gemini-only naming when get_index() is None.
-    if settings.use_local_card_id:
-        phash_path = Path(settings.phash_index_path)
-        if phash_path.exists():
-            try:
-                pidx = await asyncio.to_thread(local_card_id.load_index, phash_path)
-                print(f"[startup] pHash index ready: {len(pidx)} entries", flush=True)
-            except Exception as e:
-                print(f"[startup] WARNING — pHash index failed to load: {e}", flush=True)
-        else:
-            print(f"[startup] pHash enabled but {phash_path} missing — run scripts/build_phash_index.py", flush=True)
-
-    # 5) Optional: the local scanner (SCANNER_BACKEND=local). Missing models
+    # 4) Optional: the local scanner (SCANNER_BACKEND=local). Missing models
     # don't crash startup — /api/scan answers 503 until the files are in
     # place, everything else keeps working.
     if settings.use_local_scanner:
@@ -182,11 +166,6 @@ async def health():
             out["cardkingdom_refreshed_at"] = CK_DB_FILE.stat().st_mtime
     except Exception as e:
         out["cardkingdom_error"] = str(e)
-    pidx = local_card_id.get_index()
-    out["phash_enabled"] = bool(settings.use_local_card_id)
-    out["phash_loaded"] = pidx is not None
-    if pidx is not None:
-        out["phash_entries"] = len(pidx)
     return out
 
 
@@ -257,48 +236,6 @@ def _json_payload(payload: str) -> dict:
         return json.loads(payload)
     except Exception:
         raise HTTPException(400, "Invalid JSON in 'payload'")
-
-
-def _norm_box(x: int, y: int, x2: int, y2: int, W: int, H: int) -> list[int]:
-    """Pixel box → Gemini-style [ymin, xmin, ymax, xmax] on a 0-1000 scale."""
-    return [
-        max(0, min(1000, int(v / dim * 1000)))
-        for v, dim in ((y, H), (x, W), (y2, H), (x2, W))
-    ]
-
-
-def _phash_match(
-    pil_rgb: Image.Image, quad: list[list[int]], box: tuple[int, int, int, int],
-) -> local_card_id.Candidate | None:
-    """Confident local pHash name for one card, or None.
-
-    The crop is *perspective-warped* via the quad (see notebook §27/§28):
-    the index was built from upright Scryfall images, and even a small tilt
-    in the photo shifts the hash by 6–10 bits — enough to flip top-1 to a
-    neighbour. Warping the quad flat puts the card in the same orientation
-    as the index. Empirically this took clean-photo top-1 from 1/4 to 4/4
-    with zero false positives. `box` is the (x0, y0, x1, y1) fallback crop.
-    """
-    idx = local_card_id.get_index()
-    if not settings.use_local_card_id or idx is None:
-        return None
-    try:
-        warped = perspective_warp(pil_rgb, quad)
-    except Exception as e:
-        # Numerical edge cases in the 8-coeff solve fall back to the
-        # axis-aligned crop so pHash still has a chance.
-        print(f"[phash] perspective warp failed: {e}", flush=True)
-        warped = pil_rgb.crop(box)
-    # top_k=2 so we can require a margin between #1 and #2. At ~48k
-    # entries the bottom of the distance distribution is noisy —
-    # a tied or near-tied top-1 means we don't actually know which
-    # card it is, even if the absolute distance is small.
-    cands = idx.search(local_card_id.hash_pil(warped), top_k=2)
-    if not cands or cands[0].distance > settings.phash_distance_threshold:
-        return None
-    if len(cands) >= 2 and cands[1].distance - cands[0].distance < settings.phash_distance_margin:
-        return None
-    return cands[0]
 
 
 def _enrich_with_ck(summary: dict | None, ck_index) -> dict | None:
@@ -413,7 +350,7 @@ async def _scan_pipeline(
     W, H = pil.size
 
     if settings.use_local_scanner:
-        # Offline pipeline — replaces steps 1-6 below wholesale.
+        # Offline pipeline — replaces steps 1-5 below wholesale.
         cards_out = await local_scan.scan_cards(pil, _enrich_with_ck, _make_thumb_b64)
         return await _store_scan(db, user_id, filename, pil, norm_bytes, cards_out, post_id)
 
@@ -421,8 +358,6 @@ async def _scan_pipeline(
     # The classical detector finds tight, card-shaped blobs in the photo and
     # returns both the axis-aligned bbox (for IoU matching against Gemini)
     # and a 4-corner quad following the card edges (for the polygon outline).
-    # It runs first so we can hash each crop locally before deciding whether
-    # we need Gemini.
     classical_boxes: list[tuple[int, int, int, int]] = []
     classical_quads: list[list[list[int]]] = []
     if settings.use_classical_bbox:
@@ -433,78 +368,25 @@ async def _scan_pipeline(
         except Exception as e:
             print(f"[scan] classical detector failed: {e}", flush=True)
 
-    # ---------- Step 2: local pHash identification per classical box ----------
-    # If the index is loaded, hash each classical crop and look it up. A
-    # confident match names the card without Gemini.
-    phash_results = [
-        _phash_match(pil, quad, (cx, cy, cx + cw, cy + ch))
-        for (cx, cy, cw, ch), quad in zip(classical_boxes, classical_quads)
-    ]
-
-    # ---------- Step 3: Gemini for detection + naming-fallback ----------
-    # Always call Gemini. The classical detector can under-detect (finds 1 of 4
-    # cards when 3 share a busy background), and we can't tell from this side
-    # whether it caught everything. The reconciliation step below de-dupes any
-    # Gemini detections that overlap a pHash-named classical box.
-    # If pHash already named every classical box confidently we still call —
-    # the only "wasted" work is one extra Gemini round-trip on photos where
-    # classical happened to find every card. That's worth it to never silently
-    # drop cards classical missed.
-    gemini_detections: list[CardDetection] = []
+    # ---------- Step 2: Gemini locates + names the cards ----------
     try:
         # The Gemini SDK call is synchronous and takes several seconds; run it
         # in a worker thread so the event loop keeps serving other requests
         # (and other scans) while this one waits.
-        gemini_detections = await asyncio.to_thread(scan_image, norm_bytes)
+        gemini_detections: list[CardDetection] = await asyncio.to_thread(scan_image, norm_bytes)
     except Exception as e:
-        # If pHash got SOME of the cards we can still ship a partial result
-        # rather than 500; otherwise bail.
-        if not any(phash_results):
-            raise HTTPException(500, f"Gemini call failed: {e}")
-        print(f"[scan] Gemini call failed, continuing with pHash only: {e}", flush=True)
+        raise HTTPException(500, f"Gemini call failed: {e}")
 
-    # ---------- Step 4: assemble unified detection list ----------
-    # Per detection we track: a CardDetection (drives Scryfall lookup),
-    # the pixel bbox, where the bbox came from, where the name came from,
-    # and the pHash distance if applicable.
+    # ---------- Step 3: tighten each Gemini box with a classical one ----------
     @dataclass
     class _Resolved:
         det: CardDetection
         bbox_px: tuple[int, int, int, int]  # (x, y, w, h)
         corners: list[list[int]] | None  # 4-point quad (TL,TR,BR,BL), None for Gemini-only
         bbox_source: str
-        name_source: str
-        name_confidence: int | None  # Hamming distance for phash; None for gemini
 
     resolved: list[_Resolved] = []
-    # pHash-named boxes start out consumed: their entry wins over any Gemini
-    # detection that overlaps the same classical box.
-    classical_consumed = [r is not None for r in phash_results]
-
-    # 4a) pHash-named entries — bbox comes from classical (tight by construction)
-    for ci, cand in enumerate(phash_results):
-        if cand is None:
-            continue
-        cx, cy, cw, ch = classical_boxes[ci]
-        det = CardDetection(
-            name=cand.name,
-            set_code=cand.set,
-            collector_number=cand.collector_number,
-            is_foil=False,  # pHash can't tell — user toggles
-            quantity=1,
-            box_2d=_norm_box(cx, cy, cx + cw, cy + ch, W, H),
-        )
-        resolved.append(_Resolved(
-            det=det,
-            bbox_px=(cx, cy, cw, ch),
-            corners=classical_quads[ci],
-            bbox_source="classical",
-            name_source="phash",
-            name_confidence=cand.distance,
-        ))
-
-    # 4b) Gemini-named entries — for each Gemini detection, refine bbox by
-    # matching to any *remaining* classical box (same logic as before).
+    classical_consumed = [False] * len(classical_boxes)
     for det in gemini_detections:
         try:
             ymin, xmin, ymax, xmax = det.box_2d
@@ -524,12 +406,9 @@ async def _scan_pipeline(
         matched_quad: list[list[int]] | None = None
         if classical_boxes:
             gemini_xywh = (x, y, x2 - x, y2 - y)
-            # Match against ALL classical boxes — including ones pHash already
-            # named. If we matched a pHash-named box, drop this Gemini
-            # detection as a duplicate; otherwise refine using the unconsumed
-            # classical bbox + mark it consumed. Skipping pHash-consumed boxes
-            # here would let Gemini's near-duplicate detection slip through as
-            # a second entry for the same card.
+            # Match against ALL classical boxes. If the best one was already
+            # taken by an earlier Gemini detection, this one is a duplicate of
+            # the same card; otherwise refine to it and mark it taken.
             best_iou, best_idx = 0.0, -1
             for ci, cb in enumerate(classical_boxes):
                 cur = iou_xywh(gemini_xywh, cb)
@@ -537,8 +416,6 @@ async def _scan_pipeline(
                     best_iou, best_idx = cur, ci
             if best_idx >= 0 and best_iou >= 0.4:
                 if classical_consumed[best_idx]:
-                    # Named by pHash, or taken by an earlier Gemini detection
-                    # in this loop — either way this one is a duplicate.
                     continue
                 cx, cy, cw, ch = classical_boxes[best_idx]
                 x, y = cx, cy
@@ -552,16 +429,14 @@ async def _scan_pipeline(
             bbox_px=(x, y, x2 - x, y2 - y),
             corners=matched_quad,
             bbox_source=bbox_source,
-            name_source="gemini",
-            name_confidence=None,
         ))
 
-    # ---------- Step 5: Scryfall lookup + CK enrichment ----------
+    # ---------- Step 4: Scryfall lookup + CK enrichment ----------
     summaries = await lookup_all([r.det for r in resolved])
     ck_index = await get_ck_index()
     summaries = [_enrich_with_ck(s, ck_index) for s in summaries]
 
-    # ---------- Step 6: pack output ----------
+    # ---------- Step 5: pack output ----------
     cards_out = []
     for i, (r, sf) in enumerate(zip(resolved, summaries)):
         x, y, w, h = r.bbox_px
@@ -595,8 +470,8 @@ async def _scan_pipeline(
             "corners": corners,
             "crop_b64": crop_b64,
             "bbox_source": r.bbox_source,
-            "name_source": r.name_source,
-            "name_confidence": r.name_confidence,
+            "name_source": "gemini",
+            "name_confidence": None,
             "gemini": {
                 "name": r.det.name,
                 "set_code": r.det.set_code,
@@ -667,11 +542,10 @@ async def frame_card(
 ):
     """User-drawn frame around a card the detector missed (typically two
     cards merged into one bbox). Body: {corners: [[x,y]*4]} in source-image
-    pixels, TL/TR/BR/BL order. Perspective-warps the region flat, pHashes it
-    against the local index. Confident match → fully-named card with CK
-    pricing. No match → "manual" stub the user renames via the existing
-    relookup flow. Appended to the scan's stored cards JSON so it survives
-    refresh."""
+    pixels, TL/TR/BR/BL order. With the local scanner on, it tries to name
+    the card → fully-named card with CK pricing. Otherwise (or no match) →
+    "manual" stub the user renames via the existing relookup flow. Appended
+    to the scan's stored cards JSON so it survives refresh."""
     scan_row = await db.get(Scan, scan_id)
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
@@ -701,7 +575,7 @@ async def frame_card(
 
     W, H = pil.size
     # Clamp corners inside the image and compute an axis-aligned bbox for
-    # thumbnail + storage. The pHash warp uses the raw quad regardless.
+    # thumbnail + storage.
     clamped = [
         [max(0, min(W, x)), max(0, min(H, y))]
         for x, y in corners_int
@@ -712,35 +586,21 @@ async def frame_card(
     if x1 - x0 < 16 or y1 - y0 < 16:
         raise HTTPException(400, "Frame is too small")
 
-    # Same pHash gate as /api/scan — absolute threshold AND top-2 margin — so
-    # a low-confidence local match falls through to "manual" rather than
-    # naming the wrong card. `skip_identify` bypasses the lookup entirely —
-    # the user has signalled they'll fill the card in by hand via the row's
+    # `skip_identify`: the user will fill the card in by hand via the row's
     # edit controls.
-    matched: local_card_id.Candidate | None = None
-    local_det = None  # set instead of `matched` when the local scanner names it
-    if not data.get("skip_identify"):
+    local_det = None
+    if settings.use_local_scanner and not data.get("skip_identify"):
         try:
-            if settings.use_local_scanner:
-                local_det = await local_scan.identify_quad(pil.convert("RGB"), clamped)
-            else:
-                matched = _phash_match(pil.convert("RGB"), clamped, (x0, y0, x1, y1))
+            local_det = await local_scan.identify_quad(pil.convert("RGB"), clamped)
         except Exception as e:
             print(f"[frame-card] identification failed: {e}", flush=True)
 
     crop_b64 = _make_thumb_b64(pil, x0, y0, x1, y1)
 
-    # Build the card record. Two flavours: pHash-named (full Scryfall + CK)
+    # Build the card record. Two flavours: locally named (full Scryfall + CK)
     # or manual stub (user types the name via existing relookup).
-    if matched is not None or local_det is not None:
-        det = local_det.det if local_det is not None else CardDetection(
-            name=matched.name,
-            set_code=matched.set,
-            collector_number=matched.collector_number,
-            is_foil=False,
-            quantity=1,
-            box_2d=_norm_box(x0, y0, x1, y1, W, H),
-        )
+    if local_det is not None:
+        det = local_det.det
         summaries = await lookup_all([det])
         ck_index = await get_ck_index()
         sf = _enrich_with_ck(summaries[0] if summaries else None, ck_index)
@@ -749,12 +609,8 @@ async def frame_card(
             "collector_number": det.collector_number,
             "is_foil": det.is_foil, "quantity": 1,
         }
-        if local_det is not None:
-            name_source = local_det.name_source
-            name_confidence = round(local_det.score, 3)
-        else:
-            name_source = "phash"
-            name_confidence = matched.distance
+        name_source = local_det.name_source
+        name_confidence = round(local_det.score, 3)
     else:
         sf = {
             "scryfall_id": "",
