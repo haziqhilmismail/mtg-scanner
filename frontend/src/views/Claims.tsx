@@ -427,7 +427,11 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
   }, [ready, cardsByKey, postId, reload, clearIntake]);
 
   // ---------- acting on saved claims ----------
+  // Status buttons wait for a change to finish, so a second click can't
+  // interleave its requests with the first.
+  const [stateSaving, setStateSaving] = useState(false);
   const setState = useCallback(async (os: Order[], to: PayState) => {
+    setStateSaving(true);
     try {
       for (const o of os) {
         if (to === 'unpaid') {
@@ -442,6 +446,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
     }
     await reload();
+    setStateSaving(false);
   }, [dialog, reload, t]);
 
   const removeClaim = useCallback(async (name: string, os: Order[]) => {
@@ -805,7 +810,7 @@ export function Claims({ scanner, settings, t, onOpenOldChecklist }: Props) {
                     <div className="segmented" role="group" aria-label={t('claims_status')}>
                       {(['unpaid', 'paid', 'done'] as PayState[]).map(s => (
                         <button
-                          key={s} type="button"
+                          key={s} type="button" disabled={stateSaving}
                           className={g.state === s ? 'active' : ''} aria-pressed={g.state === s}
                           onClick={() => g.state !== s && setState(g.orders, s)}
                         >{t(`claims_state_${s}`)}</button>
