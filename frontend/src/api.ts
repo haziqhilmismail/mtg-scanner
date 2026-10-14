@@ -212,10 +212,10 @@ export interface ExportPayload {
 }
 
 // Frame a missed card. User draws a rectangle in BatchPreview expand mode;
-// the backend warps that quad, pHashes it, and returns either a fully-named
-// card (CK-priced) or a manual stub the user will rename.
+// the backend returns either a card the local scanner named (CK-priced) or a
+// manual stub the user will rename.
 //
-// `skipIdentify=true` is the "just add a blank row" path — bypasses pHash and
+// `skipIdentify=true` is the "just add a blank row" path — skips identifying and
 // returns an empty manual card the user fills in via the row's edit controls.
 export async function frameCard(
   scanId: number,

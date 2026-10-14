@@ -16,19 +16,6 @@ import {
 
 type Status = 'loading' | 'unauthenticated' | 'authenticated';
 
-// Take the image token /me hands out, unless the stored one still has a week
-// left: image URLs then stay the same between visits and the browser cache
-// keeps working.
-function keepImageToken(fresh: string) {
-  const cur = imageToken.get();
-  let exp = 0;
-  if (cur) {
-    try { exp = Number(JSON.parse(atob(cur.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp) || 0; }
-    catch { /* not a JWT: replace it */ }
-  }
-  if (exp * 1000 < Date.now() + 7 * 864e5) imageToken.set(fresh);
-}
-
 interface UseAuth {
   status: Status;
   config: AuthConfig | null;
@@ -51,7 +38,9 @@ export function useAuth(): UseAuth {
     bootstrapped.current = true;
     const loadMe = async () => {
       const { image_token, ...me } = await fetchMe();
-      keepImageToken(image_token);
+      // The server hands out the same image token all week, so image URLs
+      // (and the browser's cache of them) stay put between visits.
+      imageToken.set(image_token);
       setUser(me);
       setStatus('authenticated');
     };
