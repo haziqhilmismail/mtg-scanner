@@ -314,3 +314,21 @@ def test_redeem_endpoint(client):
     assert ok.status_code == 200 and ok.json()["credits"]["unlimited"] is True
     assert client.post("/api/vouchers/redeem", json={"code": code}, headers=headers).json()["detail"]["code"] == "already_redeemed"
     assert client.post("/api/vouchers/redeem", json={"code": code}).status_code == 401
+
+
+def test_rate_limits_are_per_user_and_bad_refresh_tokens_do_not_count(client, monkeypatch):
+    monkeypatch.setattr(main.limiter, "enabled", True)
+    a, b = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
+    run(engine.dispose())
+    redeem_as = lambda uid: client.post("/api/vouchers/redeem", json={"code": "MTG-XXXX-XXXX-XXXX"},
+                                        headers={"Authorization": f"Bearer {issue_session_token(uid)}"})
+    assert [redeem_as(a).status_code for _ in range(11)] == [400] * 10 + [429]
+    assert redeem_as(b).status_code == 400          # a's guesses don't lock b out
+
+    monkeypatch.setattr(main.settings, "refresh_ck_token", "right")
+    for _ in range(5):
+        assert client.post("/api/refresh-ck", headers={"X-Refresh-Token": "wrong"}).status_code == 403
+
+    # Scryfall lookups need a login now.
+    assert client.post("/api/relookup", data={"payload": '{"name": "Sol Ring"}'}).status_code == 401
+    assert client.post("/api/printings", data={"payload": '{"name": "Sol Ring"}'}).status_code == 401

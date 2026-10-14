@@ -8,12 +8,10 @@ from io import BytesIO
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from PIL import Image
 from pydantic import BaseModel, Field
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession
+from ..deps import CurrentUserId, DbSession, limiter
 from ..models import Listing, ListingStatus, Post, Scan, User
 from ..schemas import OrderCreate, OrderItemCreate, OrderRead
 from ..services import claims
@@ -21,16 +19,13 @@ from . import orders as orders_router
 
 router = APIRouter(prefix="/api/claims", tags=["claims"])
 
-# Local limiter, same pattern as routers/bugs.py.
-_limiter = Limiter(key_func=get_remote_address)
-
 MAX_SCREENSHOTS = 12
 MAX_PHOTOS = 60          # candidate photos to match a screenshot against
 MAX_SCREENSHOT_BYTES = 15 * 1024 * 1024
 
 
 @router.post("/read")
-@_limiter.limit("20/minute")
+@limiter.limit("20/minute")
 async def read_screenshots(
     request: Request, db: DbSession, user_id: CurrentUserId,
     images: list[UploadFile] = File(...),
@@ -75,7 +70,7 @@ class ParseRequest(BaseModel):
 
 
 @router.post("/parse")
-@_limiter.limit("20/minute")
+@limiter.limit("20/minute")
 async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user_id: CurrentUserId):
     """Draft claims from thread text (typed, pasted or OCR'd) against the cards
     the client says are on sale. Saves nothing."""
