@@ -74,12 +74,16 @@ class ScanState(BaseModel):
 
 @router.patch("/{scan_id}/state", status_code=204)
 async def save_scan_state(scan_id: int, body: ScanState, db: DbSession, user_id: CurrentUserId):
-    """Store the seller's per-card edits for this scan. Last write wins."""
+    """Store the seller's per-card edits for this scan. Last write wins, except
+    a state whose integer rev is below the stored one is ignored (late arrival)."""
     scan_row = await db.get(Scan, scan_id)
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
     if len(json.dumps(body.state)) > 64 * 1024:
         raise HTTPException(413, "State too large (max 64 KB)")
+    new, old = body.state.get("rev"), (scan_row.ui_state or {}).get("rev")
+    if isinstance(new, int) and isinstance(old, int) and old > new:
+        return
     scan_row.ui_state = body.state
 
 

@@ -98,6 +98,12 @@ def test_ui_state_round_trip(client):
     assert client.patch(f"/api/scans/{sid}/state", json={"state": {}}, headers=them).status_code == 404
     assert state_of() == edits
 
+    save = lambda state: client.patch(f"/api/scans/{sid}/state", json={"state": state}, headers=me).status_code
+    assert save({"rev": 5, "a": 1}) == 204 and state_of() == {"rev": 5, "a": 1}
+    assert save({"rev": 4, "a": 2}) == 204 and state_of() == {"rev": 5, "a": 1}    # late, ignored
+    assert save({"rev": 5, "a": 3}) == 204 and state_of() == {"rev": 5, "a": 3}    # equal writes
+    assert save({"a": 4}) == 204 and state_of() == {"a": 4}                       # no rev writes
+
 
 def test_before_pages_back_through_scans(client):
     uid = run(_dispose_then(new_user()))
