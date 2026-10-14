@@ -7,7 +7,6 @@ type Vars = Record<string, string | number>;
 const STRINGS: Record<Lang, Record<string, string>> = {
   en: {
     app_title: 'Pasar Malam MTG',
-    app_sub: 'v6 · Gemini · CardKingdom retail',
     menu_more: 'More',
     menu_language: 'Language',
     menu_appearance: 'Appearance',
@@ -15,7 +14,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     appearance_auto: 'Auto',
     appearance_light: 'Light',
     appearance_dark: 'Dark',
-    clear_all: 'Clear All',
     scan_progress: 'Scanned {done} of {total}',
     credits_unlimited: 'Unlimited scans',
     credits_free_left: '{n} of {limit} free scans left',
@@ -51,7 +49,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     scans_filter_all: 'All',
     scans_filter_needs: 'Needs Fixing',
     scans_search: 'Search card names',
-    scans_search_results: 'Photos with “{q}”',
     scans_no_matches: 'No photos match.',
     scans_none_to_fix: 'Nothing to fix here.',
     scans_empty: 'No posts yet. Add photos above to start one.',
@@ -171,10 +168,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     claims_remove_msg: 'Remove {name}’s claim on this post? The cards become available again.',
     claims_remove_ok: 'Remove',
     nav_scanner: 'Scanner',
-    nav_checklist: 'Checklist',
-    soon: 'soon',
-    checklist_empty_headline: 'Checklist coming soon',
-    checklist_empty_sub: 'Track listed cards · buyers · payments · drop-offs',
 
     settings_title: 'Pricing settings',
     mult_normal: 'Multiplier · Non-foil',
@@ -225,11 +218,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     drop_photo_tip: 'For best results: avoid glare, lay cards flat on a clean light background.',
     drop_no_images: 'No image files found.',
 
-    review_title: 'Review & export',
     scanning: 'Scanning with Gemini',
     error: 'Error',
     unknown_error: 'Unknown error',
-    server_returned: 'Server returned {code}: {body}',
     unknown_card: '(unknown)',
     no_set_match: '(no set match)',
     manual_entry_meta: '(manual entry · not on Scryfall)',
@@ -238,7 +229,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     cards: 'cards',
     unique: 'unique',
     need_price: 'need price',
-    all_scans_total: 'All scans',
     export_btn: 'Export image with prices',
     export_warning: "Double-check every card's version and price before exporting — auto-detection isn't always accurate.",
 
@@ -264,8 +254,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     matched: 'Matched',
     scryfall_failed: 'Scryfall lookup failed',
-    name_phash: 'local match',
-    name_phash_tip: 'Named offline via perceptual hash (Hamming distance {d}/64; lower is better)',
     override_pill: 'Override',
     manual_pill: 'Manual',
     manual_set_price: 'Manual entry — set price below',
@@ -307,7 +295,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     remove_card: 'Remove from export',
     removed_label: 'Removed',
-    restore_card: 'Restore',
     restore_all: 'Restore all',
     bulk_label: 'Set all',
     bulk_all_foil: 'All foil',
@@ -330,13 +317,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     scanner_post_selected_hint: '↳ cards added will be grouped under this post',
     scanner_post_unselected_hint: '↳ cards will be loose — pick or create a post to group them',
 
-    // Finalize block (sits at the bottom of the active batch view)
-    scanner_finalize_step1: 'Pick or create a post for these cards (optional)',
-    scanner_finalize_step2: 'Send the priced cards to your checklist',
-    scanner_finalize_step3: 'Export the priced overlay and move on',
-    scanner_back_to_top: 'Back to top',
-    scanner_back_to_top_title: 'Scroll to the top to start the next scan',
-
     // Per-scan price refresh — re-queries CK for this scan's cards
     scan_refresh_prices: 'Refresh prices',
     scan_refresh_prices_busy: '⟳ Refreshing prices…',
@@ -344,7 +324,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     // User feedback modal — opened from the 💬 button in the floating chip.
     // Piggybacks on /api/bug with exception_type=UserFeedback so the
     // Telegram push renders as feedback, not a crash.
-    feedback_btn_label: 'Feedback',
     feedback_open: 'Send feedback',
     feedback_close: 'Close feedback',
     feedback_title: 'Send feedback',
@@ -358,9 +337,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     tab_status_scanning: 'scanning…',
     tab_status_done_one: '1 card',
     tab_status_done: '{n} cards',
-    tab_status_warn: '{n} cards · {w} need price',
     tab_status_error: 'error',
-    batch_counter: '{cur} / {total}',
     photo_label: 'Photo',
     match_label: 'Match',
 
@@ -408,17 +385,12 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_new_stock: 'New stock entry',
     ck_save_stock: 'Save stock',
     ck_save_changes: 'Save changes',
-    ck_form_name_placeholder: 'Type or pick · {n} cards on Scryfall',
     ck_form_name_placeholder_short: 'Start typing a card name…',
     ck_form_name_loading: 'Loading card names from Scryfall…',
     ck_form_posts_label: 'Linked posts',
     ck_form_posts_empty: 'No posts yet — create one in the Posts panel to group stock under it.',
     ck_stock_edit_btn: 'Edit',
     ck_stock_edit_title: 'Edit stock',
-    ck_stock_edit_set: 'Click to change set',
-    ck_stock_no_set: 'pick set',
-    ck_stock_qty_minus: 'Decrease quantity',
-    ck_stock_qty_plus: 'Increase quantity',
     ck_stock_qty_avail: 'in stock',
     ck_stock_qty_in_orders: 'in orders',
     ck_stock_remove_title: 'Remove from stock',
@@ -454,12 +426,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     // DialogProvider strings
     alert_error_title: 'Error',
-    confirm_remove_scan_title: 'Remove scan',
-    confirm_remove_scan_msg: 'Remove "{name}"? This deletes the saved scan and its image bytes.',
-    confirm_remove_scan_ok: 'Remove',
-    confirm_clear_all_title: 'Clear all scans',
-    confirm_clear_all_msg: 'Clear all {n} scans? Each saved scan will be deleted from disk.',
-    confirm_clear_all_ok: 'Clear all',
     export_all_btn: 'Export all (zip)',
     export_all_loading: 'Exporting…',
     bulk_add_all_btn: 'Add all to checklist',
@@ -482,37 +448,16 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_section_tag_posts: 'Posts',
     ck_posts_section_sub: 'A post = one Facebook drop. Group cards together so you remember which sale they came from. Posts are optional but recommended.',
 
-    ck_listings_heading: 'Listings · {n}',
     ck_filter_active: 'Active',
     ck_filter_archived: 'Archived',
     ck_filter_all: 'All',
-    ck_add_listing: 'Add listing',
-    ck_no_listings_active: 'No active listings. Use the Scanner tab and click + on each card to add stock.',
-    ck_no_listings_archived: 'No archived listings.',
-    ck_no_listings_all: 'No listings.',
 
-    ck_qty_available: '{available} of {total} available',
-    ck_qty_in_orders: '{n} in orders',
     ck_create_order: 'Order',
     ck_archive: 'Archive',
     ck_reactivate: 'Re-activate',
-    ck_archive_confirm: 'Archive "{name}"?',
-    ck_badge_active: 'active',
     ck_badge_archived: 'archived',
 
-    ck_new_listing: 'New listing',
     ck_form_name: 'Card name *',
-    ck_form_set_code: 'Set code',
-    ck_form_set_code_placeholder: 'e.g. cmm',
-    ck_form_set_name: 'Set name',
-    ck_form_collector: 'Collector #',
-    ck_form_rarity: 'Rarity',
-    ck_rarity_none: '(none)',
-    ck_rarity_common: 'Common',
-    ck_rarity_uncommon: 'Uncommon',
-    ck_rarity_rare: 'Rare',
-    ck_rarity_mythic: 'Mythic',
-    ck_rarity_special: 'Special',
     ck_form_price: 'Price (RM) *',
     ck_form_qty: 'Quantity',
     ck_form_foil: 'Foil',
@@ -520,7 +465,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_err_name_required: 'Name is required',
     ck_err_price_required: 'Price is required (e.g. 3.00)',
     ck_saving: 'Saving…',
-    ck_save_listing: 'Save listing',
     ck_cancel: 'Cancel',
 
     ck_col_unpaid: 'Unpaid',
@@ -531,22 +475,15 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_sub_paid: 'ready to deliver',
     ck_sub_credit: 'delivered, not paid',
     ck_sub_done: 'paid + delivered',
-    ck_status_cancelled: 'cancelled',
     ck_buyer_anon: 'Buyer #{id}',
 
-    ck_mark_paid: 'Mark paid',
-    ck_mark_delivered: 'Mark delivered',
     ck_cancel_order: 'Cancel order',
     ck_cancel_order_title: 'Cancel this order?',
     ck_cancel_order_msg: 'The order disappears from the kanban. Its items return to active stock.',
-    ck_bulk_mark_paid: 'Mark all paid',
-    ck_bulk_mark_delivered: 'Mark all delivered',
     ck_move_to: 'Move to {col}',
     ck_move_all_label: 'Move all →',
     ck_ungroup: 'Ungroup',
     ck_ungroup_title: 'Show these orders separately',
-    ck_regroup: '↩ Regroup {name} ({n})',
-    ck_regroup_title: "Group {name}'s {n} orders back together",
     ck_group_cta: '↪ Group {name}\'s {n} orders',
     ck_group_cta_title: 'Bundle these {n} orders from {name} into one card',
     ck_add_to_group: '↪ Add to group',
@@ -559,7 +496,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_archived_header: 'Archived',
     ck_archived_subhint: 'completed orders moved out of the kanban — click to expand',
     ck_archived_on: 'archived {date}',
-    ck_cancel_group: 'Cancel all',
     ck_cancel_group_title: 'Cancel all orders in this group?',
     ck_cancel_group_msg: 'This will cancel all {n} orders. Their card items return to active stock.',
     ck_cancel_group_btn: 'Cancel all',
@@ -586,9 +522,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_buyer_url_placeholder_existing: 'existing: {url}',
     ck_buyer_phone_placeholder_default: '+60 12 345 6789',
     ck_buyer_phone_placeholder_existing: 'existing: {phone}',
-    ck_buyer_phone_edit_title: 'Edit phone number',
-    ck_buyer_phone_add_title: 'Add a phone number for this buyer',
-    ck_buyer_edit: 'Edit buyer',
     ck_buyer_edit_title: 'Edit this buyer (name, FB URL, phone)',
     ck_no_phone: 'no phone',
     ck_buyer_name_required: 'Buyer name cannot be empty.',
@@ -596,7 +529,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_buyer_orders_count_plural: '{n} orders',
 
     // Delivery-proof photo on delivered orders (On credit + Done columns)
-    ck_dp_add: 'Add delivery photo',
     ck_dp_drop_strong: 'Add delivery photo',
     ck_dp_drop_sub: 'Drop, click, or paste (Ctrl/⌘+V)',
     ck_dp_copy: 'Copy',
@@ -635,18 +567,11 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     // Listing form additions
     ck_form_set: 'Set',
-    ck_form_set_placeholder: 'Type set code or name (e.g. cmm, Commander Masters)',
-    ck_form_set_loading: 'Loading sets from Scryfall…',
     ck_form_printing_placeholder: 'Type set code, name or # to filter printings…',
     ck_form_printing_loading: 'Loading every printing from Scryfall…',
     ck_form_printing_empty: 'No printings found — double-check the card name above.',
-    ck_form_post: 'Post',
-    ck_form_post_none: '— None (loose listing) —',
     ck_foil_on_label: 'Foil',
     ck_foil_off_label: 'Non-foil',
-
-    // Cancelled order restore
-    ck_restore_order: '↶ Restore order',
 
     // Bulk import
     ck_bulk_title: 'Bulk import cards',
@@ -660,7 +585,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     // Posts
     ck_posts_panel: 'Posts',
-    ck_posts_count: '{n} posts',
     ck_posts_heading: 'Posts · {n}',
     ck_posts_empty: 'No posts yet. Create one to group cards you advertised together on Facebook.',
     ck_posts_empty_archived: 'No archived posts.',
@@ -682,7 +606,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_post_save: 'Save changes',
     ck_post_stat_cards: '{n} cards',
     ck_post_stat_active: '{active} active / {total}',
-    ck_post_action_import: 'Add cards (bulk)',
     ck_post_action_pick_stock: 'Add cards from stock',
     ck_bulk_import_btn_short: 'Bulk import',
     ck_post_picker_title: 'Pick stock for {name}',
@@ -739,7 +662,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
   },
   ms: {
     app_title: 'MTG Pasar Malam',
-    app_sub: 'v6 · Gemini · Harga CardKingdom',
     menu_more: 'Lagi',
     menu_language: 'Bahasa',
     menu_appearance: 'Paparan',
@@ -747,7 +669,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     appearance_auto: 'Auto',
     appearance_light: 'Cerah',
     appearance_dark: 'Gelap',
-    clear_all: 'Kosongkan Semua',
     scan_progress: '{done} daripada {total} diimbas',
     credits_unlimited: 'Imbasan tanpa had',
     credits_free_left: '{n} daripada {limit} imbasan percuma tinggal',
@@ -783,7 +704,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     scans_filter_all: 'Semua',
     scans_filter_needs: 'Perlu Dibaiki',
     scans_search: 'Cari nama kad',
-    scans_search_results: 'Foto dengan “{q}”',
     scans_no_matches: 'Tiada foto sepadan.',
     scans_none_to_fix: 'Tiada yang perlu dibaiki di sini.',
     scans_empty: 'Belum ada post. Tambah foto di atas untuk mulakan satu.',
@@ -903,10 +823,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     claims_remove_msg: 'Buang tuntutan {name} pada post ini? Kad itu tersedia semula.',
     claims_remove_ok: 'Buang',
     nav_scanner: 'Pengimbas',
-    nav_checklist: 'Senarai Semak',
-    soon: 'akan datang',
-    checklist_empty_headline: 'Senarai semak akan datang',
-    checklist_empty_sub: 'Jejak kad disenaraikan · pembeli · pembayaran · serahan',
 
     settings_title: 'Tetapan harga',
     mult_normal: 'Pengganda · Bukan foil',
@@ -957,11 +873,9 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     drop_photo_tip: 'Untuk hasil terbaik: elak silau, susun kad atas latar belakang cerah dan bersih.',
     drop_no_images: 'Tiada fail gambar.',
 
-    review_title: 'Semak & eksport',
     scanning: 'Mengimbas dengan Gemini',
     error: 'Ralat',
     unknown_error: 'Ralat tidak diketahui',
-    server_returned: 'Pelayan jawab {code}: {body}',
     unknown_card: '(tidak diketahui)',
     no_set_match: '(tiada padanan set)',
     manual_entry_meta: '(masukan manual · tiada di Scryfall)',
@@ -970,7 +884,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     cards: 'kad',
     unique: 'unik',
     need_price: 'perlu harga',
-    all_scans_total: 'Semua imbasan',
     export_btn: 'Eksport gambar dengan harga',
     export_warning: 'Semak versi dan harga setiap kad sebelum eksport — pengesanan automatik tidak selalu tepat.',
 
@@ -996,8 +909,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     matched: 'Padan',
     scryfall_failed: 'Carian Scryfall gagal',
-    name_phash: 'padanan tempatan',
-    name_phash_tip: 'Dinamakan luar talian melalui hash persepsi (jarak Hamming {d}/64; lebih rendah lebih baik)',
     override_pill: 'Ganti',
     manual_pill: 'Manual',
     manual_set_price: 'Masukan manual — set harga di bawah',
@@ -1039,7 +950,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     remove_card: 'Buang dari eksport',
     removed_label: 'Dibuang',
-    restore_card: 'Pulihkan',
     restore_all: 'Pulihkan semua',
     bulk_label: 'Set semua',
     bulk_all_foil: 'Semua foil',
@@ -1062,13 +972,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     scanner_post_selected_hint: '↳ kad yang ditambah akan dikumpulkan di bawah post ini',
     scanner_post_unselected_hint: '↳ kad akan terapung — pilih atau cipta post untuk kumpulkan',
 
-    // Blok finale (di bahagian bawah paparan batch aktif)
-    scanner_finalize_step1: 'Pilih atau cipta post untuk kad ini (pilihan)',
-    scanner_finalize_step2: 'Hantar kad berharga ke senarai semak anda',
-    scanner_finalize_step3: 'Eksport overlay berharga dan teruskan',
-    scanner_back_to_top: 'Kembali ke atas',
-    scanner_back_to_top_title: 'Skrol ke atas untuk mulakan imbasan seterusnya',
-
     // Segarkan harga per-imbasan — pertanya semula CK untuk kad dalam imbasan ini
     scan_refresh_prices: 'Segarkan harga',
     scan_refresh_prices_busy: '⟳ Menyegarkan harga…',
@@ -1076,7 +979,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     // Modal maklum balas pengguna — dibuka dari butang 💬 dalam cip apung.
     // Guna /api/bug dengan exception_type=UserFeedback supaya push Telegram
     // dipaparkan sebagai maklum balas, bukan ralat.
-    feedback_btn_label: 'Maklum balas',
     feedback_open: 'Hantar maklum balas',
     feedback_close: 'Tutup',
     feedback_title: 'Hantar maklum balas',
@@ -1090,9 +992,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     tab_status_scanning: 'mengimbas…',
     tab_status_done_one: '1 kad',
     tab_status_done: '{n} kad',
-    tab_status_warn: '{n} kad · {w} perlu harga',
     tab_status_error: 'ralat',
-    batch_counter: '{cur} / {total}',
     photo_label: 'Foto',
     match_label: 'Padanan',
 
@@ -1140,17 +1040,12 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_new_stock: 'Entri stok baru',
     ck_save_stock: 'Simpan stok',
     ck_save_changes: 'Simpan perubahan',
-    ck_form_name_placeholder: 'Taipkan atau pilih · {n} kad di Scryfall',
     ck_form_name_placeholder_short: 'Mula taip nama kad…',
     ck_form_name_loading: 'Memuat nama kad dari Scryfall…',
     ck_form_posts_label: 'Post yang dipautkan',
     ck_form_posts_empty: 'Belum ada post — cipta satu di panel Post untuk kumpulkan stok di bawahnya.',
     ck_stock_edit_btn: 'Edit',
     ck_stock_edit_title: 'Edit stok',
-    ck_stock_edit_set: 'Klik untuk tukar set',
-    ck_stock_no_set: 'pilih set',
-    ck_stock_qty_minus: 'Kurangkan kuantiti',
-    ck_stock_qty_plus: 'Tambah kuantiti',
     ck_stock_qty_avail: 'dalam stok',
     ck_stock_qty_in_orders: 'dalam pesanan',
     ck_stock_remove_title: 'Buang dari stok',
@@ -1186,12 +1081,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     // Rentetan DialogProvider
     alert_error_title: 'Ralat',
-    confirm_remove_scan_title: 'Buang imbasan',
-    confirm_remove_scan_msg: 'Buang "{name}"? Ini akan padam imbasan yang disimpan beserta gambarnya.',
-    confirm_remove_scan_ok: 'Buang',
-    confirm_clear_all_title: 'Padam semua imbasan',
-    confirm_clear_all_msg: 'Padam semua {n} imbasan? Setiap imbasan yang disimpan akan dipadam.',
-    confirm_clear_all_ok: 'Padam semua',
     export_all_btn: 'Eksport semua (zip)',
     export_all_loading: 'Mengeksport…',
     bulk_add_all_btn: 'Tambah semua ke senarai',
@@ -1214,37 +1103,16 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_section_tag_posts: 'Post',
     ck_posts_section_sub: 'Satu post = satu drop Facebook. Kumpulkan kad bersama supaya anda ingat dari jualan yang mana. Post pilihan tetapi disyorkan.',
 
-    ck_listings_heading: 'Senarai · {n}',
     ck_filter_active: 'Aktif',
     ck_filter_archived: 'Diarkib',
     ck_filter_all: 'Semua',
-    ck_add_listing: 'Tambah senarai',
-    ck_no_listings_active: 'Tiada senarai aktif. Guna tab Pengimbas dan klik + pada setiap kad untuk tambah stok.',
-    ck_no_listings_archived: 'Tiada senarai diarkib.',
-    ck_no_listings_all: 'Tiada senarai.',
 
-    ck_qty_available: '{available} daripada {total} ada',
-    ck_qty_in_orders: '{n} dalam pesanan',
     ck_create_order: 'Pesanan',
     ck_archive: 'Arkibkan',
     ck_reactivate: 'Aktifkan semula',
-    ck_archive_confirm: 'Arkibkan "{name}"?',
-    ck_badge_active: 'aktif',
     ck_badge_archived: 'diarkib',
 
-    ck_new_listing: 'Senarai baru',
     ck_form_name: 'Nama kad *',
-    ck_form_set_code: 'Kod set',
-    ck_form_set_code_placeholder: 'cth: cmm',
-    ck_form_set_name: 'Nama set',
-    ck_form_collector: 'No. kolektor',
-    ck_form_rarity: 'Kelangkaan',
-    ck_rarity_none: '(tiada)',
-    ck_rarity_common: 'Common',
-    ck_rarity_uncommon: 'Uncommon',
-    ck_rarity_rare: 'Rare',
-    ck_rarity_mythic: 'Mythic',
-    ck_rarity_special: 'Special',
     ck_form_price: 'Harga (RM) *',
     ck_form_qty: 'Kuantiti',
     ck_form_foil: 'Foil',
@@ -1252,7 +1120,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_err_name_required: 'Nama diperlukan',
     ck_err_price_required: 'Harga diperlukan (cth: 3.00)',
     ck_saving: 'Menyimpan…',
-    ck_save_listing: 'Simpan senarai',
     ck_cancel: 'Batal',
 
     ck_col_unpaid: 'Belum bayar',
@@ -1263,22 +1130,15 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_sub_paid: 'sedia untuk hantar',
     ck_sub_credit: 'dihantar, belum bayar',
     ck_sub_done: 'bayar + hantar',
-    ck_status_cancelled: 'dibatalkan',
     ck_buyer_anon: 'Pembeli #{id}',
 
-    ck_mark_paid: 'Tanda bayar',
-    ck_mark_delivered: 'Tanda dihantar',
     ck_cancel_order: 'Batal pesanan',
     ck_cancel_order_title: 'Batalkan pesanan ini?',
     ck_cancel_order_msg: 'Pesanan hilang dari kanban. Kad-kad akan kembali ke stok aktif.',
-    ck_bulk_mark_paid: 'Tanda semua bayar',
-    ck_bulk_mark_delivered: 'Tanda semua dihantar',
     ck_move_to: 'Pindah ke {col}',
     ck_move_all_label: 'Pindah semua →',
     ck_ungroup: 'Pisahkan',
     ck_ungroup_title: 'Tunjuk pesanan ini secara berasingan',
-    ck_regroup: '↩ Gabung {name} ({n})',
-    ck_regroup_title: 'Gabungkan {n} pesanan {name} semula',
     ck_group_cta: '↪ Gabung {n} pesanan {name}',
     ck_group_cta_title: 'Gabung {n} pesanan {name} jadi satu kad',
     ck_add_to_group: '↪ Tambah ke kumpulan',
@@ -1291,7 +1151,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_archived_header: 'Arkib',
     ck_archived_subhint: 'pesanan selesai yang dipindahkan dari kanban — klik untuk buka',
     ck_archived_on: 'diarkibkan {date}',
-    ck_cancel_group: 'Batal semua',
     ck_cancel_group_title: 'Batal semua pesanan dalam kumpulan ini?',
     ck_cancel_group_msg: 'Tindakan ini akan batalkan kesemua {n} pesanan. Kad-kad akan kembali ke stok aktif.',
     ck_cancel_group_btn: 'Batal semua',
@@ -1318,9 +1177,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_buyer_url_placeholder_existing: 'sedia ada: {url}',
     ck_buyer_phone_placeholder_default: '+60 12 345 6789',
     ck_buyer_phone_placeholder_existing: 'sedia ada: {phone}',
-    ck_buyer_phone_edit_title: 'Edit nombor telefon',
-    ck_buyer_phone_add_title: 'Tambah nombor telefon untuk pembeli ini',
-    ck_buyer_edit: 'Edit pembeli',
     ck_buyer_edit_title: 'Edit butiran pembeli (nama, URL FB, telefon)',
     ck_no_phone: 'tiada telefon',
     ck_buyer_name_required: 'Nama pembeli tidak boleh kosong.',
@@ -1328,7 +1184,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_buyer_orders_count_plural: '{n} pesanan',
 
     // Bukti penghantaran untuk pesanan yang sudah diserahkan (lajur On credit + Done)
-    ck_dp_add: 'Tambah foto bukti',
     ck_dp_drop_strong: 'Tambah foto bukti',
     ck_dp_drop_sub: 'Lepaskan, klik, atau tampal (Ctrl/⌘+V)',
     ck_dp_copy: 'Salin',
@@ -1367,18 +1222,11 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     // Listing form additions
     ck_form_set: 'Set',
-    ck_form_set_placeholder: 'Taip kod set atau nama (cth: cmm, Commander Masters)',
-    ck_form_set_loading: 'Memuat senarai set dari Scryfall…',
     ck_form_printing_placeholder: 'Taip kod set, nama atau # untuk tapis versi…',
     ck_form_printing_loading: 'Memuat setiap versi dari Scryfall…',
     ck_form_printing_empty: 'Tiada versi ditemui — semak semula nama kad di atas.',
-    ck_form_post: 'Post',
-    ck_form_post_none: '— Tiada (kad terapung) —',
     ck_foil_on_label: 'Foil',
     ck_foil_off_label: 'Biasa',
-
-    // Cancelled order restore
-    ck_restore_order: '↶ Pulihkan pesanan',
 
     // Bulk import
     ck_bulk_title: 'Import borong kad',
@@ -1392,7 +1240,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
 
     // Posts
     ck_posts_panel: 'Post',
-    ck_posts_count: '{n} post',
     ck_posts_heading: 'Post · {n}',
     ck_posts_empty: 'Belum ada post. Cipta satu untuk kumpulkan kad-kad yang anda iklankan bersama di Facebook.',
     ck_posts_empty_archived: 'Tiada post diarkib.',
@@ -1414,7 +1261,6 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_post_save: 'Simpan perubahan',
     ck_post_stat_cards: '{n} kad',
     ck_post_stat_active: '{active} aktif / {total}',
-    ck_post_action_import: 'Tambah kad (borong)',
     ck_post_action_pick_stock: 'Tambah kad dari stok',
     ck_bulk_import_btn_short: 'Import borong',
     ck_post_picker_title: 'Pilih stok untuk {name}',
