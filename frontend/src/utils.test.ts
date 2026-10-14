@@ -57,6 +57,7 @@ test('saved per-card state is fitted to the cards, entry by entry', () => {
     multOverride: [null, 2.5],
     removed: 'no',
     pillOffset: [{ dx: 1, dy: 2 }, { dx: 'x', dy: 0 }],
+    rev: 1700000000000,
   };
   assert.deepEqual(normalizeUiState(saved, cards), {
     isFoil: [true, true, false],
@@ -65,6 +66,9 @@ test('saved per-card state is fitted to the cards, entry by entry', () => {
     multOverride: [null, 2.5, null],
     removed: [false, false, false],
     pillOffset: [{ dx: 1, dy: 2 }, null, null],
+    rev: 1700000000000,
   });
   assert.deepEqual(normalizeUiState(null, [card(true)]).isFoil, [true]);
+  assert.equal('rev' in normalizeUiState({ rev: '5' }, []), false);
+  assert.equal('rev' in normalizeUiState({ rev: 1.5 }, []), false);
 });

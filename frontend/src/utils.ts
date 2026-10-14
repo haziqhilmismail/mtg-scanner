@@ -224,7 +224,7 @@ export function freshState(cards: DetectedCard[]): ScanUiState {
   };
 }
 
-const VALID: { [K in keyof ScanUiState]: (v: unknown) => boolean } = {
+const VALID: { [K in Exclude<keyof ScanUiState, 'rev'>]: (v: unknown) => boolean } = {
   isFoil: v => typeof v === 'boolean',
   priceOverride: v => v === null || typeof v === 'string',
   quantity: v => Number.isInteger(v) && (v as number) >= 1,
@@ -236,11 +236,12 @@ const VALID: { [K in keyof ScanUiState]: (v: unknown) => boolean } = {
 // A scan's saved per-card state, made safe to use: one entry per card, each
 // valid entry kept and anything missing or malformed (another device saved
 // before a card was framed, an older version, a bad write) taken from
-// freshState.
+// freshState. Its rev is kept if it is an integer.
 export function normalizeUiState(raw: unknown, cards: DetectedCard[]): ScanUiState {
   const saved = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const state = freshState(cards);
-  for (const k of Object.keys(VALID) as (keyof ScanUiState)[]) {
+  if (Number.isInteger(saved.rev)) state.rev = saved.rev as number;
+  for (const k of Object.keys(VALID) as (keyof typeof VALID)[]) {
     const arr = saved[k];
     if (!Array.isArray(arr)) continue;
     (state[k] as unknown[]).forEach((_, i, out) => { if (i < arr.length && VALID[k](arr[i])) out[i] = arr[i]; });

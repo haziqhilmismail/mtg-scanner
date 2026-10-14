@@ -134,6 +134,9 @@ export interface ScanUiState {
   multOverride: (number | null)[];
   removed: boolean[];
   pillOffset: (PillOffset | null)[];
+  // Raised on every save so the server ignores a save that arrives after a
+  // newer one. Not a per-card field.
+  rev?: number;
 }
 
 export interface Batch extends ScanUiState {
