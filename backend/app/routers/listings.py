@@ -13,6 +13,7 @@ from ..models import (
     OrderStatus,
     Post,
     PostStatus,
+    Scan,
     User,
     listing_post_links,
 )
@@ -26,6 +27,7 @@ from ..schemas import (
     ListingUpdate,
 )
 from ..services.bulk_import import lookup_lines, parse_line, price_for_card
+from ..services.listings import drop_listing
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
 
@@ -64,6 +66,15 @@ async def _resolve_posts(db, user_id: int, post_ids: list[int]) -> list[Post]:
     if missing:
         raise HTTPException(404, f"Post(s) not found: {missing}")
     return list(rows)
+
+
+async def _check_scan(db, user_id: int, scan_id: int | None) -> None:
+    """A listing may only point at its owner's own scan: deleting that scan
+    deletes the listing."""
+    if scan_id is not None and await db.scalar(
+        select(Scan.id).where(Scan.id == scan_id, Scan.user_id == user_id)
+    ) is None:
+        raise HTTPException(404, "Scan not found")
 
 
 @router.get("", response_model=list[ListingReadWithAvailability])
@@ -117,6 +128,7 @@ async def create_listing(
     data = payload.model_dump()
     post_ids: list[int] = data.pop("post_ids", []) or []
     posts = await _resolve_posts(db, user_id, post_ids)
+    await _check_scan(db, user_id, payload.scan_id)
 
     listing = Listing(**data, user_id=user_id)
     listing.posts = posts
@@ -162,6 +174,7 @@ async def update_listing(
 
     updates = payload.model_dump(exclude_unset=True)
     post_ids = updates.pop("post_ids", None)  # None = unchanged, [] = unlink all
+    await _check_scan(db, user_id, updates.get("scan_id"))
     for k, v in updates.items():
         setattr(listing, k, v)
 
@@ -175,26 +188,13 @@ async def update_listing(
 
 @router.delete("/{listing_id}", status_code=204)
 async def remove_listing(listing_id: int, db: DbSession, user_id: CurrentUserId) -> None:
-    """Remove listing. Hard-deletes if no order_items reference it (true
-    cleanup for never-sold stock). If any order_item exists, falls back to
-    archive — RESTRICT on the FK preserves order history.
-
-    Either way the row stops appearing in the active stock view; this matters
-    only for users digging into archived inventory."""
+    """Remove listing (see drop_listing). Either way the row stops appearing
+    in the active stock view; this matters only for users digging into
+    archived inventory."""
     listing = await db.get(Listing, listing_id)
     if not listing or listing.user_id != user_id:
         raise HTTPException(404, "Listing not found")
-
-    has_history = (await db.scalar(
-        select(func.count(OrderItem.id)).where(OrderItem.listing_id == listing_id)
-    )) or 0
-
-    if has_history:
-        listing.status = ListingStatus.archived
-        await db.flush()
-    else:
-        await db.delete(listing)
-        await db.flush()
+    await drop_listing(db, listing)
 
 
 @router.post("/bulk-import", response_model=BulkImportResult)
