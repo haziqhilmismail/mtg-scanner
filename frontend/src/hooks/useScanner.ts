@@ -291,9 +291,6 @@ export function useScanner() {
   // second drop while the first is running joins it instead of doubling up.
   const scanQueue = useRef<Array<() => Promise<void>>>([]);
   const scansRunning = useRef(0);
-  // Photos deleted while still waiting or scanning: a waiting one is never
-  // sent, a running one is deleted on the server as soon as it is saved.
-  const removedWhileScanning = useRef<Set<string>>(new Set());
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
   const pumpScanQueue = useCallback(() => {
     while (scansRunning.current < SCAN_CONCURRENCY && scanQueue.current.length) {
@@ -330,23 +327,27 @@ export function useScanner() {
       relookupBusy: [], relookupMsg: [],
     }));
     setBatches(prev => [...prev, ...stubs]);
+    // Before the next render, so the jobs started below find their stubs.
+    batchesRef.current = [...batchesRef.current, ...stubs];
 
     setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + queued.length }));
+    // The batch list is the only record of what happened to a photo while it
+    // waited or scanned: gone means deleted, another postId means moved.
+    const current = (id: string) => batchesRef.current.find(b => b.id === id);
     scanQueue.current.push(...queued.map(({ file, id }) => async () => {
-      if (removedWhileScanning.current.has(id)) return;
+      if (!current(id)) return;
       try {
         const resp = await scanImage(file, postId);
         const n = resp.cards.length;
         // Server-side scan_id is what we'll persist UI state against
         const scanId = (resp as unknown as { scan_id?: number }).scan_id ?? null;
-        if (removedWhileScanning.current.has(id)) {
+        const b = current(id);
+        if (!b) {
           if (scanId != null) deleteSaved(scanId);
           return;
         }
-        // Moved to another post while scanning: file it there on the server too.
-        const movedTo = batchesRef.current.find(b => b.id === id)?.postId;
-        if (scanId != null && movedTo !== undefined && movedTo !== postId) {
-          apiMoveScans([scanId], movedTo).catch(() => patchBatch(id, { postId }));
+        if (scanId != null && b.postId !== postId) {
+          apiMoveScans([scanId], b.postId).catch(() => patchBatch(id, { postId }));
         }
         patchBatch(id, {
           status: 'done',
@@ -585,9 +586,10 @@ export function useScanner() {
   // File photos under another post (or unfile them). Optimistic: the gallery
   // regroups at once; if the server refuses, they go back where they were.
   const moveBatches = useCallback(async (ids: string[], postId: number | null) => {
-    const before = new Map(batches.filter(b => ids.includes(b.id)).map(b => [b.id, b.postId]));
+    const moving = batchesRef.current.filter(b => ids.includes(b.id));
+    const before = new Map(moving.map(b => [b.id, b.postId]));
     setBatches(prev => prev.map(b => (before.has(b.id) ? { ...b, postId } : b)));
-    const scanIds = batches.filter(b => before.has(b.id) && b.scanId != null).map(b => b.scanId as number);
+    const scanIds = moving.filter(b => b.scanId != null).map(b => b.scanId as number);
     if (!scanIds.length) return;
     try {
       await apiMoveScans(scanIds, postId);
@@ -595,18 +597,18 @@ export function useScanner() {
       setBatches(prev => prev.map(b => (before.has(b.id) ? { ...b, postId: before.get(b.id) ?? null } : b)));
       throw e;
     }
-  }, [batches]);
+  }, []);
 
+  // A photo still waiting or scanning has no scan id yet; its scan job sees
+  // it gone from the list and deletes what the server saved.
   const removeBatch = useCallback(async (id: string) => {
-    const b = batches.find(x => x.id === id);
+    const b = batchesRef.current.find(x => x.id === id);
     setBatches(prev => prev.filter(x => x.id !== id));
     if (b?.scanId) {
       savesRef.current.delete(b.scanId);
       await deleteSaved(b.scanId);
-    } else if (b) {
-      removedWhileScanning.current.add(id);
     }
-  }, [batches]);
+  }, []);
 
   return {
     batches,
