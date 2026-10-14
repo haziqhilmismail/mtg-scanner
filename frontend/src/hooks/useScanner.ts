@@ -26,6 +26,8 @@ const RETRY_MS = 5000;
 // cause deleted scans to reappear, and so the unsent deletes get retried.
 // Per user, so another account signing in here doesn't clear them.
 const tombstoneKey = (userId: number | null) => `mtg.scan_tombstones.${userId}`;
+// Where they were kept before they were per user.
+const OLD_TOMBSTONES = 'mtg.scan_tombstones';
 const SCAN_CONCURRENCY = 3;
 
 function readTombstones(key: string): Set<number> {
@@ -192,6 +194,9 @@ export function useScanner(userId: number | null) {
       // backend DELETE never confirmed (e.g. refresh-mid-clear, backend
       // --reload kicked in, network blip). Filter them out of the UI and
       // fire the DELETE again so they're actually gone next time.
+      // Older versions kept them under one key for everyone: this user takes them.
+      addTombstones(tombKey, Array.from(readTombstones(OLD_TOMBSTONES)));
+      writeTombstones(OLD_TOMBSTONES, new Set());
       const tombstones = readTombstones(tombKey);
       const serverIds = new Set<number>();
       for (let before: number | undefined, told = false; ;) {

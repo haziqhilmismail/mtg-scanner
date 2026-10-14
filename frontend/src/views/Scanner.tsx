@@ -4,7 +4,7 @@ import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, 
 import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
-import { forgetAddedExcept, loadAdded, saveAdded } from '../lib/addedMarkers.ts';
+import { loadAdded, saveAdded, settleAdded } from '../lib/addedMarkers.ts';
 import type { Batch, Candidate, Credits, Settings } from '../types.ts';
 import { computeCardData, downloadBlob, formatMyr, listingFields, pillLabel } from '../utils.ts';
 
@@ -86,10 +86,13 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
   // "added" memory and re-running Add-all becomes a no-op instead of a
   // silent duplicate. Initialised eagerly from localStorage.
   const [addedByScanId, setAddedByScanId] = useState(() => loadAdded(userId));
-  // Once every saved scan has loaded, forget the markers of deleted ones
-  // (once, not on every edit of the list).
+  // Once every saved scan has loaded, take over markers kept before they were
+  // per user and forget the markers of deleted scans (once, not on every edit
+  // of the list).
   useEffect(() => {
-    if (!scanner.loadingSaved) forgetAddedExcept(userId, new Set(scanner.batches.map(b => b.scanId)));
+    if (scanner.loadingSaved) return;
+    settleAdded(userId, new Set(scanner.batches.map(b => b.scanId)));
+    setAddedByScanId(loadAdded(userId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanner.loadingSaved]);
 
