@@ -15,6 +15,8 @@ export function createSaveQueue(
   saved: (scanId: number) => void,
   // A save failed and should be tried again later.
   retry: () => void,
+  // The server refused a save, so that edit is lost.
+  refused: (scanId: number) => void,
 ) {
   const slots = new Map<number, Slot>();
 
@@ -70,7 +72,7 @@ export function createSaveQueue(
             if (slot.unsaved !== state || slots.get(scanId) !== slot) return;
             // Refused (gone, too big, signed out): sending it again won't help.
             const s = e.status ?? 0;
-            if (s >= 400 && s < 500 && s !== 408 && s !== 429) { slot.unsaved = null; return; }
+            if (s >= 400 && s < 500 && s !== 408 && s !== 429) { slot.unsaved = null; refused(scanId); return; }
             slot.sent = false;
             retry();
           },

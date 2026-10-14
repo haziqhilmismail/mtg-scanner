@@ -138,6 +138,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
     saveScanState,
     scanId => { try { localStorage.removeItem(STATE_KEY(scanId)); } catch { /* ignore */ } },
     () => flushLater(RETRY_MS),
+    () => setNotice('scans_save_failed'),
   ));
   const flushSaves = useCallback((final = false) => {
     clearTimeout(saveTimerRef.current);
