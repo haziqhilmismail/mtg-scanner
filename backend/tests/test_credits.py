@@ -160,6 +160,13 @@ def test_timed_unlimited_vouchers_stack_and_lapse():
         await redeem(uid, await make_voucher(unlimited=True, unlimited_days=30, credits=2))
         st = await get_status(uid)
         assert st["unlimited"] is True and st["bonus"] == 2
+
+        # Absurdly long ones stop at FOREVER instead of overflowing.
+        other = await new_user()
+        for _ in range(2):
+            await redeem(other, await make_voucher(unlimited=True, unlimited_days=2_000_000_000))
+        async with async_session_factory() as s:
+            assert credits.FOREVER - timedelta(days=1) < (await s.get(User, other)).unlimited_scans_until <= credits.FOREVER
     run(_dispose_then(go()))
 
 
