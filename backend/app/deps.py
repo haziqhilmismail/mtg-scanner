@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
 from .db import get_session
-from .services.auth_service import IMAGE_SCOPE, decode_session_token
+from .services.auth_service import decode_image_token, decode_session_token
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:
@@ -54,7 +54,7 @@ def get_image_user_id(token: str | None = Query(default=None)) -> int:
     `?token=...`. Session tokens are refused here. Solo mode needs no token."""
     if not settings.auth_enabled:
         return settings.solo_user_id
-    user_id = decode_session_token(token, IMAGE_SCOPE) if token else None
+    user_id = decode_image_token(token) if token else None
     if user_id is None:
         raise HTTPException(401, "Missing or invalid image token")
     return user_id

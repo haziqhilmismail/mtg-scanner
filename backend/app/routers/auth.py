@@ -17,7 +17,7 @@ from ..config import settings
 from ..deps import CurrentUserId, DbSession
 from ..models import User
 from ..services.auth_service import (
-    IMAGE_SCOPE,
+    issue_image_token,
     issue_session_token,
     verify_google_id_token,
 )
@@ -48,7 +48,7 @@ class AuthResponse(BaseModel):
 
 
 def _image_token(user_id: int) -> str:
-    return issue_session_token(user_id, IMAGE_SCOPE) if settings.auth_enabled else ""
+    return issue_image_token(user_id) if settings.auth_enabled else ""
 
 
 class AuthConfig(BaseModel):

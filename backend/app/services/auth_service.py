@@ -21,7 +21,7 @@ from ..config import DATA_DIR, settings
 # re-logging in, short enough that a stolen token isn't a permanent compromise.
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 IMAGE_TTL_SECONDS = 30 * 24 * 60 * 60
-IMAGE_SCOPE = "img"
+_IMAGE_SCOPE = "img"
 
 _SECRET_PATH = DATA_DIR / "jwt_secret.txt"
 _jwt_secret_cache: str | None = None
@@ -64,23 +64,13 @@ def verify_google_id_token(token: str) -> dict:
     return info
 
 
-def issue_session_token(user_id: int, scope: str | None = None) -> str:
-    """Issue an HS256 JWT identifying this user. `scope="img"` makes an
-    image-only token: it rides in <img src> URLs (which end up in logs and
-    history), so it lives longer but opens nothing except the image routes."""
-    now = int(time.time())
-    payload = {
-        "sub": str(user_id),
-        "iat": now,
-        "exp": now + (IMAGE_TTL_SECONDS if scope else SESSION_TTL_SECONDS),
-    }
-    if scope:
-        payload["scope"] = scope
+def _issue(user_id: int, iat: int, exp: int, **claims) -> str:
+    payload = {"sub": str(user_id), "iat": iat, "exp": exp, **claims}
     return jwt.encode(payload, _jwt_secret(), algorithm="HS256")
 
 
-def decode_session_token(token: str, scope: str | None = None) -> int | None:
-    """Return the user_id in a JWT of exactly this `scope`, or None if
+def _decode(token: str, scope: str | None) -> int | None:
+    """The user_id in a JWT of exactly this `scope`, or None if
     invalid/expired/another scope."""
     try:
         payload = jwt.decode(token, _jwt_secret(), algorithms=["HS256"])
@@ -89,3 +79,24 @@ def decode_session_token(token: str, scope: str | None = None) -> int | None:
         return int(payload["sub"])
     except (jwt.InvalidTokenError, KeyError, ValueError):
         return None
+
+
+def issue_session_token(user_id: int) -> str:
+    """An HS256 JWT identifying this user, for the Authorization header."""
+    now = int(time.time())
+    return _issue(user_id, now, now + SESSION_TTL_SECONDS)
+
+
+def decode_session_token(token: str) -> int | None:
+    return _decode(token, None)
+
+
+def issue_image_token(user_id: int) -> str:
+    """An image-only token: it rides in <img src> URLs (which end up in logs
+    and history), so it lives longer but opens nothing except the image routes."""
+    now = int(time.time())
+    return _issue(user_id, now, now + IMAGE_TTL_SECONDS, scope=_IMAGE_SCOPE)
+
+
+def decode_image_token(token: str) -> int | None:
+    return _decode(token, _IMAGE_SCOPE)
