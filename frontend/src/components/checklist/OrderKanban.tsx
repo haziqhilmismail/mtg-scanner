@@ -5,8 +5,7 @@ import { useImageZoom } from '../ImageZoomProvider.tsx';
 import { upgradeScryfallImage } from '../../utils.ts';
 import { BuyerPhoneEditor } from './BuyerPhoneEditor.tsx';
 import { DeliveryPhotoWidget } from './DeliveryPhotoWidget.tsx';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   orders: Order[];

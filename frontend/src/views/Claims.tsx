@@ -27,8 +27,7 @@ import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
 import { computeCardData, formatMyr, formatMyrWithFoil, listingFields, pastedImages } from '../utils.ts';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   scanner: ScannerStore;

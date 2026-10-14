@@ -1,10 +1,11 @@
 import { Icon } from './Icon.tsx';
 import type { CardRowData } from '../types.ts';
 import { useDecimalInput } from '../hooks/useDecimalInput.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   cd: CardRowData;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   onQtyChange: (qty: number) => void;
   onQtyStep: (delta: number) => void;
   onMultChange: (mult: number | null) => void;

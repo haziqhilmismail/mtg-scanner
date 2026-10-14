@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchPrintings } from '../api.ts';
 import type { Candidate } from '../types.ts';
 import { fmt2, smallScryfallImage } from '../utils.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   open: boolean;
@@ -9,7 +10,7 @@ interface Props {
   currentSid: string;
   onClose: () => void;
   onSelect: (printing: Candidate) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 const PAGE_SIZE = 30;

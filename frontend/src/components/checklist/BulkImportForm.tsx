@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { listingsApi, type BulkImportLineResult } from '../../api/checklist.ts';
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   onDone: () => void;
   onCancel: () => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 const PLACEHOLDER = `1 Lightning Bolt (LEA) 161

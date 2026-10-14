@@ -7,6 +7,7 @@ import { VersionBadge } from './VersionBadge.tsx';
 import { PriceBlock } from './PriceBlock.tsx';
 import { RowControls } from './RowControls.tsx';
 import { AdjustPanel } from './AdjustPanel.tsx';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   cd: CardRowData;
@@ -14,7 +15,7 @@ interface Props {
   busy: boolean;
   added: boolean;
   settings: Settings;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   onZoom: (src: string, caption: string) => void;
   onAddToList: () => void;
   onRemove: () => void;

@@ -12,6 +12,7 @@ import {
 import { OutOfCreditsError } from '../api/auth.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
 import { generateBatchId } from '../utils.ts';
+import type { T } from './useLang.ts';
 
 // Older versions kept per-card UI state in localStorage under this key; it is
 // uploaded to the scan's ui_state once and then removed.
@@ -267,11 +268,11 @@ export function useScanner() {
   }, []);
 
   const updateCardArray = useCallback(
-    <K extends keyof Batch, T>(batchId: string, field: K, idx: number, value: T) => {
+    <K extends keyof Batch, V>(batchId: string, field: K, idx: number, value: V) => {
       setBatches(prev =>
         prev.map(b => {
           if (b.id !== batchId) return b;
-          const arr = [...(b[field] as unknown as T[])];
+          const arr = [...(b[field] as unknown as V[])];
           arr[idx] = value;
           return { ...b, [field]: arr } as Batch;
         }),
@@ -514,7 +515,7 @@ export function useScanner() {
   }, []);
 
   const relookupByName = useCallback(
-    async (batchId: string, idx: number, name: string, t: (k: string, v?: Record<string, string | number>) => string) => {
+    async (batchId: string, idx: number, name: string, t: T) => {
       const trimmed = name.trim();
       if (!trimmed) {
         setRelookupMsg(batchId, idx, { type: 'err', text: t('msg_type_name_first') });
@@ -555,7 +556,7 @@ export function useScanner() {
   );
 
   const useAsIs = useCallback(
-    (batchId: string, idx: number, name: string, t: (k: string, v?: Record<string, string | number>) => string) => {
+    (batchId: string, idx: number, name: string, t: T) => {
       const trimmed = name.trim();
       if (!trimmed) {
         setRelookupMsg(batchId, idx, { type: 'err', text: t('msg_type_name_then_asis') });

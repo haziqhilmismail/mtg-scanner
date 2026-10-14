@@ -11,6 +11,7 @@ import { DemoScan } from '../components/demo/DemoScan.tsx';
 import { AppMenu } from '../components/AppMenu.tsx';
 import { Icon } from '../components/Icon.tsx';
 import type { Appearance, Lang, Theme } from '../types.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   clientId: string;
@@ -19,7 +20,7 @@ interface Props {
   busy?: boolean;
   lang: Lang;
   setLang: (l: Lang) => void;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   theme: Theme;
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;

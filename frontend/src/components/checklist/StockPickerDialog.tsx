@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { postsApi, type Listing, type Post } from '../../api/checklist.ts';
 import { useDialog } from '../DialogProvider.tsx';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   post: Post;

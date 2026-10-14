@@ -1,9 +1,10 @@
 import type { CardRowData } from '../types.ts';
 import { rarityKey } from '../utils.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   cd: CardRowData;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
 }
 
 // "Pill with set code + #collector_number + rarity dot" — visible at a glance

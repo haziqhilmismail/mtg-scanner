@@ -5,8 +5,7 @@
 // real checklist looks like, here's how it moves.
 
 import { useState } from 'react';
-
-type T = (key: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface DemoOrder {
   buyer: string;

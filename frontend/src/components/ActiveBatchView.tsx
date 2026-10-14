@@ -8,12 +8,13 @@ import { computeCardData, formatMyr, listingFields } from '../utils.ts';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow } from './CardRow.tsx';
 import { useDialog } from './DialogProvider.tsx';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   batch: Batch;
   settings: Settings;
   scanner: ScannerStore;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   onZoom: (src: string, caption: string) => void;
   onBrowsePrintings: (idx: number) => void;
   posts: Post[];

@@ -1,8 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import type { Buyer } from '../../api/checklist.ts';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   buyers: Buyer[];

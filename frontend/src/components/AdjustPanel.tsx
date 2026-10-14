@@ -2,13 +2,14 @@ import { Icon } from './Icon.tsx';
 import { useEffect, useState } from 'react';
 import type { CardRowData, RelookupMsg, Settings } from '../types.ts';
 import { applyRounding, fmt2 } from '../utils.ts';
+import type { T } from '../hooks/useLang.ts';
 
 interface Props {
   cd: CardRowData;
   msg: RelookupMsg | null;
   busy: boolean;
   settings: Settings;
-  t: (k: string, vars?: Record<string, string | number>) => string;
+  t: T;
   onPriceChange: (v: string | null) => void;
   onClearOverride: () => void;
   onBrowsePrintings: () => void;

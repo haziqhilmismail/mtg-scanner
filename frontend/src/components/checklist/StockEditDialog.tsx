@@ -3,8 +3,7 @@ import { listingsApi, type Listing, type Post } from '../../api/checklist.ts';
 import { useDialog } from '../DialogProvider.tsx';
 import { FoilToggle } from './FoilToggle.tsx';
 import { PrintingPicker } from './PrintingPicker.tsx';
-
-type T = (k: string, vars?: Record<string, string | number>) => string;
+import type { T } from '../../hooks/useLang.ts';
 
 interface Props {
   listing: Listing;
