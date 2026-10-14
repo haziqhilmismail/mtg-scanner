@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
-import type { ScannerStore } from '../hooks/useScanner.ts';
+import { ADDED_STORAGE_PREFIX, type ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, Candidate, Settings } from '../types.ts';
 import { computeCardData, downloadBlob, formatMyr, listingFields, pillLabel } from '../utils.ts';
 
@@ -40,8 +40,6 @@ interface Props {
   credits: Credits | null;
   onEnterVoucher: () => void;
 }
-
-const ADDED_STORAGE_PREFIX = 'mtg.scanner.added.';
 
 // Persist "this card from this scan was already added" so a refresh doesn't
 // silently re-enable Add-all and create duplicate listings on the next click.

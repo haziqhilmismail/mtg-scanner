@@ -17,6 +17,8 @@ import { generateBatchId } from '../utils.ts';
 // uploaded to the scan's ui_state once and then removed.
 const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
 const SAVE_DELAY_MS = 800;
+// Scanner.tsx remembers per scan which cards went to the checklist.
+export const ADDED_STORAGE_PREFIX = 'mtg.scanner.added.';
 
 // Tombstones: scan IDs the user has asked to delete but whose backend DELETE
 // hasn't been confirmed yet. Survives reload so a refresh-mid-clear can't
@@ -147,6 +149,9 @@ function batchFromSavedScan(saved: SavedScan): Batch {
 export function useScanner() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
+  // Latest batches, for work that finishes after they changed.
+  const batchesRef = useRef(batches);
+  batchesRef.current = batches;
 
   // Per-card edits go to the server: the last state seen per batch (the
   // first one seen is what the server already has), the states waiting to be
@@ -220,6 +225,18 @@ export function useScanner() {
       // DELETE actually succeeded, we just never got to clear them).
       const orphanTombstones = Array.from(tombstones).filter(id => !serverIds.has(id));
       removeTombstones(orphanTombstones);
+
+      // Drop "added" markers of scans that are gone (kept for any scanned
+      // since this load started).
+      batchesRef.current.forEach(b => b.scanId != null && serverIds.add(b.scanId));
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key?.startsWith(ADDED_STORAGE_PREFIX) && !serverIds.has(Number(key.slice(ADDED_STORAGE_PREFIX.length)))) {
+            localStorage.removeItem(key);
+          }
+        }
+      } catch { /* storage disabled */ }
       setLoadingSaved(false);
     })();
     return () => { cancelled = true; };
@@ -272,9 +289,6 @@ export function useScanner() {
   // Photos deleted while still waiting or scanning: a waiting one is never
   // sent, a running one is deleted on the server as soon as it is saved.
   const removedWhileScanning = useRef<Set<string>>(new Set());
-  // Latest batches, for a scan finishing after the photo was moved.
-  const batchesRef = useRef(batches);
-  batchesRef.current = batches;
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
   const pumpScanQueue = useCallback(() => {
     while (scansRunning.current < SCAN_CONCURRENCY && scanQueue.current.length) {
