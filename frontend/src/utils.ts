@@ -1,4 +1,4 @@
-import type { Batch, CardRowData, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
+import type { Batch, CardRowData, Credits, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
 import type { T } from './i18n.ts';
 
 export function fmt2(n: number | null | undefined): string {
@@ -247,4 +247,18 @@ export function normalizeUiState(raw: unknown, cards: DetectedCard[]): ScanUiSta
     (state[k] as unknown[]).forEach((_, i, out) => { if (i < arr.length && VALID[k](arr[i])) out[i] = arr[i]; });
   }
   return state;
+}
+
+// When the oldest free scan comes back, as a short date ('' if none is due).
+export function nextFreeDate(credits: Credits | null, lang: string): string {
+  return credits?.next_free_at
+    ? new Date(credits.next_free_at).toLocaleDateString(lang === 'ms' ? 'ms-MY' : 'en-MY', { day: 'numeric', month: 'short' })
+    : '';
+}
+
+// Why there are no scans left and when the next one returns: on the upload
+// area, and in Claims, whose claim reading costs a scan.
+export function creditsOutText(credits: Credits, t: T, lang: string): string {
+  const date = nextFreeDate(credits, lang);
+  return date ? t('credits_out_body', { date, limit: credits.limit }) : t('credits_out_body_plain', { limit: credits.limit });
 }

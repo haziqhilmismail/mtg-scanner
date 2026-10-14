@@ -21,13 +21,12 @@ import {
   type CardRef, type CardStatus, type Photo,
 } from '../components/ClaimPickers.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
-import { creditsOutText } from '../components/UploadZone.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { computeCardData, formatMyr, formatMyrWithFoil, listingFields, pastedImages } from '../utils.ts';
+import { computeCardData, creditsOutText, formatMyr, formatMyrWithFoil, listingFields, pastedImages } from '../utils.ts';
 import type { T } from '../hooks/useLang.ts';
 
 interface Props {

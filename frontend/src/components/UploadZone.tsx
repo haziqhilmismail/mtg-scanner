@@ -1,7 +1,7 @@
 import type { Credits } from '../types.ts';
 import { Icon } from './Icon.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { pastedImages } from '../utils.ts';
+import { creditsOutText, nextFreeDate, pastedImages } from '../utils.ts';
 import type { T } from '../hooks/useLang.ts';
 
 interface Props {
@@ -13,20 +13,6 @@ interface Props {
   onEnterVoucher: () => void;
   // Inside a post the photos are the point, so the zone shrinks to one row.
   compact?: boolean;
-}
-
-// When the oldest free scan comes back, as a short date ('' if none is due).
-function nextFreeDate(credits: Credits | null, lang: string): string {
-  return credits?.next_free_at
-    ? new Date(credits.next_free_at).toLocaleDateString(lang === 'ms' ? 'ms-MY' : 'en-MY', { day: 'numeric', month: 'short' })
-    : '';
-}
-
-// Why there are no scans left and when the next one returns; also used by
-// Claims, whose claim reading costs a scan.
-export function creditsOutText(credits: Credits, t: T, lang: string): string {
-  const date = nextFreeDate(credits, lang);
-  return date ? t('credits_out_body', { date, limit: credits.limit }) : t('credits_out_body_plain', { limit: credits.limit });
 }
 
 export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact }: Props) {
