@@ -12,7 +12,7 @@ os.environ.update(
     JWT_SECRET="test-secret",
     GEMINI_API_KEY="x",
     TELEGRAM_BOT_TOKEN="", TELEGRAM_CHAT_ID="",
-    USE_CLASSICAL_BBOX="false", USE_LOCAL_CARD_ID="false",
+    USE_CLASSICAL_BBOX="false",
     # The tests stub the Gemini call; the local scanner needs model files.
     SCANNER_BACKEND="gemini",
 )

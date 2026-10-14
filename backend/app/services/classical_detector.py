@@ -275,8 +275,8 @@ def _min_area_quad(poly: np.ndarray) -> np.ndarray | None:
 def _order_quad_corners(q: np.ndarray) -> np.ndarray:
     """Sort 4 corners to (TL, TR, BR, BL) by position. Robust for cards with
     mild skew (<45°). For sideways cards we rotate by 90° CCW so the long
-    edge is vertical (portrait), matching the orientation pHash and the
-    frontend overlay expect.
+    edge is vertical (portrait), matching the orientation the frontend
+    overlay expects.
 
     Earlier draft used angle-around-centroid + chirality flip; that swapped
     TL ↔ TR on some cyclic inputs of `_min_area_quad`, which would mirror
@@ -292,33 +292,6 @@ def _order_quad_corners(q: np.ndarray) -> np.ndarray:
     if top_len > left_len:
         out = out[[3, 0, 1, 2]]
     return out
-
-
-def perspective_warp(
-    pil_rgb: Image.Image,
-    corners: list[list[int]] | np.ndarray,
-    out_size: tuple[int, int] = (488, 680),
-) -> Image.Image:
-    """Flatten the quadrilateral region defined by `corners` to an axis-aligned
-    card-shaped image. `corners` is the 4-point [TL, TR, BR, BL] array we ship
-    in `/api/scan`'s `corners` field — same orientation as `_order_quad_corners`
-    produces.
-
-    Used in front of pHash hashing so the index (built from upright Scryfall
-    images) sees a head-on view of the card regardless of how skewed the photo
-    was. Empirically lifts clean-photo top-1 accuracy from 1/4 → 4/4 in
-    notebook §27. Pure PIL — no cv2.
-    """
-    src = np.asarray(corners, dtype=float).reshape(4, 2)
-    W, H = out_size
-    dst = np.array([[0, 0], [W, 0], [W, H], [0, H]], dtype=float)
-    # PIL.Image.PERSPECTIVE wants the inverse mapping (dst → src).
-    rows: list[list[float]] = []
-    for (xd, yd), (xs, ys) in zip(dst, src):
-        rows.append([xd, yd, 1, 0, 0, 0, -xd * xs, -yd * xs])
-        rows.append([0, 0, 0, xd, yd, 1, -xd * ys, -yd * ys])
-    coeffs = np.linalg.solve(np.asarray(rows), src.reshape(8)).tolist()
-    return pil_rgb.transform(out_size, Image.PERSPECTIVE, coeffs, Image.BICUBIC)
 
 
 def _min_area_quad_for_blob(
