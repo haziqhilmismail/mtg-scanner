@@ -4,7 +4,6 @@ as regular Listing rows with `post_id` set.
 
 We never query Facebook. The URL is reference-only."""
 
-import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -14,7 +13,7 @@ from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import selectinload
 
 from ..config import DATA_DIR
-from ..deps import CurrentUserId, DbSession, ImageUserId
+from ..deps import CurrentUserId, DbSession, ImageUserId, check_pricing_size
 from ..models import (
     Listing,
     ListingStatus,
@@ -37,11 +36,6 @@ ALLOWED_IMAGE_MIME = {
     "image/heic", "image/heif", "image/gif",
 }
 MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MiB
-
-
-def check_pricing_size(pricing: dict | None) -> None:
-    if pricing is not None and len(json.dumps(pricing)) > 8 * 1024:
-        raise HTTPException(413, "Pricing too large (max 8 KB)")
 
 
 def _post_image_path(post_id: int) -> Path:

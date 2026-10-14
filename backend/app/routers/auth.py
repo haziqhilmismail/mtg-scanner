@@ -15,9 +15,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession
+from ..deps import CurrentUserId, DbSession, check_pricing_size
 from ..models import User
-from .posts import check_pricing_size
 from ..services.auth_service import (
     issue_image_token,
     issue_session_token,

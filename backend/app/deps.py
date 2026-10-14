@@ -1,5 +1,6 @@
 """Common FastAPI dependencies: DB session + current user."""
 
+import json
 from collections.abc import AsyncIterator
 from typing import Annotated
 
@@ -76,3 +77,9 @@ def _rate_limit_key(request: Request) -> str:
 
 # The one limiter every route decorates with; main.py registers it on the app.
 limiter = Limiter(key_func=_rate_limit_key)
+
+
+def check_pricing_size(pricing: dict | None) -> None:
+    """Pricing settings are a small opaque object; cap what a client may store."""
+    if pricing is not None and len(json.dumps(pricing)) > 8 * 1024:
+        raise HTTPException(413, "Pricing too large (max 8 KB)")
