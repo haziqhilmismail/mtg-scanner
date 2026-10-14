@@ -32,6 +32,9 @@ class Scan(Base, TimestampMixin):
 
     # Full Gemini response (detections, bboxes, foil guesses, etc.) for replay/debug
     gemini_raw: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # The seller's per-card edits (foil, price overrides, removed cards...),
+    # opaque to the backend: the frontend owns the shape. See PATCH .../state.
+    ui_state: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     user: Mapped["User"] = relationship(back_populates="scans")
     listings: Mapped[list["Listing"]] = relationship(

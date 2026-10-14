@@ -811,6 +811,7 @@ async def frame_card(
 async def list_scans(
     db: DbSession, user_id: CurrentUserId,
     limit: int = Query(default=30, ge=1, le=500), lite: bool = False,
+    before: int | None = None,
 ):
     """Most-recent-first list of saved scans, with the full response baked in.
     Frontend uses this to rehydrate batches after a page refresh.
@@ -819,13 +820,17 @@ async def list_scans(
     card's thumbnail, as base64). With them, 30 scans is ~22 MB in a single
     response that has to finish before anything shows; without, ~0.3 MB. The
     client then loads each picture from /preview and /crops/{id} below, only
-    when it is on screen, and the browser caches them."""
+    when it is on screen, and the browser caches them.
+
+    `before=<scan id>` pages back: the scans with a smaller id than that one."""
     q = (
         select(Scan)
         .where(Scan.user_id == user_id)
-        .order_by(Scan.created_at.desc())
+        .order_by(Scan.id.desc())
         .limit(limit)
     )
+    if before is not None:
+        q = q.where(Scan.id < before)
     rows = (await db.execute(q)).scalars().all()
     out = []
     for s in rows:
@@ -843,8 +848,24 @@ async def list_scans(
             "height": s.height,
             "cards": cards,
             "created_at": s.created_at.isoformat() if s.created_at else None,
+            "ui_state": s.ui_state,
         })
     return out
+
+
+class ScanState(BaseModel):
+    state: dict
+
+
+@app.patch("/api/scans/{scan_id}/state", status_code=204)
+async def save_scan_state(scan_id: int, body: ScanState, db: DbSession, user_id: CurrentUserId):
+    """Store the seller's per-card edits for this scan. Last write wins."""
+    scan_row = await db.get(Scan, scan_id)
+    if not scan_row or scan_row.user_id != user_id:
+        raise HTTPException(404, "Scan not found")
+    if len(json.dumps(body.state)) > 64 * 1024:
+        raise HTTPException(413, "State too large (max 64 KB)")
+    scan_row.ui_state = body.state
 
 
 class MoveScans(BaseModel):
