@@ -128,6 +128,17 @@ export interface PillOffset {
   dy: number;
 }
 
+// A scan's per-card edits, saved on the server as the scan's ui_state so
+// every device sees the same prices. Parallel arrays, one entry per card.
+export interface ScanUiState {
+  isFoil: boolean[];
+  priceOverride: (string | null)[];
+  quantity: number[];
+  multOverride: (number | null)[];
+  removed: boolean[];
+  pillOffset: (PillOffset | null)[];
+}
+
 export interface Batch {
   id: string;
   scanId: number | null;          // backend Scan.id once saved — null while scanning

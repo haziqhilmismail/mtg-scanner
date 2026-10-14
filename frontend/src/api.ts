@@ -2,7 +2,7 @@
 // in dev (see vite.config.ts).
 
 import { imageUrl, request } from './api/auth.ts';
-import type { Candidate, DetectedCard, ScanResponse } from './types.ts';
+import type { Candidate, DetectedCard, ScanResponse, ScanUiState } from './types.ts';
 
 export interface Health {
   ok: boolean;
@@ -25,6 +25,7 @@ export interface SavedScan extends ScanResponse {
   post_id?: number | null;
   filename: string;
   created_at: string | null;
+  ui_state: ScanUiState | null;
 }
 
 // One page of saved scans, newest first: the SCANS_PAGE newest with an id
@@ -53,6 +54,17 @@ export async function fetchScans(before?: number): Promise<SavedScan[]> {
       thumb_url: imageUrl(`${base}/preview`, { w: 480, v }),
       cards: s.cards.map(c => ({ ...c, crop_b64: imageUrl(`${base}/crops/${c.id}`, { v }) })),
     };
+  });
+}
+
+// Save a scan's per-card edits. `keepalive` lets the request finish while
+// the page is closing.
+export async function saveScanState(id: number, state: ScanUiState, keepalive = false): Promise<void> {
+  await request(`/api/scans/${id}/state`, {
+    method: 'PATCH',
+    keepalive,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ state }),
   });
 }
 
