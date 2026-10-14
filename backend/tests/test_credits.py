@@ -82,15 +82,18 @@ def test_spend_refunds_when_the_block_fails_or_is_cancelled():
                 async with credits.spend(s, uid):
                     raise RuntimeError("gemini is down")
 
+            started = asyncio.Event()
+
             async def slow_call():
                 async with credits.spend(s, uid):
+                    started.set()
                     await asyncio.sleep(10)
             task = asyncio.create_task(slow_call())
-            await asyncio.sleep(0.2)
+            await started.wait()
+            assert (await get_status(uid))["remaining"] == LIMIT - 1
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
-                await task
-            await asyncio.sleep(0.2)       # the shielded refund finishes
+                await task                 # re-raised only after the shielded refund
             assert (await get_status(uid))["remaining"] == LIMIT
 
             for _ in range(LIMIT):
