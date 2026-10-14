@@ -77,6 +77,8 @@ export function createSaveQueue<K, V>(
       for (const [key, s] of slots) {
         const value = s.unsaved;
         if (value == null || (s.sentWith && (!final || s.sentWith === 'keepalive'))) continue;
+        // Final ignores order: a second save may overtake the one in flight and the
+        // rev-less server keep the older, but dropping the edit on close is worse.
         if (!final && ordered && s.inFlight) continue;
         if (!final && inFlight >= MAX_IN_FLIGHT) return;
         s.sentWith = final ? 'keepalive' : 'normal';
