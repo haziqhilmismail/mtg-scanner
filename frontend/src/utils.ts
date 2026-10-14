@@ -1,4 +1,4 @@
-import type { Batch, CardRowData, Settings } from './types.ts';
+import type { Batch, CardRowData, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
 import type { T } from './hooks/useLang.ts';
 
 export function fmt2(n: number | null | undefined): string {
@@ -208,4 +208,42 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
       pillOffset: batch.pillOffset?.[origIdx] ?? null,
     };
   });
+}
+
+// Per-card state for a scan nobody has edited yet: foil and quantity seeded
+// from Gemini's guesses, no overrides.
+export function freshState(cards: DetectedCard[]): ScanUiState {
+  const n = cards.length;
+  return {
+    isFoil: cards.map(c => !!c.gemini?.is_foil),
+    priceOverride: new Array(n).fill(null),
+    quantity: cards.map(c => Math.max(1, c.gemini?.quantity || 1)),
+    multOverride: new Array(n).fill(null),
+    removed: new Array(n).fill(false),
+    pillOffset: new Array(n).fill(null),
+  };
+}
+
+const VALID: { [K in keyof ScanUiState]: (v: unknown) => boolean } = {
+  isFoil: v => typeof v === 'boolean',
+  priceOverride: v => v === null || typeof v === 'string',
+  quantity: v => Number.isInteger(v) && (v as number) >= 1,
+  multOverride: v => v === null || (Number.isFinite(v) && (v as number) >= 0),
+  removed: v => typeof v === 'boolean',
+  pillOffset: v => v === null || (Number.isFinite((v as PillOffset)?.dx) && Number.isFinite((v as PillOffset)?.dy)),
+};
+
+// A scan's saved per-card state, made safe to use: one entry per card, each
+// valid entry kept and anything missing or malformed (another device saved
+// before a card was framed, an older version, a bad write) taken from
+// freshState.
+export function normalizeUiState(raw: unknown, cards: DetectedCard[]): ScanUiState {
+  const saved = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const state = freshState(cards);
+  for (const k of Object.keys(VALID) as (keyof ScanUiState)[]) {
+    const arr = saved[k];
+    if (!Array.isArray(arr)) continue;
+    (state[k] as unknown[]).forEach((_, i, out) => { if (i < arr.length && VALID[k](arr[i])) out[i] = arr[i]; });
+  }
+  return state;
 }

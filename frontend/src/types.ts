@@ -139,7 +139,7 @@ export interface ScanUiState {
   pillOffset: (PillOffset | null)[];
 }
 
-export interface Batch {
+export interface Batch extends ScanUiState {
   id: string;
   scanId: number | null;          // backend Scan.id once saved — null while scanning
   postId: number | null;          // the post this photo is filed under; null = unfiled
@@ -150,13 +150,8 @@ export interface Batch {
   outOfCredits?: boolean;
   response: ScanResponse | null;
   error?: string;
-  // Per-card parallel arrays, length === response.cards.length when status === 'done'
-  isFoil: boolean[];
-  priceOverride: (string | null)[];
-  quantity: number[];
-  multOverride: (number | null)[];
-  removed: boolean[];
-  pillOffset: (PillOffset | null)[];
+  // Per-card parallel arrays, like ScanUiState's: length ===
+  // response.cards.length when status === 'done'
   relookupBusy: boolean[];
   relookupMsg: (RelookupMsg | null)[];
 }

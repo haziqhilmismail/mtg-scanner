@@ -11,7 +11,7 @@ import {
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
-import { generateBatchId } from '../utils.ts';
+import { freshState, generateBatchId, normalizeUiState } from '../utils.ts';
 import type { T } from './useLang.ts';
 
 // Older versions kept per-card UI state in localStorage under this key; it is
@@ -73,20 +73,6 @@ async function deleteSaved(sid: number) {
   } catch { /* tombstone persists */ }
 }
 
-// Per-card state for a scan nobody has edited yet: foil and quantity seeded
-// from Gemini's guesses, no overrides.
-function freshState(cards: DetectedCard[]): ScanUiState {
-  const n = cards.length;
-  return {
-    isFoil: cards.map(c => !!c.gemini?.is_foil),
-    priceOverride: new Array(n).fill(null),
-    quantity: cards.map(c => Math.max(1, c.gemini?.quantity || 1)),
-    multOverride: new Array(n).fill(null),
-    removed: new Array(n).fill(false),
-    pillOffset: new Array(n).fill(null),
-  };
-}
-
 // What is saved to the server for a batch.
 function uiStateOf(b: Batch): ScanUiState {
   return {
@@ -99,28 +85,24 @@ function uiStateOf(b: Batch): ScanUiState {
   };
 }
 
-// The scan's saved state, or this browser's old localStorage copy, uploaded
-// to the server on the way (the copy is removed once the server has it).
-function savedState(saved: SavedScan): ScanUiState | null {
-  // Only trust a state whose arrays still match the scan; protects against
-  // schema drift / partial saves.
-  const fits = (p: ScanUiState | null | undefined) => (p?.isFoil?.length === saved.cards.length ? p : null);
-  if (saved.ui_state) return fits(saved.ui_state);
+// Older versions kept per-card edits in this browser; upload that copy once
+// to a scan that has none on the server (and use it), then forget it.
+function uploadLegacyState(saved: SavedScan) {
+  if (saved.ui_state) return;
   const key = STATE_KEY(saved.scan_id);
-  let local: ScanUiState | null = null;
-  try { local = fits(JSON.parse(localStorage.getItem(key) ?? 'null')); } catch { /* corrupt: ignore */ }
-  if (local) {
-    saveScanState(saved.scan_id, local).then(
-      () => { try { localStorage.removeItem(key); } catch { /* ignore */ } },
-      () => { /* kept; uploaded on the next load */ },
-    );
-  }
-  return local;
+  let local: unknown = null;
+  try { local = JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { /* corrupt: ignore */ }
+  if (!local) return;
+  const state = normalizeUiState(local, saved.cards);
+  saved.ui_state = state;
+  saveScanState(saved.scan_id, state).then(
+    () => { try { localStorage.removeItem(key); } catch { /* ignore */ } },
+    () => { /* kept; uploaded on the next load */ },
+  );
 }
 
 function batchFromSavedScan(saved: SavedScan): Batch {
   const n = saved.cards.length;
-  const state = savedState(saved) ?? freshState(saved.cards);
   return {
     id: `s${saved.scan_id}`,
     scanId: saved.scan_id,
@@ -135,13 +117,7 @@ function batchFromSavedScan(saved: SavedScan): Batch {
       height: saved.height,
       cards: saved.cards,
     },
-    isFoil: state.isFoil,
-    priceOverride: state.priceOverride,
-    quantity: state.quantity,
-    multOverride: state.multOverride,
-    removed: state.removed,
-    // Older saves predate pill offsets.
-    pillOffset: state.pillOffset?.length === n ? state.pillOffset : new Array(n).fill(null),
+    ...normalizeUiState(saved.ui_state, saved.cards),
     relookupBusy: new Array(n).fill(false),
     relookupMsg: new Array(n).fill(null),
   };
@@ -202,10 +178,11 @@ export function useScanner() {
           const page = await fetchScans(before);
           if (cancelled) return;
           page.forEach(s => serverIds.add(s.scan_id));
+          const kept = page.filter(s => !tombstones.has(s.scan_id));
+          kept.forEach(uploadLegacyState);
           // Older pages go in front: newest is at the END of the array
           // (matches "append on upload" UX).
-          const older = page.filter(s => !tombstones.has(s.scan_id)).reverse().map(batchFromSavedScan);
-          setBatches(prev => [...older, ...prev]);
+          setBatches(prev => [...kept.reverse().map(batchFromSavedScan), ...prev]);
           if (page.length < SCANS_PAGE) break;
           before = page[page.length - 1].scan_id;
         }
