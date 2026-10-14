@@ -6,9 +6,9 @@ A card can live in many posts (e.g. it was re-listed in a follow-up drop), so
 the listings relationship goes through the listing_post_links join table."""
 
 import enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Enum, ForeignKey, String, Text
+from sqlalchemy import JSON, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
@@ -50,6 +50,10 @@ class Post(Base, TimestampMixin):
     # On-disk reminder image — saved by the upload endpoint, not the user's hand
     image_path: Mapped[str | None] = mapped_column(String(512))
     image_mime: Mapped[str | None] = mapped_column(String(64))
+
+    # The frontend's pricing settings for this post's photos, opaque to the
+    # backend. NULL = follow the user's default (User.pricing).
+    pricing: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     user: Mapped["User"] = relationship(back_populates="posts")
     listings: Mapped[list["Listing"]] = relationship(
