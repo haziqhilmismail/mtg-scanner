@@ -51,12 +51,14 @@ export function PricingSheet({ open, onClose, pricing, health, t }: Props) {
           <button type="button" className="feedback-close" onClick={onClose} aria-label={t('voucher_close')}>×</button>
         </div>
         <p className="feedback-sub">{t('pricing_default_sub')}</p>
-        <PricingFields
-          settings={pricing.pricingFor(null)}
-          update={(key, value) => pricing.update(null, key, value)}
-          t={t}
-          health={health}
-        />
+        {pricing.pricingKnown(null) ? (
+          <PricingFields
+            settings={pricing.pricingFor(null)}
+            update={(key, value) => pricing.update(null, key, value)}
+            t={t}
+            health={health}
+          />
+        ) : null}
         <div className="feedback-foot">
           <button type="button" className="accent" onClick={onClose}>{t('voucher_done')}</button>
         </div>

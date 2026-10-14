@@ -53,3 +53,30 @@ export function legacyPricing(raw: string | null, versionRaw: string | null): Se
 export function defaultToUpload(serverDefault: Settings | null | undefined, legacy: Settings | null): Settings | null {
   return serverDefault == null ? legacy : null;
 }
+
+// What the page knows: the user's default (null = none set, the built-in
+// default applies) and each post's own pricing (null = follows the default).
+export interface PricingState {
+  userDefault: Settings | null;
+  // Whether /me has said what the default is.
+  defaultKnown: boolean;
+  // Posts from the server's post lists (and posts made here).
+  posts: Record<number, Settings | null>;
+}
+
+// Whether a post's (or, for null, the default's) pricing is known. Unknown,
+// its prices show the default, but it can't be edited: a save replaces the
+// whole pricing, so it would wipe the fields the server has and this page doesn't.
+export const pricingKnown = (s: PricingState, postId: number | null) =>
+  postId == null ? s.defaultKnown : postId in s.posts;
+
+// The state with one setting of a post's (or the default's) pricing changed,
+// and the pricing to save; null while that pricing isn't known.
+export function editPricing<K extends keyof Settings>(
+  s: PricingState, postId: number | null, key: K, value: Settings[K],
+): { state: PricingState; pricing: Settings } | null {
+  if (!pricingKnown(s, postId)) return null;
+  const pricing = { ...resolvePricing(postId != null ? s.posts[postId] : null, s.userDefault), [key]: value };
+  const state = postId != null ? { ...s, posts: { ...s.posts, [postId]: pricing } } : { ...s, userDefault: pricing };
+  return { state, pricing };
+}
