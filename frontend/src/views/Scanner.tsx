@@ -86,15 +86,18 @@ export function Scanner({ scanner, userId, settings, updateSetting, health, t, l
   // "added" memory and re-running Add-all becomes a no-op instead of a
   // silent duplicate. Initialised eagerly from localStorage.
   const [addedByScanId, setAddedByScanId] = useState(() => loadAdded(userId));
-  // Once every saved scan has loaded, take over markers kept before they were
-  // per user and forget the markers of deleted scans (once, not on every edit
-  // of the list).
+  // As each page of saved scans arrives, take over its markers kept before
+  // they were per user, so Add-all on it already skips them. Once every page
+  // has loaded, also forget the markers of deleted scans; then stop (not on
+  // every edit of the list).
+  const addedSettled = useRef(false);
   useEffect(() => {
-    if (scanner.loadingSaved) return;
-    settleAdded(userId, new Set(scanner.batches.map(b => b.scanId)), true);
-    setAddedByScanId(loadAdded(userId));
+    if (addedSettled.current) return;
+    const done = !scanner.loadingSaved;
+    if (settleAdded(userId, new Set(scanner.batches.map(b => b.scanId)), done) || done) setAddedByScanId(loadAdded(userId));
+    addedSettled.current = done;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanner.loadingSaved]);
+  }, [scanner.batches, scanner.loadingSaved]);
 
   // Synchronous re-entry guard for per-batch Add-all. A ref (not state)
   // because React state updates are async — a fast double-click can fire
