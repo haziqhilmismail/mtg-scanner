@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, normalizeUiState, notAdded } from './utils.ts';
+import type { Listing } from './api/checklist.ts';
+import { applyRounding, computeCardData, normalizeUiState, notAdded, sortListings, type ListingSort } from './utils.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
@@ -86,4 +87,17 @@ test('a photo still has to add its priced, kept cards that are not listed', () =
   };
   // Listed, not added, removed, priced at zero.
   assert.deepEqual(notAdded(batch, computeCardData(batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
+});
+
+test("a post's cards sort by date added either way, or by name with ties newest first", () => {
+  const listings = [
+    ['Opt', '2026-10-02T09:00:00'],
+    ['brainstorm', '2026-10-03T09:00:00'],
+    ['Opt', '2026-10-04T09:00:00'],
+    ['Abrade', '2026-10-01T09:00:00'],
+  ].map(([name, created_at], id) => ({ id, name, created_at }) as Listing);
+  const ids = (sort: ListingSort) => sortListings(listings, sort).map(l => l.id);
+  assert.deepEqual(ids('newest'), [2, 1, 0, 3]);
+  assert.deepEqual(ids('oldest'), [3, 0, 1, 2]);
+  assert.deepEqual(ids('name'), [3, 1, 2, 0]);
 });

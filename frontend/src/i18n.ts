@@ -631,6 +631,10 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_post_action_delete: 'Delete',
     ck_post_collapse: 'Hide cards ({n})',
     ck_post_expand: 'Show cards ({n})',
+    ck_post_sort: 'Sort',
+    ck_post_sort_newest: 'Newest added',
+    ck_post_sort_oldest: 'Oldest added',
+    ck_post_sort_name: 'Name (A–Z)',
     ck_post_no_cards: 'No cards in this post yet — click "+ Add cards (bulk)" or create a single listing with this post selected.',
     ck_post_delete_confirm: 'Delete post "{title}"? Cards inside will be unlinked but kept.',
 
@@ -1293,6 +1297,10 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     ck_post_action_delete: 'Padam',
     ck_post_collapse: 'Sembunyi kad ({n})',
     ck_post_expand: 'Tunjuk kad ({n})',
+    ck_post_sort: 'Susun',
+    ck_post_sort_newest: 'Terbaru ditambah',
+    ck_post_sort_oldest: 'Terawal ditambah',
+    ck_post_sort_name: 'Nama (A–Z)',
     ck_post_no_cards: 'Belum ada kad dalam post ini — klik "+ Tambah kad (borong)" atau cipta satu senarai dengan post ini dipilih.',
     ck_post_delete_confirm: 'Padam post "{title}"? Kad di dalam akan dilepaskan tapi dikekalkan.',
 

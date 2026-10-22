@@ -1,7 +1,7 @@
 import { Icon } from '../Icon.tsx';
 import { useState } from 'react';
 import { postsApi, type Listing, type Post } from '../../api/checklist.ts';
-import { upgradeScryfallImage } from '../../utils.ts';
+import { LISTING_SORTS, sortListings, upgradeScryfallImage, type ListingSort } from '../../utils.ts';
 import { useDialog } from '../DialogProvider.tsx';
 import { useImageZoom } from '../ImageZoomProvider.tsx';
 import type { PricingStore } from '../../hooks/usePricing.ts';
@@ -160,6 +160,7 @@ function PostCard({
   const dialog = useDialog();
   const zoom = useImageZoom();
   const [expanded, setExpanded] = useState(listings.length > 0 && listings.length <= 6);
+  const [sort, setSort] = useState<ListingSort>('newest');
   const imgSrc = post.has_image ? postsApi.imageUrl(post.id) : null;
   const isInactive = post.status === 'inactive';
   const isArchived = post.status === 'archived';
@@ -236,11 +237,21 @@ function PostCard({
 
       {expanded && (
         <div className="post-listings">
+          {listings.length > 1 && (
+            <label className="post-sort">
+              <span>{t('ck_post_sort')}</span>
+              <select value={sort} onChange={e => setSort(e.target.value as ListingSort)}>
+                {(Object.keys(LISTING_SORTS) as ListingSort[]).map(s => (
+                  <option key={s} value={s}>{t(`ck_post_sort_${s}`)}</option>
+                ))}
+              </select>
+            </label>
+          )}
           {listings.length === 0 ? (
             <div style={{ fontSize: 13,
               color: 'var(--ink-soft)', padding: 14, textAlign: 'center',
             }}>{t('ck_post_no_cards')}</div>
-          ) : listings.map(l => {
+          ) : sortListings(listings, sort).map(l => {
             const archived = l.status === 'archived';
             return (
               <div key={l.id} className={`post-listing-row${archived ? ' archived' : ''}`}>

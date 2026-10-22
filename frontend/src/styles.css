@@ -2019,6 +2019,8 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
   padding: 8px;
   display: flex; flex-direction: column; gap: 6px;
 }
+.post-sort { display: flex; align-items: center; gap: 8px; align-self: flex-end; font-size: 13px; color: var(--ink-soft); }
+.post-sort select { font-size: 15px; background-color: var(--paper); }
 .post-listing-row {
   display: grid;
   grid-template-columns: 36px 1fr auto auto;
