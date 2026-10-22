@@ -21,8 +21,9 @@ on:
   workflow_dispatch:
 
 env:
-  # Tailscale Funnel URL for the homeserver backend (no trailing slash).
-  BACKEND_URL: https://home-server.example.ts.net
+  # Tailscale Funnel URL for the homeserver backend (no trailing slash). Port
+  # 10000, because port 443 on tower serves another app on the tailnet only.
+  BACKEND_URL: https://home-server.example.ts.net:10000
 
 jobs:
   refresh:
