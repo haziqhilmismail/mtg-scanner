@@ -122,7 +122,8 @@ export function listingFields(cd: CardRowData) {
   };
 }
 
-const newestFirst = (a: Listing, b: Listing) => Date.parse(b.created_at) - Date.parse(a.created_at);
+// created_at is to the second, so cards added together tie; a higher id was added later.
+const newestFirst = (a: Listing, b: Listing) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id;
 
 export const LISTING_SORTS = {
   newest: newestFirst,
