@@ -1,4 +1,4 @@
-import { upgradeScryfallImage } from '../utils.ts';
+import { smallScryfallImage, upgradeScryfallImage } from '../utils.ts';
 
 interface Props {
   cropB64: string;
@@ -30,7 +30,8 @@ export function CompareImages({
       <div className="compare-cell match">
         {matchUrl ? (
           <img
-            src={matchUrl}
+            key={matchUrl}
+            src={smallScryfallImage(matchUrl)}
             alt=""
             loading="lazy"
             onClick={() => onZoom(upgradeScryfallImage(matchUrl), zoomMatchCaption)}

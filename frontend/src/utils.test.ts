@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, normalizeUiState, notAdded, sortPhotos, type PhotoSort } from './utils.ts';
+import { applyRounding, computeCardData, matchThumbs, normalizeUiState, notAdded, sortPhotos, type PhotoSort } from './utils.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
@@ -103,4 +103,19 @@ test("a post's photos sort newest or oldest with unsaved ones newest, or by name
   assert.equal(ids('newest'), '3,4,2,0,5,1');
   assert.equal(ids('oldest'), '1,5,0,2,3,4');
   assert.equal(ids('name'), '4,2,1,5,0,3');
+});
+
+test('match thumbnails are the small image of each top candidate, without the empty ones', () => {
+  const card = (image_url?: string) => ({ candidates: image_url === undefined ? [] : [{ image_url } as Candidate] } as unknown as DetectedCard);
+  const batch = { response: { cards: [
+    card('https://cards.scryfall.io/normal/front/a/b/ab.jpg?1'),
+    card(''),
+    card(),
+    card('https://cards.scryfall.io/large/front/c/d/cd.jpg?2'),
+  ] } } as Batch;
+  assert.deepEqual(matchThumbs(batch), [
+    'https://cards.scryfall.io/small/front/a/b/ab.jpg?1',
+    'https://cards.scryfall.io/small/front/c/d/cd.jpg?2',
+  ]);
+  assert.deepEqual(matchThumbs({ response: null } as Batch), []);
 });
