@@ -136,6 +136,10 @@ export interface ScanUiState {
   pillOffset: (PillOffset | null)[];
   // The seller said an unsure printing guess (see CardRow) is right.
   versionOk: boolean[];
+  // A card's new first candidate (another printing, a name search, "use as
+  // is") not yet written into the saved scan. The server moves it there and
+  // drops it from the saved state.
+  picks: (Candidate | null)[];
   // Raised on every save so the server ignores a save that arrives after a
   // newer one. Not a per-card field.
   rev?: number;

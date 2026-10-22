@@ -540,6 +540,8 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
       _lookup_failed: false,
       _manual: false,
     });
+    // The seller chose this printing, so the "check the version" notice is answered.
+    scanner.confirmVersion(printingsCtx.batchId, printingsCtx.idx);
     scanner.setRelookupMsg(printingsCtx.batchId, printingsCtx.idx, {
       type: 'ok',
       text: t('modal_switched', { name: printing.set_name || printing.set || '' }),

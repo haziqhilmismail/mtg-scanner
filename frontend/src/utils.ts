@@ -1,4 +1,4 @@
-import type { Batch, CardRowData, Credits, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
+import type { Batch, Candidate, CardRowData, Credits, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
 import type { T } from './i18n.ts';
 
 export function fmt2(n: number | null | undefined): string {
@@ -251,6 +251,7 @@ export function freshState(cards: DetectedCard[]): ScanUiState {
     removed: new Array(n).fill(false),
     pillOffset: new Array(n).fill(null),
     versionOk: new Array(n).fill(false),
+    picks: new Array(n).fill(null),
   };
 }
 
@@ -262,6 +263,7 @@ const VALID: { [K in Exclude<keyof ScanUiState, 'rev'>]: (v: unknown) => boolean
   removed: v => typeof v === 'boolean',
   pillOffset: v => v === null || (Number.isFinite((v as PillOffset)?.dx) && Number.isFinite((v as PillOffset)?.dy)),
   versionOk: v => typeof v === 'boolean',
+  picks: v => v === null || typeof (v as Candidate)?.name === 'string',
 };
 
 // A scan's saved per-card state, made safe to use: one entry per card, each

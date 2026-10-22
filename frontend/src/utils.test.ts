@@ -37,7 +37,7 @@ test('a price box holding only "." is no price, not RM0', () => {
   const batch: Batch = {
     id: 'b', scanId: 1, postId: null, listed: [], filename: '', status: 'done',
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ candidates: [sel] } as DetectedCard] },
-    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false],
+    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false], picks: [null],
     relookupBusy: [false], relookupMsg: [null],
   };
   const settings = { ...DEFAULT_SETTINGS, multNormal: 3 };
@@ -57,6 +57,7 @@ test('saved per-card state is fitted to the cards, entry by entry', () => {
     multOverride: [null, 2.5],
     removed: 'no',
     pillOffset: [{ dx: 1, dy: 2 }, { dx: 'x', dy: 0 }],
+    picks: [{ name: 'Sol Ring', set: 'c21' }, 'Sol Ring', { set: 'c21' }],
     rev: 1700000000000,
   };
   assert.deepEqual(normalizeUiState(saved, cards), {
@@ -67,6 +68,7 @@ test('saved per-card state is fitted to the cards, entry by entry', () => {
     removed: [false, false, false],
     pillOffset: [{ dx: 1, dy: 2 }, null, null],
     versionOk: [false, false, false],
+    picks: [{ name: 'Sol Ring', set: 'c21' }, null, null],
     rev: 1700000000000,
   });
   assert.deepEqual(normalizeUiState(null, [card(true)]).isFoil, [true]);
@@ -82,7 +84,7 @@ test('a photo still has to add its priced, kept cards that are not listed', () =
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [card(0), card(10), card(20), card(30)] },
     isFoil: [false, false, false, false], priceOverride: [null, null, null, '0'], quantity: [1, 1, 1, 1],
     multOverride: [null, null, null, null], removed: [false, false, true, false], pillOffset: [null, null, null, null],
-    versionOk: [false, false, false, false], relookupBusy: [], relookupMsg: [],
+    versionOk: [false, false, false, false], picks: [null, null, null, null], relookupBusy: [], relookupMsg: [],
   };
   // Listed, not added, removed, priced at zero.
   assert.deepEqual(notAdded(batch, computeCardData(batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);

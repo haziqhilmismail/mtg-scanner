@@ -86,6 +86,7 @@ function uiStateOf(b: Batch): ScanUiState {
     removed: b.removed,
     pillOffset: b.pillOffset,
     versionOk: b.versionOk,
+    picks: b.picks,
   };
 }
 
@@ -307,7 +308,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
       status: 'scanning',
       response: null,
       isFoil: [], priceOverride: [], quantity: [],
-      multOverride: [], removed: [], pillOffset: [], versionOk: [],
+      multOverride: [], removed: [], pillOffset: [], versionOk: [], picks: [],
       relookupBusy: [], relookupMsg: [],
     }));
     commit(prev => [...prev, ...stubs]);
@@ -443,6 +444,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
           removed: [...b.removed, false],
           pillOffset: [...b.pillOffset, null],
           versionOk: [...b.versionOk, false],
+          picks: [...b.picks, null],
           relookupBusy: [...b.relookupBusy, false],
           relookupMsg: [...b.relookupMsg, isManual
             ? { type: 'err', text: 'no match — type a name to look it up', action: 'use as-is' }
@@ -473,7 +475,8 @@ export function useScanner(userId: number | null, signOut: () => void) {
     commit(prev =>
       prev.map(b => {
         if (b.id !== batchId || !b.response) return b;
-        return { ...b, response: { ...b.response, cards } };
+        // The server's cards already hold every pick it got; resending one would undo its new price.
+        return { ...b, response: { ...b.response, cards }, picks: cards.map(() => null) };
       }),
     );
   }, []);
@@ -488,7 +491,9 @@ export function useScanner(userId: number | null, signOut: () => void) {
         );
         const priceOverride = [...b.priceOverride];
         priceOverride[idx] = null;
-        return { ...b, response: { ...b.response, cards }, priceOverride };
+        const picks = [...b.picks];
+        picks[idx] = c;
+        return { ...b, response: { ...b.response, cards }, priceOverride, picks };
       }),
     );
   }, []);
