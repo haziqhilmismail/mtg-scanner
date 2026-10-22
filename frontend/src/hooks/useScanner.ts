@@ -133,7 +133,11 @@ export function useScanner(userId: number | null, signOut: () => void) {
   // orders a scan's saves by rev, so they may overlap.
   const { queue: saves, later: flushLater, flush: flushSaves } = useSaveQueue<number, ScanUiState>(
     (scanId, state, final, rev) => saveScanState(scanId, { ...state, rev }, final),
-    scanId => { try { localStorage.removeItem(STATE_KEY(scanId)); } catch { /* ignore */ } },
+    scanId => {
+      try { localStorage.removeItem(STATE_KEY(scanId)); } catch { /* ignore */ }
+      // The server has written the picks into the scan; sending them again would only rewrite it.
+      if (!saves.busy(scanId)) commit(prev => prev.map(b => (b.scanId === scanId && b.picks.some(Boolean) ? { ...b, picks: b.picks.map(() => null) } : b)));
+    },
     () => setNotice('scans_save_failed'),
   );
 
@@ -475,8 +479,9 @@ export function useScanner(userId: number | null, signOut: () => void) {
     commit(prev =>
       prev.map(b => {
         if (b.id !== batchId || !b.response) return b;
-        // The server's cards already hold every pick it got; resending one would undo its new price.
-        return { ...b, response: { ...b.response, cards }, picks: cards.map(() => null) };
+        // Picks are cleared once saved, so one still here has not reached the server's cards yet.
+        const picked = cards.map((card, i) => (b.picks[i] ? { ...card, candidates: [b.picks[i]!, ...card.candidates.slice(1)] } : card));
+        return { ...b, response: { ...b.response, cards: picked } };
       }),
     );
   }, []);
