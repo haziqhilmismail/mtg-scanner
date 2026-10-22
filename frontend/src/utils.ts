@@ -1,5 +1,6 @@
 import type { Batch, CardRowData, Credits, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
 import type { T } from './i18n.ts';
+import type { Listing } from './api/checklist.ts';
 
 export function fmt2(n: number | null | undefined): string {
   if (n == null || isNaN(n as number)) return '—';
@@ -120,6 +121,17 @@ export function listingFields(cd: CardRowData) {
     qty_total: cd.qty,
   };
 }
+
+const newestFirst = (a: Listing, b: Listing) => Date.parse(b.created_at) - Date.parse(a.created_at);
+
+export const LISTING_SORTS = {
+  newest: newestFirst,
+  oldest: (a: Listing, b: Listing) => -newestFirst(a, b),
+  name: (a: Listing, b: Listing) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || newestFirst(a, b),
+};
+export type ListingSort = keyof typeof LISTING_SORTS;
+
+export const sortListings = (listings: Listing[], sort: ListingSort) => [...listings].sort(LISTING_SORTS[sort]);
 
 // Scryfall stores multiple sizes; for zoom we want the higher-res "large" variant
 export function upgradeScryfallImage(url: string): string {
