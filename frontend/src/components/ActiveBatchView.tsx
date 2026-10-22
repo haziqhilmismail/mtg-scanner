@@ -4,7 +4,7 @@ import { frameCard } from '../api.ts';
 import { listingsApi } from '../api/checklist.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { bboxKey, computeCardData, formatMyr, listingFields, notAdded } from '../utils.ts';
+import { bboxKey, canRetry, computeCardData, formatMyr, listingFields, notAdded } from '../utils.ts';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow } from './CardRow.tsx';
 import { useDialog } from './DialogProvider.tsx';
@@ -64,6 +64,7 @@ export function ActiveBatchView({
     );
   }
   if (batch.status === 'error' || !batch.response) {
+    const failed = scanner.batches.filter(canRetry);
     return (
       <div className="batch-image">
         <div className="batch-image-head">
@@ -75,6 +76,18 @@ export function ActiveBatchView({
         <p className="status error">
           {batch.outOfCredits ? t('scan_no_credits') : (batch.error || t('unknown_error'))}
         </p>
+        {canRetry(batch) && (
+          <div className="finalize-action-row">
+            <button type="button" className="accent" onClick={() => scanner.retryBatches([batch.id])}>
+              <Icon name="refresh" size={18} />{t('scan_retry')}
+            </button>
+            {failed.length > 1 && (
+              <button type="button" onClick={() => scanner.retryBatches(failed.map(b => b.id))}>
+                {t('scan_retry_all', { n: failed.length })}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

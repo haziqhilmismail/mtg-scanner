@@ -147,6 +147,9 @@ export interface Batch extends ScanUiState {
   postId: number | null;          // the post this photo is filed under; null = unfiled
   listed: string[];               // bboxKey of each card on the checklist (added to the post)
   filename: string;
+  // The photo picked in this session, kept until it scans so a failed scan
+  // can be retried.
+  file?: File;
   status: 'scanning' | 'done' | 'error';
   // Set with status 'error' when the server refused the scan for lack of
   // credits, so the UI can say that instead of showing a failure.
