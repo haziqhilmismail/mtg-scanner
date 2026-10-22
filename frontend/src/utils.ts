@@ -1,6 +1,5 @@
 import type { Batch, CardRowData, Credits, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
 import type { T } from './i18n.ts';
-import type { Listing } from './api/checklist.ts';
 
 export function fmt2(n: number | null | undefined): string {
   if (n == null || isNaN(n as number)) return '—';
@@ -122,17 +121,19 @@ export function listingFields(cd: CardRowData) {
   };
 }
 
-// created_at is to the second, so cards added together tie; a higher id was added later.
-const newestFirst = (a: Listing, b: Listing) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id;
+// A photo still scanning (or failed before saving) has no scanId yet and counts as newest; `|| 0` ties two of them.
+const newestFirst = (a: Batch, b: Batch) => (b.scanId ?? Infinity) - (a.scanId ?? Infinity) || 0;
 
-export const LISTING_SORTS = {
+export const PHOTO_SORTS = {
   newest: newestFirst,
-  oldest: (a: Listing, b: Listing) => -newestFirst(a, b),
-  name: (a: Listing, b: Listing) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || newestFirst(a, b),
+  oldest: (a: Batch, b: Batch) => newestFirst(b, a),
+  name: (a: Batch, b: Batch) =>
+    a.filename.localeCompare(b.filename, undefined, { numeric: true, sensitivity: 'base' }) || newestFirst(a, b),
 };
-export type ListingSort = keyof typeof LISTING_SORTS;
+export type PhotoSort = keyof typeof PHOTO_SORTS;
 
-export const sortListings = (listings: Listing[], sort: ListingSort) => [...listings].sort(LISTING_SORTS[sort]);
+export const sortPhotos = <T extends { batch: Batch }>(items: T[], sort: PhotoSort) =>
+  [...items].sort((a, b) => PHOTO_SORTS[sort](a.batch, b.batch));
 
 // Scryfall stores multiple sizes; for zoom we want the higher-res "large" variant
 export function upgradeScryfallImage(url: string): string {

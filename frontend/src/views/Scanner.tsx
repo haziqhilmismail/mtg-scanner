@@ -7,7 +7,7 @@ import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import { migrateAdded } from '../lib/addedMarkers.ts';
 import type { Batch, Candidate, Credits, Settings } from '../types.ts';
-import { computeCardData, downloadBlob, formatMyr, listingFields, notAdded, pillLabel } from '../utils.ts';
+import { computeCardData, downloadBlob, formatMyr, listingFields, notAdded, PHOTO_SORTS, pillLabel, sortPhotos, type PhotoSort } from '../utils.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 interface Folder {
@@ -242,6 +242,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
   // order doesn't shift under you as you fix things.
   const [navIds, setNavIds] = useState<string[]>([]);
   const [filter, setFilter] = useState<'all' | 'needs'>('all');
+  const [sort, setSort] = useState<PhotoSort>('newest');
   const [query, setQuery] = useState('');
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -299,8 +300,8 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
   const q = query.trim().toLowerCase();
   const matches = useCallback((s: BatchSummary) => !q || s.haystack.includes(q), [q]);
   const visibleItems = useMemo(
-    () => (openFolder?.items ?? []).filter(s => (filter === 'needs' ? s.needs > 0 : true)).filter(matches),
-    [openFolder, filter, matches],
+    () => sortPhotos((openFolder?.items ?? []).filter(s => (filter === 'needs' ? s.needs > 0 : true)).filter(matches), sort),
+    [openFolder, filter, matches, sort],
   );
   // The posts list leaves archived posts out; they wait in their own section.
   const liveFolders = useMemo(() => folders.filter(f => !f.archived), [folders]);
@@ -798,6 +799,11 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
                     </button>
                   </div>
                   {searchField}
+                  <select className="gallery-sort" value={sort} aria-label={t('scans_sort')} onChange={e => setSort(e.target.value as PhotoSort)}>
+                    {(Object.keys(PHOTO_SORTS) as PhotoSort[]).map(k => (
+                      <option key={k} value={k}>{t(`scans_sort_${k}`)}</option>
+                    ))}
+                  </select>
                   <button className="ghost" onClick={() => setSelecting(true)}>{t('scans_select')}</button>
                 </>
               )}

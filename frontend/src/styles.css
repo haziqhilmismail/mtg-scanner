@@ -569,6 +569,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .gallery-bar-count { font-size: 15px; font-weight: 600; margin-right: auto; }
 .gallery-filter { flex: none; }
 .gallery-move { flex: 1 1 200px; min-width: 0; font-size: 15px; background-color: var(--paper); }
+.gallery-sort { flex: none; font-size: 15px; background-color: var(--paper); }
 .scan-search {
   flex: 1 1 200px; min-width: 0; max-width: 360px;
   display: flex; align-items: center; gap: 6px; padding: 0 10px;
@@ -2019,8 +2020,6 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
   padding: 8px;
   display: flex; flex-direction: column; gap: 6px;
 }
-.post-sort { display: flex; align-items: center; gap: 8px; align-self: flex-end; font-size: 13px; color: var(--ink-soft); }
-.post-sort select { font-size: 15px; background-color: var(--paper); }
 .post-listing-row {
   display: grid;
   grid-template-columns: 36px 1fr auto auto;
