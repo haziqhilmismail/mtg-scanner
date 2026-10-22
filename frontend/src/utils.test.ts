@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import type { Listing } from './api/checklist.ts';
-import { applyRounding, computeCardData, normalizeUiState, notAdded, sortListings, type ListingSort } from './utils.ts';
+import { applyRounding, computeCardData, normalizeUiState, notAdded, sortPhotos, type PhotoSort } from './utils.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
@@ -89,16 +88,17 @@ test('a photo still has to add its priced, kept cards that are not listed', () =
   assert.deepEqual(notAdded(batch, computeCardData(batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
 });
 
-test("a post's cards sort by date added either way, or by name with ties newest first; same-second adds go by id", () => {
-  const listings = [
-    ['Opt', '2026-10-02T09:00:00'],
-    ['brainstorm', '2026-10-03T09:00:00'],
-    ['Opt', '2026-10-04T09:00:00'],
-    ['Abrade', '2026-10-01T09:00:00'],
-    ['Bolt', '2026-10-01T09:00:00'],
-  ].map(([name, created_at], id) => ({ id, name, created_at }) as Listing);
-  const ids = (sort: ListingSort) => sortListings(listings, sort).map(l => l.id);
-  assert.deepEqual(ids('newest'), [2, 1, 0, 4, 3]);
-  assert.deepEqual(ids('oldest'), [3, 4, 0, 1, 2]);
-  assert.deepEqual(ids('name'), [3, 4, 1, 2, 0]);
+test("a post's photos sort newest or oldest with unsaved ones newest, or by name in number order with ties newest first", () => {
+  const items = ([
+    ['IMG_10.jpg', 3],
+    ['img_2.jpg', 1],
+    ['IMG_2.JPG', 4],
+    ['Opt.jpg', null],
+    ['Bolt.jpg', null],
+    ['IMG_9.jpg', 2],
+  ] as const).map(([filename, scanId], i) => ({ batch: { id: String(i), filename, scanId } as Batch }));
+  const ids = (sort: PhotoSort) => sortPhotos(items, sort).map(s => s.batch.id).join(',');
+  assert.equal(ids('newest'), '3,4,2,0,5,1');
+  assert.equal(ids('oldest'), '1,5,0,2,3,4');
+  assert.equal(ids('name'), '4,2,1,5,0,3');
 });
