@@ -89,15 +89,16 @@ test('a photo still has to add its priced, kept cards that are not listed', () =
   assert.deepEqual(notAdded(batch, computeCardData(batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
 });
 
-test("a post's cards sort by date added either way, or by name with ties newest first", () => {
+test("a post's cards sort by date added either way, or by name with ties newest first; same-second adds go by id", () => {
   const listings = [
     ['Opt', '2026-10-02T09:00:00'],
     ['brainstorm', '2026-10-03T09:00:00'],
     ['Opt', '2026-10-04T09:00:00'],
     ['Abrade', '2026-10-01T09:00:00'],
+    ['Bolt', '2026-10-01T09:00:00'],
   ].map(([name, created_at], id) => ({ id, name, created_at }) as Listing);
   const ids = (sort: ListingSort) => sortListings(listings, sort).map(l => l.id);
-  assert.deepEqual(ids('newest'), [2, 1, 0, 3]);
-  assert.deepEqual(ids('oldest'), [3, 0, 1, 2]);
-  assert.deepEqual(ids('name'), [3, 1, 2, 0]);
+  assert.deepEqual(ids('newest'), [2, 1, 0, 4, 3]);
+  assert.deepEqual(ids('oldest'), [3, 4, 0, 1, 2]);
+  assert.deepEqual(ids('name'), [3, 4, 1, 2, 0]);
 });
