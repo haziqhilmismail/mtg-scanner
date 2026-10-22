@@ -7,7 +7,7 @@ import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import { migrateAdded } from '../lib/addedMarkers.ts';
 import type { Batch, Candidate, Credits, Settings } from '../types.ts';
-import { computeCardData, downloadBlob, formatMyr, listingFields, notAdded, PHOTO_SORTS, pillLabel, sortPhotos, type PhotoSort } from '../utils.ts';
+import { computeCardData, downloadBlob, formatMyr, listingFields, matchThumbs, notAdded, PHOTO_SORTS, pillLabel, sortPhotos, type PhotoSort } from '../utils.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 interface Folder {
@@ -360,6 +360,14 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
     const next = liveNavIds[navIndex + delta];
     if (next) { replace({ photo: next }); window.scrollTo({ top: 0 }); }
   }, [liveNavIds, navIndex, replace]);
+
+  // Warm the cache with the next and previous photos' match images, so a step shows them at once.
+  const neighbourThumbs = (navIndex < 0 ? [] : [liveNavIds[navIndex - 1], liveNavIds[navIndex + 1]])
+    .flatMap(id => { const b = scanner.batches.find(x => x.id === id); return b ? matchThumbs(b) : []; })
+    .join('\n');
+  useEffect(() => {
+    for (const src of neighbourThumbs.split('\n')) if (src) new Image().src = src;
+  }, [neighbourThumbs]);
 
   // Keyboard shortcuts (never while typing in a field, or under a dialog):
   //   one photo   ← / → previous / next photo, Esc back to the post

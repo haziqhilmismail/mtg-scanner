@@ -141,13 +141,17 @@ export function upgradeScryfallImage(url: string): string {
   return url.replace('/normal/', '/large/').replace('/small/', '/large/');
 }
 
-// For dense grids (the printings modal) prefer the small variant — 146x204
-// JPEGs are ~30KB vs 125KB for normal, which avoids stutter when a card has
-// 50+ printings.
+// For thumbnails (the printings grid, a card's match image) prefer the small
+// variant — 146x204 JPEGs are ~12KB vs ~80KB for normal, which avoids stutter
+// when a card has 50+ printings.
 export function smallScryfallImage(url: string): string {
   if (!url) return url;
   return url.replace('/normal/', '/small/').replace('/large/', '/small/');
 }
+
+// The match thumbnails a photo shows, as CompareImages requests them.
+export const matchThumbs = (batch: Batch): string[] =>
+  (batch.response?.cards ?? []).map(c => c.candidates[0]?.image_url).filter((u): u is string => !!u).map(smallScryfallImage);
 
 // The images in a paste (Ctrl/⌘+V), named for when they were pasted.
 export function pastedImages(e: ClipboardEvent): File[] {
