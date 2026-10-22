@@ -107,6 +107,38 @@ def test_ui_state_round_trip(client):
     assert save({"rev": 9}) == 204 and save({"rev": True}) == 204 and state_of() == {"rev": True}  # a bool is not a rev
 
 
+def test_a_picked_printing_replaces_the_cards_guess(client):
+    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    sid = _scan(client, issue_session_token(uid)).json()["scan_id"]
+    saved = lambda: next(s for s in client.get("/api/scans?lite=1", headers=me).json() if s["scan_id"] == sid)
+    save = lambda state, who=me: client.patch(f"/api/scans/{sid}/state", json={"state": state}, headers=who).status_code
+    guess = saved()["cards"][0]["candidates"]
+    assert [c["scryfall_id"] for c in guess] == ["abc"]
+
+    pick = {"scryfall_id": "def", "name": "Sol Ring", "set": "c21"}
+    assert save({"rev": 5, "removed": [False], "picks": [pick]}) == 204
+    assert saved()["cards"][0]["candidates"] == [pick]
+    assert saved()["ui_state"] == {"rev": 5, "removed": [False]}
+
+    # Late save: neither its state nor its pick lands.
+    assert save({"rev": 4, "removed": [True], "picks": [{"scryfall_id": "old", "name": "Sol Ring"}]}) == 204
+    assert saved()["cards"][0]["candidates"] == [pick]
+    assert saved()["ui_state"] == {"rev": 5, "removed": [False]}
+
+    # No pick (null) keeps the saved one.
+    assert save({"rev": 6, "picks": [None]}) == 204
+    assert saved()["cards"][0]["candidates"] == [pick]
+    assert saved()["ui_state"] == {"rev": 6}
+
+    for bad in ({"x": 1}, [pick, pick], ["Sol Ring"], [{"name": 3}], [{}]):
+        assert save({"rev": 7, "picks": bad}) == 400, bad
+    assert save({"rev": 7, "picks": [pick]}, them) == 404
+    assert saved()["ui_state"] == {"rev": 6}
+
+
 def test_ui_state_concurrent_saves_keep_the_newest(client):
     import httpx
 

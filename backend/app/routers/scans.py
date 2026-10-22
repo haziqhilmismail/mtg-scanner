@@ -88,20 +88,43 @@ class ScanState(BaseModel):
 @router.patch("/{scan_id}/state", status_code=204)
 async def save_scan_state(scan_id: int, body: ScanState, db: DbSession, user_id: CurrentUserId):
     """Store the seller's per-card edits for this scan. Last write wins, except
-    a state whose integer rev is below the stored one is ignored (late arrival)."""
+    a state whose integer rev is below the stored one is ignored (late arrival).
+
+    `picks` (one entry per card, null or a candidate) are printings the seller
+    chose for a card. They are not kept in ui_state: each one replaces the
+    card's first candidate in the saved scan, so every later read sees it."""
     scan_row = await db.get(Scan, scan_id)
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
     if len(json.dumps(body.state)) > 64 * 1024:
         raise HTTPException(413, "State too large (max 64 KB)")
+    state = dict(body.state)
+    picks = state.pop("picks", None)
+    if picks is not None and not (
+        isinstance(picks, list)
+        and len(picks) <= len((scan_row.gemini_raw or {}).get("cards", []))
+        and all(p is None or (isinstance(p, dict) and isinstance(p.get("name"), str)) for p in picks)
+    ):
+        raise HTTPException(400, "picks must be a list of null or a candidate with a name, one per card")
     # One conditional UPDATE, so two saves arriving together can't both pass a
     # read-then-compare and leave the older one stored.
-    rev = body.state.get("rev")
+    rev = state.get("rev")
     newer = Scan.id == scan_id
     if type(rev) is int:
         stored_is_int = func.coalesce(func.json_type(Scan.ui_state, "$.rev"), "") == "integer"
         newer = newer & ~(stored_is_int & (func.json_extract(Scan.ui_state, "$.rev") > rev))
-    await db.execute(update(Scan).where(newer).values(ui_state=body.state).execution_options(synchronize_session=False))
+    result = await db.execute(update(Scan).where(newer).values(ui_state=state).execution_options(synchronize_session=False))
+    if result.rowcount != 1 or not any(picks or []):  # most saves pick nothing: leave gemini_raw (and its photo) alone
+        return
+    # The UPDATE holds SQLite's write lock until the session commits, so this
+    # re-read and write can't interleave with another writer of this scan.
+    await db.refresh(scan_row, ["gemini_raw"])
+    payload = scan_row.gemini_raw
+    for card, pick in zip(payload["cards"], picks):
+        if pick is not None:
+            card["candidates"] = [pick, *(card.get("candidates") or [])[1:]]
+    scan_row.gemini_raw = payload
+    flag_modified(scan_row, "gemini_raw")
 
 
 class MoveScans(BaseModel):
