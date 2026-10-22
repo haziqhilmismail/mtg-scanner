@@ -11,7 +11,7 @@ import {
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
-import { bboxKey, freshState, generateBatchId, normalizeUiState } from '../utils.ts';
+import { bboxKey, canRetry, freshState, generateBatchId, normalizeUiState } from '../utils.ts';
 import type { T } from './useLang.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
 
@@ -247,42 +247,20 @@ export function useScanner(userId: number | null, signOut: () => void) {
     }
   }, []);
 
-  const addFiles = useCallback(async (files: File[], postId: number | null = null) => {
-    if (!files.length) return;
-    // Front-load every dropped file as a 'scanning' stub so the tab strip
-    // shows all N immediately. Without this, sequential awaits below mean
-    // file N+1's tab only appears once N finishes, which looks like
-    // "only 1 file uploaded" to the user.
-    const queued = files.map(file => ({
-      file,
-      id: generateBatchId(),
-    }));
-    const stubs: Batch[] = queued.map(({ file, id }) => ({
-      id,
-      scanId: null,
-      postId,
-      listed: [],
-      filename: file.name,
-      status: 'scanning',
-      response: null,
-      isFoil: [], priceOverride: [], quantity: [],
-      multOverride: [], removed: [], pillOffset: [], versionOk: [],
-      relookupBusy: [], relookupMsg: [],
-    }));
-    commit(prev => [...prev, ...stubs]);
-
-    setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + queued.length }));
+  // Queue one photo's scan, filed under postId. Used by a new drop and by a
+  // retry, so the scan runs the same way both times.
+  const queueScan = useCallback((id: string, file: File, postId: number | null) => {
     // The batch list is the only record of what happened to a photo while it
     // waited or scanned: gone means deleted, another postId means moved.
-    const current = (id: string) => batchesRef.current.find(b => b.id === id);
-    scanQueue.current.push(...queued.map(({ file, id }) => async () => {
-      if (!current(id)) return;
+    const current = () => batchesRef.current.find(b => b.id === id);
+    scanQueue.current.push(async () => {
+      if (!current()) return;
       try {
         const resp = await scanImage(file, postId);
         const n = resp.cards.length;
         // Server-side scan_id is what we'll persist UI state against
         const scanId = (resp as unknown as { scan_id?: number }).scan_id ?? null;
-        const b = current(id);
+        const b = current();
         if (!b) {
           if (scanId != null) deleteSaved(tombKey, scanId);
           return;
@@ -295,6 +273,8 @@ export function useScanner(userId: number | null, signOut: () => void) {
         }
         patchBatch(id, {
           status: 'done',
+          // Only a failed scan needs the photo again; let the memory go.
+          file: undefined,
           scanId,
           response: resp,
           ...freshState(resp.cards),
@@ -308,9 +288,47 @@ export function useScanner(userId: number | null, signOut: () => void) {
           outOfCredits: e instanceof OutOfCreditsError,
         });
       }
+    });
+  }, [patchBatch, tombKey]);
+
+  const addFiles = useCallback(async (files: File[], postId: number | null = null) => {
+    if (!files.length) return;
+    // Front-load every dropped file as a 'scanning' stub so the tab strip
+    // shows all N immediately. Without this, sequential awaits below mean
+    // file N+1's tab only appears once N finishes, which looks like
+    // "only 1 file uploaded" to the user.
+    const stubs: Batch[] = files.map(file => ({
+      id: generateBatchId(),
+      scanId: null,
+      postId,
+      listed: [],
+      filename: file.name,
+      file,
+      status: 'scanning',
+      response: null,
+      isFoil: [], priceOverride: [], quantity: [],
+      multOverride: [], removed: [], pillOffset: [], versionOk: [],
+      relookupBusy: [], relookupMsg: [],
     }));
+    commit(prev => [...prev, ...stubs]);
+
+    setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + stubs.length }));
+    stubs.forEach((b, i) => queueScan(b.id, files[i], postId));
     pumpScanQueue();
-  }, [commit, patchBatch, pumpScanQueue, tombKey]);
+  }, [commit, pumpScanQueue, queueScan]);
+
+  // Ids that canRetry rejects are skipped.
+  const retryBatches = useCallback((ids: string[]) => {
+    const retry = batchesRef.current.filter(canRetry).filter(b => ids.includes(b.id));
+    if (!retry.length) return;
+    const again = new Set(retry.map(b => b.id));
+    commit(prev => prev.map(b => (again.has(b.id)
+      ? { ...b, status: 'scanning', error: undefined, outOfCredits: undefined }
+      : b)));
+    setScanProgress(p => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + retry.length }));
+    retry.forEach(b => queueScan(b.id, b.file, b.postId));
+    pumpScanQueue();
+  }, [commit, pumpScanQueue, queueScan]);
 
   const toggleFoil = useCallback((batchId: string, idx: number) => {
     commit(prev =>
@@ -574,6 +592,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
     notice,
     clearNotice,
     addFiles,
+    retryBatches,
     scanProgress,
     removeBatch,
     moveBatches,

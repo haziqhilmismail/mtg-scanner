@@ -93,6 +93,12 @@ export function notAdded(batch: Batch, cards: CardRowData[]): CardRowData[] {
   return cards.filter(cd => !cd.removed && cd.unitPrice > 0 && !batch.listed.includes(bboxKey(cd.card.bbox)));
 }
 
+// A failed scan of a photo picked in this session can run again. Saved scans
+// loaded from the server have no file.
+export function canRetry(b: Batch): b is Batch & { file: File } {
+  return b.status === 'error' && b.file != null;
+}
+
 // What a scanned card becomes on the checklist. One function for adding a
 // card, adding a whole photo and saving claims, so they can't drift apart.
 // With no direct CK product URL the listing gets a CK search-by-name link.
