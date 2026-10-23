@@ -2,9 +2,11 @@
 // Big enough to recognise a scan by its picture, with the things worth
 // knowing before opening it (how many cards, what it's worth, what's wrong).
 
+import type { Route } from '../routes.ts';
 import type { Batch, Settings } from '../types.ts';
 import { computeCardData, formatMyr, notAdded } from '../utils.ts';
 import { Icon } from './Icon.tsx';
+import { Link } from './Link.tsx';
 import type { T } from '../hooks/useLang.ts';
 
 export interface BatchSummary {
@@ -82,12 +84,12 @@ interface PostTileProps {
   total: number;
   settings: Settings;
   t: T;
-  onOpen: () => void;
+  to: Route;
 }
 
-export function PostTile({ title, covers, photos, needs, pending, total, settings, t, onOpen }: PostTileProps) {
+export function PostTile({ title, covers, photos, needs, pending, total, settings, t, to }: PostTileProps) {
   return (
-    <button type="button" className="scan-tile" onClick={onOpen}>
+    <Link className="scan-tile" to={to}>
       <Cover srcs={covers} photos={photos} />
       <span className="scan-tile-body">
         <span className="scan-tile-title">{title}</span>
@@ -97,7 +99,7 @@ export function PostTile({ title, covers, photos, needs, pending, total, setting
         <NeedsBadge n={needs} t={t} />
         <PendingBadge text={pending > 0 ? t('scans_photos_not_added', { n: pending }) : null} />
       </span>
-    </button>
+    </Link>
   );
 }
 
@@ -109,11 +111,14 @@ interface PhotoTileProps {
   t: T;
   selecting: boolean;
   selected: boolean;
+  // The photo's page; null while it is still scanning and has none yet.
+  to: Route | null;
+  // Called as the link is followed.
   onOpen: () => void;
   onToggle: () => void;
 }
 
-export function PhotoTile({ summary, number, settings, t, selecting, selected, onOpen, onToggle }: PhotoTileProps) {
+export function PhotoTile({ summary, number, settings, t, selecting, selected, to, onOpen, onToggle }: PhotoTileProps) {
   const { batch, cards, needs, pending, total } = summary;
   const src = batch.response ? (batch.response.thumb_url ?? batch.response.image_b64) : null;
   let meta: string;
@@ -122,13 +127,8 @@ export function PhotoTile({ summary, number, settings, t, selecting, selected, o
   else if (batch.status === 'error') meta = t('tab_status_error');
   else meta = (cards === 1 ? t('tab_status_done_one') : t('tab_status_done', { n: cards }))
     + (total > 0 ? ` · ${formatMyr(total, settings)}` : '');
-  return (
-    <button
-      type="button"
-      className={`scan-tile ${selected ? 'is-selected' : ''}`}
-      aria-pressed={selecting ? selected : undefined}
-      onClick={selecting ? onToggle : onOpen}
-    >
+  const body = (
+    <>
       <span className={`scan-tile-img ${batch.status === 'scanning' ? 'is-scanning' : ''}`}>
         {src ? <img src={src} alt="" loading="lazy" /> : <Icon name="photo" size={28} />}
         {selecting ? (
@@ -148,6 +148,15 @@ export function PhotoTile({ summary, number, settings, t, selecting, selected, o
           <PendingBadge text={pending > 0 ? t('scans_cards_not_added', { n: pending }) : null} />
         )}
       </span>
-    </button>
+    </>
   );
+  if (selecting) {
+    return (
+      <button type="button" className={`scan-tile ${selected ? 'is-selected' : ''}`} aria-pressed={selected} onClick={onToggle}>
+        {body}
+      </button>
+    );
+  }
+  if (!to) return <div className="scan-tile">{body}</div>;
+  return <Link className="scan-tile" to={to} onClick={onOpen}>{body}</Link>;
 }

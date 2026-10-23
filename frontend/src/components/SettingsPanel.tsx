@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import type { ReactNode } from 'react';
 import type { Health } from '../api.ts';
+import type { Route } from '../routes.ts';
 import type { LabelPosition, FoilStyle, RoundDirection, RoundStep, Settings } from '../types.ts';
 import { useDecimalInput } from '../hooks/useDecimalInput.ts';
 import { Icon } from './Icon.tsx';
+import { Link } from './Link.tsx';
 import type { T } from '../hooks/useLang.ts';
-import { useBackClose } from '../hooks/useBackClose.ts';
 
 interface FieldsProps {
   settings: Settings;
@@ -159,56 +157,29 @@ export function PricingFields({ settings, update, t, health }: FieldsProps) {
   );
 }
 
-interface PanelProps {
+interface RowProps {
   title: string;
-  // For the one-line summary while folded.
+  // For the one-line summary.
   settings: Settings;
   t: T;
-  children: ReactNode;
+  // The pricing page.
+  to: Route;
 }
 
-// A pricing behind one button with its summary; set once per market night,
-// so the fields open in a popup only when someone wants to change them.
-export function SettingsPanel({ title, settings, t, children }: PanelProps) {
-  const [open, setOpen] = useState(false);
-  useBackClose(open, () => setOpen(false));
+// A pricing in one line, linking to its page: set once per market night.
+export function PricingRow({ title, settings, t, to }: RowProps) {
   const roundSummary = settings.roundDirection === 'none'
     ? t('round_none')
     : `${t(`round_dir_${settings.roundDirection}`)} ${t('round_to')} ${settings.currencyLabel} ${settings.roundStep}`;
   const summary = `×${settings.multNormal} · ${t('foil_on')} ×${settings.multFoil} · ${roundSummary}`;
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-
   return (
-    <>
-      <button type="button" className="pricing-button" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-        <Icon name="tag" size={18} />
-        <span className="pricing-button-text">
-          <strong>{title}</strong>
-          <span>{summary}</span>
-        </span>
-        <span className="pricing-button-edit">{t('pricing_edit')}</span>
-      </button>
-      {open ? createPortal(
-        <div className="feedback-overlay" onClick={() => setOpen(false)}>
-          <div className="feedback-modal pricing-sheet" role="dialog" aria-modal="true" aria-labelledby="post-pricing-title" onClick={e => e.stopPropagation()}>
-            <div className="feedback-head">
-              <h2 id="post-pricing-title">{title}</h2>
-              <button type="button" className="feedback-close" onClick={() => setOpen(false)} aria-label={t('voucher_close')}>×</button>
-            </div>
-            {children}
-            <div className="feedback-foot">
-              <button type="button" className="accent" onClick={() => setOpen(false)}>{t('voucher_done')}</button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      ) : null}
-    </>
+    <Link className="pricing-button" to={to}>
+      <Icon name="tag" size={18} />
+      <span className="pricing-button-text">
+        <strong>{title}</strong>
+        <span>{summary}</span>
+      </span>
+      <span className="pricing-button-edit">{t('pricing_edit')}</span>
+    </Link>
   );
 }

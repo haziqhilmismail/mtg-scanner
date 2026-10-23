@@ -5,19 +5,20 @@ import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
 import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
-import { PricingSheet } from './components/PricingSheet.tsx';
 import { TopTabs } from './components/TopTabs.tsx';
 import { PaymentSheet } from './components/PaymentSheet.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { TProvider, useLang } from './hooks/useLang.ts';
-import { useNav } from './hooks/useNav.ts';
+import { NavProvider, useNav } from './hooks/useNav.ts';
 import { usePricing } from './hooks/usePricing.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useTheme } from './hooks/useTheme.ts';
+import { POSTS, routeFolder } from './routes.ts';
 import type { Appearance, Credits, Lang } from './types.ts';
 import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
+import { PricingPage } from './views/PricingPage.tsx';
 import { Scanner } from './views/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
 
@@ -89,8 +90,10 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   const scanner = useScanner(auth.user?.id ?? null, auth.signOut);
 
   const navStore = useNav();
-  const { nav, go, replace, up } = navStore;
-  const view = nav.view;
+  const { route, go, replace } = navStore;
+  const page = route.page;
+  // A post, a photo and a post's pricing sit under Scanner.
+  const onScanner = page === 'posts' || page === 'post' || page === 'photo' || page === 'pricing';
   const [health, setHealth] = useState<Health | null>(null);
   const [healthErr, setHealthErr] = useState(false);
 
@@ -134,6 +137,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       (health?.cardkingdom_cards && !healthErr) ? 'ok' : healthErr ? 'err' : null;
 
   return (
+    <NavProvider value={navStore}>
     <DialogProvider>
     <ImageZoomProvider>
     <Header
@@ -149,22 +153,22 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         // Waiting edits go first: request() reads the token before it awaits.
         onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
         onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
-        onDefaultPricing={() => go({ sheet: 'pricing' })}
+        onDefaultPricing={() => go({ page: 'profile-pricing' })}
         onPaymentDetails={() => setPaymentOpen(true)}
-        onHome={() => go({ view: 'scanner', folder: null, photo: null })}
+        onHome={() => go(POSTS)}
       />
     <TopTabs
-      view={view === 'scanner' ? 'scanner' : 'claims'}
-      onChange={v => go({ view: v, photo: null })}
+      view={page === 'claims' ? 'claims' : 'scanner'}
+      onChange={v => go(v === 'scanner' ? POSTS : { page: 'claims', folder: routeFolder(route) })}
       scannerLabel={t('nav_scanner')}
       claimsLabel={t('nav_claims')}
     />
     <main className="wrap">
       {/* Both tabs stay mounted, so switching shows them at once instead of
           loading again; the hidden one ignores keys and paste. */}
-      <div hidden={view !== 'scanner'}>
+      <div hidden={!onScanner}>
         <Scanner
-          active={view === 'scanner'}
+          active={onScanner}
           scanner={scanner}
           nav={navStore}
           pricing={pricing}
@@ -173,21 +177,35 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           lang={lang}
         />
       </div>
-      <div hidden={view !== 'claims'}>
+      <div hidden={page !== 'claims'}>
         <Claims
-          active={view === 'claims'}
+          active={page === 'claims'}
           scanner={scanner}
           pricing={pricing}
           t={t}
           lang={lang}
-          folderKey={nav.folder}
-          onFolderChange={key => replace({ folder: key })}
+          folderKey={page === 'claims' ? route.folder : null}
+          onFolderChange={key => replace({ page: 'claims', folder: key })}
           credits={credits}
           onCredits={setCredits}
           payment={payment}
           onEnterVoucher={() => setVoucherOpen(true)}
         />
       </div>
+      {page === 'profile' ? (
+        <div className="review-head"><div className="review-title"><h2>{t('nav_profile')}</h2></div></div>
+      ) : null}
+      {page === 'profile-pricing' ? (
+        <PricingPage
+          postId={null}
+          title={t('menu_default_pricing')}
+          crumbs={[{ label: t('nav_profile'), to: { page: 'profile' } }, { label: t('menu_default_pricing') }]}
+          pricing={pricing}
+          health={health}
+          t={t}
+        />
+      ) : null}
+
       <footer className="foot">
         <span>{t('footer_left')}</span>
         <span>{t('footer_right')} · <a href="/privacy.html">{t('privacy_link')}</a></span>
@@ -203,10 +221,9 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       onRedeemed={setCredits}
       t={t}
     />
-    {/* A history level (see useNav), so back closes it instead of changing the page under it. */}
-    <PricingSheet open={nav.sheet === 'pricing'} onClose={up} pricing={pricing} health={health} t={t} />
     </ImageZoomProvider>
     </DialogProvider>
+    </NavProvider>
   );
 }
 
