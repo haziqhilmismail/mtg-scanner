@@ -91,20 +91,22 @@ def _search(shot_img: Image.Image, photo: Image.Image, width: int, scales) -> tu
 
 def locate_photo(
     shot: Image.Image, photos: dict[int, Image.Image],
-) -> tuple[int | None, tuple[int, int, int, int] | None]:
-    """Which of `photos` (by scan id) is shown in the screenshot, and where
-    (x, y, w, h). (None, None) when none is clearly there — comments only,
-    a photo half hidden behind the comment sheet, or two look-alikes."""
+) -> tuple[int | None, tuple[int, int, int, int] | None, bool]:
+    """Which of `photos` (by scan id) is shown in the screenshot, where (x, y,
+    w, h), and whether that is sure. Not sure: another photo scored almost as
+    well (a seller's photos often look alike), so it is only the best guess.
+    (None, None, False) when no photo is there — comments only, or a photo
+    half hidden behind the comment sheet."""
     if not photos:
-        return None, None
+        return None, None, False
     # Rank every candidate cheaply, then look properly at the front-runners.
     coarse = sorted(((_search(shot, img, _COARSE_W, _COARSE_SCALES)[0], sid) for sid, img in photos.items()), reverse=True)
     fine = sorted(((*_search(shot, photos[sid], _FINE_W, _FINE_SCALES), sid) for _, sid in coarse[:3]), key=lambda r: -r[0])
     score, box, sid = fine[0]
     runner_up = fine[1][0] if len(fine) > 1 else -1.0
-    if score >= MATCH_MIN_SCORE and score - runner_up >= MATCH_MIN_LEAD:
-        return sid, box
-    return None, None
+    if score >= MATCH_MIN_SCORE:
+        return sid, box, score - runner_up >= MATCH_MIN_LEAD
+    return None, None, False
 
 
 def _thread_region(shot: Image.Image, box: tuple[int, int, int, int] | None) -> Image.Image:
@@ -134,17 +136,18 @@ def decode_photos(data_urls: dict[int, str]) -> dict[int, Image.Image]:
 
 def read_screenshot(
     image_bytes: bytes, photos: dict[int, Image.Image] | None = None,
-) -> tuple[str, int | None]:
+) -> tuple[str, int | None, bool]:
     """OCR one screenshot of a comment thread. Returns (text, scan id of the
-    photo it shows or None). Raises ValueError if the bytes are not an image,
-    RuntimeError if Tesseract is missing or fails."""
+    photo it shows or None, whether that photo is sure; see locate_photo).
+    Raises ValueError if the bytes are not an image, RuntimeError if
+    Tesseract is missing or fails."""
     try:
         shot = Image.open(BytesIO(image_bytes))
         shot.load()
     except Exception:
         raise ValueError("Could not read that image")
     shot = ImageOps.exif_transpose(shot).convert("RGB")
-    scan_id, box = locate_photo(shot, photos or {})
+    scan_id, box, sure = locate_photo(shot, photos or {})
     img = _thread_region(shot, box).convert("L")
     # Tesseract wants dark text on a light page: flip dark-mode screenshots.
     if ImageStat.Stat(img).mean[0] < 110:
@@ -170,7 +173,7 @@ def read_screenshot(
     if out.returncode != 0:
         raise RuntimeError(f"Text recognition failed: {out.stderr.decode(errors='replace')[:200]}")
     lines = [ln.rstrip() for ln in out.stdout.decode(errors="replace").splitlines()]
-    return "\n".join(ln for ln in lines if ln.strip()), scan_id
+    return "\n".join(ln for ln in lines if ln.strip()), scan_id, sure
 
 
 # ---------- what the client tells us is on sale ----------

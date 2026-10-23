@@ -27,7 +27,7 @@ def _thread_png(lines, dark=False) -> bytes:
 @pytest.mark.skipif(shutil.which("tesseract") is None, reason="tesseract not installed")
 @pytest.mark.parametrize("dark", [False, True])
 def test_ocr_reads_light_and_dark_screenshots(dark):
-    text, scan_id = claims.read_screenshot(_thread_png(["Aiman Hakim", "nak no 3", "Siti Nurhaliza", "mine top left"], dark))
+    text, scan_id, _ = claims.read_screenshot(_thread_png(["Aiman Hakim", "nak no 3", "Siti Nurhaliza", "mine top left"], dark))
     assert scan_id is None
     assert "Aiman Hakim" in text and "nak no 3" in text and "mine top left" in text
 
@@ -44,19 +44,19 @@ def test_locates_the_right_photo_in_phone_and_pc_layouts():
     # Phone: the photo across the top, thread underneath.
     phone = Image.new("RGB", (1170, 2400), (36, 37, 38))
     phone.paste(photos[2].resize((1170, 878)), (0, 140))
-    sid, box = claims.locate_photo(phone, photos)
-    assert sid == 2 and abs(box[0]) < 15 and abs(box[1] - 140) < 15 and abs(box[2] - 1170) < 30
+    sid, box, sure = claims.locate_photo(phone, photos)
+    assert sid == 2 and sure and abs(box[0]) < 15 and abs(box[1] - 140) < 15 and abs(box[2] - 1170) < 30
     assert claims._thread_region(phone, box).size[1] < 1400          # the part under the photo
     # PC: photo viewer on the left, thread in a column on the right.
     pc = Image.new("RGB", (1920, 1080), (0, 0, 0))
     pc.paste(photos[3].resize((1300, 975)), (40, 52))
-    sid, box = claims.locate_photo(pc, photos)
+    sid, box, _ = claims.locate_photo(pc, photos)
     assert sid == 3
     assert claims._thread_region(pc, box).size[0] < 700              # the column beside the photo
     # No photo in the screenshot, or one we don't have: no match.
-    assert claims.locate_photo(Image.new("RGB", (1170, 2400), (36, 37, 38)), photos) == (None, None)
+    assert claims.locate_photo(Image.new("RGB", (1170, 2400), (36, 37, 38)), photos) == (None, None, False)
     assert claims.locate_photo(phone, {1: photos[1], 3: photos[3]})[0] is None
-    assert claims.locate_photo(phone, {}) == (None, None)
+    assert claims.locate_photo(phone, {}) == (None, None, False)
 
 
 def test_ocr_rejects_non_images():
@@ -139,13 +139,19 @@ def test_read_and_parse_endpoints(client, monkeypatch):
     seen_photos = []
     def fake_read(raw, photos):
         seen_photos.append(sorted(photos))
-        return f"page {len(raw)}", (sorted(photos)[0] if photos and len(raw) == 2 else None)
+        sid = sorted(photos)[0] if photos and len(raw) in (2, 6) else None
+        return f"page {len(raw)}", sid, len(raw) == 2
     monkeypatch.setattr(claims, "read_screenshot", fake_read)
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, headers=me).json()["scan_id"]
     r = client.post("/api/claims/read", headers=me, data={"scan_ids": f"{scan},999999"},
-                    files=[("images", ("1.png", b"aa", "image/png")), ("images", ("2.png", b"bbbb", "image/png"))])
-    assert r.json() == {"pages": [{"text": "page 2", "scan_id": scan}, {"text": "page 4", "scan_id": None}]}
-    assert seen_photos == [[scan], [scan]]          # only the caller's own scans are offered
+                    files=[("images", ("1.png", b"aa", "image/png")), ("images", ("2.png", b"bbbb", "image/png")),
+                           ("images", ("3.png", b"cccccc", "image/png"))])
+    assert r.json() == {"pages": [
+        {"text": "page 2", "scan_id": scan, "guess": None},      # sure
+        {"text": "page 4", "scan_id": None, "guess": None},      # no photo in it
+        {"text": "page 6", "scan_id": None, "guess": scan},      # a look-alike scored nearly as well
+    ]}
+    assert seen_photos == [[scan], [scan], [scan]]  # only the caller's own scans are offered
 
     seen = {}
     def fake_parse(text, photos, seller):
