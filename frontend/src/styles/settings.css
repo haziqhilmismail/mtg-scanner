@@ -1,0 +1,31 @@
+.payment-sheet { max-width: 720px; }
+.payment-body { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 20px; align-items: start; }
+.payment-form { display: flex; flex-direction: column; gap: 10px; }
+.payment-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-soft); }
+.payment-field input, .payment-field textarea { width: 100%; font-size: 16px; color: var(--ink); }
+.payment-qr { display: flex; flex-direction: column; gap: 6px; }
+.payment-qr-label { font-size: 13px; color: var(--ink-soft); }
+.payment-qr-row { display: flex; flex-direction: column; gap: 10px; }
+.payment-qr-img, .payment-qr-empty { width: 160px; aspect-ratio: 1; border-radius: var(--radius); }
+.payment-qr-img { object-fit: cover; object-position: top; background: #fff; border: 1px solid var(--rule); }
+.payment-qr-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  border: 1.5px dashed var(--rule-strong); background: transparent; color: var(--accent); font-weight: 600;
+}
+.payment-qr-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.payment-qr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.payment-qr-hint { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.payment-foot { padding-top: 12px; border-top: 1px solid var(--rule); }
+.payment-delete { color: var(--warn); padding-left: 0; }
+.payment-delete:disabled { color: var(--ink-faint); }
+.payment-privacy-shade { z-index: 110; }
+/* Paste and drop need a keyboard and mouse. */
+@media (hover: none) { .payment-qr-paste { display: none; } }
+.payment-privacy ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
+/* Phone: one column, the QR beside its buttons. */
+@media (max-width: 600px) {
+  .payment-body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .payment-qr-row { flex-direction: row; align-items: flex-start; }
+  .payment-qr-img, .payment-qr-empty { width: 120px; flex: none; }
+}
+@media (max-width: 480px) { .feedback-foot .accent { margin-left: 0; flex: 1 1 100%; } }

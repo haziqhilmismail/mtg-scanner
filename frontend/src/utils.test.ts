@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type CardRowData, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
 import { applyRounding, computeCardData, dueForSupportAsk, lockPrices, matchThumbs, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
-import type { T } from './i18n.ts';
+import type { T } from './i18n/index.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
