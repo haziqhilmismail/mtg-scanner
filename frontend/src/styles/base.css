@@ -38,8 +38,7 @@ img { max-width: 100%; }
   padding: 20px 24px calc(48px + env(safe-area-inset-bottom));
 }
 @media (max-width: 767px) {
-  /* Leave room for the floating tab bar so the last row is never under it. */
-  .wrap { padding: 12px 16px calc(var(--tabbar-h) + 44px + env(safe-area-inset-bottom)); }
+  .wrap { padding: 12px 16px calc(28px + env(safe-area-inset-bottom)); }
 }
 
 /* ---------- Form fields ---------- */

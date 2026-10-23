@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type CardRowData, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, dueForSupportAsk, lockPrices, matchThumbs, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
+import { applyRounding, computeCardData, dueForSupportAsk, initials, lockPrices, matchThumbs, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
 import type { T } from './i18n/index.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
@@ -201,4 +201,14 @@ test('a live-price photo labels only what CK does not decide', () => {
   assert.equal(photoLabel(cd({ hasOverride: true, unitPrice: 12 }), live), 'RM12');
   assert.equal(photoLabel(cd({ hasMultOverride: true, mult: 3 }), live), 'CK ×3');
   assert.equal(photoLabel(cd({ needsPrice: true, unitPrice: NaN }), s), '');
+});
+
+test('initials for the avatar', () => {
+  assert.equal(initials('Haziq Hilmi'), 'HH');
+  assert.equal(initials('Jo'), 'J');
+  assert.equal(initials('Muhammad Haziq bin Hilmi'), 'MH');
+  assert.equal(initials('  ali@example.com '), 'A');
+  assert.equal(initials('éva kovács'), 'ÉK');
+  assert.equal(initials('🙂 Ali'), '🙂A');
+  assert.equal(initials(''), '');
 });

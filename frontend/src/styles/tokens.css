@@ -47,8 +47,7 @@
   --radius-xl: 26px;
   --radius-pill: 999px;
   --tap: 44px;              /* minimum touch target */
-  --bar-h: 52px;            /* top bar */
-  --tabbar-h: 62px;         /* bottom tab bar (compact widths) */
+  --bar-h: 56px;            /* top bar */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --seg-thumb: #ffffff;     /* selected segment */
   --seg-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);

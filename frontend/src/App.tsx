@@ -5,8 +5,6 @@ import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
 import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
-import { TopTabs } from './components/TopTabs.tsx';
-import { PaymentSheet } from './components/PaymentSheet.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { TProvider, useLang } from './hooks/useLang.ts';
@@ -14,11 +12,11 @@ import { NavProvider, useNav } from './hooks/useNav.ts';
 import { usePricing } from './hooks/usePricing.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useTheme } from './hooks/useTheme.ts';
-import { POSTS, routeFolder } from './routes.ts';
 import type { Appearance, Credits, Lang } from './types.ts';
 import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
 import { PricingPage } from './views/PricingPage.tsx';
+import { Profile } from './views/Profile.tsx';
 import { Scanner } from './views/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
 
@@ -90,7 +88,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   const scanner = useScanner(auth.user?.id ?? null, auth.signOut);
 
   const navStore = useNav();
-  const { route, go, replace } = navStore;
+  const { route, replace } = navStore;
   const page = route.page;
   // A post, a photo and a post's pricing sit under Scanner.
   const onScanner = page === 'posts' || page === 'post' || page === 'photo' || page === 'pricing';
@@ -111,7 +109,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
 
   // How buyers pay this seller, added to every summary copied for a buyer.
   const [payment, setPayment] = useState<Payment | null>(null);
-  const [paymentOpen, setPaymentOpen] = useState(false);
   useEffect(() => {
     paymentApi.get().then(setPayment, () => { /* summaries just go without it */ });
   }, []);
@@ -140,60 +137,47 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
     <NavProvider value={navStore}>
     <DialogProvider>
     <ImageZoomProvider>
-    <Header
-        title={t('app_title')}
-        healthLabel={healthLabel}
-        healthState={healthState}
-        lang={lang}
-        onLangChange={setLang}
-        appearance={appearance}
-        onAppearanceChange={setAppearance}
-        t={t}
-        user={auth.config?.auth_enabled ? auth.user : null}
-        // Waiting edits go first: request() reads the token before it awaits.
-        onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
-        onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
-        onDefaultPricing={() => go({ page: 'profile-pricing' })}
-        onPaymentDetails={() => setPaymentOpen(true)}
-        onHome={() => go(POSTS)}
-      />
-    <TopTabs
-      view={page === 'claims' ? 'claims' : 'scanner'}
-      onChange={v => go(v === 'scanner' ? POSTS : { page: 'claims', folder: routeFolder(route) })}
-      scannerLabel={t('nav_scanner')}
-      claimsLabel={t('nav_claims')}
-    />
+    <Header route={route} healthLabel={healthLabel} healthState={healthState} user={auth.config?.auth_enabled ? auth.user : null} />
     <main className="wrap">
       {/* Both tabs stay mounted, so switching shows them at once instead of
-          loading again; the hidden one ignores keys and paste. */}
-      <div hidden={!onScanner}>
-        <Scanner
-          active={onScanner}
-          scanner={scanner}
-          nav={navStore}
-          pricing={pricing}
-          health={health}
-          t={t}
-          lang={lang}
-        />
-      </div>
-      <div hidden={page !== 'claims'}>
-        <Claims
-          active={page === 'claims'}
-          scanner={scanner}
-          pricing={pricing}
-          t={t}
-          lang={lang}
-          folderKey={page === 'claims' ? route.folder : null}
-          onFolderChange={key => replace({ page: 'claims', folder: key })}
-          credits={credits}
-          onCredits={setCredits}
-          payment={payment}
-          onEnterVoucher={() => setVoucherOpen(true)}
-        />
-      </div>
+          loading again; the one not showing renders nothing. */}
+      <Scanner
+        active={onScanner}
+        scanner={scanner}
+        nav={navStore}
+        pricing={pricing}
+        health={health}
+        t={t}
+        lang={lang}
+      />
+      <Claims
+        active={page === 'claims'}
+        scanner={scanner}
+        pricing={pricing}
+        t={t}
+        lang={lang}
+        folderKey={page === 'claims' ? route.folder : null}
+        onFolderChange={key => replace({ page: 'claims', folder: key })}
+        credits={credits}
+        onCredits={setCredits}
+        payment={payment}
+        onEnterVoucher={() => setVoucherOpen(true)}
+      />
       {page === 'profile' ? (
-        <div className="review-head"><div className="review-title"><h2>{t('nav_profile')}</h2></div></div>
+        <Profile
+          user={auth.config?.auth_enabled ? auth.user : null}
+          // Waiting edits go first: request() reads the token before it awaits.
+          onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
+          status={{ label: healthLabel, state: healthState }}
+          lang={lang}
+          setLang={setLang}
+          appearance={appearance}
+          setAppearance={setAppearance}
+          pricing={pricing}
+          payment={payment}
+          onPaymentSaved={setPayment}
+          onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
+        />
       ) : null}
       {page === 'profile-pricing' ? (
         <PricingPage
@@ -214,7 +198,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
     <Notice source={scanner} t={t} />
     <Notice source={pricing} t={t} />
     <FloatingBackToTop />
-    <PaymentSheet open={paymentOpen} onClose={() => setPaymentOpen(false)} payment={payment} onSaved={setPayment} t={t} />
     <VoucherSheet
       open={voucherOpen}
       onClose={() => setVoucherOpen(false)}

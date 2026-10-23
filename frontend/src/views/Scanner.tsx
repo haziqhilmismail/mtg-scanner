@@ -729,13 +729,22 @@ export function Scanner({ active, scanner, nav: { route, go, replace, current },
     <PricingRow title={pricingTitle(folder)} settings={pricingFor(folder.postId)} t={t} to={{ page: 'pricing', folder: folder.key }} />
   );
 
+  // "Photo 2 of 2": the photo's place in its post, once it is saved.
+  const photoNumber = activeBatch ? numbers.get(activeBatch.id) : undefined;
+  const photosInPost = activeBatch ? [...numbers.keys()].filter(id => scanner.batches.find(b => b.id === id)?.postId === activeBatch.postId).length : 0;
+  const photoCrumb = photoNumber != null ? t('photo_n', { n: photoNumber }) : t('crumbs_photo_one');
+  const photoTitle = photoNumber != null ? t('photo_n_of', { n: photoNumber, total: photosInPost }) : t('crumbs_photo_one');
+
+  // Another page is showing: keep the state, render nothing.
+  if (!active) return null;
+
   return (
     <>
       {activeBatch ? (
         /* ---------- One photo ---------- */
         <section>
           <div
-            className="photo-nav"
+            className="photo-head"
             onTouchStart={e => { swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
             onTouchEnd={e => {
               const from = swipeStart.current; swipeStart.current = null;
@@ -745,13 +754,15 @@ export function Scanner({ active, scanner, nav: { route, go, replace, current },
               if (Math.abs(dx) > 60 && Math.abs(dy) < 40) step(dx < 0 ? 1 : -1);
             }}
           >
-            <Breadcrumbs items={[
-              { label: t('scans_title'), to: POSTS },
-              ...(openFolder ? [{ label: openFolder.title, to: { page: 'post' as const, folder: openFolder.key } }] : []),
-              { label: numbers.has(activeBatch.id)
-                ? t('crumbs_photo', { n: numbers.get(activeBatch.id)!, total: [...numbers.keys()].filter(id => scanner.batches.find(b => b.id === id)?.postId === activeBatch.postId).length })
-                : t('crumbs_photo_one') },
-            ]} />
+            <div className="photo-nav">
+              <Breadcrumbs items={[
+                { label: t('scans_title'), to: POSTS },
+                ...(openFolder ? [{ label: openFolder.title, to: { page: 'post' as const, folder: openFolder.key } }] : []),
+                { label: photoCrumb },
+              ]} />
+            </div>
+            <div className="review-head">
+              <div className="review-title"><h1 className="page-title">{photoTitle}</h1></div>
             <span className="photo-nav-steps">
               <button
                 type="button" className="round-btn"
@@ -771,6 +782,7 @@ export function Scanner({ active, scanner, nav: { route, go, replace, current },
                 onClick={() => deletePhotos([activeBatch.id])}
               ><Icon name="trash" size={18} /></button>
             </span>
+            </div>
           </div>
           <ActiveBatchView
             photoNumber={numbers.get(activeBatch.id) ?? null}
@@ -829,7 +841,7 @@ export function Scanner({ active, scanner, nav: { route, go, replace, current },
           <div className="review-head">
             <div className={`review-title post-title ${titleDraft != null ? 'is-editing' : ''}`}>
               {openFolder.postId == null ? (
-                <h2>{openFolder.title}</h2>
+                <h1 className="page-title">{openFolder.title}</h1>
               ) : titleDraft != null ? (
                 <input
                   className="title-edit"
@@ -847,7 +859,7 @@ export function Scanner({ active, scanner, nav: { route, go, replace, current },
                   }}
                 />
               ) : (
-                <h2>
+                <h1 className="page-title">
                   <button
                     type="button" className="title-btn"
                     title={t('scans_rename')}
@@ -856,7 +868,7 @@ export function Scanner({ active, scanner, nav: { route, go, replace, current },
                     <span>{openFolder.title}</span>
                     <Icon name="edit" size={16} />
                   </button>
-                </h2>
+                </h1>
               )}
             </div>
             {openFolder.total > 0 ? (
@@ -1012,17 +1024,19 @@ export function Scanner({ active, scanner, nav: { route, go, replace, current },
       ) : (
         /* ---------- All posts ---------- */
         <>
+          <div className="review-head">
+            <div className="review-title">
+              <h1 className="page-title">
+                {t('scans_title')}{liveFolders.length ? <span className="meta"> · {liveFolders.length}</span> : null}
+              </h1>
+            </div>
+          </div>
           {upload}
           {progress}
           {loading ? (
             <Spinner label={t('scanner_loading_saved')} />
-          ) : liveFolders.length === 0 && archivedFolders.length === 0 ? (
-            <p className="gallery-empty">{t('scans_empty')}</p>
           ) : (
             <>
-              <div className="review-head">
-                <div className="review-title"><h2>{t('scans_title')}</h2></div>
-              </div>
               {liveFolders.length ? postGrid(liveFolders) : <p className="gallery-empty">{t('scans_empty')}</p>}
               {archivedFolders.length ? (
                 <>

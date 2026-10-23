@@ -672,6 +672,8 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
   }, [qrFile, summaryText, markSent, recordSales]);
 
   // ---------- render ----------
+  // Another page is showing: keep the state, render nothing.
+  if (!active) return null;
   if (!loaded || (scanner.loadingSaved && scanner.batches.length === 0)) {
     return <Spinner label={t('ck_loading')} />;
   }
@@ -707,7 +709,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
   if (!postOptions.length) {
     return (
       <>
-        <div className="review-head"><div className="review-title"><h2>{t('nav_claims')}</h2></div>{helpButton}</div>
+        <div className="review-head"><div className="review-title"><h1 className="page-title">{t('nav_claims')}</h1></div>{helpButton}</div>
         {help}
         <p className="gallery-empty">{t('claims_no_posts')}</p>
       </>
@@ -794,12 +796,10 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
   return (
     <>
       <div className="review-head">
-        {/* The post's name in full as the heading: a <select> can only ever
-            show as much of a long name as fits on one line. */}
         <div className="review-title">
-          <h2>{postOptions.find(o => o.key === activeKey)?.title ?? t('nav_claims')}</h2>
+          <h1 className="page-title">{t('nav_claims')}</h1>
         </div>
-        {postOptions.length > 1 ? (
+        {(
           <label className="claims-post">
             <span>{t('claims_switch_post')}</span>
             {/* Switching post abandons a half-finished intake rather than mixing posts. */}
@@ -807,7 +807,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
               {postOptions.map(o => <option key={o.key} value={o.key}>{o.title}</option>)}
             </select>
           </label>
-        ) : null}
+        )}
         <span className="claims-head-actions">{helpButton}{postButton}</span>
       </div>
       {loadError ? <div className="form-error">{t('ck_backend_error', { err: loadError })}</div> : null}
