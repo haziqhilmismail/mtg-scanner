@@ -1,0 +1,9 @@
+# Nightly backup of the app's data: see backup.sh. A systemd *user* unit (no
+# root needed). Install, check and restore: DEPLOY_HOMESERVER.md, "Nightly backup".
+[Unit]
+Description=Back up the MTG scanner's database and uploaded files
+
+[Service]
+Type=oneshot
+ExecStart=%h/mtg-scanner/backend/deploy/backup.sh
+Nice=10

@@ -2,7 +2,7 @@
 
 Pasar Malam MTG (mtg.haziqhilmi.com)
 
-Last updated: 23 October 2026
+Last updated: 24 October 2026
 
 Pasar Malam MTG is run by one person, Muhammad Haziq bin Hilmi, in Malaysia. If you have a question about your data, or want a copy of it or want it deleted, email muhd.haziq.b.hilmi@gmail.com.
 
@@ -35,6 +35,8 @@ You enter your buyers' details, so you are responsible for having a reason to ke
 ## How long data is kept
 
 Your data stays until you delete it in the app, or until your account is deleted. To delete your account, email the address above; it is done within 30 days. When an account is deleted, its photos, posts, buyers, orders and payment details are deleted. Sales records are kept, with nothing that links them to you.
+
+Every night the server makes a backup of the data, and it deletes each backup after 30 days. So data that you delete, or the data of a deleted account, stays in a backup for up to 30 days.
 
 ## Your rights
 
