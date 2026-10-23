@@ -194,7 +194,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
 
       <footer className="foot">
         <span>{t('footer_left')}</span>
-        <span>{t('footer_right')}</span>
+        <span>{t('footer_right')} · <a href="/privacy.html">{t('privacy_link')}</a></span>
       </footer>
     </main>
     <Notice source={scanner} t={t} />

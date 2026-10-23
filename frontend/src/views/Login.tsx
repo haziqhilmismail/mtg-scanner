@@ -153,6 +153,7 @@ export function Login({ clientId, onCredential, error, busy, lang, setLang, t, t
           </svg>
           <span>github.com/haziqhilmismail</span>
         </a>
+        <a href="/privacy.html" className="landing-footer-link">{t('privacy_link')}</a>
       </footer>
 
       <div className="landing-menu">
