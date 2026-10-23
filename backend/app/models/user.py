@@ -32,11 +32,14 @@ class User(Base, TimestampMixin):
 
     fb_name: Mapped[str | None] = mapped_column(String(255))
 
-    # Payment info — used to compose the claim message + render QR on listings
+    # How buyers pay this seller, added to the summaries copied for buyers.
+    # The QR is a PNG file at qr_image_path (see routers/payment.py).
     bank_name: Mapped[str | None] = mapped_column(String(64))
     bank_account_number: Mapped[str | None] = mapped_column(String(32))
     bank_account_holder: Mapped[str | None] = mapped_column(String(255))
     qr_image_path: Mapped[str | None] = mapped_column(String(512))
+    # A line added under the payment details, e.g. "Please send your name and phone number."
+    payment_note: Mapped[str | None] = mapped_column(String(500))
 
     # Pricing defaults (mirror the current frontend settings panel)
     default_currency: Mapped[str] = mapped_column(String(8), default="RM")
