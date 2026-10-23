@@ -23,6 +23,7 @@ export interface SavedScan extends ScanResponse {
   scan_id: number;
   // The post this photo is filed under; null = unfiled.
   post_id?: number | null;
+  position?: number | null;
   filename: string;
   created_at: string | null;
   // Whatever was last saved; checked by normalizeUiState before use.
@@ -141,6 +142,15 @@ async function downscaleForScan(file: File): Promise<File> {
 }
 
 // File scans under a post, or unfile them with postId = null.
+// Save a post's photo order: the first is Photo 1.
+export async function orderScans(scanIds: number[]): Promise<void> {
+  await request('/api/scans/order', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scan_ids: scanIds }),
+  });
+}
+
 export async function moveScans(scanIds: number[], postId: number | null): Promise<void> {
   await request('/api/scans/move', {
     method: 'POST',

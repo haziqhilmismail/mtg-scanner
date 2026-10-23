@@ -1,32 +1,21 @@
-import type { Credits } from '../types.ts';
+import type { ReactNode } from 'react';
 import { Icon } from './Icon.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { creditsOutText, nextFreeDate, pastedImages } from '../utils.ts';
+import { pastedImages, popupOpen } from '../utils.ts';
 import type { T } from '../hooks/useLang.ts';
 
 interface Props {
+  // Paste only reaches the tab that is showing.
+  active: boolean;
   onFiles: (files: File[]) => void;
   t: T;
-  lang: string;
-  // Scan-credit balance; null until loaded (and in solo mode it isn't enforced).
-  credits: Credits | null;
-  onEnterVoucher: () => void;
   // Inside a post the photos are the point, so the zone shrinks to one row.
   compact?: boolean;
+  // Shown between the heading and the drop area (the new post's kind).
+  children?: ReactNode;
 }
 
-export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact }: Props) {
-  const limited = !!credits && credits.enforced && !credits.unlimited;
-  const outOfCredits = limited && credits.remaining === 0;
-  const nextBack = nextFreeDate(credits, lang);
-  let balance = '';
-  if (credits?.enforced && credits.unlimited) balance = t('credits_unlimited');
-  else if (limited) {
-    balance = t('credits_free_left', { n: Math.max(0, credits.limit - credits.used), limit: credits.limit });
-    if (credits.bonus > 0) balance += ' ' + t('credits_plus_extra', { n: credits.bonus });
-    if (credits.used > 0 && nextBack) balance += ' · ' + t('credits_next_back', { date: nextBack });
-  }
-
+export function UploadZone({ active, onFiles, t, compact, children }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
@@ -40,7 +29,6 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact 
   }, []);
 
   const dispatch = useCallback((fl: FileList | File[]) => {
-    if (outOfCredits) return;
     const files = filterFiles(fl);
     if (!files.length) {
       setStatus(t('drop_no_images'));
@@ -48,7 +36,7 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact 
     }
     setStatus('');
     onFiles(files);
-  }, [filterFiles, onFiles, t, outOfCredits]);
+  }, [filterFiles, onFiles, t]);
 
   // Drag-and-drop
   useEffect(() => {
@@ -94,7 +82,9 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact 
 
   // Paste (Ctrl/Cmd+V from clipboard)
   useEffect(() => {
+    if (!active) return;
     const onPaste = (e: ClipboardEvent) => {
+      if (popupOpen()) return;
       const files = pastedImages(e);
       if (!files.length) return;
       e.preventDefault();
@@ -105,20 +95,12 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact 
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
-  }, [dispatch]);
+  }, [active, dispatch]);
 
   return (
     <section className={`panel ${compact ? 'upload-compact' : ''}`}>
       {compact ? null : <h2>{t('upload_title')}</h2>}
-      {outOfCredits ? (
-        <div className="drop is-empty" ref={dropRef}>
-          <strong>{t('credits_out_title')}</strong>
-          <p>{creditsOutText(credits, t, lang)}</p>
-          <button type="button" className="accent" onClick={onEnterVoucher}>
-            <Icon name="ticket" size={18} />{t('voucher_enter')}
-          </button>
-        </div>
-      ) : (
+      {children}
       <div
         ref={dropRef}
         className={`drop ${dragOver ? 'dragover' : ''}`}
@@ -138,8 +120,6 @@ export function UploadZone({ onFiles, t, lang, credits, onEnterVoucher, compact 
           </>
         )}
       </div>
-      )}
-      {balance && !outOfCredits ? <p className="credits-line">{balance}</p> : null}
       <input
         ref={inputRef}
         type="file"

@@ -1,13 +1,14 @@
 import { Icon } from '../components/Icon.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
+import { exportAllImages, exportImage, frameCard, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../api.ts';
 import { listingsApi, postsApi, type Post } from '../api/checklist.ts';
 import type { NavStore } from '../hooks/useNav.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import { migrateAdded } from '../lib/addedMarkers.ts';
-import type { Batch, Candidate, Credits, Settings } from '../types.ts';
-import { computeCardData, downloadBlob, formatMyr, listingFields, matchThumbs, notAdded, PHOTO_SORTS, pillLabel, sortPhotos, type PhotoSort } from '../utils.ts';
+import type { Batch, Candidate, PriceMode, Settings } from '../types.ts';
+import { byPostOrder, computeCardData, downloadBlob, formatMyr, listingFields, lockPrices, matchThumbs, notAdded, PHOTO_SORTS, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from '../utils.ts';
+import { readStored, writeStored } from '../hooks/usePersistedState.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 interface Folder {
@@ -24,15 +25,17 @@ const UNFILED = 'unfiled';
 import { ActiveBatchView } from '../components/ActiveBatchView.tsx';
 import { AddAllChecklistModal } from '../components/AddAllChecklistModal.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
-import { useImageZoom } from '../components/ImageZoomProvider.tsx';
 import { PrintingsModal } from '../components/PrintingsModal.tsx';
 import { PhotoTile, PostTile, summarise, type BatchSummary } from '../components/ScanGallery.tsx';
 import { PricingFields, SettingsPanel } from '../components/SettingsPanel.tsx';
+import { InfoTip } from '../components/InfoTip.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { UploadZone } from '../components/UploadZone.tsx';
 import type { T } from '../hooks/useLang.ts';
 
 interface Props {
+  // The tab is showing (both tabs stay mounted, so switching doesn't reload).
+  active: boolean;
   scanner: ScannerStore;
   // Which post and photo are open; each is a browser history entry.
   nav: NavStore;
@@ -41,8 +44,6 @@ interface Props {
   health: Health | null;
   t: T;
   lang: string;
-  credits: Credits | null;
-  onEnterVoucher: () => void;
 }
 
 // Build the /api/export payload for one batch (shared by single-batch export and
@@ -51,30 +52,30 @@ interface Props {
 function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | null {
   if (!batch.response) return null;
   const cardData = computeCardData(batch, settings);
-  const visible = cardData.filter(cd => !cd.removed);
+  // A live-price post's photo carries only the labels CK won't decide (see photoLabel).
+  const live = settings.priceMode === 'live';
+  // A card added by hand has no spot on the photo, so it gets no label there.
+  const visible = cardData.filter(cd => !cd.removed && cd.card.bbox_source !== 'user' && (!live || photoLabel(cd, settings)));
   const data = batch.response;
   return {
     image_id: data.image_id,
-    show_outlines: settings.showOutlines,
+    show_outlines: settings.showOutlines && !live,
     label_position: settings.labelPosition,
     font_scale: settings.labelFontScale,
     cards: visible.map(cd => {
-      const label = pillLabel(cd, settings);
+      const label = photoLabel(cd, settings);
       return {
         bbox: cd.card.bbox,
         corners: cd.card.corners,
         is_foil: cd.isFoil && settings.foilStyle === 'gold',
         label_override: label,
-        pill_dx: cd.pillOffset?.dx,
-        pill_dy: cd.pillOffset?.dy,
       };
     }),
   };
 }
 
-export function Scanner({ scanner, nav: { nav, go, replace, up, current }, pricing, health, t, lang, credits, onEnterVoucher }: Props) {
+export function Scanner({ active, scanner, nav: { nav, go, replace, up, current }, pricing, health, t, lang }: Props) {
   const dialog = useDialog();
-  const zoom = useImageZoom();
   const { pricingFor, listPosts, createPost } = pricing;
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
 
@@ -94,12 +95,6 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanner.loadingSaved]);
 
-  // Synchronous re-entry guard for per-batch Add-all. A ref (not state)
-  // because React state updates are async — a fast double-click can fire
-  // the second handler before the first's setState propagates. Refs flip
-  // synchronously and block the second call in the same JS tick.
-  const addBatchInFlightRef = useRef<Set<string>>(new Set());
-
   const refreshPosts = useCallback(async () => {
     try {
       setPosts(await listPosts());
@@ -109,11 +104,6 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
   }, [listPosts]);
 
   useEffect(() => { refreshPosts(); }, [refreshPosts]);
-
-  // Which batch's add-all is currently running (drives the button's loading
-  // state) and whether the page-level "add all images" bulk run is in flight.
-  const [addingBatchId, setAddingBatchId] = useState<string | null>(null);
-  const [addingAll, setAddingAll] = useState(false);
 
   // Core add-all: push every visible, priced card of a batch that is not on
   // the checklist yet, each tied to the photo so deleting the photo takes it
@@ -142,79 +132,132 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
     if (failed) await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_failed', { n: failed }) });
   }, [dialog, t]);
 
-  // Per-batch add-all handler. Synchronously gated by addBatchInFlightRef to
-  // block same-tick double-clicks (state updates are async), and surfaces a
-  // loading label via addingBatchId.
-  const addBatchToChecklist = useCallback(async (batch: Batch, postId: number | null) => {
-    if (batch.scanId == null) return;
-    if (addBatchInFlightRef.current.has(batch.id)) return;
-    addBatchInFlightRef.current.add(batch.id);
-    setAddingBatchId(batch.id);
-    let failed = 0;
-    try {
-      failed = await addBatchCore(batch, postId);
-    } finally {
-      addBatchInFlightRef.current.delete(batch.id);
-      setAddingBatchId(null);
-    }
-    await alertFailed(failed);
-  }, [addBatchCore, alertFailed]);
+  // ---------- Finishing a photo ----------
+  // Finish = the prices are final: they lock at what buyers will see (so
+  // claims sell at them) and the cards go on the post. The priced image is a
+  // separate step, downloaded or (on a phone) handed to the share sheet
+  // (Facebook, WhatsApp, Save to Photos). Edit prices unlocks it again.
+  const sharePhone = typeof navigator !== 'undefined' && typeof navigator.canShare === 'function'
+    && matchMedia('(pointer: coarse)').matches;
+  // Images rendered and waiting for a tap: a phone only shares straight after
+  // a tap, not after the wait to render them. key: the photo's or post's id.
+  const [ready, setReady] = useState<{ key: string; files: File[] } | null>(null);
+  const [finishing, setFinishing] = useState<string | null>(null);
 
-  // Bulk add: push the cards of several photos to the checklist in one go.
-  // Inside a post they go under that post (after a confirm); for unfiled
-  // photos a picker asks which post, if any. `addAllTargets` holds the photos
-  // while that picker is open.
-  const [addAllTargets, setAddAllTargets] = useState<Batch[] | null>(null);
-
-  const runAddAll = useCallback(async (targets: Batch[], postId: number | null) => {
-    setAddAllTargets(null);
-    if (addingAll || targets.length === 0) return;
-    setAddingAll(true);
-    let failed = 0;
-    try {
-      for (const b of targets) {
-        failed += await addBatchCore(b, postId);
-      }
-    } finally {
-      setAddingAll(false);
-    }
-    await alertFailed(failed);
-  }, [addingAll, addBatchCore, alertFailed]);
-
-  const exportBatch = useCallback(async (batch: Batch) => {
+  const renderImage = useCallback(async (batch: Batch): Promise<File | null> => {
     const payload = buildExportPayload(batch, pricingFor(batch.postId));
-    if (!payload) return;
-    try {
-      downloadBlob(await exportImage(payload), batch.filename.replace(/\.[^.]+$/, '') + '_priced.png');
-    } catch (e) {
-      await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
-    }
-  }, [pricingFor, dialog, t]);
+    if (!payload) return null;
+    const name = numbered(batch).replace(/\.[^.]+$/, '') + '_priced.png';
+    return new File([await exportImage(payload)], name, { type: 'image/png' });
+  }, [pricingFor]);
 
-  // Bulk export: render every finished batch's priced overlay and download them
-  // as a single zip. Guarded by `exportingAll` so a slow render (N images on the
-  // 512 MB VM) can't be re-triggered mid-flight.
-  const [exportingAll, setExportingAll] = useState(false);
-  const exportAllBatches = useCallback(async (batches: Batch[]) => {
-    const images = batches
-      .map(b => {
-        const payload = buildExportPayload(b, pricingFor(b.postId));
-        return payload ? { ...payload, filename: b.filename } as ExportAllImage : null;
-      })
-      .filter((x): x is ExportAllImage => x !== null);
-    if (images.length === 0) {
-      await dialog.alert({ title: t('alert_error_title'), message: t('export_all_none') });
-      return;
-    }
-    setExportingAll(true);
+  const deliver = useCallback((key: string, files: File[]) => {
+    if (sharePhone && navigator.canShare({ files })) setReady({ key, files });
+    else files.forEach(f => downloadBlob(f, f.name));
+  }, [sharePhone]);
+
+  const share = useCallback(async () => {
+    if (!ready) return;
+    try { await navigator.share({ files: ready.files }); setReady(null); } catch { /* cancelled: keep them ready */ }
+  }, [ready]);
+
+  // What Finish does, said once before the first time.
+  const explainFinish = useCallback(async () => {
+    if (readStored('mtg.finish.explained', false)) return true;
+    const ok = await dialog.confirm({ title: t('finish_explain_title'), message: t('finish_explain_msg'), okLabel: t('finish_explain_ok') });
+    if (ok) writeStored('mtg.finish.explained', true);
+    return ok;
+  }, [dialog, t]);
+
+  // Lock a photo's prices (unless locked already) and put its cards on the
+  // post. 'unpriced' (and nothing done) while a kept card has no price;
+  // otherwise how many cards failed to add.
+  const finishCore = useCallback(async (batch: Batch, postId: number | null): Promise<'unpriced' | number> => {
+    const settings = pricingFor(batch.postId);
+    // Live price: the cards go on the post; prices stay live until each buyer is sent theirs.
+    if (settings.priceMode === 'live') return addBatchCore(batch, postId);
+    const cards = computeCardData(batch, settings);
+    if (cards.some(cd => !cd.removed && !(cd.unitPrice > 0))) return 'unpriced';
+    if (!batch.lockedAt) scanner.lockBatch(batch.id, lockPrices(cards));
+    return addBatchCore(batch, postId);
+  }, [pricingFor, scanner.lockBatch, addBatchCore]);
+
+  const failedAlert = useCallback(async (e: unknown) => {
+    await dialog.alert({ title: t('alert_error_title'), message: t('finish_failed', { err: (e as Error).message }) });
+  }, [dialog, t]);
+
+  const finishPhoto = useCallback(async (batch: Batch) => {
+    const live = pricingFor(batch.postId).priceMode === 'live';
+    if (finishing || batch.scanId == null || (!live && !(await explainFinish()))) return;
+    setFinishing(batch.id); setReady(null);
     try {
-      downloadBlob(await exportAllImages(images), 'mtg_prices.zip');
-    } catch (e) {
-      await dialog.alert({ title: t('alert_error_title'), message: 'Export failed: ' + (e as Error).message });
-    } finally {
-      setExportingAll(false);
-    }
-  }, [pricingFor, dialog, t]);
+      const result = await finishCore(batch, batch.postId);
+      if (result === 'unpriced') {
+        await dialog.alert({ title: t('finish_needs_price_title'), message: t('finish_needs_price') });
+        return;
+      }
+      await alertFailed(result);
+    } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
+  }, [finishing, pricingFor, explainFinish, finishCore, dialog, t, alertFailed, failedAlert]);
+
+  // A finished photo's priced image, downloaded or shared whenever the seller
+  // likes (now, later, again for a re-post): its prices stay locked.
+  const deliverPhoto = useCallback(async (batch: Batch) => {
+    if (finishing) return;
+    setFinishing(batch.id); setReady(null);
+    try {
+      const file = await renderImage(batch);
+      if (file) deliver(batch.id, [file]);
+    } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
+  }, [finishing, renderImage, deliver, failedAlert]);
+
+  const editPrices = useCallback(async (batch: Batch) => {
+    const ok = await dialog.confirm({ title: t('edit_prices_title'), message: t('edit_prices_msg'), okLabel: t('edit_prices_ok') });
+    if (ok) { scanner.unlockBatch(batch.id); setReady(null); }
+  }, [dialog, t, scanner.unlockBatch]);
+
+  // Finish all of a post's photos. Unfiled photos ask which post first
+  // (`finishTargets` holds them while that picker is open).
+  const [finishTargets, setFinishTargets] = useState<{ key: string; batches: Batch[] } | null>(null);
+  const runFinishAll = useCallback(async (key: string, targets: Batch[], postId: number | null) => {
+    setFinishTargets(null);
+    if (finishing || targets.length === 0) return;
+    setFinishing(key); setReady(null);
+    try {
+      let failed = 0;
+      const done: Batch[] = [];
+      for (const b of targets) {
+        const result = await finishCore(b, postId);
+        if (result !== 'unpriced') { failed += result; done.push(b); }
+      }
+      await alertFailed(failed);
+      if (done.length < targets.length) {
+        await dialog.alert({ title: t('finish_needs_price_title'), message: t('finish_all_skipped', { n: targets.length - done.length }) });
+      }
+    } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
+  }, [finishing, finishCore, alertFailed, dialog, t, failedAlert]);
+
+  // The priced images of a post's finished photos: one zip on a PC, one share
+  // on a phone.
+  const deliverFolder = useCallback(async (key: string, batches: Batch[]) => {
+    // In post order, so Facebook gets them (and the zip lists them) as Photo 1, 2, 3.
+    // A photo-priced post sends only finished (locked) photos; a live one, all.
+    const done = batches.filter(b => (b.lockedAt || pricingFor(b.postId).priceMode === 'live') && b.response).sort(byPostOrder);
+    if (finishing || !done.length) return;
+    setFinishing(key); setReady(null);
+    try {
+      if (sharePhone) {
+        const files: File[] = [];
+        for (const b of done) { const f = await renderImage(b); if (f) files.push(f); }
+        deliver(key, files);
+      } else {
+        const images = done
+          .map(b => { const p = buildExportPayload(b, pricingFor(b.postId)); return p ? { ...p, filename: numbered(b) } as ExportAllImage : null; })
+          .filter((x): x is ExportAllImage => x !== null);
+        downloadBlob(await exportAllImages(images), 'mtg_prices.zip');
+      }
+    } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
+  }, [finishing, sharePhone, renderImage, deliver, pricingFor, failedAlert]);
 
   // Re-fetch CK prices for an already-saved scan. Cheap on the backend
   // (local SQLite lookups, no Gemini, no network out). Returns the updated
@@ -241,8 +284,11 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
   // The photos Prev/Next step through, fixed when a photo is opened so the
   // order doesn't shift under you as you fix things.
   const [navIds, setNavIds] = useState<string[]>([]);
-  const [filter, setFilter] = useState<'all' | 'needs'>('all');
-  const [sort, setSort] = useState<PhotoSort>('newest');
+  const [sort, setSort] = useState<PhotoSort>('post');
+  const [reordering, setReordering] = useState(false);
+  // "Photo N" for every saved photo: its place in its post's order.
+  const numbers = useMemo(() => photoNumbers(scanner.batches), [scanner.batches]);
+  const numbered = (b: Batch, n = numbers.get(b.id)) => (n != null ? `${String(n).padStart(2, '0')}_${b.filename}` : b.filename);
   const [query, setQuery] = useState('');
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -299,10 +345,25 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
 
   const q = query.trim().toLowerCase();
   const matches = useCallback((s: BatchSummary) => !q || s.haystack.includes(q), [q]);
+  const folderLive = openFolder != null && pricingFor(openFolder.postId).priceMode === 'live';
   const visibleItems = useMemo(
-    () => sortPhotos((openFolder?.items ?? []).filter(s => (filter === 'needs' ? s.needs > 0 : true)).filter(matches), sort),
-    [openFolder, filter, matches, sort],
+    () => sortPhotos((openFolder?.items ?? []).filter(matches), sort),
+    [openFolder, matches, sort],
   );
+  // The open post's saved photos in post order, for reordering.
+  const postOrdered = useMemo(
+    () => (openFolder?.items ?? []).map(s => s.batch).filter(b => b.scanId != null).sort(byPostOrder),
+    [openFolder],
+  );
+  const moveInOrder = useCallback(async (i: number, by: -1 | 1) => {
+    const ids = postOrdered.map(b => b.id);
+    [ids[i], ids[i + by]] = [ids[i + by], ids[i]];
+    try { await scanner.orderBatches(ids); } catch (e) {
+      await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
+    }
+  }, [postOrdered, scanner.orderBatches, dialog, t]);
+  // Leaving the post ends reordering.
+  useEffect(() => { setReordering(false); }, [folderKey]);
   // The posts list leaves archived posts out; they wait in their own section.
   const liveFolders = useMemo(() => folders.filter(f => !f.archived), [folders]);
   const archivedFolders = useMemo(() => folders.filter(f => f.archived), [folders]);
@@ -331,7 +392,6 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
 
   // Another post (opened, or come back to through history) starts unfiltered.
   useEffect(() => {
-    setFilter('all');
     setQuery('');
     setSelecting(false);
     setSelected(new Set());
@@ -373,7 +433,9 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
   //   one photo   ← / → previous / next photo, Esc back to the post
   //   a post      arrows move between tiles (Enter opens), Esc back to posts
   //   a post      / jumps to its search
+  // Only while this tab is showing: the Claims tab is mounted beside it.
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
@@ -411,31 +473,35 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [photoId, step, folderKey, selecting, up]);
+  }, [active, photoId, step, folderKey, selecting, up]);
 
   // Swipe left/right on the photo's header to step, like a photo roll. Kept
   // to the header so it can't fight dragging a price pill or scrolling a row.
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
   // New photos: inside a post they join it; from the top level a drop starts
-  // a new post named for the moment, and opens it.
-  const onFiles = useCallback(async (files: File[]) => {
-    if (openFolder) {
-      scanner.addFiles(files, openFolder.postId);
-      return;
-    }
+  // a new post named for the moment, of the kind picked above the drop area
+  // (the default pricing's kind unless the seller picks the other), and opens it.
+  const defaultType = pricingFor(null).priceMode;
+  const [pickedType, setPickedType] = useState<PriceMode | null>(null);
+  const newType = pickedType ?? defaultType;
+  const startPost = useCallback(async (files: File[], priceMode: PriceMode) => {
     let postId: number | null = null;
     try {
       const title = new Date().toLocaleString(lang === 'ms' ? 'ms-MY' : 'en-MY', {
         day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
       });
-      const post = await createPost({ title });
+      const post = await createPost({ title }, priceMode);
       postId = post.id;
       await refreshPosts();
     } catch { /* couldn't create the post: the photos are still scanned, unfiled */ }
     scanner.addFiles(files, postId);
     goTo(postId != null ? `p${postId}` : UNFILED);
-  }, [openFolder, scanner, lang, refreshPosts, goTo, createPost]);
+  }, [scanner, lang, refreshPosts, goTo, createPost]);
+  const onFiles = useCallback(async (files: File[]) => {
+    if (openFolder) scanner.addFiles(files, openFolder.postId);
+    else startPost(files, newType);
+  }, [openFolder, scanner, startPost, newType]);
 
   const moveTo = useCallback(async (ids: string[], postId: number | null) => {
     try {
@@ -521,25 +587,48 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
     await refreshPosts();
   }, [dialog, scanner, current, up, refreshPosts, t]);
 
-  const addFolderToChecklist = useCallback(async (folder: Folder) => {
+  const finishFolder = useCallback(async (folder: Folder) => {
     const targets = folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null);
     if (targets.length === 0) {
       await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_all_none') });
       return;
     }
-    if (folder.postId == null) { setAddAllTargets(targets); return; }
+    const live = pricingFor(folder.postId).priceMode === 'live';
+    if (!live && !(await explainFinish())) return;
+    if (folder.postId == null) { setFinishTargets({ key: folder.key, batches: targets }); return; }
     const ok = await dialog.confirm({
-      title: t('scans_add_all_confirm_title'),
-      message: t('scans_add_all_confirm_msg', { n: targets.length, post: folder.title }),
-      okLabel: t('scans_add_all_confirm_ok'),
+      title: t(live ? 'live_add_all_title' : 'finish_all_confirm_title'),
+      message: t(live ? 'live_add_all_msg' : 'finish_all_confirm_msg', { n: targets.length, post: folder.title }),
+      okLabel: t(live ? 'live_add_all' : 'finish_all_confirm_ok'),
     });
-    if (ok) runAddAll(targets, folder.postId);
-  }, [dialog, runAddAll, t]);
+    if (ok) runFinishAll(folder.key, targets, folder.postId);
+  }, [dialog, pricingFor, explainFinish, runFinishAll, t]);
 
   const onBrowsePrintings = (idx: number) => {
     if (!activeBatch) return;
     setPrintingsCtx({ batchId: activeBatch.id, idx });
   };
+
+  // A card the scan missed: the seller names it, picks its version, then
+  // drags its price label onto it (the label starts in the middle of the photo).
+  const addMissingCard = useCallback(async (batch: Batch) => {
+    if (batch.scanId == null || !batch.response) return;
+    const name = await dialog.prompt({ title: t('add_card_title'), message: t('add_card_msg'), placeholder: 'Sol Ring', okLabel: t('add_card_ok') });
+    if (!name?.trim()) return;
+    const { width: w, height: h } = batch.response;
+    const cw = Math.round(Math.min(w, h) * 0.18), ch = Math.round(cw * 1.395);
+    const x = Math.round((w - cw) / 2), y = Math.round((h - ch) / 2);
+    try {
+      const card = await frameCard(batch.scanId, [[x, y], [x + cw, y], [x + cw, y + ch], [x, y + ch]], true);
+      const idx = batch.response.cards.length;
+      scanner.appendFramedCard(batch.id, card);
+      await scanner.relookupByName(batch.id, idx, name, t);
+      await dialog.alert({ title: t('add_card_title'), message: t('add_card_next') });
+      setPrintingsCtx({ batchId: batch.id, idx });
+    } catch (e) {
+      await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
+    }
+  }, [dialog, scanner, t]);
 
   const onPickPrinting = (printing: Candidate) => {
     if (!printingsCtx) return;
@@ -557,6 +646,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
     setPrintingsCtx(null);
   };
 
+  const printingsBatch = printingsCtx ? scanner.batches.find(b => b.id === printingsCtx.batchId) : undefined;
   const printingsCardName = (() => {
     if (!printingsCtx) return '';
     const b = scanner.batches.find(b => b.id === printingsCtx.batchId);
@@ -604,18 +694,42 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
   );
   const upload = (
     <UploadZone
+      active={active}
       onFiles={onFiles}
       t={t}
-      lang={lang}
-      credits={credits}
-      onEnterVoucher={onEnterVoucher}
       compact={openFolder != null}
-    />
+    >
+      {openFolder ? null : (
+        <div className="post-type-row new-post-type">
+          <span className="post-type-label">{t('post_type_title')}</span>
+          <div className="segmented" role="group" aria-label={t('post_type_title')}>
+            {(['photo', 'live'] as const).map(mode => (
+              <button key={mode} type="button" className={newType === mode ? 'active' : ''} aria-pressed={newType === mode} onClick={() => setPickedType(mode)}>
+                {t(`post_type_${mode}`)}
+                {mode === defaultType ? <span className="post-type-default">{t('post_type_default')}</span> : null}
+              </button>
+            ))}
+          </div>
+          <p>{t(`post_type_${newType}_desc`)}</p>
+        </div>
+      )}
+    </UploadZone>
   );
   // A post's pricing, which it can make the default; for unfiled photos
   // (null), the default itself. Shown once that pricing is known.
   const pricingPanel = (postId: number | null) => pricing.pricingKnown(postId) && (
     <SettingsPanel title={postId == null ? t('menu_default_pricing') : t('settings_title')} settings={pricingFor(postId)} t={t}>
+      {postId != null ? (
+        <div className="post-type-row">
+          <div className="segmented" role="group" aria-label={t('post_type_title')}>
+            {(['photo', 'live'] as const).map(mode => (
+              <button key={mode} type="button" className={pricingFor(postId).priceMode === mode ? 'active' : ''} aria-pressed={pricingFor(postId).priceMode === mode}
+                onClick={() => pricing.update(postId, 'priceMode', mode)}>{t(`post_type_${mode}`)}</button>
+            ))}
+          </div>
+          <p>{t(`post_type_${pricingFor(postId).priceMode}_desc`)}</p>
+        </div>
+      ) : null}
       <PricingFields
         settings={pricingFor(postId)}
         update={(key, value) => pricing.update(postId, key, value)}
@@ -631,6 +745,24 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
       ) : null}
     </SettingsPanel>
   );
+
+  // Where the seller is: Posts › post › photo. Each earlier level is a link
+  // back to it; the last one is the page itself.
+  const crumbs = (trail: Array<{ label: string; onClick?: () => void }>) => (
+    <nav className="crumbs" aria-label={t('crumbs_label')}>
+      {trail.map((c, i) => (
+        <span className="crumbs-item" key={i}>
+          {i > 0 ? <Icon name="chevronRight" size={14} className="crumbs-sep" /> : null}
+          {c.onClick ? (
+            <button type="button" className="crumbs-link" onClick={c.onClick}>{c.label}</button>
+          ) : (
+            <span className="crumbs-current" aria-current="page">{c.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+  const toPosts = () => go({ folder: null, photo: null });
 
   return (
     <>
@@ -648,13 +780,13 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
               if (Math.abs(dx) > 60 && Math.abs(dy) < 40) step(dx < 0 ? 1 : -1);
             }}
           >
-            <button type="button" className="ghost photo-nav-back" onClick={up}>
-              <Icon name="chevronLeft" size={18} />
-              <span>{openFolder?.title ?? t('scans_title')}</span>
-            </button>
-            <span className="photo-nav-count">
-              {navIndex >= 0 ? t('scans_counter', { cur: navIndex + 1, total: liveNavIds.length }) : ''}
-            </span>
+            {crumbs([
+              { label: t('scans_title'), onClick: toPosts },
+              ...(openFolder ? [{ label: openFolder.title, onClick: up }] : []),
+              { label: numbers.has(activeBatch.id)
+                ? t('crumbs_photo', { n: numbers.get(activeBatch.id)!, total: [...numbers.keys()].filter(id => scanner.batches.find(b => b.id === id)?.postId === activeBatch.postId).length })
+                : t('crumbs_photo_one') },
+            ])}
             <span className="photo-nav-steps">
               <button
                 type="button" className="round-btn"
@@ -675,32 +807,52 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
               ><Icon name="trash" size={18} /></button>
             </span>
           </div>
-          {pricingPanel(activeBatch.postId)}
           <ActiveBatchView
+            photoNumber={numbers.get(activeBatch.id) ?? null}
+            live={pricingFor(activeBatch.postId).priceMode === 'live'}
             batch={activeBatch}
             settings={pricingFor(activeBatch.postId)}
             scanner={scanner}
             t={t}
-            onZoom={zoom.open}
             onBrowsePrintings={onBrowsePrintings}
             postTitle={activeBatch.postId != null && postsById.has(activeBatch.postId) ? postTitle(postsById.get(activeBatch.postId)!) : null}
-            onAddAll={() => addBatchToChecklist(activeBatch, activeBatch.postId)}
-            addAllBusy={addingBatchId === activeBatch.id || addingAll}
-            onExport={() => exportBatch(activeBatch)}
+            sharePhone={sharePhone}
+            busy={finishing === activeBatch.id}
+            shareReady={ready?.key === activeBatch.id ? ready.files.length : 0}
+            onFinish={() => finishPhoto(activeBatch)}
+            onDeliver={() => deliverPhoto(activeBatch)}
+            onShare={share}
+            onEditPrices={() => editPrices(activeBatch)}
             onRefreshPrices={() => refreshScanPrices(activeBatch)}
+            onAddCard={() => addMissingCard(activeBatch)}
           />
+          {/* The same previous / next as the top, so a long card list needn't scroll back. */}
+          <nav className="photo-steps-bottom" aria-label={t('scans_title')}>
+            {(['prev', 'next'] as const).map(dir => {
+              const at = navIndex + (dir === 'prev' ? -1 : 1);
+              const id = navIndex >= 0 ? liveNavIds[at] : undefined;
+              const n = id ? numbers.get(id) : undefined;
+              return (
+                <button key={dir} type="button" className={`photo-step ${dir}`} disabled={!id} onClick={() => step(dir === 'prev' ? -1 : 1)}>
+                  {dir === 'prev' ? <Icon name="chevronLeft" size={18} /> : null}
+                  <span>
+                    <span className="photo-step-dir">{t(dir === 'prev' ? 'scans_prev' : 'scans_next')}</span>
+                    {n ? <strong>{t('photo_n', { n })}</strong> : null}
+                  </span>
+                  {dir === 'next' ? <Icon name="chevronRight" size={18} /> : null}
+                </button>
+              );
+            })}
+          </nav>
         </section>
       ) : openFolder ? (
         /* ---------- One post's photos ---------- */
         <>
           <div className="photo-nav">
-            <button type="button" className="ghost photo-nav-back" onClick={up}>
-              <Icon name="chevronLeft" size={18} />
-              <span>{t('scans_title')}</span>
-            </button>
+            {crumbs([{ label: t('scans_title'), onClick: up }, { label: openFolder.title }])}
           </div>
           <div className="review-head">
-            <div className={`review-title ${titleDraft != null ? 'is-editing' : ''}`}>
+            <div className={`review-title post-title ${titleDraft != null ? 'is-editing' : ''}`}>
               {openFolder.postId == null ? (
                 <h2>{openFolder.title}</h2>
               ) : titleDraft != null ? (
@@ -740,16 +892,30 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
             ) : null}
             {openFolder.items.some(s => s.batch.response) || openFolder.postId != null ? (
               <span className="review-actions">
-                {openFolder.items.some(s => s.batch.response) ? (
+                {ready?.key === openFolder.key ? (
+                  <button className="accent" onClick={share}>
+                    <Icon name="share" size={18} />{t('share_n_photos', { n: ready.files.length })}
+                  </button>
+                ) : (
                   <>
-                    <button className="accent" disabled={addingAll || addingBatchId != null} onClick={() => addFolderToChecklist(openFolder)}>
-                      <Icon name="addList" size={18} />{addingAll ? t('bulk_add_all_loading') : t('bulk_add_all_btn')}
-                    </button>
-                    <button disabled={exportingAll} onClick={() => exportAllBatches(openFolder.items.map(s => s.batch))}>
-                      <Icon name="download" size={18} />{exportingAll ? t('export_all_loading') : t('export_all_btn')}
-                    </button>
+                    {folderLive ? (
+                      openFolder.items.some(s => s.pending > 0) ? (
+                        <button className="accent" disabled={finishing != null} onClick={() => finishFolder(openFolder)}>
+                          <Icon name="addList" size={18} />{finishing === openFolder.key ? t('finish_busy') : t('live_add_all')}
+                        </button>
+                      ) : null
+                    ) : openFolder.items.some(s => s.batch.response && !s.batch.lockedAt) ? (
+                      <button className="accent" disabled={finishing != null} onClick={() => finishFolder(openFolder)}>
+                        <Icon name="lock" size={18} />{finishing === openFolder.key ? t('finish_busy') : t('finish_all')}
+                      </button>
+                    ) : null}
+                    {(folderLive ? openFolder.items.some(s => s.batch.response) : openFolder.items.some(s => s.batch.lockedAt)) ? (
+                      <button disabled={finishing != null} onClick={() => deliverFolder(openFolder.key, openFolder.items.map(s => s.batch))}>
+                        <Icon name={sharePhone ? 'share' : 'download'} size={18} />{t(sharePhone ? 'share_all' : 'download_all')}
+                      </button>
+                    ) : null}
                   </>
-                ) : null}
+                )}
                 {openFolder.postId != null ? (
                   <>
                     <button className="ghost" onClick={() => setArchived(openFolder, !openFolder.archived)}>
@@ -769,6 +935,9 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
           {upload}
           {pricingPanel(openFolder.postId)}
           {progress}
+          <h3 className="level-label">
+            {t('scans_photos_label')}{openFolder.items.length ? <span className="meta"> · {openFolder.items.length}</span> : null}
+          </h3>
           {openFolder.items.length > 0 ? (
             <div className="gallery-bar">
               {selecting ? (
@@ -800,26 +969,45 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
                 </>
               ) : (
                 <>
-                  <div className="segmented gallery-filter" role="group" aria-label={t('scans_filter_needs')}>
-                    <button type="button" className={filter === 'all' ? 'active' : ''} aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-                      {t('scans_filter_all')}
-                    </button>
-                    <button type="button" className={filter === 'needs' ? 'active' : ''} aria-pressed={filter === 'needs'} onClick={() => setFilter('needs')}>
-                      {t('scans_filter_needs')}{openFolder.needs > 0 ? ` ${openFolder.items.filter(s => s.needs > 0).length}` : ''}
-                    </button>
-                  </div>
                   {searchField}
                   <select className="gallery-sort" value={sort} aria-label={t('scans_sort')} onChange={e => setSort(e.target.value as PhotoSort)}>
                     {(Object.keys(PHOTO_SORTS) as PhotoSort[]).map(k => (
                       <option key={k} value={k}>{t(`scans_sort_${k}`)}</option>
                     ))}
                   </select>
+                  <InfoTip label={t('post_order_info_title')} text={t('post_order_info')} />
+                  <button className="ghost" onClick={() => setReordering(true)}>{t('scans_reorder')}</button>
                   <button className="ghost" onClick={() => setSelecting(true)}>{t('scans_select')}</button>
                 </>
               )}
             </div>
           ) : null}
-          {openFolder.items.length === 0 ? (
+          {reordering ? (
+            /* Post order as a list: move a photo up or down, saved at once. */
+            <div className="reorder-list">
+              <p className="claims-hint">{t('scans_reorder_hint')}</p>
+              {postOrdered.map((b, i) => (
+                <div className="reorder-row" key={b.id}>
+                  <span className="reorder-num">{i + 1}</span>
+                  {b.response ? <img src={b.response.thumb_url ?? b.response.image_b64} alt="" /> : null}
+                  <span className="reorder-name">
+                    <strong>{t('photo_n', { n: i + 1 })}</strong>
+                    <span>{b.filename}</span>
+                  </span>
+                  <button type="button" className="round-btn" aria-label={t('scans_move_up')} disabled={i === 0} onClick={() => moveInOrder(i, -1)}>
+                    <Icon name="chevronUp" size={18} />
+                  </button>
+                  <button type="button" className="round-btn" aria-label={t('scans_move_down')} disabled={i === postOrdered.length - 1} onClick={() => moveInOrder(i, 1)}>
+                    <Icon name="chevronDown" size={18} />
+                  </button>
+                </div>
+              ))}
+              <div className="claims-actions">
+                <span className="spacer" />
+                <button type="button" className="accent" onClick={() => setReordering(false)}>{t('scans_select_done')}</button>
+              </div>
+            </div>
+          ) : openFolder.items.length === 0 ? (
             <p className="gallery-empty">{t('scans_empty_post')}</p>
           ) : visibleItems.length === 0 ? (
             <p className="gallery-empty">{q ? t('scans_no_matches') : t('scans_none_to_fix')}</p>
@@ -829,6 +1017,7 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
                 <PhotoTile
                   key={s.batch.id}
                   summary={s}
+                  number={numbers.get(s.batch.id) ?? null}
                   settings={pricingFor(s.batch.postId)}
                   t={t}
                   selecting={selecting}
@@ -877,12 +1066,13 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
         </>
       )}
 
-      {addAllTargets && (
+
+      {finishTargets && (
         <AddAllChecklistModal
-          count={addAllTargets.length}
+          count={finishTargets.batches.length}
           posts={pickerPosts}
-          onClose={() => setAddAllTargets(null)}
-          onConfirm={(postId) => runAddAll(addAllTargets, postId)}
+          onClose={() => setFinishTargets(null)}
+          onConfirm={(postId) => runFinishAll(finishTargets.key, finishTargets.batches, postId)}
           t={t}
         />
       )}
@@ -893,6 +1083,10 @@ export function Scanner({ scanner, nav: { nav, go, replace, up, current }, prici
         currentSid={printingsCurrentSid}
         onClose={() => setPrintingsCtx(null)}
         onSelect={onPickPrinting}
+        busy={!!printingsBatch?.relookupBusy[printingsCtx!.idx]}
+        msg={printingsBatch?.relookupMsg[printingsCtx!.idx] ?? null}
+        onFind={name => printingsCtx && scanner.relookupByName(printingsCtx.batchId, printingsCtx.idx, name, t)}
+        onUseAsIs={name => { if (printingsCtx) { scanner.useAsIs(printingsCtx.batchId, printingsCtx.idx, name, t); setPrintingsCtx(null); } }}
         t={t}
       />
     </>

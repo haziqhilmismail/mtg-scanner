@@ -4,7 +4,7 @@ import type { ScanUiState } from '../types.ts';
 import { createSaveQueue } from './saveQueue.ts';
 
 // A state told apart by its quantity.
-const st = (q: number) => ({ isFoil: [], priceOverride: [], quantity: [q], multOverride: [], removed: [], pillOffset: [], versionOk: [], picks: [] }) as ScanUiState;
+const st = (q: number) => ({ isFoil: [], priceOverride: [], quantity: [q], multOverride: [], removed: [], pillOffset: [], versionOk: [], picks: [], locked: [] }) as ScanUiState;
 const tick = () => new Promise(r => setTimeout(r, 0));
 // Far past Date.now(), so revs are known values.
 const LOADED = 1e15;

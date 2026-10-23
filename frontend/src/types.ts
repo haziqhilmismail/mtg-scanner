@@ -27,7 +27,13 @@ export interface Settings {
   // Multiplier on the auto-scaled label font (preview pill + exported PNG).
   // Base font is max(22, min(W,H) × 0.03) — this scales that result.
   labelFontScale: number;
+  // How the post sells. 'photo': prices printed on the photo, locked when a
+  // photo is finished. 'live': no prices on the photo; each buyer gets CK's
+  // price of the day they are sent their total.
+  priceMode: PriceMode;
 }
+
+export type PriceMode = 'photo' | 'live';
 
 export const DEFAULT_SETTINGS: Settings = {
   multNormal: 2.8,
@@ -40,8 +46,9 @@ export const DEFAULT_SETTINGS: Settings = {
   roundDirection: 'up',
   roundStep: 1,
   minPrice: 1,
-  foilStyle: 'gold',
+  foilStyle: 'suffix',
   labelFontScale: 1,
+  priceMode: 'photo',
 };
 
 export interface Candidate {
@@ -127,6 +134,10 @@ export interface PillOffset {
 
 // A scan's per-card edits, saved on the server as the scan's ui_state so
 // every device sees the same prices. Parallel arrays, one entry per card.
+// One card's price as a photo was finished. manual: typed in by hand, so it
+// has no "USD × multiplier" working to show a buyer.
+export interface LockedPrice { price: number; usd: number; mult: number; manual: boolean }
+
 export interface ScanUiState {
   isFoil: boolean[];
   priceOverride: (string | null)[];
@@ -140,6 +151,13 @@ export interface ScanUiState {
   // is") not yet written into the saved scan. The server moves it there and
   // drops it from the saved state.
   picks: (Candidate | null)[];
+  // The prices the photo was finished with (added to its post and downloaded
+  // or shared), so what buyers saw on Facebook: one per card, null for a card
+  // with no price. They count only while lockedAt is set.
+  locked: (LockedPrice | null)[];
+  // When the photo was finished. Unset (or null after Edit prices): its prices
+  // follow the seller's edits again.
+  lockedAt?: string | null;
   // Raised on every save so the server ignores a save that arrives after a
   // newer one. Not a per-card field.
   rev?: number;
@@ -149,6 +167,7 @@ export interface Batch extends ScanUiState {
   id: string;
   scanId: number | null;          // backend Scan.id once saved — null while scanning
   postId: number | null;          // the post this photo is filed under; null = unfiled
+  position: number | null;        // its place in the post as the seller ordered it; null = not placed yet
   listed: string[];               // bboxKey of each card on the checklist (added to the post)
   filename: string;
   // The photo picked in this session, kept until it scans so a failed scan

@@ -1,229 +1,152 @@
-import { Icon } from './Icon.tsx';
 import { useEffect, useState } from 'react';
-import type { CardRowData, RelookupMsg, Settings } from '../types.ts';
-import { applyRounding, fmt2 } from '../utils.ts';
+import { createPortal } from 'react-dom';
+import type { CardRowData, Settings } from '../types.ts';
+import { applyRounding, fmt2, formatMyrWithFoil } from '../utils.ts';
 import type { T } from '../hooks/useLang.ts';
+import { useBackClose } from '../hooks/useBackClose.ts';
 
 interface Props {
   cd: CardRowData;
-  msg: RelookupMsg | null;
-  busy: boolean;
+  live: boolean;
   settings: Settings;
   t: T;
+  onClose: () => void;
+  onFoilToggle: () => void;
+  onMultStep: (delta: number) => void;
+  onMultClear: () => void;
   onPriceChange: (v: string | null) => void;
   onClearOverride: () => void;
-  onBrowsePrintings: () => void;
-  onFind: (name: string) => void;
-  onUseAsIs: (name: string) => void;
 }
 
+// One card's price: its finish, its multiplier and an own price, with the
+// price and how it was worked out at the top.
 export function AdjustPanel({
-  cd, msg, busy, settings, t,
-  onPriceChange, onClearOverride,
-  onBrowsePrintings, onFind, onUseAsIs,
+  cd, live, settings, t, onClose,
+  onFoilToggle, onMultStep, onMultClear, onPriceChange, onClearOverride,
 }: Props) {
-  // Name input — controlled, but resets when the underlying candidate changes
-  // (e.g., user picked a different printing, or scanner found a different match)
-  const [nameInput, setNameInput] = useState(cd.sel.name || '');
-  useEffect(() => {
-    setNameInput(cd.sel.name || '');
-  }, [cd.sel.name, cd.sel.scryfall_id]);
-
-  // Price input — controlled. The literal text in the box is `priceInput`;
-  // what unit that text is in is `priceMode`. The stored override
-  // (`cd.priceOverride`) is *always* the final RM, regardless of how it was
-  // entered. Mode is sticky — it only resets when the card changes, never
-  // because typing caused the stored override to update.
-  //   - 'rm'  → input is the final RM; stored verbatim (no rounding)
-  //   - 'usd' → input is a USD price; stored as applyRounding(usd × mult)
-  const [priceInput, setPriceInput] = useState(
-    cd.hasOverride && isFinite(cd.unitPrice) ? String(cd.unitPrice) : '',
-  );
+  useBackClose(true, onClose);
+  // The box holds what was typed; `priceMode` says which unit it is in. The
+  // stored override is always the final RM: 'usd' input is stored as
+  // applyRounding(usd × mult).
+  const [priceInput, setPriceInput] = useState(cd.hasOverride && isFinite(cd.unitPrice) ? String(cd.unitPrice) : '');
   const [priceMode, setPriceMode] = useState<'rm' | 'usd'>('rm');
 
-  // Reset both when the user selects a different card.
-  useEffect(() => {
-    setPriceInput(cd.hasOverride && isFinite(cd.unitPrice) ? String(cd.unitPrice) : '');
-    setPriceMode('rm');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cd.origIdx]);
+  // Cleared from outside (the card's override removed): empty the box too.
+  useEffect(() => { if (!cd.hasOverride) setPriceInput(''); }, [cd.hasOverride]);
 
-  // If something outside the panel clears the override (e.g. the × button
-  // or restoring a removed card), wipe the input too — but don't sync on
-  // value changes, since that would clobber the USD value the user is typing.
   useEffect(() => {
-    if (!cd.hasOverride) setPriceInput('');
-  }, [cd.hasOverride]);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
-  const commitPrice = (rawInput: string, mode: 'rm' | 'usd') => {
-    const trimmed = rawInput.trim();
+  const commitPrice = (raw: string, mode: 'rm' | 'usd') => {
+    const trimmed = raw.trim();
     if (trimmed === '') { onPriceChange(null); return; }
     if (mode === 'usd') {
       const usd = parseFloat(trimmed);
-      if (isNaN(usd)) return;
-      const rm = applyRounding(usd * cd.mult, settings);
-      onPriceChange(String(rm));
+      if (!isNaN(usd)) onPriceChange(String(applyRounding(usd * cd.mult, settings)));
     } else {
       onPriceChange(trimmed);
     }
   };
-
-  // Toggling mode clears the input + the stored override, so the value the
-  // user types next is interpreted as the new unit and nothing carries over
-  // from the previous mode.
-  const switchMode = (newMode: 'rm' | 'usd') => {
-    if (newMode === priceMode) return;
-    setPriceMode(newMode);
-    setPriceInput('');
-    onPriceChange(null);
+  // A new unit starts empty, so nothing typed in the old unit carries over.
+  const switchMode = (mode: 'rm' | 'usd') => {
+    if (mode === priceMode) return;
+    setPriceMode(mode); setPriceInput(''); onPriceChange(null);
   };
 
-  const [open, setOpen] = useState(false);
-  let priceWrapClass = 'price-input-wrap';
-  if (cd.needsPrice) priceWrapClass += ' required';
-  else if (cd.hasOverride) priceWrapClass += ' set';
+  const set = [cd.sel.set?.toUpperCase(), cd.sel.collector_number ? `#${cd.sel.collector_number}` : '', cd.sel.set_name].filter(Boolean).join(' · ');
+  const working = cd.isManual ? t('manual_set_price')
+    : `USD ${fmt2(cd.usd)} × ${cd.mult} = RM ${fmt2(cd.usd * cd.mult)}${live ? `. ${t('tile_live_note')}` : ''}`;
+  const finishes = [
+    { foil: false, label: t('foil_off'), usd: cd.sel.usd },
+    { foil: true, label: t('foil_on'), usd: cd.sel.usd_foil },
+  ];
 
-  const asisUrgent = msg?.type === 'err' && !cd.isManual;
-
-  // Corrections are the exception, not the rule, so they stay folded until
-  // asked for — unless this card needs a price or a lookup just reported back.
-  const showBody = open || cd.needsPrice || !!msg || busy;
-
-  return (
-    <div className={`adjust ${showBody ? 'is-open' : ''}`}>
-      <button
-        type="button"
-        className="adjust-toggle"
-        aria-expanded={showBody}
-        onClick={() => setOpen(o => !o)}
-      >
-        <span>{t('adjust')}</span>
-        <Icon name="chevronDown" size={16} className="disclosure-chevron" />
-      </button>
-      {showBody ? (
-      <>
-
-      <div className="adjust-block">
-        <label className="adjust-label">
-          {cd.needsPrice ? t('price_required') : t('price_override')}
-        </label>
-        <div className="adjust-row">
-          <div className="price-mode-toggle" role="group" aria-label={t('price_mode_label')}>
-            <button
-              type="button"
-              className={`mode-btn ${priceMode === 'rm' ? 'active' : ''}`}
-              onClick={() => switchMode('rm')}
-              title={t('price_mode_rm_title')}
-            >RM</button>
-            <button
-              type="button"
-              className={`mode-btn ${priceMode === 'usd' ? 'active' : ''}`}
-              onClick={() => switchMode('usd')}
-              title={t('price_mode_usd_title')}
-            >USD</button>
+  return createPortal(
+    <div className="feedback-overlay" onClick={onClose}>
+      <div className="feedback-modal adjust-sheet" role="dialog" aria-modal="true" aria-labelledby={`adjust-title-${cd.origIdx}`} onClick={e => e.stopPropagation()}>
+        <div className="feedback-head">
+          <div>
+            <h2 id={`adjust-title-${cd.origIdx}`}>{cd.sel.name || t('unknown_card')}</h2>
+            {set ? <p className="adjust-set">{set}</p> : null}
           </div>
-          <div className={priceWrapClass}>
-            <span className="prefix">{priceMode === 'usd' ? 'USD' : (settings.currencyLabel || 'RM')}</span>
-            <input
-              /* type="text" + inputMode="decimal" gets us the numeric keyboard
-                 on mobile without the desktop spinner buttons, and — crucial
-                 here — kills the trackpad/wheel side-scroll changing the value. */
-              type="text"
-              inputMode="decimal"
-              pattern="[0-9]*\.?[0-9]*"
-              placeholder={
-                priceMode === 'usd'
-                  ? t('enter_usd_price')
-                  : cd.isManual
-                    ? t('enter_your_price')
-                    : t('auto_price', { n: fmt2(cd.autoPrice) })
-              }
-              value={priceInput}
-              autoFocus={cd.needsPrice}
-              onChange={e => {
-                // Strip everything except digits and a single decimal point;
-                // commits the cleaned value in the active mode.
-                const cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-                setPriceInput(cleaned);
-                commitPrice(cleaned, priceMode);
-              }}
-            />
+          <button type="button" className="feedback-close" onClick={onClose} aria-label={t('voucher_close')}>×</button>
+        </div>
+
+        <div className="adjust-summary">
+          <span className={`tile-price ${cd.isFoil && settings.foilStyle === 'gold' ? 'foil' : ''}`}>
+            {cd.needsPrice ? t('price_required') : <>{live && !cd.hasOverride ? <span className="tile-approx">~</span> : null}{formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings)}</>}
+          </span>
+          <span className="adjust-working">{working}</span>
+        </div>
+
+        {cd.isManual ? null : (
+          <div className="adjust-block">
+            <span className="adjust-label">{t('tile_finish')}</span>
+            <div className="segmented adjust-finish" role="group" aria-label={t('tile_finish')}>
+              {finishes.map(f => (
+                <button
+                  key={String(f.foil)} type="button" className={`${cd.isFoil === f.foil ? 'active' : ''} ${f.foil ? 'is-foil' : ''}`}
+                  aria-pressed={cd.isFoil === f.foil} onClick={() => { if (cd.isFoil !== f.foil) onFoilToggle(); }}
+                >
+                  <strong>{f.label}</strong>
+                  <span>{f.usd > 0 ? `USD ${fmt2(f.usd)}` : t('modal_no_normal')}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <button
-            type="button"
-            className="clear-btn"
-            disabled={!cd.hasOverride}
-            onClick={onClearOverride}
-            title="Clear"
-          >×</button>
+        )}
+
+        {cd.isManual ? null : (
+          <div className="adjust-block">
+            <span className="adjust-label">
+              {t('mult')}
+              {cd.hasMultOverride
+                ? <button type="button" className="link-btn" onClick={onMultClear}>{t('tile_mult_reset')}</button>
+                : <span className="adjust-label-note">{t('tile_mult_default')}</span>}
+            </span>
+            <div className="adjust-stepper">
+              <button type="button" aria-label={`${t('mult')} −`} onClick={() => onMultStep(-0.1)}>−</button>
+              <span>×{cd.mult}</span>
+              <button type="button" aria-label={`${t('mult')} +`} onClick={() => onMultStep(0.1)}>+</button>
+            </div>
+          </div>
+        )}
+
+        <div className="adjust-block">
+          <span className="adjust-label">{cd.needsPrice ? t('price_required') : t('price_override')}</span>
+          <div className="adjust-row">
+            <div className="segmented price-mode-toggle" role="group" aria-label={t('price_mode_label')}>
+              <button type="button" className={priceMode === 'rm' ? 'active' : ''} onClick={() => switchMode('rm')} title={t('price_mode_rm_title')}>RM</button>
+              <button type="button" className={priceMode === 'usd' ? 'active' : ''} onClick={() => switchMode('usd')} title={t('price_mode_usd_title')}>USD</button>
+            </div>
+            <label className={`price-input-wrap ${cd.needsPrice ? 'required' : cd.hasOverride ? 'set' : ''}`}>
+              <span className="prefix">{priceMode === 'usd' ? 'USD' : (settings.currencyLabel || 'RM')}</span>
+              <input
+                // Text, not number: a phone shows the number pad, and a scroll
+                // over the box can't change the price.
+                type="text" inputMode="decimal"
+                placeholder={priceMode === 'usd' ? t('enter_usd_price') : cd.isManual ? t('enter_your_price') : t('auto_price', { n: fmt2(cd.autoPrice) })}
+                value={priceInput}
+                autoFocus={cd.needsPrice}
+                onChange={e => {
+                  const cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                  setPriceInput(cleaned);
+                  commitPrice(cleaned, priceMode);
+                }}
+              />
+            </label>
+            {cd.hasOverride ? <button type="button" className="clear-btn" onClick={onClearOverride} aria-label={t('clear')}>×</button> : null}
+          </div>
+        </div>
+
+        <div className="feedback-foot">
+          <button type="button" className="accent" onClick={onClose}>{t('voucher_done')}</button>
         </div>
       </div>
-
-      <div className="adjust-block">
-        <label className="adjust-label">{t('wrong_printing')}</label>
-        <div className="adjust-row">
-          <button
-            type="button"
-            className="printings-btn"
-            disabled={cd.isManual || !cd.sel.name}
-            onClick={onBrowsePrintings}
-          >
-            {t('browse_printings')}
-          </button>
-        </div>
-      </div>
-
-      <div className="adjust-block">
-        <label className="adjust-label">{t('wrong_card')}</label>
-        <div className="adjust-row">
-          <input
-            className="relookup-input"
-            type="text"
-            placeholder={t('type_card_name')}
-            value={nameInput}
-            disabled={busy}
-            onChange={e => setNameInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                onFind(nameInput);
-              }
-            }}
-          />
-          <button
-            type="button"
-            className={`relookup-btn ${busy ? 'busy' : ''}`}
-            disabled={busy}
-            onClick={() => onFind(nameInput)}
-          >
-            {busy ? t('looking_up') : t('find')}
-          </button>
-          <button
-            type="button"
-            className={`asis-btn ${asisUrgent ? 'urgent' : ''}`}
-            disabled={busy}
-            onClick={() => onUseAsIs(nameInput)}
-          >
-            {t('use_asis')}
-          </button>
-        </div>
-        <AdjustMsg msg={msg} onAction={() => onUseAsIs(nameInput)} />
-        <div className="adjust-hint">{t('relookup_hint')}</div>
-      </div>
-      </>
-      ) : null}
-    </div>
-  );
-}
-
-function AdjustMsg({ msg, onAction }: { msg: RelookupMsg | null; onAction: () => void }) {
-  if (!msg) return <div className="adjust-msg">&nbsp;</div>;
-  return (
-    <div className={`adjust-msg ${msg.type}`}>
-      {msg.text}
-      {msg.action ? (
-        <button type="button" className="inline-action" onClick={onAction}>{msg.action}</button>
-      ) : null}
-    </div>
+    </div>,
+    document.body,
   );
 }

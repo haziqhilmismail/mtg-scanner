@@ -1,10 +1,12 @@
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import type { Health } from '../api.ts';
 import type { LabelPosition, FoilStyle, RoundDirection, RoundStep, Settings } from '../types.ts';
 import { useDecimalInput } from '../hooks/useDecimalInput.ts';
-import { usePersistedState } from '../hooks/usePersistedState.ts';
 import { Icon } from './Icon.tsx';
 import type { T } from '../hooks/useLang.ts';
+import { useBackClose } from '../hooks/useBackClose.ts';
 
 interface FieldsProps {
   settings: Settings;
@@ -20,22 +22,10 @@ export function PricingFields({ settings, update, t, health }: FieldsProps) {
   const multNormal = useDecimalInput(settings.multNormal, v => update('multNormal', v ?? 0));
   const multFoil = useDecimalInput(settings.multFoil, v => update('multFoil', v ?? 0));
   const minPrice = useDecimalInput(settings.minPrice, v => update('minPrice', v ?? 0));
-  let healthBadge = (
-    <span className="health-badge">{t('ck_checking')}</span>
-  );
-  if (health) {
-    if (health.cardkingdom_cards) {
-      healthBadge = (
-        <span className="health-badge ok">
-          {t('ck_loaded', { n: health.cardkingdom_cards.toLocaleString() })}
-        </span>
-      );
-    } else if (health.cardkingdom_error) {
-      healthBadge = <span className="health-badge warn">{t('ck_error')}</span>;
-    } else {
-      healthBadge = <span className="health-badge">{t('ck_not_loaded')}</span>;
-    }
-  }
+  // Only a CK problem shows here; prices that loaded fine need no note.
+  const healthBadge = !health || health.cardkingdom_cards ? null
+    : health.cardkingdom_error ? <span className="health-badge warn">{t('ck_error')}</span>
+    : <span className="health-badge">{t('ck_not_loaded')}</span>;
 
   return (
     <>
@@ -177,31 +167,48 @@ interface PanelProps {
   children: ReactNode;
 }
 
-// A pricing folded away under its title. Pricing is set once per market
-// night, so it shows a one-line summary until someone wants to change it.
+// A pricing behind one button with its summary; set once per market night,
+// so the fields open in a popup only when someone wants to change them.
 export function SettingsPanel({ title, settings, t, children }: PanelProps) {
-  const [open, setOpen] = usePersistedState('mtg.settingsOpen', false);
+  const [open, setOpen] = useState(false);
+  useBackClose(open, () => setOpen(false));
   const roundSummary = settings.roundDirection === 'none'
     ? t('round_none')
     : `${t(`round_dir_${settings.roundDirection}`)} ${t('round_to')} ${settings.currencyLabel} ${settings.roundStep}`;
   const summary = `×${settings.multNormal} · ${t('foil_on')} ×${settings.multFoil} · ${roundSummary}`;
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
   return (
-    <section className={`panel disclosure ${open ? 'is-open' : ''}`}>
-      <button
-        type="button"
-        className="disclosure-head"
-        aria-expanded={open}
-        aria-controls="pricing-settings"
-        onClick={() => setOpen(o => !o)}
-      >
-        <span className="disclosure-text">
-          <span className="disclosure-title">{title}</span>
-          {!open ? <span className="disclosure-summary">{summary}</span> : null}
+    <>
+      <button type="button" className="pricing-button" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        <Icon name="tag" size={18} />
+        <span className="pricing-button-text">
+          <strong>{title}</strong>
+          <span>{summary}</span>
         </span>
-        <Icon name="chevronDown" className="disclosure-chevron" />
+        <span className="pricing-button-edit">{t('pricing_edit')}</span>
       </button>
-      {open ? <div id="pricing-settings" className="disclosure-body">{children}</div> : null}
-    </section>
+      {open ? createPortal(
+        <div className="feedback-overlay" onClick={() => setOpen(false)}>
+          <div className="feedback-modal pricing-sheet" role="dialog" aria-modal="true" aria-labelledby="post-pricing-title" onClick={e => e.stopPropagation()}>
+            <div className="feedback-head">
+              <h2 id="post-pricing-title">{title}</h2>
+              <button type="button" className="feedback-close" onClick={() => setOpen(false)} aria-label={t('voucher_close')}>×</button>
+            </div>
+            {children}
+            <div className="feedback-foot">
+              <button type="button" className="accent" onClick={() => setOpen(false)}>{t('voucher_done')}</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
+    </>
   );
 }

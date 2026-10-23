@@ -417,9 +417,6 @@ button { position: relative; }
 }
 /* People who ask for less transparency or more contrast get solid bars. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .app-bar, .tab-bar, .float-back-top, .preview-close-btn, .frame-toolbar, .glass {
-    background: var(--paper); -webkit-backdrop-filter: none; backdrop-filter: none;
-  }
   :root { --rule: var(--ink-soft); }
 }
 
@@ -553,11 +550,35 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .scan-tile-body { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px 12px; min-width: 0; }
 /* Names wrap rather than being cut off with an ellipsis: a post's name is
    how you tell one from another. */
+.scan-tile-file { display: block; font-size: 12px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name-file { display: block; font-size: 12px; font-weight: 400; color: var(--ink-faint); }
+/* (i) explanations: hover with a mouse, tap on a phone. */
+.info-tip { position: relative; display: inline-flex; align-items: center; }
+.info-tip-bubble {
+  position: absolute; z-index: 30; bottom: calc(100% + 8px); padding: 10px 12px; border-radius: var(--radius);
+  background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg);
+  font-size: 13px; font-weight: 400; line-height: 1.45; text-align: left;
+  visibility: hidden; opacity: 0; transition: opacity 0.15s ease;
+}
+.info-tip-bubble.is-below { bottom: auto; top: calc(100% + 8px); }
+.info-tip.is-open .info-tip-bubble { visibility: visible; opacity: 1; }
+@media (hover: hover) {
+  .info-tip:hover .info-tip-bubble, .info-tip:focus-within .info-tip-bubble { visibility: visible; opacity: 1; }
+}
+.info-btn { width: 32px; height: 32px; min-height: 0; padding: 0; font-family: Georgia, serif; font-style: italic; font-weight: 700; }
+.claim-sort { flex: none; }
+.reorder-list { display: flex; flex-direction: column; gap: 8px; }
+.reorder-row { display: flex; align-items: center; gap: 10px; padding: 8px; background: var(--surface-2); border-radius: var(--radius); }
+.reorder-num { flex: none; width: 28px; text-align: center; font-size: 17px; font-weight: 700; color: var(--ink-soft); }
+.reorder-row img { flex: none; width: 96px; height: 72px; object-fit: cover; border-radius: 6px; background: var(--paper); }
+.reorder-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.reorder-name span { font-size: 12px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scan-tile-title {
   max-width: 100%; font-size: 15px; font-weight: 600; line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .scan-tile-meta { max-width: 100%; font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.locked-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--accent); }
 .needs-badge {
   display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 2px 8px;
   background: var(--warn-soft); color: var(--warn);
@@ -567,7 +588,6 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .gallery-empty { margin: 32px 0; text-align: center; font-size: 15px; color: var(--ink-soft); }
 .gallery-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 14px; }
 .gallery-bar-count { font-size: 15px; font-weight: 600; margin-right: auto; }
-.gallery-filter { flex: none; }
 .gallery-move { flex: 1 1 200px; min-width: 0; font-size: 15px; background-color: var(--paper); }
 .gallery-sort { flex: none; font-size: 15px; background-color: var(--paper); }
 .scan-search {
@@ -720,11 +740,21 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 /* Wraps: a long post name takes the first line to itself and the position
    and step buttons drop to the next, instead of squeezing it into a column. */
 .photo-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: var(--tap); margin: -4px 0 8px; }
-.photo-nav-back { padding-left: 4px; gap: 2px; font-size: 17px; font-weight: 400; min-width: 0; max-width: 100%; flex: 0 1 auto; text-align: left; }
-.photo-nav-back span { overflow-wrap: anywhere; }
-.photo-nav-count { margin: 0 auto; font-size: 15px; font-weight: 600; white-space: nowrap; }
 .photo-nav-steps { display: flex; gap: 6px; margin-left: auto; }
-.photo-nav-count + .photo-nav-steps { margin-left: 0; }
+.photo-steps-bottom { display: flex; justify-content: space-between; gap: 10px; margin: 18px 0 8px; }
+.photo-step { flex: 1; max-width: 220px; min-height: 56px; justify-content: flex-start; gap: 6px; border-radius: var(--radius); }
+.photo-step.next { justify-content: flex-end; text-align: right; }
+.photo-step > span { display: flex; flex-direction: column; }
+.photo-step-dir { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+/* Posts › post › photo: earlier levels are links back, the last is this page. */
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; font-size: 15px; }
+.crumbs-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.crumbs-sep { color: var(--ink-faint); }
+.crumbs-link { min-height: var(--tap); padding: 4px 6px; background: transparent; color: var(--accent); font-weight: 500; overflow-wrap: anywhere; text-align: left; }
+.crumbs-link:hover { background: var(--fill); }
+.crumbs-current { padding: 4px 6px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.level-label { margin: 18px 0 8px; font-size: 17px; font-weight: 700; }
+.level-label .meta { font-weight: 500; color: var(--ink-soft); }
 /* A post's name doubles as its rename control: click it and type. */
 .title-btn {
   min-height: 0; max-width: 100%; padding: 2px 8px; margin: -2px -8px; gap: 8px;
@@ -745,6 +775,10 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 }
 .review-title { min-width: 0; }
 .review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+/* A post's own page: its name gets the whole row and wraps only between words. */
+.review-title.post-title { flex: 1 1 100%; }
+.review-title.post-title h2 { flex: 1 1 auto; min-width: 0; overflow-wrap: normal; word-break: normal; }
+.review-title.post-title .title-btn span { overflow-wrap: normal; }
 .round-btn {
   width: 36px; height: 36px; min-height: 0; padding: 0; flex: none;
   background: var(--fill); color: var(--accent); border: 0; border-radius: 50%;
@@ -774,16 +808,16 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
   .batch-body > .preview-cell:not(.expanded) { position: sticky; top: calc(var(--bar-h) + 16px); }
 }
 .preview-cell { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-.preview-expand-row { display: flex; align-items: center; gap: 10px; width: 100%; }
-.preview-expand-btn { flex: none; white-space: nowrap; }
-.preview-expand-hint { font-size: 13px; color: var(--ink-soft); }
-.preview-tip { width: 100%; margin: 0; font-size: 13px; color: var(--ink-soft); }
-.preview-info-banner {
-  width: 100%; padding: 10px 12px;
-  background: var(--surface-2); border-radius: var(--radius);
-  font-size: 13px; line-height: 1.4; color: var(--ink-soft);
+.preview-expand-btn {
+  position: absolute; top: 12px; right: 12px; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; min-width: 0; min-height: 0; padding: 0; border-radius: 50%; line-height: 1;
+  background: rgba(28, 28, 30, 0.72); color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 1px 4px rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
-.preview-info-banner span[aria-hidden] { display: none; }
+.preview-expand-btn:hover { background: rgba(28, 28, 30, 0.85); }
+.preview-wrap .preview-expand-btn svg { position: static; width: 16px; height: 16px; pointer-events: none; }
 .preview-wrap {
   position: relative; display: inline-block;
   max-width: 100%; max-height: 65vh;
@@ -799,7 +833,6 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
    under it. */
 .preview-wrap.is-loading { background: var(--fill); animation: photo-pulse 1.4s ease-in-out infinite; }
 .preview-wrap.is-loading img { position: absolute; inset: 0; opacity: 0; }
-.preview-wrap.is-loading svg, .preview-wrap.is-loading .frame-toolbar { display: none; }
 @keyframes photo-pulse { 50% { opacity: 0.55; } }
 .compare img { transition: opacity 0.2s ease; }
 .preview-wrap svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -841,8 +874,6 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 /* Draggable price pill — preview the exported overlay and let the user pull
    it onto the card when the bbox drifted. Geometry and colours mirror
    price_overlay.py so the preview matches the exported PNG exactly. */
-.preview-pill { cursor: grab; pointer-events: auto; touch-action: none; }
-.preview-pill.is-dragging { cursor: grabbing; }
 .preview-pill rect {
   fill: rgb(20, 20, 20); stroke: rgba(255, 255, 255, 0.18); stroke-width: 2;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
@@ -850,67 +881,14 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .preview-pill text { fill: #ffffff; font-weight: 700; pointer-events: none; user-select: none; }
 .preview-pill.foil rect { fill: rgb(240, 195, 50); stroke: rgba(255, 230, 130, 0.9); }
 .preview-pill.foil text { fill: rgb(25, 20, 10); }
-.preview-pill.is-dragging rect { stroke: #0a84ff; stroke-width: 4; }
-.preview-pill-reset { cursor: pointer; pointer-events: auto; }
-.preview-pill-reset circle { fill: #ffffff; stroke: rgba(0, 0, 0, 0.3); stroke-width: 2; }
-.preview-pill-reset text { fill: #1c1c1e; font-weight: 700; pointer-events: none; user-select: none; }
-.preview-pill-reset:hover circle { fill: #0a84ff; stroke: #0a84ff; }
-.preview-pill-reset:hover text { fill: white; }
 
 /* ---------- Framing tool ----------
    User-driven "fix-it" overlay for cards the detector merged or missed.
    Lives inside the expanded preview only — the user needs room to draw cleanly.
    Its one bar floats over the photo, so it uses the glass material. */
-.frame-toolbar {
-  position: absolute; display: inline-flex; align-items: center;
-  background: var(--glass);
-  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  border: 0.5px solid var(--glass-border); border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-lg);
-  bottom: 16px; left: 50%; z-index: 2; transform: translateX(-50%);
-  gap: 10px; flex-wrap: wrap; justify-content: center; padding: 6px;
-  /* .preview-wrap sets line-height 0 for the photo; without this, wrapped
-     hint lines stack on top of each other. */
-  line-height: 1.3; text-align: center;
-  /* Stay inside the photo without hugging either side edge. max-content
-     because left: 50% alone caps the shrink-to-fit width at half the photo. */
-  width: max-content; max-width: calc(100% - 32px);
-}
-.preview-cell.framing .frame-toolbar { border-radius: var(--radius-xl); }
-.frame-toolbar button { white-space: nowrap; }
-.frame-toolbar-btn { background: var(--accent-fill); color: var(--on-accent); }
-.frame-toolbar-btn:hover { background: var(--accent-fill); filter: brightness(1.08); }
-.frame-toolbar-btn.ghost { background: var(--fill); color: var(--ink); }
-.frame-toolbar-btn.ghost:hover { background: var(--fill-strong); filter: none; }
-.frame-toolbar-hint { font-size: 15px; color: var(--ink); padding: 0 8px; }
-.frame-toolbar-aspect {
-  display: inline-flex; align-items: center; gap: 6px; padding-right: 8px;
-  font-size: 13px; color: var(--ink); cursor: pointer; user-select: none;
-}
-.frame-toolbar-aspect input { cursor: pointer; }
 /* Capture rect — invisible overlay that catches the user's drag. Only
    present while the framing tool is active so it doesn't block pill drag. */
-.preview-cell.framing .preview-wrap { cursor: crosshair; }
-.frame-capture { fill: transparent; pointer-events: auto; cursor: crosshair; }
-.frame-drawn {
-  fill: rgba(10, 132, 255, 0.18); stroke: #0a84ff;
-  stroke-width: 10; stroke-dasharray: 18 10; stroke-linejoin: round;
-  paint-order: stroke fill; pointer-events: none;
-  /* Drop-shadow filter on an SVG element keeps the glow on the stroke itself
-     so it reads on dim photos and bright tabletops alike. */
-  filter: drop-shadow(0 0 8px rgba(10, 132, 255, 0.55));
-  animation: frame-march 1.4s linear infinite;
-}
-.frame-drawn.is-submitting {
-  stroke: #ffcc00; fill: rgba(255, 204, 0, 0.2);
-  filter: drop-shadow(0 0 10px rgba(255, 204, 0, 0.6));
-}
-@keyframes frame-march { to { stroke-dashoffset: -56; } }
-.frame-action-confirm { background: var(--accent-fill); color: var(--on-accent); }
-.frame-action-confirm:hover:not(:disabled) { background: var(--accent-fill); filter: brightness(1.08); }
 /* "Add blank" — secondary path next to Identify. */
-.frame-action-manual { background: var(--fill); color: var(--ink); }
-.frame-action-error { font-size: 13px; font-weight: 600; color: var(--warn); padding: 0 8px; }
 
 /* ---------- Finalize block ----------
    Which post the cards belong to, then the actions for this scan. Shown
@@ -926,7 +904,11 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .scan-post-select { flex: 1 1 240px; min-width: 0; font-size: 15px; background-color: var(--paper); }
 .scan-post-hint { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; color: var(--green); }
 .scan-post-hint svg { flex: none; margin-top: 1px; }
-.scan-post-hint.not-added { color: var(--warn); font-weight: 600; }
+.scan-post-hint.finish-hint { color: var(--ink-soft); line-height: 1.4; }
+.scan-post-hint.finish-hint svg { color: var(--accent); }
+.scan-post-hint.is-locked { color: var(--ink); font-weight: 600; line-height: 1.4; }
+.post-name { display: inline-block; padding: 0 6px; margin: 0 1px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-weight: 700; white-space: nowrap; }
+.scan-post-hint.is-locked svg { color: var(--accent); }
 .finalize-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .finalize-action-row button { flex: 1 1 0; min-width: 170px; min-height: var(--tap); }
 .finalize-action-row button.ghost { flex: 0 1 auto; min-width: 0; }
@@ -945,35 +927,130 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .bulk-bar button { min-height: 32px; padding: 4px 14px; font-size: 13px; color: var(--ink); }
 .bulk-bar button.gold { background: var(--gold-soft); color: var(--gold); }
 
-/* ---------- Card list ----------
-   Each detected card: photo vs. match on the left, what it is and what it
-   costs on the right, corrections folded underneath. */
-.card-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
-.card-row {
-  position: relative; display: flex; gap: 12px; padding: 14px;
-  background: var(--surface-2); border: 0; border-radius: var(--radius-lg);
-}
-/* Foil is said twice: the gold edge here and the "Foil" label on the toggle. */
+/* ---------- Card tiles ----------
+   One tile per card: your photo of it next to the matched printing, then its
+   name, price and the few controls a seller uses on every card. */
+.card-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.card-row { display: flex; flex-direction: column; padding: 12px; background: var(--surface-2); border-radius: var(--radius-lg); min-width: 0; }
+/* Foil shows twice: this gold edge and the gold price. */
 .card-row.foil { box-shadow: inset 0 0 0 1.5px var(--gold-fill); }
-.card-row.manual { box-shadow: inset 0 0 0 1.5px var(--warn); }
-.card-row .num {
-  position: absolute; top: 10px; left: 10px; z-index: 1;
-  min-width: 22px; height: 22px; padding: 0 6px;
+.tile-compare { all: unset; position: relative; display: flex; align-items: center; width: 100%; border-radius: 10px; cursor: zoom-in; }
+.tile-compare:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.tile-img { position: relative; flex: 1 1 0; min-width: 0; aspect-ratio: 63 / 88; border-radius: 8px; overflow: hidden; background: var(--fill); }
+.tile-img img { display: block; width: 100%; height: 100%; object-fit: cover; transition: filter 0.2s ease; }
+.tile-compare:hover .tile-img img { filter: brightness(1.08); }
+.tile-img-none { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: var(--ink-soft); font-size: 22px; }
+.tile-num {
+  position: absolute; top: 6px; left: 6px; min-width: 22px; height: 22px; padding: 0 6px;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0, 0, 0, 0.62); color: #fff;
-  border-radius: var(--radius-pill); font-size: 12px; font-weight: 600;
+  border-radius: var(--radius-pill); background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 12px; font-weight: 600;
 }
-.card-row .list-btn, .card-row .remove-btn {
-  position: absolute; top: 8px; z-index: 2;
-  width: 30px; height: 30px; min-height: 0; padding: 0;
-  background: var(--fill); color: var(--ink-soft);
-  border: 0; border-radius: 50%; line-height: 1;
+.tile-arrow { flex: none; width: 28px; display: flex; align-items: center; justify-content: center; color: var(--ink-soft); }
+.tile-arrow.is-unsure {
+  width: 22px; height: 22px; margin: 0 3px; border-radius: 50%;
+  background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 700;
 }
-.card-row .remove-btn { right: 8px !important; }
-.card-row .list-btn { right: 44px; color: var(--accent); }
-.card-row .list-btn:hover, .card-row .remove-btn:hover { background: var(--fill-strong); }
-.card-row .remove-btn:hover { color: var(--warn); }
-.card-row .list-btn.added { background: var(--green-soft); color: var(--green); opacity: 1; cursor: default; }
+.tile-check {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px; min-height: var(--tap); padding: 4px 4px 4px 10px;
+  border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 600; line-height: 1.25;
+}
+.tile-check span { flex: 1; min-width: 0; }
+.tile-check button { flex: none; min-height: 36px; padding: 0 14px; border-radius: var(--radius-pill); background: var(--fill-strong); color: var(--ink); font-size: 13px; font-weight: 600; }
+.tile-title { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; }
+.tile-name { flex: 1; min-width: 0; padding-top: 3px; font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.tile-name a { color: inherit; text-decoration: none; }
+.tile-name a:hover { color: var(--accent); }
+.tile-name .tile-ext { display: inline-block; margin-left: 4px; vertical-align: -1px; color: var(--ink-faint); }
+.tile-in-post { flex: none; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--green-soft); color: var(--green); }
+.tile-version { margin-top: 6px; }
+.tile-working { margin-top: 4px; font-size: 13px; line-height: 1.3; color: var(--ink-soft); }
+.tile-foil { color: var(--gold); font-weight: 600; }
+.tile-yours { color: var(--accent); font-weight: 600; }
+.tile-price-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.tile-price { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; color: var(--ink); }
+.tile-price.foil { color: var(--gold); }
+.tile-approx { margin-right: 3px; font-weight: 400; color: var(--ink-soft); }
+.tile-subtotal { font-family: var(--font); font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--ink-soft); }
+.tile-needs { font-size: 17px; font-weight: 600; color: var(--warn); }
+.tile-icon-btn { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; background: var(--fill); color: var(--accent); }
+.tile-icon-btn.is-set { background: var(--accent-soft); }
+.tile-icon-btn.is-needed { background: var(--warn-soft); color: var(--warn); }
+.tile-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.tile-change { flex: 1 1 auto; min-width: 0; min-height: var(--tap); padding: 0 16px; border-radius: var(--radius-pill); background: var(--fill); color: var(--accent); font-size: 15px; font-weight: 600; gap: 6px; white-space: nowrap; }
+.tile-qty { flex: none; display: flex; align-items: center; gap: 4px; }
+.tile-qty button { width: var(--tap); height: var(--tap); min-height: 0; padding: 0; border-radius: 12px; background: var(--fill); color: var(--ink); }
+.tile-qty button.is-remove { color: var(--warn); }
+.finalize-action-row .info-tip { flex: none; align-self: center; }
+.finalize-action-row .info-tip button { flex: none; min-width: 0; min-height: 0; }
+.tile-qty span { min-width: 28px; text-align: center; font-size: 17px; font-weight: 600; }
+
+/* Tap the two pictures: both large, side by side. */
+.feedback-overlay.compare-shade { background: rgba(0, 0, 0, 0.88); }
+/* As wide as fits the screen's height too, so both cards show whole. */
+.compare-pop { display: flex; flex-direction: column; align-items: center; gap: 20px; width: min(760px, 100%, calc((100dvh - 220px) * 1.4)); max-height: 100%; overflow-y: auto; color: #fff; }
+.compare-pop h2 { margin: 0; font-size: 20px; font-weight: 600; text-align: center; }
+.compare-pair { display: flex; align-items: center; gap: 12px; width: 100%; }
+.compare-pair figure { flex: 1 1 0; min-width: 0; margin: 0; padding: 16px; border-radius: 24px; background: #1c1c1e; display: flex; flex-direction: column; gap: 12px; }
+.compare-pair img, .compare-pair .tile-img-none { display: block; width: 100%; aspect-ratio: 63 / 88; object-fit: cover; border-radius: 10px; background: #2c2c2e; }
+.compare-pair figcaption { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.compare-pair figcaption strong { font-size: 17px; }
+.compare-pair figcaption span { font-size: 13px; color: #a1a1a6; }
+.compare-pair .tile-arrow { width: 44px; height: 44px; border-radius: 50%; background: #2c2c2e; color: #fff; }
+.compare-actions { display: flex; align-items: center; gap: 12px; }
+.compare-actions .tile-change { flex: none; background: #2c2c2e; color: #409cff; }
+.compare-actions .feedback-close { width: var(--tap); height: var(--tap); background: #2c2c2e; color: #fff; }
+.compare-switch, .compare-narrow { display: none; }
+/* Phone: one card large, the switch on top; a tap on the card shows the other. */
+@media (max-width: 600px) {
+  .feedback-overlay.compare-shade { align-items: center; padding: 16px; }
+  .compare-pop { width: 100%; justify-content: center; gap: 20px; }
+  .compare-pop h2, .compare-wide, .compare-pair .tile-arrow, .compare-actions .tile-change { display: none; }
+  .compare-narrow { display: inline; }
+  .compare-switch { display: inline-flex; flex: none; background: #2c2c2e; }
+  .compare-switch button { color: #fff; padding-inline: 18px; }
+  .compare-switch button.active { background: #636366; }
+  .compare-pair { flex: none; }
+  .compare-pair figure { gap: 14px; padding: 0; border-radius: 0; background: transparent; cursor: pointer; }
+  .compare-pair.show-yours .is-match, .compare-pair.show-match .is-yours { display: none; }
+  /* The box is the picture's own size, so the rounded corners sit on the card. */
+  .compare-pair img { width: auto; height: min(62dvh, calc(88vw * 88 / 63)); max-width: 88%; object-fit: cover; aspect-ratio: auto; margin: 0 auto; background: none; border-radius: 16px; }
+  .compare-pair .tile-img-none { max-height: 62dvh; border-radius: 16px; }
+  .compare-pair figcaption strong { font-size: 19px; }
+  .compare-tap { margin-top: 6px; font-size: 13px; color: #8e8e93; }
+}
+
+/* A card's price popup. */
+.adjust-set { margin: 2px 0 0; font-size: 13px; color: var(--ink-soft); }
+.adjust-summary { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: var(--radius); background: var(--fill); }
+.adjust-working { font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.adjust-block { display: flex; flex-direction: column; gap: 6px; }
+.adjust-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+.adjust-label-note { font-size: 13px; }
+.adjust-row { display: flex; gap: 8px; align-items: stretch; }
+.adjust-finish button { flex-direction: column; gap: 0; min-height: 52px; }
+.adjust-finish button span { font-size: 12px; font-weight: 400; color: var(--ink-soft); }
+.adjust-finish button.is-foil strong { color: var(--gold); }
+.adjust-stepper { display: flex; align-items: center; min-height: 48px; border-radius: var(--radius); background: var(--fill); }
+.adjust-stepper button { width: 52px; align-self: stretch; padding: 0; background: transparent; color: var(--ink); font-size: 22px; font-weight: 400; }
+.adjust-stepper span { flex: 1; text-align: center; font-size: 17px; font-weight: 600; }
+.price-mode-toggle { flex: none; }
+.adjust-row .price-input-wrap { flex: 1 1 auto; min-height: 44px; }
+.price-mode-toggle button { min-width: 48px; }
+
+/* Printings list: search by another name when the card itself is wrong. */
+.modal-search { display: flex; flex-direction: column; gap: 6px; padding: 0 22px 14px; border-bottom: 0.5px solid var(--rule); }
+.modal-search-row { display: flex; gap: 8px; }
+.modal-search-row input { flex: 1; min-width: 0; font-size: 17px; }
+.modal-search-row button { flex: none; }
+.modal-search-msg { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.modal-search-msg.ok { color: var(--green); }
+.modal-search-msg.err { color: var(--warn); }
+@media (max-width: 600px) {
+  .modal-search { padding-inline: 16px; }
+  .modal-search-row { flex-wrap: wrap; }
+  .modal-search-row input { flex-basis: 100%; }
+}
+
 .removed-strip {
   margin-top: 14px; padding: 10px 12px;
   background: var(--surface-2); border: 0; border-radius: var(--radius);
@@ -986,24 +1063,6 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
   background: var(--paper); color: var(--ink); font-size: 13px;
 }
 .removed-strip .restore-all { margin-left: auto; min-height: 30px; padding: 2px 12px; font-size: 13px; }
-
-/* Comparison thumbnails */
-.compare { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; width: 84px; }
-.compare .compare-cell { display: flex; flex-direction: column; gap: 3px; }
-.compare img, .compare .placeholder {
-  width: 84px; aspect-ratio: 488 / 680;
-  background: var(--fill); border: 0; border-radius: 6px;
-  display: block; object-fit: cover;
-}
-.compare .placeholder { display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 17px; }
-.compare .lbl { font-size: 11px; font-weight: 500; color: var(--ink-soft); text-align: center; }
-.compare img { cursor: zoom-in; }
-.card-row .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-/* Leave room for the two round buttons in the corner. */
-.card-row .title { font-size: 17px; font-weight: 600; line-height: 1.25; word-break: break-word; padding-right: 68px; }
-.card-row .title a { color: inherit; text-decoration: none; }
-.card-row .title a:hover { color: var(--accent); }
-.card-row .title .ext-icon { font-size: 13px; font-weight: 500; color: var(--ink-faint); margin-left: 4px; }
 
 /* Version display */
 .version-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1020,26 +1079,7 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .set-badge .rarity.mythic { background: #ff6723; }
 .set-badge .rarity.special { background: #af52de; }
 .set-name { font-size: 13px; color: var(--ink-soft); line-height: 1.25; }
-.price-line { font-size: 13px; color: var(--ink-soft); }
-.price-line .price-line-raw { color: var(--ink-soft); font-weight: 500; margin-left: 4px; }
-.price-block { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
-/* The price is the product: biggest thing on the row, in label colour so it
-   reads in any light. Foil keeps the gold it has on the exported image. */
-.price-myr { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-size: 28px; line-height: 1.1; letter-spacing: -0.02em; }
-.price-myr.foil { color: var(--gold); }
-.price-myr.struck { color: var(--ink-faint); text-decoration: line-through; font-size: 15px; font-weight: 400; letter-spacing: 0; }
-.override-pill {
-  display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 9px;
-  background: var(--accent-soft); color: var(--accent);
-  border-radius: var(--radius-pill); font-size: 12px; font-weight: 600;
-}
-.override-pill button {
-  all: unset; cursor: pointer; width: 18px; height: 18px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--fill); color: inherit; font-size: 13px; font-weight: 600; border-radius: 50%;
-}
-.subtotal { font-size: 13px; color: var(--ink-soft); }
-.subtotal strong { color: var(--ink); font-weight: 600; }
+
 .source-tag {
   display: inline-block; padding: 1px 6px; margin-right: 4px;
   border-radius: 5px; font-size: 11px; font-weight: 600;
@@ -1047,61 +1087,7 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .source-tag.ck { background: var(--green-soft); color: var(--green); }
 .source-tag.none { background: var(--warn-soft); color: var(--warn); }
 .source-tag.manual { background: var(--gold-soft); color: var(--gold); }
-.conf { font-size: 12px; color: var(--ink-soft); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.conf.low { color: var(--warn); }
 
-/* Steppers + foil toggle */
-.row-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; min-width: 0; }
-.row-controls > * { max-width: 100%; }
-.qty-row, .mult-row {
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: 2px 2px 2px 10px;
-  background: var(--fill); border: 0; border-radius: 9px;
-  font-size: 13px; color: var(--ink-soft);
-}
-.qty-row > span, .mult-row > span { margin-right: 4px; }
-.mult-row.set { background: var(--accent-soft); color: var(--accent); }
-.qty-btn, .mult-row .mult-clear {
-  width: 32px; height: 32px; min-height: 0; padding: 0;
-  background: transparent; color: var(--ink);
-  border: 0; border-radius: 7px; line-height: 1;
-}
-.qty-btn:hover { background: var(--fill-strong); }
-.mult-row .mult-clear { width: 26px; color: var(--accent); font-size: 17px; }
-.qty-input, .mult-input {
-  width: 34px; height: 32px; min-height: 0; padding: 0;
-  background: transparent; border: 0; border-radius: 6px;
-  font-size: 15px; font-weight: 600; color: var(--ink); text-align: center;
-  appearance: textfield; -moz-appearance: textfield;
-}
-.mult-input { width: 44px; }
-.qty-input:focus, .mult-input:focus { background: var(--paper); box-shadow: 0 0 0 2px var(--accent-fill); }
-.mult-row.set .mult-input { color: var(--accent); }
-.toggle {
-  min-height: 36px; padding: 4px 14px;
-  background: var(--fill); color: var(--ink);
-  border: 0; border-radius: 9px; font-size: 13px; font-weight: 600;
-}
-.toggle.active { background: var(--gold-fill); color: #1c1c1e; }
-.toggle.active:hover { background: var(--gold-fill); filter: brightness(1.05); }
-
-/* ADJUST panel */
-.adjust {
-  margin-top: 12px; padding-top: 12px;
-  border-top: 0.5px solid var(--rule);
-  display: flex; flex-direction: column; gap: 12px;
-}
-.adjust-toggle {
-  width: 100%; min-height: 32px; padding: 0;
-  justify-content: space-between;
-  background: transparent; color: var(--accent);
-  border: 0; border-radius: 6px; font-size: 15px; font-weight: 500;
-}
-.adjust-toggle:hover { background: transparent; }
-.adjust.is-open .disclosure-chevron { transform: rotate(180deg); }
-.adjust-block { display: flex; flex-direction: column; gap: 6px; }
-.adjust-label { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
-.adjust-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
 .price-input-wrap {
   display: flex; align-items: center; flex: 1; min-width: 0;
   background: var(--fill); border: 1px solid transparent;
@@ -1131,49 +1117,6 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 }
 .clear-btn:hover { color: var(--warn); }
 .clear-btn:disabled { opacity: 0; pointer-events: none; }
-/* USD/RM toggle next to the override input */
-.price-mode-toggle {
-  display: inline-flex; align-items: stretch; flex-shrink: 0; padding: 2px;
-  background: var(--fill); border: 0; border-radius: 10px;
-}
-.price-mode-toggle .mode-btn {
-  min-height: 0; padding: 0 10px;
-  background: transparent; color: var(--ink);
-  border: 0; border-radius: 8px; font-size: 13px; font-weight: 500;
-}
-.price-mode-toggle .mode-btn.active { background: var(--seg-thumb); box-shadow: var(--seg-shadow); font-weight: 600; }
-.relookup-input { flex: 1 1 150px; min-width: 0; font-size: 15px; }
-.relookup-btn, .asis-btn, .printings-btn {
-  min-height: 36px; padding: 4px 14px; border-radius: 10px;
-  font-size: 13px; white-space: nowrap;
-}
-.relookup-btn { background: var(--accent-fill); color: var(--on-accent); }
-.relookup-btn:hover { background: var(--accent-fill); filter: brightness(1.08); }
-.relookup-btn.busy { opacity: 0.6; }
-.asis-btn { color: var(--ink); }
-.asis-btn.urgent { background: var(--gold-fill); color: #1c1c1e; animation: pulse-gold 1.6s ease-in-out 3; }
-@keyframes pulse-gold {
-  0%,100% { box-shadow: 0 0 0 0 rgba(255, 204, 0, 0); }
-  50% { box-shadow: 0 0 0 8px rgba(255, 204, 0, 0.3); }
-}
-.adjust-msg { font-size: 13px; min-height: 16px; }
-.adjust-msg.ok { color: var(--green); }
-.adjust-msg.err { color: var(--warn); }
-.adjust-msg.busy { color: var(--ink-soft); }
-.adjust-msg .inline-action { min-height: 26px; margin-left: 6px; padding: 2px 10px; font-size: 12px; }
-.adjust-hint { font-size: 12px; color: var(--ink-soft); line-height: 1.35; }
-.manual-banner {
-  display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin: 4px 0;
-  background: var(--warn-soft); color: var(--warn);
-  border-radius: 10px; font-size: 13px; font-weight: 600;
-}
-.manual-banner.set { background: var(--fill); color: var(--ink-soft); }
-.manual-banner .dot { font-size: 10px; line-height: 1; }
-.manual-banner.version-check { font-weight: 500; flex-wrap: wrap; }
-.manual-banner.version-check .link-btn { margin-left: auto; }
-.price-set-prompt { font-weight: 600; color: var(--warn); font-size: 17px; }
-.printings-btn { color: var(--ink); gap: 8px; }
-.printings-btn .glyph { font-size: 15px; line-height: 1; color: var(--ink-soft); }
 
 /* ---------- Totals + actions ---------- */
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
@@ -1233,15 +1176,9 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 }
 .modal-close:hover, .feedback-close:hover { background: var(--fill-strong); }
 .modal-status { padding: 0 22px 12px; border: 0; background: transparent; font-size: 13px; color: var(--ink-soft); }
-.modal-filter {
-  padding: 0 22px 14px; border-bottom: 0.5px solid var(--rule);
-  background: transparent; display: flex; gap: 8px; align-items: center;
-}
-.modal-filter input { flex: 1; min-width: 0; font-size: 17px; }
-.modal-filter .clear-filter { min-height: 36px; padding: 4px 14px; font-size: 15px; background: transparent; color: var(--accent); }
 .modal-grid {
   padding: 16px 22px 22px; overflow-y: auto; flex: 1;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; grid-auto-rows: max-content;
 }
 .modal-more { padding: 0 22px 22px; display: flex; justify-content: center; }
 .modal-more-btn { font-size: 15px; }
@@ -1283,7 +1220,7 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
     border-radius: 3px; background: var(--fill-strong);
   }
   .modal-head { padding: 10px 12px 10px 16px; }
-  .modal-status, .modal-filter { padding-inline: 16px; }
+  .modal-status { padding-inline: 16px; }
   .modal-grid { padding: 14px 16px 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -2825,6 +2762,18 @@ img.zoomable:hover {
 .feedback-foot .accent { margin-left: auto; min-width: 96px; min-height: var(--tap); }
 /* The default-pricing sheet holds the whole pricing form, so it is wider
    and scrolls on a short screen. */
+.adjust-sheet { max-height: 92dvh; overflow-y: auto; }
+.adjust-toggle.needs-price { color: var(--warn); font-weight: 700; }
+.add-card-btn { margin: 10px 0 4px; }
+.pricing-button {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; margin-bottom: 14px; padding: 12px 14px;
+  border-radius: var(--radius); background: var(--surface); color: var(--ink); text-align: left; box-shadow: inset 0 0 0 1px var(--rule);
+}
+.pricing-button .icon { color: var(--accent); }
+.pricing-button-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pricing-button-text strong { font-size: 15px; }
+.pricing-button-text span { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
+.pricing-button-edit { font-size: 15px; color: var(--accent); }
 .pricing-sheet { max-width: 640px; max-height: 92dvh; overflow-y: auto; }
 .pricing-sheet .status { margin-top: 0; }
 .pricing-default-row { display: flex; justify-content: flex-end; margin-top: 14px; }
