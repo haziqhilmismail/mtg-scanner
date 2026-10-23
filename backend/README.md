@@ -15,10 +15,10 @@ app/
 ├── deps.py       # DbSession, CurrentUserId (bearer), ImageUserId (?token=), the rate limiter
 ├── models/       # SQLAlchemy tables
 ├── schemas/      # Pydantic request/response shapes
-├── routers/      # auth, bugs, buyers, claims, credits, listings, orders, payment, posts, scans, slips
+├── routers/      # auth, bugs, buyers, claims, credits, listings, orders, payment, posts, sales, scans, slips
 └── services/     # Gemini, Scryfall, CardKingdom, overlay render, credits, local scanner...
 migrations/       # Alembic; `alembic upgrade head` runs on every start
-scripts/          # make_voucher.py, build_embedding_index.py
+scripts/          # make_voucher.py, build_embedding_index.py, delete_account.py
 tests/
 ```
 
@@ -42,6 +42,7 @@ everything belongs to user `SOLO_USER_ID`.
 | `payments` | Reserved for partial payments (no routes yet) |
 | `scan_credit_events`, `vouchers`, `voucher_redemptions` | Scan credits, see `services/credits.py` |
 | `bug_events` | Backend 500s and frontend crash reports (also pushed to Telegram) |
+| `sale_records` | Each card line sent to a buyer, kept for price analysis; kept with no links after the account is deleted (`models/sale_record.py`) |
 
 ## Running
 

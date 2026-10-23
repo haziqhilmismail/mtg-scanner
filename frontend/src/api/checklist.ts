@@ -233,6 +233,19 @@ export const listingsApi = {
 };
 
 // ---------- Orders ----------
+// A buyer's summary was copied or shared: its lines are kept as sales records
+// (price, card, how it was priced; nothing about the buyer). See PRIVACY.md.
+export interface SentLine {
+  order_item_id: number;
+  app_usd: string | null;
+  app_mult: string | null;
+  price_kind: 'auto' | 'override' | 'manual' | null;
+}
+export const salesApi = {
+  record: (channel: 'copy' | 'share', postId: number | null, postType: 'photo' | 'live', lines: SentLine[]) =>
+    json<{ recorded: number }>('POST', '/api/sales', { channel, post_id: postId, post_type: postType, lines }, true),
+};
+
 export const ordersApi = {
   list: (includeArchived = false) =>
     json<Order[]>('GET', `/api/orders${includeArchived ? '?include_archived=true' : ''}`),

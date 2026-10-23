@@ -12,7 +12,7 @@ Pasar Malam MTG is run by one person, Muhammad Haziq bin Hilmi, in Malaysia. If 
 - **What you put in.** The photos you scan, the cards found in them, your prices and pricing settings, your posts, and the claims and orders you save.
 - **Your buyers.** The names, Facebook names and phone numbers you enter for your buyers. Only you can see them.
 - **Your payment details.** The bank, account number, account name, note and DuitNow QR you enter. They are added to the summaries you copy for buyers. Only you can see them, and you can delete them at any time.
-- **Sales records.** When you copy or share a buyer's summary, the app records the cards in it: card name, set, finish, quantity, the final price and the date. This shows real selling prices at the night market. The record does not include the buyer's name or phone number.
+- **Sales records.** When you copy or share a buyer's summary, the app records the price of each card in it: the card (name, set, collector number, rarity, finish), the quantity, the final price, how you priced it (the Card Kingdom price and multiplier your app used, or a price you typed), the kind of post (price on photo or live price), Card Kingdom's price that day, and the time. This shows real selling prices at the night market. While your account exists, a record is linked to your account, post and order. A record never includes the buyer's name, phone number or notes.
 - **Credits.** When you use a credit, and the vouchers you redeem.
 - **Error reports and feedback.** When something breaks, or you send feedback: the message, the page, your browser type and your user number (not your email).
 - **Your browser.** Your language, theme and some settings stay in your browser's local storage. There are no ads, no tracking cookies and no analytics.
@@ -34,7 +34,7 @@ You enter your buyers' details, so you are responsible for having a reason to ke
 
 ## How long data is kept
 
-Your data stays until you delete it in the app, or until your account is deleted. To delete your account, email the address above; it is done within 30 days. When an account is deleted, its photos, posts, buyers, orders and payment details are deleted. Sales records are kept, with nothing that links them to you.
+Your data stays until you delete it in the app, or until your account is deleted. To delete your account, email the address above; it is done within 30 days. When an account is deleted, its photos, posts, buyers, orders and payment details are deleted. Sales records are kept with no link to your account, posts or orders; only whether each order was paid or cancelled is kept with them.
 
 Every night the server makes a backup of the data, and it deletes each backup after 30 days. So data that you delete, or the data of a deleted account, stays in a backup for up to 30 days.
 

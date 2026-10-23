@@ -10,6 +10,7 @@ from .order_item import OrderItem
 from .payment import Payment
 from .listing_post_link import listing_post_links
 from .post import Post, PostStatus
+from .sale_record import SaleRecord
 from .scan import Scan
 from .user import User
 
@@ -27,6 +28,7 @@ __all__ = [
     "Payment",
     "Post",
     "PostStatus",
+    "SaleRecord",
     "Scan",
     "ScanCreditEvent",
     "User",
