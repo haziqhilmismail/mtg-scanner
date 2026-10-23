@@ -164,12 +164,6 @@ export type PhotoSort = keyof typeof PHOTO_SORTS;
 export const sortPhotos = <T extends { batch: Batch }>(items: T[], sort: PhotoSort) =>
   [...items].sort((a, b) => PHOTO_SORTS[sort](a.batch, b.batch));
 
-// Scryfall stores multiple sizes; for zoom we want the higher-res "large" variant
-export function upgradeScryfallImage(url: string): string {
-  if (!url) return url;
-  return url.replace('/normal/', '/large/').replace('/small/', '/large/');
-}
-
 // For thumbnails (the printings grid, a card's match image) prefer the small
 // variant — 146x204 JPEGs are ~12KB vs ~80KB for normal, which avoids stutter
 // when a card has 50+ printings.

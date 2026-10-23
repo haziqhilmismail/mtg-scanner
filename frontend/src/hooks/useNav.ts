@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { readStored, writeStored } from './usePersistedState.ts';
 
-// 'checklist' is the page Claims replaced. No link opens it now; App still
-// renders it, so a link can bring it back.
-export type View = 'scanner' | 'claims' | 'checklist';
+export type View = 'scanner' | 'claims';
 
 // Where the user is: the tab, the open post (gallery folder key, shared with
 // Claims), the open photo and a sheet open over any of them. Every level is
@@ -17,7 +15,6 @@ const FOLDER_KEY = 'mtg.scans.folder';
 
 function parentOf(n: Nav): Nav | null {
   if (n.sheet) return { ...n, sheet: undefined };
-  if (n.view === 'checklist') return { ...n, view: 'claims' };
   if (n.view !== 'scanner') return null;
   if (n.photo != null) return { ...n, photo: null };
   if (n.folder != null) return { ...n, folder: null };
@@ -32,10 +29,8 @@ const isNav = (s: unknown): s is Nav => !!s && typeof s === 'object' && 'view' i
 // A reload keeps the entry's own state; a fresh visit opens the last tab and
 // post, as remembered in localStorage (the open photo isn't remembered).
 function initial(): Nav {
-  const n: Nav = isNav(history.state) ? history.state
+  return isNav(history.state) ? history.state
     : { view: readStored<View>(TAB_KEY, 'scanner'), folder: readStored<string | null>(FOLDER_KEY, null), photo: null };
-  // No link opens the old checklist now, so nobody is left on it after a reload.
-  return n.view === 'checklist' ? { ...n, view: 'claims' } : n;
 }
 
 export function useNav() {
