@@ -17,6 +17,7 @@ data/ck_pricelist.json
 data/scans/
 data/posts/
 data/orders/
+data/payment_qr/
 
 # Auto-generated session-signing secret — MUST NOT be committed
 data/jwt_secret.txt
