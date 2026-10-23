@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 from PIL import Image
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -75,6 +75,7 @@ async def list_scans(
             "height": s.height,
             "cards": cards,
             "created_at": s.created_at.isoformat() if s.created_at else None,
+            "position": s.position,
             "ui_state": s.ui_state,
             "listed": listed.get(s.id, []),
         })
@@ -152,8 +153,23 @@ async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
     await db.execute(
         update(Scan)
         .where(Scan.id.in_(body.scan_ids), Scan.user_id == user_id)
-        .values(post_id=body.post_id)
+        # Into another post: after its photos, until the seller places it.
+        .values(post_id=body.post_id, position=None)
     )
+
+
+class ScanOrder(BaseModel):
+    scan_ids: list[int] = Field(..., max_length=500)
+
+
+@router.put("/order", status_code=204)
+async def order_scans(body: ScanOrder, db: DbSession, user_id: CurrentUserId):
+    """Save the order of a post's photos: the first id is Photo 1. Other
+    people's scans in `scan_ids` are silently left alone."""
+    for position, scan_id in enumerate(body.scan_ids):
+        await db.execute(
+            update(Scan).where(Scan.id == scan_id, Scan.user_id == user_id).values(position=position)
+        )
 
 
 async def _scan_for_image(db: DbSession, scan_id: int, user_id: int) -> Scan:
