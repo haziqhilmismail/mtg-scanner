@@ -62,6 +62,7 @@ class OrderRead(BaseModel):
     paid_at: datetime | None
     delivered_at: datetime | None
     archived_at: datetime | None
+    prices_sent_at: datetime | None = None
     total_myr: Decimal
     dropoff_method: str | None
     dropoff_address: str | None

@@ -302,3 +302,24 @@ def test_a_finished_photo_keeps_its_posted_prices(client):
     r = client.post("/api/claims/confirm", headers=me, json={"post_id": post, "claims": [{"buyer": "Siti", "items": [item("15.00")]}]})
     assert r.json()[0]["total_myr"] == "15.00" and price_of() == "15.00"
 
+
+def test_live_prices_change_until_sent(client):
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, headers=me).json()["scan_id"]
+    order = client.post("/api/claims/confirm", headers=me, json={"claims": [
+        {"buyer": "Aiman", "items": [_item(scan, 0, "Sol Ring", "9.00", qty=2, qty_total=2)]}]}).json()[0]
+    item = order["items"][0]["id"]
+    assert order["prices_sent_at"] is None
+
+    # Refresh prices: today's CK price, still an estimate.
+    r = client.put(f"/api/orders/{order['id']}/prices", headers=me, json={"items": [{"id": item, "unit_price_myr": "10.00"}]}).json()
+    assert (r["total_myr"], r["prices_sent_at"]) == ("20.00", None)
+    # Copied for the buyer: the price is sent and stays.
+    r = client.put(f"/api/orders/{order['id']}/prices", headers=me, json={"items": [{"id": item, "unit_price_myr": "11.00"}], "sent": True}).json()
+    assert r["total_myr"] == "22.00" and r["prices_sent_at"]
+    assert client.put(f"/api/orders/{order['id']}/prices", headers=me, json={"items": [{"id": item, "unit_price_myr": "1.00"}]}).status_code == 409
+    # Resend at today's price.
+    assert client.delete(f"/api/orders/{order['id']}/prices-sent", headers=me).json()["prices_sent_at"] is None
+    assert client.put(f"/api/orders/{order['id']}/prices", headers=me, json={"items": [{"id": item, "unit_price_myr": "12.00"}]}).json()["total_myr"] == "24.00"
