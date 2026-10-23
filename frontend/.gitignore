@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+*.local
+.DS_Store
+*.tsbuildinfo
+
+# Built from PRIVACY.md by scripts/privacy.mjs
+public/privacy.html
