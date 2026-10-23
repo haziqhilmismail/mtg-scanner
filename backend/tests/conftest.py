@@ -16,6 +16,7 @@ os.environ.update(
     USE_CLASSICAL_BBOX="false",
     # The tests stub the Gemini call; the local scanner needs model files.
     SCANNER_BACKEND="gemini",
+    FREE_SCANS_PER_WINDOW="10",  # small, so the out-of-credits tests stay fast
 )
 
 import asyncio  # noqa: E402

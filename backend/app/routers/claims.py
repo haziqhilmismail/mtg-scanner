@@ -75,7 +75,7 @@ async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user
             drafts = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, seller)
         except Exception as e:
             raise HTTPException(502, f"Could not work out the claims: {e}")
-    return {"claims": [d.model_dump() for d in drafts]}
+    return {"claims": [d.model_dump() for d in drafts], "credits": await credits.status(db, user_id)}
 
 
 class ConfirmItem(BaseModel):
