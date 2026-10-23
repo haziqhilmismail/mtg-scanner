@@ -21,8 +21,8 @@
   font-weight: 400; line-height: 1.2; text-decoration: none;
   transition: box-shadow 0.2s var(--ease), transform 0.15s var(--ease);
 }
-.scan-tile:hover { background: var(--paper); box-shadow: var(--shadow), 0 0 0 1px var(--rule-strong); }
-.scan-tile.is-selected { box-shadow: 0 0 0 2.5px var(--accent-fill), var(--shadow); }
+.scan-tile:hover { background: var(--paper); box-shadow: 0 0 0 1px var(--rule-strong); }
+.scan-tile.is-selected { box-shadow: 0 0 0 2.5px var(--accent-fill); }
 .scan-tile-img {
   position: relative; display: flex; align-items: center; justify-content: center;
   aspect-ratio: 4 / 3; background: var(--fill); color: var(--ink-faint);
@@ -155,7 +155,7 @@
    at ~90% viewport, never upscaled beyond native). */
 .preview-cell.expanded {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  z-index: 200; padding: 10px;
+  z-index: var(--z-dialog-top); padding: 10px;
   background: var(--paper); border: 0; border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg), 0 0 0 100vmax var(--scrim);
   /* Don't clip the close button that pokes out of the corner. */
@@ -168,7 +168,7 @@
   font-size: 17px; font-weight: 600; line-height: 1;
   background: var(--glass); color: var(--ink);
   -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  border: 0.5px solid var(--glass-border); border-radius: 50%;
+  border: 1px solid var(--glass-border); border-radius: 50%;
   box-shadow: var(--shadow);
 }
 .preview-close-btn:hover { background: var(--glass); filter: brightness(1.08); }
@@ -195,14 +195,6 @@
 .preview-pill text { fill: #ffffff; font-weight: 700; pointer-events: none; user-select: none; }
 .preview-pill.foil rect { fill: rgb(240, 195, 50); stroke: rgba(255, 230, 130, 0.9); }
 .preview-pill.foil text { fill: rgb(25, 20, 10); }
-
-/* ---------- Framing tool ----------
-   User-driven "fix-it" overlay for cards the detector merged or missed.
-   Lives inside the expanded preview only — the user needs room to draw cleanly.
-   Its one bar floats over the photo, so it uses the glass material. */
-/* Capture rect — invisible overlay that catches the user's drag. Only
-   present while the framing tool is active so it doesn't block pill drag. */
-/* "Add blank" — secondary path next to Identify. */
 
 /* ---------- Finalize block ----------
    Which post the cards belong to, then the actions for this scan. Shown
@@ -324,7 +316,7 @@
 .price-mode-toggle button { min-width: 48px; }
 
 /* Printings list: search by another name when the card itself is wrong. */
-.modal-search { display: flex; flex-direction: column; gap: 6px; padding: 0 22px 14px; border-bottom: 0.5px solid var(--rule); }
+.modal-search { display: flex; flex-direction: column; gap: 6px; padding: 0 22px 14px; border-bottom: 1px solid var(--rule); }
 .modal-search-row { display: flex; gap: 8px; }
 .modal-search-row input { flex: 1; min-width: 0; font-size: 17px; }
 .modal-search-row button { flex: none; }
@@ -361,7 +353,7 @@
 .export-warning .warn-icon { flex-shrink: 0; color: var(--gold); }
 .totals {
   margin-top: 16px; padding: 14px 4px 0;
-  border-top: 0.5px solid var(--rule);
+  border-top: 1px solid var(--rule);
   background: transparent; color: var(--ink-soft);
   display: flex; justify-content: space-between; align-items: baseline;
   flex-wrap: wrap; gap: 10px; font-size: 15px;

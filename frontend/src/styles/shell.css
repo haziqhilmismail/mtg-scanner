@@ -2,7 +2,7 @@
    Solid, on every page: the mark, the two tabs, the prices status (wide
    screens) and the avatar that opens Profile. */
 .app-bar {
-  position: sticky; top: 0; z-index: 40;
+  position: sticky; top: 0; z-index: var(--z-bar);
   background: var(--bg);
   border-bottom: 1px solid var(--rule);
   padding-top: env(safe-area-inset-top);
