@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchCredits, fetchHealth, paymentApi, type Health, type Payment } from './api.ts';
 import { formatRelativeTime } from './utils.ts';
 import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
@@ -20,10 +20,6 @@ import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
 import { Scanner } from './views/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
-
-// The page Claims replaced. No link opens it any more, so its code is a
-// separate chunk that is only downloaded if it is ever shown.
-const Checklist = lazy(() => import('./views/Checklist.tsx').then(m => ({ default: m.Checklist })));
 
 export default function App() {
   const { theme, appearance, setAppearance } = useTheme();
@@ -188,10 +184,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           onEnterVoucher={() => setVoucherOpen(true)}
         />
       </div>
-      {view === 'checklist' ? (
-        <Suspense fallback={null}><Checklist createPost={pricing.createPost} t={t} /></Suspense>
-      ) : null}
-
       <footer className="foot">
         <span>{t('footer_left')}</span>
         <span>{t('footer_right')} · <a href="/privacy.html">{t('privacy_link')}</a></span>

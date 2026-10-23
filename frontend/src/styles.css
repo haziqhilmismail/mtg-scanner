@@ -133,10 +133,6 @@ img { max-width: 100%; }
 /* ---------- App bar ----------
    Part of the functional layer: translucent so content scrolls beneath it,
    with a hairline instead of a solid fill (see .glass). */
-.glass {
-  background: var(--glass);
-  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-}
 .app-bar {
   position: sticky; top: 0; z-index: 40;
   background: var(--glass);
@@ -307,11 +303,6 @@ img { max-width: 100%; }
   font-size: 20px; font-weight: 700; color: var(--ink);
   display: flex; align-items: baseline; gap: 8px;
 }
-/* The scanner's three panels are already in reading order; the numerals
-   added nothing the order doesn't say. */
-.step-num { display: none; }
-.prose { font-size: 15px; line-height: 1.5; }
-.prose a { color: var(--accent); }
 @media (max-width: 767px) {
   .panel { padding: 16px; margin-bottom: 24px; }
 }
@@ -345,7 +336,6 @@ img { max-width: 100%; }
 .upload-compact .drop-icon { margin: 0; }
 .upload-compact .drop strong { margin: 0; font-size: 15px; }
 .upload-compact .credits-line { margin-top: 8px; }
-.upload-compact + .panel.disclosure { margin-bottom: 16px; }
 
 /* ---------- Form fields ---------- */
 /* :where() keeps these at zero specificity so any class can restyle a field. */
@@ -454,30 +444,6 @@ button { position: relative; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }
-
-/* ---------- Disclosure panel (pricing settings) ---------- */
-.panel.disclosure { padding: 0; }
-.disclosure-head {
-  width: 100%; min-height: 60px; padding: 12px 20px;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  background: transparent; border: 0; border-radius: var(--radius-lg);
-  color: var(--ink); text-align: left;
-}
-.disclosure-head:hover { background: transparent; }
-.disclosure-head:active { transform: none; }
-.disclosure-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.disclosure-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; }
-.disclosure-summary {
-  font-size: 13px; font-weight: 400; color: var(--ink-soft);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.disclosure-chevron { color: var(--ink-faint); transition: transform 0.25s var(--ease); }
-.is-open > .disclosure-head .disclosure-chevron { transform: rotate(180deg); }
-.disclosure-body { padding: 4px 20px 20px; }
-@media (max-width: 767px) {
-  .disclosure-head { padding: 12px 16px; }
-  .disclosure-body { padding: 4px 16px 16px; }
-}
 
 /* ---------- Review section heading ---------- */
 .review-head {
@@ -641,7 +607,6 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   .demo-claims-mobile-note { display: block; }
 }
 .claims-help-text { margin: 0 0 16px; font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
-.claims-alt { margin-top: 8px; text-align: center; }
 .claims-hint { margin: 0 0 12px; font-size: 15px; color: var(--ink-soft); }
 .claims-note {
   display: flex; align-items: flex-start; gap: 6px; margin: 6px 0 0;
@@ -761,7 +726,12 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .claim-item-name { display: flex; flex-direction: column; min-width: 0; }
 .claim-item-working { font-size: 13px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .claim-row-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.claims-old { margin: 28px 0 0; text-align: center; }
+
+.form-error {
+  margin-top: 10px; padding: 10px 12px;
+  background: var(--warn-soft); color: var(--warn);
+  border-radius: var(--radius); font-size: 13px;
+}
 
 /* Back / position / step controls above a post's photos and a single photo. */
 /* Wraps: a long post name takes the first line to itself and the position
@@ -954,6 +924,13 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .bulk-bar button { min-height: 32px; padding: 4px 14px; font-size: 13px; color: var(--ink); }
 .bulk-bar button.gold { background: var(--gold-soft); color: var(--gold); }
 
+.bulk-bar {
+  display: flex; align-items: center; gap: 12px;
+  margin: 4px 0 12px; padding: 10px 14px;
+  background: var(--fill); color: var(--ink-soft);
+  border-radius: var(--radius); flex-wrap: wrap;
+}
+
 /* ---------- Card tiles ----------
    One tile per card: your photo of it next to the matched printing, then its
    name, price and the few controls a seller uses on every card. */
@@ -1107,14 +1084,6 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .set-badge .rarity.special { background: #af52de; }
 .set-name { font-size: 13px; color: var(--ink-soft); line-height: 1.25; }
 
-.source-tag {
-  display: inline-block; padding: 1px 6px; margin-right: 4px;
-  border-radius: 5px; font-size: 11px; font-weight: 600;
-}
-.source-tag.ck { background: var(--green-soft); color: var(--green); }
-.source-tag.none { background: var(--warn-soft); color: var(--warn); }
-.source-tag.manual { background: var(--gold-soft); color: var(--gold); }
-
 .price-input-wrap {
   display: flex; align-items: center; flex: 1; min-width: 0;
   background: var(--fill); border: 1px solid transparent;
@@ -1137,6 +1106,30 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
   appearance: textfield; -moz-appearance: textfield;
 }
 .price-input-wrap input:focus { box-shadow: none; }
+.price-input-wrap {
+  display: inline-flex; align-items: center;
+  border: 0.5px solid var(--rule);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding-left: 8px;
+  flex: 0 0 auto;
+}
+.price-input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227,0.12);
+}
+.price-input-wrap .prefix {
+  font-size: 13px; font-weight: 600;
+  color: var(--ink-soft);
+}
+.price-input-wrap input {
+  width: 70px;
+  border: none; background: transparent;
+  padding: 6px 8px;
+  font-size: 15px; font-weight: 600;
+  color: var(--accent);
+  outline: none;
+}
 .clear-btn {
   width: 36px; min-height: 36px; padding: 0;
   background: var(--fill); color: var(--ink-soft);
@@ -1146,7 +1139,6 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .clear-btn:disabled { opacity: 0; pointer-events: none; }
 
 /* ---------- Totals + actions ---------- */
-.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .export-warning {
   display: flex; align-items: flex-start; gap: 10px;
   margin-top: 12px; padding: 12px 14px;
@@ -1243,7 +1235,7 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
     padding-bottom: env(safe-area-inset-bottom);
     animation: sheet-up 0.38s var(--ease);
   }
-  .modal-box::before, .feedback-modal::before, .modal-card::before {
+  .modal-box::before, .feedback-modal::before {
     content: ''; flex: none; align-self: center;
     width: 36px; height: 5px; margin: 6px auto 0;
     border-radius: 3px; background: var(--fill-strong);
@@ -1276,1416 +1268,6 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
   background: rgba(60, 60, 67, 0.72); color: #fff;
   font-size: 13px; font-weight: 500; pointer-events: none;
 }
-
-/* ---------- Checklist ---------- */
-.sub-tabs {
-  display: flex; padding: 2px; width: fit-content; margin-bottom: 16px;
-  background: var(--fill); border: 0; border-radius: 9px;
-}
-.sub-tabs button {
-  min-height: 32px; padding: 0 14px;
-  background: transparent; color: var(--ink);
-  border: 0; border-radius: 7px; font-size: 13px; font-weight: 500;
-}
-.sub-tabs button:hover:not(.active) { background: transparent; }
-.sub-tabs button.active { background: var(--seg-thumb); box-shadow: var(--seg-shadow); font-weight: 600; }
-.sub-tabs button .count { margin-left: 6px; font-size: 12px; color: var(--ink-soft); }
-.list-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-.list-toolbar h3 { margin: 0; font-size: 22px; font-weight: 700; color: var(--ink); }
-.list-toolbar .spacer { flex: 1; }
-.toolbar-count { font-size: 17px; color: var(--ink-soft); }
-.data-table {
-  width: 100%; border-collapse: separate; border-spacing: 0;
-  background: var(--paper); border: 0;
-  border-radius: var(--radius-lg); overflow: hidden;
-  font-size: 15px; box-shadow: var(--shadow);
-}
-.data-table thead th {
-  text-align: left; padding: 10px 14px;
-  font-size: 13px; font-weight: 500; color: var(--ink-soft);
-  border-bottom: 0.5px solid var(--rule);
-}
-.data-table tbody td { padding: 12px 14px; border-top: 0.5px solid var(--rule); vertical-align: top; }
-.data-table tbody tr:first-child td { border-top: 0; }
-.data-table .num { text-align: right; }
-.data-table .actions-cell { text-align: right; white-space: nowrap; }
-.data-table .actions-cell button { min-height: 30px; padding: 2px 10px; font-size: 13px; margin-left: 4px; }
-.data-table .empty { text-align: center; padding: 32px; color: var(--ink-soft); font-size: 15px; }
-/* Status badges: tinted, with the word doing the telling. */
-.badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-.badge.active, .badge.paid, .badge.delivered { background: var(--green-soft); color: var(--green); }
-.badge.archived, .badge.cancelled { background: var(--fill); color: var(--ink-soft); }
-.badge.claimed, .badge.pending { background: var(--gold-soft); color: var(--gold); }
-.badge.unpaid { background: var(--warn-soft); color: var(--warn); }
-.badge.credit { background: var(--accent-soft); color: var(--accent); }
-.form-card {
-  background: var(--paper); border: 0; border-radius: var(--radius-lg);
-  padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow);
-}
-.form-card h3 { margin: 0 0 14px; padding: 0; border: 0; font-size: 20px; font-weight: 700; color: var(--ink); }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
-.form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-soft); }
-.form-grid label.full { grid-column: 1 / -1; }
-.form-grid input, .form-grid select, .form-grid textarea { width: 100%; min-height: var(--tap); resize: vertical; }
-.form-grid textarea { min-height: 72px; }
-.form-grid .row-cb { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--ink); }
-.form-card .form-actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
-.form-error, .form-card .form-error {
-  margin-top: 10px; padding: 10px 12px;
-  background: var(--warn-soft); color: var(--warn);
-  border-radius: var(--radius); font-size: 13px;
-}
-
-/* ---------- Kanban ----------
-   Four columns on wide screens. On a phone they become one horizontally
-   swiped row, a column per page, so the board keeps its shape. */
-.kanban {
-  display: grid; grid-template-columns: repeat(4, minmax(250px, 1fr));
-  gap: 14px; margin-bottom: 28px; overflow-x: auto; align-items: start;
-}
-@media (max-width: 1000px) {
-  .kanban {
-    grid-template-columns: repeat(4, minmax(280px, 82vw));
-    margin-inline: -16px; padding-inline: 16px;
-    scroll-snap-type: x mandatory; scroll-padding-inline: 16px;
-    scrollbar-width: none;
-  }
-  .kanban::-webkit-scrollbar { display: none; }
-  .kan-col { scroll-snap-align: start; }
-}
-.kan-col {
-  background: transparent; border: 0; border-radius: 0; padding: 0;
-  display: flex; flex-direction: column; gap: 10px; min-height: 120px;
-}
-.kan-col-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 2px 4px 4px; border: 0;
-  font-size: 15px; font-weight: 600; color: var(--ink);
-}
-/* Colour marks the column, the label names it. */
-.kan-col-head::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--ink-faint); flex: none; }
-.kan-col.unpaid .kan-col-head::before { background: var(--warn); }
-.kan-col.paid .kan-col-head::before { background: var(--gold-fill); }
-.kan-col.credit .kan-col-head::before { background: var(--accent-fill); }
-.kan-col.done .kan-col-head::before { background: var(--green); }
-.kan-col .kan-col-head { color: var(--ink); }
-.kan-col-head .count { margin-left: auto; padding: 0; background: transparent; color: var(--ink-soft); font-size: 15px; font-weight: 400; }
-.kan-card {
-  position: relative; display: flex; flex-direction: column; gap: 10px;
-  padding: 14px; background: var(--paper); border: 0;
-  border-radius: var(--radius-lg); box-shadow: var(--shadow);
-}
-/* Top-right ✕ — always visible (collapsed + expanded). Sits outside flex flow
-   so it never shifts the buyer/total row; .buyer gets right-padding below so
-   the RM total doesn't crash into it. */
-.kan-card .kan-cancel-x { position: absolute; top: 10px; right: 10px; z-index: 2; }
-.kan-card .buyer {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-  min-width: 0; padding-right: 36px;
-}
-.kan-card .buyer .name {
-  font-size: 17px; font-weight: 600; line-height: 1.25;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  min-width: 0; flex: 1 1 auto;
-}
-.kan-card .buyer .name a { color: inherit; text-decoration: none; }
-.kan-card .buyer .name a:hover { color: var(--accent); }
-/* Buyer inline editor — lives as a sibling of `.buyer`, gets the full card
-   width so editing form fields aren't squeezed by the title row. */
-.kan-card .buyer-inline-editor {
-  display: flex; align-items: center; gap: 6px; margin-top: -2px;
-  width: 100%; min-width: 0; flex-wrap: wrap;
-}
-.kan-card .buyer-inline-editor.editing {
-  flex-direction: column; align-items: stretch; gap: 8px; margin-top: 4px;
-  padding: 10px; border: 0; border-radius: var(--radius); background: var(--surface-2);
-}
-.kan-card .buyer-phone {
-  display: inline-flex; align-items: center;
-  font-size: 15px; color: var(--accent); text-decoration: none;
-}
-/* Phone row — phone link on the left, edit-buyer pencil on the right. */
-.kan-card .kan-phone-row { display: flex; align-items: center; gap: 8px; margin-top: -4px; }
-.kan-card .buyer-phone.card-phone { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kan-card .buyer-phone.card-phone.no-phone { color: var(--ink-faint); cursor: default; }
-.kan-card .phone-edit-btn.pencil, .kan-card .icon-x, .kan-card .phone-action {
-  flex: 0 0 auto; width: 30px; height: 30px; min-height: 0; padding: 0;
-  background: var(--fill); color: var(--ink-soft);
-  border: 0; border-radius: 50%; font-size: 15px; line-height: 1;
-}
-.kan-card .phone-edit-btn.pencil:hover, .kan-card .icon-x:hover, .kan-card .phone-action:hover { background: var(--fill-strong); }
-.kan-card .icon-x:hover { color: var(--warn); }
-.kan-card .phone-action.save { color: var(--green); }
-/* "More / Less" toggle anchored at the bottom of each kan-card. */
-.kan-card .kan-expand-toggle {
-  width: 100%; min-height: 28px; margin-top: 0; padding: 0;
-  background: transparent; border: 0; border-radius: 6px;
-  font-size: 13px; font-weight: 500; color: var(--accent);
-}
-.kan-card .kan-expand-toggle:hover { background: transparent; }
-.kan-card .phone-edit-btn { min-height: 28px; padding: 2px 10px; font-size: 13px; color: var(--ink); }
-.kan-card .buyer-inline-editor.editing input { width: 100%; font-size: 15px; background: var(--paper); }
-.kan-card .buyer-inline-editor-actions { display: flex; gap: 6px; justify-content: flex-end; }
-
-/* ---------- Delivery-proof photo ---------- */
-.kan-card .delivery-photo {
-  margin-top: 10px; padding-top: 10px;
-  border-top: 0.5px solid var(--rule);
-  display: flex; gap: 10px; align-items: flex-start;
-}
-/* Multiple buckets stack vertically so each photo + its action column gets
-   the full card width. Single-bucket renders inline as before. */
-.kan-card .delivery-photo.multi {
-  flex-direction: column;
-}
-.kan-card .delivery-photo .delivery-photo-row {
-  display: flex; gap: 10px; align-items: flex-start;
-  width: 100%;
-}
-.kan-card .delivery-photo.multi .delivery-photo-row + .delivery-photo-row {
-  padding-top: 8px; border-top: 1px dotted var(--rule);
-}
-.kan-card .delivery-photo.empty {
-  border-top: 0.5px solid var(--rule);
-  justify-content: stretch;
-  display: block;
-}
-.kan-card .delivery-photo .dp-add {
-  font-size: 12px;
-
-  padding: 6px 12px;
-}
-
-/* Compact drop zone — same idea as UploadZone.tsx's .drop but scaled down
-   to fit a kanban card and styled to match the rest of the card's chrome. */
-.kan-card .delivery-photo .dp-drop {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; width: 100%;
-  padding: 14px 12px;
-  border: 0.5px solid var(--rule); border-radius: var(--radius);
-  background: var(--surface);
-  cursor: pointer; text-align: center;
-  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
-}
-.kan-card .delivery-photo .dp-drop:hover {
-  border-color: var(--ink-soft);
-  background: var(--surface-2);
-}
-.kan-card .delivery-photo .dp-drop.dragover {
-  border-color: var(--accent); border-style: solid;
-  background: var(--accent-soft);
-}
-.kan-card .delivery-photo .dp-drop.is-busy {
-  opacity: 0.6; pointer-events: none; cursor: progress;
-}
-.kan-card .delivery-photo .dp-drop strong {
-  font-size: 15px; font-weight: 600;
-  color: var(--ink); line-height: 1.2;
-}
-.kan-card .delivery-photo .dp-drop .dp-drop-sub {
-  font-size: 11px;
-
-  color: var(--ink-soft);
-}
-.kan-card .delivery-photo .dp-thumb {
-  width: 80px; height: 80px; object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 0.5px solid var(--rule);
-  cursor: zoom-in;
-  flex-shrink: 0;
-}
-.kan-card .delivery-photo .dp-actions {
-  display: flex; flex-direction: column; gap: 4px; flex: 1;
-}
-.kan-card .delivery-photo .dp-btn {
-  font-size: 12px;
-  padding: 4px 8px; text-align: left;
-}
-.kan-card .delivery-photo .dp-remove { color: var(--accent); }
-.kan-card .total {
-  font-size: 15px; font-weight: 600;
-  color: var(--accent); white-space: nowrap;
-}
-
-.kan-card .items {
-  display: flex; gap: 6px; flex-wrap: wrap;
-}
-.kan-card .item-thumb {
-  width: 52px; aspect-ratio: 488 / 680;
-  border: 0.5px solid var(--rule); border-radius: var(--radius-sm);
-  background: var(--surface-2); object-fit: cover;
-  display: block;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-.kan-card .item-thumb.zoomable {
-  cursor: zoom-in;
-}
-.kan-card .item-thumb.zoomable:hover {
-  transform: scale(1.08);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
-  position: relative;
-  z-index: 1;
-}
-.kan-card .item-thumb.more {
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 600;
-  color: var(--ink-soft);
-}
-.kan-card .summary {
-  font-size: 13px;
-  color: var(--ink-soft); line-height: 1.4;
-}
-.kan-card .meta {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px;
-
-  color: var(--ink-soft);
-}
-.kan-card .actions {
-  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px;
-}
-.kan-card .actions button {
-  padding: 5px 9px; font-size: 11px;
-}
-
-/* Grouped kanban card (same buyer, same column) */
-.kan-card.kan-group { box-shadow: 0 0 0 1.5px var(--accent-fill), var(--shadow); }
-.kan-card.kan-group .group-meta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
-.kan-card.kan-group .group-meta .count {
-  background: var(--accent-soft); color: var(--accent);
-  padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
-}
-/* Column-move bar: where this order can go next. */
-.col-move-bar {
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-  margin-top: 2px; padding-top: 10px; border-top: 0.5px solid var(--rule);
-}
-.col-move-bar .bar-label { font-size: 13px; color: var(--ink-soft); margin-right: 2px; }
-.col-move-pill {
-  flex: 1 0 auto; min-width: 0; min-height: 34px; padding: 4px 10px;
-  background: var(--fill); color: var(--ink);
-  border: 0; border-radius: 9px; font-size: 13px; font-weight: 600; white-space: nowrap;
-}
-.col-move-pill:hover { background: var(--fill-strong); }
-/* .actions sits below the move-bar; what's left here: optional
-   "+ Add to group" or "Ungroup". */
-.kan-card .actions { margin-top: 2px; }
-/* Ungroup spans the full card content width (excludes the 14px card padding). */
-.kan-card .actions .ungroup-full { flex: 1 1 100%; width: 100%; }
-/* Regroup footer shown beneath expanded orders, and the "Group these N
-   orders" banner above ungrouped ones. */
-.regroup-btn, .group-cta-btn {
-  min-height: 36px; padding: 4px 12px;
-  background: var(--accent-soft); color: var(--accent);
-  border: 0; border-radius: var(--radius); font-size: 13px; font-weight: 600;
-}
-.regroup-btn:hover, .group-cta-btn:hover { background: var(--accent-soft); filter: brightness(0.96); }
-.regroup-btn { background: var(--fill); color: var(--ink); }
-
-/* Stock listing + cancelled order grid (image-on-right cells, ~3 across) */
-.stock-grid, .cancelled-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 12px;
-  margin-top: 10px;
-}
-.stock-card, .cancelled-card {
-  display: grid;
-  grid-template-columns: 1fr 96px;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 0.5px solid var(--rule);
-  background: var(--surface);
-  border-radius: var(--radius);
-  transition: box-shadow 0.12s ease, border-color 0.12s ease;
-  position: relative;
-}
-.stock-card:hover, .cancelled-card:hover {
-  box-shadow: var(--shadow);
-  border-color: var(--ink-soft);
-}
-.stock-card.archived { opacity: 0.62; }
-.stock-card .info, .cancelled-card .info {
-  display: flex; flex-direction: column; gap: 4px; min-width: 0;
-}
-.stock-card .title {
-  font-size: 15px; font-weight: 600;
-  line-height: 1.2;
-  overflow: hidden; text-overflow: ellipsis;
-}
-.stock-card .price {
-  font-size: 17px; font-weight: 600;
-  color: var(--accent); line-height: 1;
-}
-.stock-card.archived .price { color: var(--ink-soft); }
-.stock-card .qty {
-  font-size: 12px;
-  color: var(--ink-soft);
-}
-.stock-card .actions, .cancelled-card .actions {
-  display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;
-}
-.stock-card .actions button, .cancelled-card .actions button {
-  padding: 5px 10px; font-size: 12px;
-}
-.stock-card .image, .cancelled-card .images {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  justify-content: center;
-}
-.stock-card .image img, .stock-card .image .placeholder {
-  width: 96px; aspect-ratio: 488 / 680;
-  border: 0.5px solid var(--rule); border-radius: var(--radius-sm);
-  background: var(--surface-2); object-fit: cover;
-  display: block;
-}
-.stock-card .image .placeholder {
-  display: flex; align-items: center; justify-content: center;
-  font-size: 17px; color: var(--ink-soft);
-}
-.cancelled-card .images {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
-  align-content: start;
-}
-.cancelled-card .images img, .cancelled-card .images .more {
-  width: 46px; aspect-ratio: 488 / 680;
-  border: 0.5px solid var(--rule); border-radius: var(--radius-sm);
-  object-fit: cover;
-  display: block;
-}
-.cancelled-card .images .more {
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface-2);
-  font-size: 12px; font-weight: 600;
-  color: var(--ink-soft);
-}
-
-/* Compact listings list below the kanban */
-.stock-panel {
-  background: var(--paper); border: 0.5px solid var(--rule);
-  border-radius: var(--radius-lg);
-  margin-bottom: 22px;
-  overflow: hidden;
-}
-.stock-panel summary {
-  cursor: pointer; padding: 14px 18px;
-  font-size: 13px;
-
-  color: var(--ink-soft); font-weight: 600;
-  display: flex; align-items: center; gap: 10px;
-  list-style: none;
-}
-.stock-panel summary::-webkit-details-marker { display: none; }
-.stock-panel summary::before {
-  content: '▸'; transition: transform 0.15s ease;
-  display: inline-block;
-}
-.stock-panel[open] summary::before { transform: rotate(90deg); }
-.stock-panel summary .count {
-  background: var(--fill); color: var(--ink-soft);
-  padding: 2px 8px; border-radius: var(--radius-pill); font-size: 11px;
-}
-.stock-panel summary .spacer { flex: 1; }
-.stock-panel .body { padding: 0 18px 18px; }
-
-/* New-order quick form */
-.new-order-card {
-  background: var(--paper); border: 0.5px solid var(--rule);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px; margin-bottom: 18px;
-  box-shadow: var(--shadow);
-}
-.new-order-card .head {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 14px;
-  font-size: 13px;
-
-  color: var(--ink-soft); font-weight: 600;
-  border-bottom: 0.5px solid var(--rule); padding-bottom: 10px;
-}
-
-/* Checklist placeholder */
-.checklist-empty {
-  padding: 80px 24px; text-align: center;
-  background: var(--paper); border: 0.5px solid var(--rule);
-  border-radius: var(--radius-lg);
-  color: var(--ink-soft);
-}
-.checklist-empty .icon { font-size: 48px; margin-bottom: 12px; line-height: 1; color: var(--ink-soft); }
-.checklist-empty .headline { font-size: 20px; font-weight: 600; margin-bottom: 6px; color: var(--ink); }
-.checklist-empty .sub {
-  font-size: 13px;
-}
-
-/* ---------- Checklist workflow hint (3 numbered steps) ----------
-   A real sequence, so the numerals stay; quiet so it reads as a caption. */
-.ck-flow {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
-  margin: 4px 0 20px; padding: 0;
-  background: transparent; border: 0;
-  font-size: 13px; color: var(--ink-soft);
-}
-.ck-flow-step { display: inline-flex; align-items: center; gap: 6px; }
-.ck-flow-step .step-num {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 50%;
-  background: var(--fill); color: var(--ink-soft);
-  font-size: 12px; font-weight: 600;
-}
-.ck-flow-arrow { color: var(--ink-faint); }
-@media (max-width: 640px) {
-  .ck-flow-arrow { display: none; }
-  .ck-flow-step { width: 100%; }
-}
-
-/* ---------- Checklist section headers ---------- */
-.ck-section { margin: 28px 0 16px; }
-.ck-section.primary { padding: 0; background: transparent; border: 0; box-shadow: none; }
-.ck-section-head { margin-bottom: 12px; }
-.ck-section-head h2 {
-  margin: 0; font-size: 22px; font-weight: 700; color: var(--ink);
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-}
-/* The tag repeated the heading beside it. */
-.ck-tag { display: none; }
-.ck-section-sub { margin: 4px 0 0; font-size: 15px; color: var(--ink-soft); max-width: 70ch; line-height: 1.4; }
-/* Sub-hints on collapsible panel headers */
-.stock-panel summary .sub-hint { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
-
-/* ---------- Cancelled / archived panels (filed away at the bottom) ---------- */
-.cancelled-panel, .archived-panel { margin-top: 20px; }
-.cancelled-panel summary, .archived-panel summary { color: var(--ink); }
-.cancelled-panel .cancelled-mark, .archived-panel .archived-mark { display: none; }
-
-/* ---------- Foil toggle (big square button) ---------- */
-.foil-toggle {
-  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px;
-  min-width: 96px; min-height: 96px; padding: 12px 16px;
-  border: 2px solid var(--rule);
-  background: var(--surface);
-  color: var(--ink-soft);
-  border-radius: var(--radius);
-  font-size: 13px; font-weight: 600;
-
-  cursor: pointer;
-  transition: background .12s ease, border-color .12s ease, color .12s ease, transform .08s ease;
-}
-.foil-toggle:hover { }
-.foil-toggle:active { transform: translateY(0); }
-.foil-toggle .indicator { font-size: 28px; line-height: 1; }
-.foil-toggle .text { font-size: 13px;}
-.foil-toggle.on {
-  background: linear-gradient(135deg, rgba(255, 204, 0,0.18), rgba(255, 204, 0,0.04));
-  border-color: var(--gold-fill);
-  color: var(--gold);
-  box-shadow: inset 0 0 0 1px var(--gold);
-}
-.foil-toggle.sm { min-width: 72px; min-height: 56px; padding: 6px 10px; gap: 2px; }
-.foil-toggle.sm .indicator { font-size: 17px; }
-.foil-toggle.sm .text { font-size: 12px; }
-
-/* ---------- Set picker (combined code+name autocomplete) ---------- */
-.set-picker { position: relative; }
-.set-picker input { width: 100%; }
-.set-picker-pop {
-  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
-  max-height: 260px; overflow: auto;
-  background: var(--paper); border: 0.5px solid var(--rule);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
-  padding: 4px 0;
-}
-.set-picker-empty {
-  padding: 12px 14px;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-.set-picker-row {
-  width: 100%; display: flex; align-items: center; gap: 10px;
-  padding: 8px 14px; border: none; background: transparent; color: var(--ink);
-  text-align: left; cursor: pointer;
-  font-size: 13px;
-}
-.set-picker-row:hover, .set-picker-row.hover { background: var(--surface-2); }
-.set-picker-row .code {
-  font-weight: 600; min-width: 50px; color: var(--accent);
-}
-.set-picker-row .name { flex: 1; color: var(--ink); }
-.set-picker-row .released { font-size: 12px; color: var(--ink-soft); }
-
-/* Buyer-name autocomplete combobox — same anatomy as set-picker but with
-   per-buyer past-orders count and optional phone preview. Replaces the
-   native <input list>+<datalist> for visual consistency. */
-.buyer-name-picker { position: relative; }
-.buyer-name-picker input { width: 100%; }
-.buyer-name-picker-pop {
-  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
-  max-height: 260px; overflow: auto;
-  background: var(--paper); border: 0.5px solid var(--rule);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
-  padding: 4px 0;
-}
-.buyer-name-picker-row {
-  width: 100%; display: flex; align-items: baseline; gap: 10px;
-  padding: 8px 14px; border: none; background: transparent; color: var(--ink);
-  text-align: left; cursor: pointer;
-  font-size: 13px;
-}
-.buyer-name-picker-row:hover, .buyer-name-picker-row.hover {
-  background: var(--surface-2);
-}
-.buyer-name-picker-row .name {
-  flex: 1; min-width: 0;
-  color: var(--ink); font-weight: 600;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.buyer-name-picker-row .phone {
-  font-size: 12px; color: var(--ink-soft);
-  white-space: nowrap;
-}
-.buyer-name-picker-row .count {
-  font-size: 12px; color: var(--accent); white-space: nowrap;
-}
-
-/* Compact mode — used by the kanban inline editor. Phone + past-orders
-   count are hidden because the popover is too narrow to read them; the
-   user disambiguates after picking by checking the auto-filled URL/phone. */
-.buyer-name-picker.compact .buyer-name-picker-pop { max-height: 200px; }
-.buyer-name-picker.compact .buyer-name-picker-row {
-  padding: 6px 12px;
-  font-size: 13px;
-}
-
-/* Posts tab strip (Active / Archived) — only renders if there's archived to show */
-.post-tabs {
-  display: flex; gap: 2px;
-  margin: 8px 0 6px;
-  border-bottom: 0.5px solid var(--rule);
-}
-.post-tab {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  font-size: 13px; font-weight: 600;
-
-  color: var(--ink-soft);
-  cursor: pointer;
-  transition: color 0.12s ease, border-color 0.12s ease;
-}
-.post-tab:hover { color: var(--ink); }
-.post-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-.post-tab .count {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 22px; height: 18px;
-  padding: 0 6px;
-  background: var(--surface-2);
-  border-radius: var(--radius-pill);
-  font-size: 12px;
-  color: var(--ink);
-}
-.post-tab.active .count { background: var(--accent-fill); color: white; }
-
-/* ---------- Posts panel ---------- */
-.posts-list { display: flex; flex-direction: column; gap: 14px; }
-
-.post-card {
-  background: var(--paper); border: 0;
-  border-radius: var(--radius-lg); box-shadow: var(--shadow);
-  overflow: hidden;
-}
-.post-card > header {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) auto;
-  gap: 14px; padding: 14px;
-  align-items: flex-start;
-  background: transparent;
-}
-.post-card > header .left img {
-  display: block; width: 96px; height: 96px;
-  object-fit: cover; border-radius: var(--radius);
-  border: 0.5px solid var(--rule);
-}
-.post-card > header .left .placeholder {
-  width: 96px; height: 96px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface-2); border: 0.5px solid var(--rule);
-  border-radius: var(--radius);
-  font-size: 28px; color: var(--ink-soft);
-}
-.post-card > header .meta { min-width: 0; }
-.post-card > header .meta h4 {
-  margin: 0 0 4px;
-  font-size: 17px; font-weight: 600;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-.post-card > header .meta .fb-link {
-  display: inline-block;
-  font-size: 13px;
-  color: var(--accent); text-decoration: none;
-  margin-bottom: 6px;
-  word-break: break-all;
-  max-width: 100%;
-}
-.post-card > header .meta .fb-link:hover { color: var(--ink); border-color: var(--ink); }
-.post-card > header .meta .note {
-  margin: 6px 0 0; font-size: 15px; color: var(--ink); line-height: 1.5;
-  max-width: 60ch;
-  overflow-wrap: anywhere;
-}
-.post-card > header .meta .stats {
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--ink);
-}
-.post-card > header .actions { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
-.post-card > header .actions button { min-height: 32px; padding: 2px 10px; font-size: 13px; white-space: nowrap; }
-
-/* Mobile: stack the header. Image sits inline-left next to title; actions
-   become a horizontal wrap row below the meta block so 4-6 ghost buttons
-   no longer force a 3-column grid wider than the phone. */
-@media (max-width: 600px) {
-  .post-card > header {
-    grid-template-columns: 64px minmax(0, 1fr);
-    grid-template-areas: "left meta" "actions actions";
-    gap: 12px; padding: 12px;
-  }
-  .post-card > header .left { grid-area: left; }
-  .post-card > header .meta { grid-area: meta; }
-  .post-card > header .actions {
-    grid-area: actions;
-    flex-direction: row; flex-wrap: wrap; gap: 6px;
-    align-items: stretch;
-  }
-  .post-card > header .actions button { flex: 1 1 auto; min-width: 0; }
-  .post-card > header .left img,
-  .post-card > header .left .placeholder {
-    width: 64px; height: 64px;
-    font-size: 22px;
-  }
-  .post-card > header .meta h4 { font-size: 17px; }
-}
-
-.post-toggle {
-  width: 100%; min-height: 40px; padding: 4px 14px;
-  justify-content: flex-start;
-  background: transparent; border: 0; border-top: 0.5px solid var(--rule); border-radius: 0;
-  font-size: 13px; font-weight: 500; color: var(--accent); text-align: left;
-}
-.post-toggle:hover { background: transparent; }
-
-.post-listings {
-  border-top: 0.5px solid var(--rule);
-  padding: 8px;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.post-listing-row {
-  display: grid;
-  grid-template-columns: 36px 1fr auto auto;
-  gap: 10px; padding: 6px 8px;
-  align-items: center;
-  border-radius: var(--radius-sm);
-}
-.post-listing-row + .post-listing-row { box-shadow: 0 -0.5px 0 var(--rule); border-radius: 0; }
-/* Archived listings stay visible (they were posted historically) but read as
-   inactive — dimmed, strike-through name, no "Create order" button. */
-.post-listing-row.archived { opacity: 0.55; }
-.post-listing-row.archived .info .name { text-decoration: line-through; }
-.post-listing-row.archived .price { color: var(--ink-soft); }
-.post-listing-row.archived img,
-.post-listing-row.archived .placeholder { filter: grayscale(0.7); }
-.post-listing-row .archived-mark {
-  display: inline-block; margin-left: 6px;
-  font-size: 11px; font-weight: 600;
-
-  background: var(--surface-2); color: var(--ink-soft);
-  padding: 2px 6px; border-radius: var(--radius-pill);
-  vertical-align: middle;
-}
-.post-listing-row img {
-  width: 36px; aspect-ratio: 488/680;
-  object-fit: cover; border-radius: var(--radius-sm);
-  border: 0.5px solid var(--rule);
-}
-.post-listing-row .placeholder {
-  width: 36px; aspect-ratio: 488/680;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface-2); color: var(--ink-soft);
-  border: 0.5px solid var(--rule); border-radius: var(--radius-sm);
-}
-.post-listing-row .info .name {
-  font-size: 15px; color: var(--ink); line-height: 1.3;
-}
-.post-listing-row .info .sub {
-  display: flex; gap: 4px;
-  font-size: 12px;
-  color: var(--ink-soft); margin-top: 2px;
-}
-.post-listing-row .price {
-  font-size: 15px; font-weight: 600;
-  color: var(--ink);
-}
-.post-listing-row button.compact, button.compact { min-height: 30px; padding: 2px 12px; font-size: 13px; }
-
-/* ---------- Post image drop zone (in PostForm) ---------- */
-.post-image-drop {
-  margin-top: 14px;
-  position: relative;
-  border: 2px dashed var(--rule);
-  border-radius: var(--radius);
-  min-height: 160px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  overflow: hidden;
-  transition: border-color .12s ease, background .12s ease;
-}
-.post-image-drop:hover { border-color: var(--accent); background: var(--surface-2); }
-.post-image-drop.has-image { border-style: solid; border-color: var(--rule); }
-.post-image-drop .empty {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 20px;
-  color: var(--ink-soft); text-align: center;
-}
-.post-image-drop .empty strong {
-  font-size: 16px; color: var(--ink);
-}
-.post-image-drop .empty span {
-  font-size: 12px;
-}
-.post-image-drop img {
-  display: block; width: 100%; max-height: 300px; object-fit: contain;
-  background: var(--surface);
-}
-.post-image-drop .overlay {
-  position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 8px 12px;
-  background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0));
-  color: white;
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 12px;
-}
-
-/* Click-to-zoom on any thumbnail / preview image */
-img.zoomable {
-  cursor: zoom-in;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-img.zoomable:hover {
-  filter: brightness(1.05);
-}
-
-/* ---------- Stock toolbar + search ---------- */
-.stock-toolbar { flex-wrap: wrap; gap: 10px; }
-.stock-toolbar .filter-select {
-  padding: 6px 10px;
-  border: 0.5px solid var(--rule);
-  background: var(--surface);
-  border-radius: var(--radius);
-  font-size: 13px;
-  color: var(--ink);
-}
-.stock-toolbar .stock-search {
-  flex: 1; min-width: 200px;
-  padding: 7px 12px;
-  border: 0.5px solid var(--rule);
-  background: var(--surface);
-  color: var(--ink);
-  border-radius: var(--radius);
-  font-size: 13px;
-}
-.stock-toolbar .stock-search:focus {
-  border-color: var(--accent);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 113, 227,0.14);
-}
-
-/* ---------- Stock rows (compact list, replaces the editable grid) ---------- */
-.stock-rows {
-  display: flex; flex-direction: column; gap: 6px;
-  margin-top: 10px;
-}
-.stock-row {
-  display: grid;
-  grid-template-columns: 22px 48px 1fr auto auto;
-  gap: 12px; padding: 10px 12px;
-  align-items: center;
-  background: var(--paper);
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius);
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
-}
-.stock-row:hover {
-  border-color: var(--ink-soft);
-  box-shadow: var(--shadow-sm);
-}
-.stock-row.archived { opacity: 0.65; }
-.stock-row.selected {
-  border-color: var(--ink);
-  box-shadow: var(--shadow-sm);
-  background: var(--surface-2);
-}
-/* Themed checkbox — drawn box + checkmark so it matches the paper/ink palette
-   instead of the browser default. Shared by the row checks and select-all. */
-.stock-check,
-.stock-select-all input[type="checkbox"] {
-  appearance: none; -webkit-appearance: none;
-  flex: none; width: 18px; height: 18px; margin: 0;
-  border: 1.5px solid var(--rule-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  cursor: pointer;
-  display: inline-grid; place-content: center;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-.stock-check::before,
-.stock-select-all input[type="checkbox"]::before {
-  content: ""; width: 10px; height: 10px;
-  transform: scale(0); transform-origin: center;
-  transition: transform 0.12s ease;
-  background: var(--paper);
-  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-}
-.stock-check:checked,
-.stock-select-all input[type="checkbox"]:checked {
-  background: var(--accent-fill); border-color: var(--accent);
-}
-.stock-check:checked::before,
-.stock-select-all input[type="checkbox"]:checked::before { transform: scale(1); }
-.stock-check:hover,
-.stock-select-all input[type="checkbox"]:hover { border-color: var(--accent); }
-.stock-check:focus-visible,
-.stock-select-all input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 2px;
-}
-
-/* Bulk-select header + action bar for stock */
-.stock-select-all {
-  display: flex; align-items: center; gap: 8px;
-  padding: 2px 12px 6px;
-  font-size: 13px;
-  color: var(--ink-soft); cursor: pointer;
-}
-.bulk-bar {
-  display: flex; align-items: center; gap: 12px;
-  margin: 4px 0 12px; padding: 10px 14px;
-  background: var(--fill); color: var(--ink-soft);
-  border-radius: var(--radius); flex-wrap: wrap;
-}
-.bulk-bar .bulk-count {
-  font-size: 13px; font-weight: 600;
-  margin-right: auto;
-}
-.bulk-order-btn {
-  background: var(--paper); color: var(--ink); border: none;
-  border-radius: var(--radius-sm); padding: 7px 14px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-}
-.bulk-order-btn:hover { background: var(--surface-2); }
-.bulk-delete-btn {
-  background: var(--accent-fill); color: #fff; border: none;
-  border-radius: var(--radius-sm); padding: 7px 14px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-}
-.bulk-order-btn:disabled, .bulk-delete-btn:disabled { opacity: 0.6; cursor: default; }
-.stock-row > .thumb {
-  width: 48px; aspect-ratio: 488/680;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 0.5px solid var(--rule);
-}
-.stock-row > .thumb.placeholder {
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface-2); color: var(--ink-soft);
-  border-style: dashed;
-  font-size: 17px;
-}
-.stock-row .info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.stock-row .row-1 {
-  display: flex; align-items: baseline; gap: 6px;
-  font-size: 16px; color: var(--ink);
-  overflow: hidden;
-}
-.stock-row .row-1 .name {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.stock-row .row-1 .foil-mark {
-  font-size: 11px; font-weight: 600;
-
-  background: var(--gold-fill); color: white;
-  padding: 2px 6px; border-radius: var(--radius-pill);
-}
-.stock-row .row-1 .archived-mark {
-  font-size: 11px; font-weight: 600;
-
-  background: var(--surface-2); color: var(--ink-soft);
-  padding: 2px 6px; border-radius: var(--radius-pill);
-}
-.stock-row .row-2 {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-.stock-row .row-2 .set-badge {
-  /* Match scanner's white-on-ink pill exactly (.set-badge inherits sizes
-     from the global rule above; this just locks in pillar size). */
-  font-size: 12px;
-  padding: 3px 9px;
-}
-.stock-row .row-3.linked-posts {
-  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px;
-}
-.stock-row .post-chip.mini {
-  font-size: 12px; padding: 2px 8px;
-  background: var(--surface-2); color: var(--ink-soft);
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius-pill);
-  display: inline-flex; align-items: center; gap: 4px;
-}
-.stock-row .post-chip.mini.inactive { opacity: 0.7; }
-.stock-row .post-chip.mini .status-flag {
-  font-size: 11px; padding: 1px 4px; border-radius: 4px;
-  background: var(--fill); color: var(--ink-soft);
-  margin-left: 2px;
-}
-.stock-row .price-block {
-  text-align: right;
-}
-.stock-row .price-block .price {
-  font-size: 17px; font-weight: 600;
-  color: var(--accent);
-}
-.stock-row .row-actions {
-  display: flex; align-items: center; gap: 6px;
-}
-.stock-row .row-actions button.compact {
-  padding: 5px 10px; font-size: 12px;
-}
-
-@media (max-width: 600px) {
-  .stock-row { grid-template-columns: 40px 1fr; }
-  .stock-row .price-block, .stock-row .row-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
-  }
-}
-
-/* Post chips inside forms (multi-select) */
-.post-chips {
-  display: flex; flex-wrap: wrap; gap: 6px;
-}
-.post-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px;
-  border: 0;
-  background: var(--fill);
-  color: var(--ink);
-  border-radius: var(--radius-pill);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-.post-chip .x {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 16px; height: 16px;
-  border-radius: 50%;
-  background: var(--surface-2);
-  font-size: 13px; font-weight: 600;
-  color: var(--ink-soft);
-}
-.post-chip:hover { border-color: var(--accent); }
-.post-chip.on {
-  background: var(--accent-fill);
-  color: white;
-  border-color: var(--accent);
-}
-.post-chip.on .x { background: rgba(255,255,255,0.25); color: white; }
-.post-chip .status-flag {
-  font-size: 11px; padding: 1px 5px; border-radius: 4px;
-  background: var(--fill); color: var(--ink-soft);
-}
-
-/* ---------- Printing picker (card-scoped set picker with thumbnails) ---------- */
-.printing-picker input:disabled {
-  background: var(--surface-2);
-  color: var(--ink-soft);
-  cursor: not-allowed;
-}
-.printing-pop {
-  width: max(360px, 100%);
-  max-height: 360px;
-}
-.printing-row {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  gap: 10px;
-  padding: 6px 10px;
-  border: none; background: transparent;
-  text-align: left;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--ink);
-  align-items: center;
-}
-.printing-row:hover, .printing-row.hover { background: var(--surface-2); }
-.printing-thumb {
-  width: 36px; aspect-ratio: 488/680;
-  object-fit: cover;
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-.printing-thumb.placeholder {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--surface-2); color: var(--ink-soft);
-  border-style: dashed;
-}
-.printing-info { min-width: 0; }
-.printing-info .line-1 {
-  display: flex; align-items: center; gap: 6px;
-  font-weight: 600;
-}
-.printing-info .line-1 .code {
-  color: var(--accent);
-}
-.printing-info .line-1 .cn { color: var(--gold); }
-.printing-info .line-1 .rarity-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-}
-.printing-info .line-1 .rarity-dot.rarity-common { background: #999; }
-.printing-info .line-1 .rarity-dot.rarity-uncommon { background: #c0c0c0; }
-.printing-info .line-1 .rarity-dot.rarity-rare { background: var(--gold-fill); }
-.printing-info .line-1 .rarity-dot.rarity-mythic { background: var(--accent-fill); }
-.printing-info .line-1 .rarity-dot.rarity-special { background: #b16edc; }
-.printing-info .line-2 {
-  font-size: 13px;
-  color: var(--ink-soft);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.printing-price {
-  font-size: 13px; font-weight: 600;
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
-
-/* Live preview block in StockEditDialog (printing thumbnail above the form) */
-.stock-edit-subtitle {
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 14px;
-}
-.stock-edit-preview {
-  width: 64px; aspect-ratio: 488/680;
-  object-fit: cover;
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  flex: 0 0 auto;
-}
-.stock-edit-preview.placeholder {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--surface-2); color: var(--ink-soft);
-  border-style: dashed;
-  font-size: 24px;
-}
-.stock-edit-titletext {
-  display: flex; flex-direction: column; gap: 6px;
-  min-width: 0;
-}
-.stock-edit-titletext .name {
-  font-size: 17px; color: var(--ink);
-  overflow: hidden; text-overflow: ellipsis;
-}
-
-/* ---------- Stock picker dialog (post ← stock multi-select) ---------- */
-.modal-card.stock-picker-card {
-  width: min(640px, 95vw);
-  max-height: 88vh;
-  padding: 18px;
-  display: flex; flex-direction: column;
-}
-.stock-picker-card .picker-toolbar {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 10px;
-}
-.stock-picker-card .picker-toolbar .stock-search { flex: 1; }
-.stock-picker-card .picker-toolbar button { font-size: 12px; padding: 6px 10px; white-space: nowrap; }
-.stock-picker-card .picker-list {
-  flex: 1; min-height: 0;
-  overflow-y: auto;
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius);
-  padding: 4px;
-  display: flex; flex-direction: column; gap: 4px;
-  background: var(--surface-2);
-}
-.picker-row {
-  display: grid;
-  grid-template-columns: 24px 44px 1fr auto;
-  gap: 10px;
-  padding: 6px 8px;
-  align-items: center;
-  background: var(--paper);
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-  transition: border-color 0.12s ease, background 0.12s ease;
-}
-.picker-row:hover { border-color: var(--ink-soft); }
-.picker-row.checked {
-  background: rgba(99,142,80,0.10);
-  border-color: var(--green);
-}
-.picker-check {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px;
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  font-size: 13px; font-weight: 600;
-  color: var(--green);
-}
-.picker-check.on {
-  background: var(--green-soft);
-  color: var(--green);
-}
-.picker-row .thumb {
-  width: 44px; aspect-ratio: 488/680;
-  object-fit: cover;
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius-sm);
-}
-.picker-row .thumb.placeholder {
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface-2); color: var(--ink-soft);
-  border-style: dashed;
-  font-size: 15px;
-}
-.picker-row .info { min-width: 0; }
-.picker-row .info .name {
-  display: flex; align-items: baseline; gap: 6px;
-  font-size: 15px;
-  color: var(--ink);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.picker-row .info .name .foil-mark {
-  font-size: 11px; font-weight: 600;
-
-  background: var(--gold-fill); color: white;
-  padding: 1px 5px; border-radius: var(--radius-pill);
-}
-.picker-row .info .sub {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--ink-soft);
-  margin-top: 2px;
-}
-.picker-row .info .sub .other-posts {
-  color: var(--accent);
-}
-.picker-row .price {
-  font-size: 15px; font-weight: 600;
-  color: var(--accent);
-  white-space: nowrap;
-}
-.picker-summary {
-  margin-top: 12px;
-  font-size: 13px;
-  color: var(--ink);
-}
-
-/* Stock-edit dialog — compact: smaller padding, tighter form grid, qty + foil
-   on a single row, no foil header. Goal: no scroll on a typical laptop. */
-.modal-card.stock-edit-card {
-  width: min(560px, 95vw);
-  padding: 16px 18px 14px;
-}
-.modal-card.stock-edit-card .dlg-title { margin-bottom: 4px; font-size: 17px; }
-.modal-card.stock-edit-card .stock-edit-subtitle {
-  /* Image preview + title text; see .stock-edit-preview / .stock-edit-titletext above */
-  margin-bottom: 14px;
-}
-.modal-card.stock-edit-card .stock-edit-subtitle .stock-edit-printing {
-  font-size: 12px; padding: 3px 9px;
-  align-self: flex-start;
-}
-.modal-card.stock-edit-card .form-grid.compact {
-  grid-row-gap: 10px;
-}
-.modal-card.stock-edit-card .form-grid.compact label > span,
-.modal-card.stock-edit-card .form-grid.compact .lab-text {
-  display: block;
-  font-size: 12px; font-weight: 600;
-
-  color: var(--ink-soft);
-  margin-bottom: 4px;
-}
-.modal-card.stock-edit-card .qty-foil-row {
-  grid-column: 1 / -1;
-  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
-}
-.modal-card.stock-edit-card .qty-foil-row .foil-toggle {
-  /* Inline foil button — small, no big square; sits next to the qty stepper. */
-  align-self: stretch;
-}
-.modal-card.stock-edit-card .form-actions.stock-edit-actions {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 0.5px solid var(--rule);
-  display: flex; gap: 10px; justify-content: flex-end;
-}
-
-/* X button — center the glyph properly */
-.stock-remove {
-  width: 28px; height: 28px;
-  border: 0;
-  background: var(--fill);
-  color: var(--ink-soft);
-  border-radius: var(--radius-pill);
-  font-size: 17px; line-height: 1;
-  cursor: pointer; flex: 0 0 auto;
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0;
-  transition: all 0.12s ease;
-}
-.stock-remove:hover {
-  background: var(--warn-soft); color: var(--warn);
-  transform: rotate(90deg);
-}
-
-/* Field-level notice (e.g. FB URL warning) */
-.field-notice {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--warn);
-
-  line-height: 1.45;
-}
-
-/* Post status pill (inline next to title) + dimmed states */
-.post-status-pill {
-  display: inline-flex; align-items: center;
-  margin-left: 8px;
-  padding: 2px 8px;
-  font-size: 11px; font-weight: 600;
-
-  border-radius: var(--radius-pill);
-}
-.post-status-pill.status-active {
-  background: rgba(99,142,80,0.16); color: var(--green);
-}
-.post-status-pill.status-inactive {
-  background: var(--surface-2); color: var(--ink-soft);
-}
-.post-status-pill.status-archived {
-  background: var(--fill); color: var(--ink-soft);
-}
-.post-card.status-inactive { opacity: 0.8; }
-.post-card.status-archived { opacity: 0.6; }
-.post-card.status-archived > header { background: var(--surface-2); }
-
-.set-edit {
-  display: inline-flex; align-items: center; gap: 4px;
-  border: 0.5px solid var(--rule);
-  background: var(--surface);
-  cursor: pointer;
-  transition: border-color 0.12s ease;
-}
-.set-edit:hover { border-color: var(--accent); }
-.set-edit .cn-input {
-  width: 52px; padding: 2px 4px;
-  border: none;
-  background: transparent;
-  font-size: 12px;
-  color: var(--ink-soft);
-  outline: none;
-}
-.set-edit .cn-input:focus { color: var(--ink); }
-
-.price-input-wrap {
-  display: inline-flex; align-items: center;
-  border: 0.5px solid var(--rule);
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding-left: 8px;
-  flex: 0 0 auto;
-}
-.price-input-wrap:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227,0.12);
-}
-.price-input-wrap .prefix {
-  font-size: 13px; font-weight: 600;
-  color: var(--ink-soft);
-}
-.price-input-wrap input {
-  width: 70px;
-  border: none; background: transparent;
-  padding: 6px 8px;
-  font-size: 15px; font-weight: 600;
-  color: var(--accent);
-  outline: none;
-}
-
-.qty-stepper {
-  display: inline-flex; align-items: center;
-  border: 0.5px solid var(--rule);
-  background: var(--surface);
-  border-radius: var(--radius);
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-.qty-stepper .step {
-  width: 28px; height: 28px;
-  border: none; background: transparent;
-  font-size: 17px; font-weight: 600;
-  color: var(--ink);
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.12s ease;
-}
-.qty-stepper .step:hover:not(:disabled) { background: var(--surface-2); }
-.qty-stepper .step:disabled { opacity: 0.3; cursor: not-allowed; }
-.qty-stepper .step.minus { color: var(--warn); }
-.qty-stepper .step.plus { color: var(--green); }
-.qty-stepper .qty-value {
-  min-width: 30px; text-align: center;
-  font-size: 15px; font-weight: 600;
-  padding: 0 4px;
-  color: var(--ink);
-}
-.qty-summary {
-  font-size: 12px; color: var(--ink-soft);
-}
-
-.stock-card.editable .post-row select {
-  flex: 1; min-width: 0;
-  padding: 4px 8px;
-  border: 0.5px solid var(--rule);
-  background: var(--surface);
-  color: var(--ink);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-}
-.post-badge { font-size: 15px; }
-
-.stock-card.editable .status-actions {
-  margin-top: 4px;
-  gap: 6px;
-}
-.stock-card.editable button.compact {
-  padding: 4px 10px; font-size: 12px;
-}
-
 /* ---------- Alerts (confirm / prompt / alert) ----------
    Rare and direct: a title, one line of consequence, two clear choices.
    Buttons share the width so neither reads as the default by size alone. */
@@ -2713,45 +1295,30 @@ img.zoomable:hover {
 .dlg-actions button.warn { background: var(--warn-soft); color: var(--warn); }
 .dlg-actions button.warn:hover { background: var(--warn-soft); filter: brightness(0.96); }
 
-/* ---------- Modal shade (bulk import, stock dialogs) ---------- */
-.modal-shade {
-  position: fixed; inset: 0; z-index: 100;
-  background: var(--scrim);
-  display: flex; align-items: center; justify-content: center; padding: 20px;
-  animation: dlg-fade 0.2s ease-out;
-}
-.modal-card {
-  width: min(720px, 100%); max-height: 90vh; max-height: 90dvh; overflow: auto;
-  background: var(--paper); border: 0;
-  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
-  padding: 16px;
-  animation: sheet-pop 0.3s var(--ease);
-}
 /* Popups scroll on their own and hold the swipe, and the page behind stays
    still while one is open (a phone otherwise scrolls the page instead). */
-.feedback-modal, .modal-card { max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-.feedback-overlay, .modal-shade { overscroll-behavior: contain; }
+.feedback-modal { max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.feedback-overlay { overscroll-behavior: contain; }
 /* Keep the scrollbar off the rounded corners: it is drawn square and would
    stick out of the curve. */
-.feedback-modal::-webkit-scrollbar, .modal-card::-webkit-scrollbar, .modal-grid::-webkit-scrollbar { width: 12px; }
-.feedback-modal::-webkit-scrollbar-track, .modal-card::-webkit-scrollbar-track, .modal-grid::-webkit-scrollbar-track { background: transparent; margin-block: 22px; }
-.feedback-modal::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb, .modal-grid::-webkit-scrollbar-thumb {
+.feedback-modal::-webkit-scrollbar, .modal-grid::-webkit-scrollbar { width: 12px; }
+.feedback-modal::-webkit-scrollbar-track, .modal-grid::-webkit-scrollbar-track { background: transparent; margin-block: 22px; }
+.feedback-modal::-webkit-scrollbar-thumb, .modal-grid::-webkit-scrollbar-thumb {
   background: var(--fill-strong); background-clip: padding-box; border: 3px solid transparent; border-radius: var(--radius-pill);
 }
 /* Only the page is locked: hidden overflow on body too makes body its own
    scroller, and the sticky header then slides away with the page. */
-html:has(.feedback-overlay), html:has(.modal-shade), html:has(.modal.open), html:has(.dlg-shade) { overflow: hidden; }
+html:has(.feedback-overlay), html:has(.modal.open), html:has(.dlg-shade) { overflow: hidden; }
 .modal-grid { overscroll-behavior: contain; }
 
 @media (max-width: 600px) {
-  .modal-shade, .feedback-overlay { padding: 0; align-items: flex-end; }
-  .modal-card, .feedback-modal {
+  .feedback-overlay { padding: 0; align-items: flex-end; }
+  .feedback-modal {
     width: 100%; max-width: none; max-height: 92dvh;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding-bottom: calc(16px + env(safe-area-inset-bottom));
     animation: sheet-up 0.38s var(--ease);
   }
-  .modal-card::before { display: block; margin: -8px auto 10px; }
 }
 
 /* Footer */
@@ -2814,7 +1381,6 @@ html:has(.feedback-overlay), html:has(.modal-shade), html:has(.modal.open), html
 /* The default-pricing sheet holds the whole pricing form, so it is wider
    and scrolls on a short screen. */
 .adjust-sheet { max-height: 92dvh; overflow-y: auto; }
-.adjust-toggle.needs-price { color: var(--warn); font-weight: 700; }
 .add-card-btn { margin: 10px 0 4px; }
 .pricing-button {
   display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; margin-bottom: 14px; padding: 12px 14px;
@@ -2858,7 +1424,6 @@ html:has(.feedback-overlay), html:has(.modal-shade), html:has(.modal.open), html
   .payment-qr-row { flex-direction: row; align-items: flex-start; }
   .payment-qr-img, .payment-qr-empty { width: 120px; flex: none; }
 }
-.locked-note { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 8px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
 @media (max-width: 480px) { .feedback-foot .accent { margin-left: 0; flex: 1 1 100%; } }
 
 /* ---------- Back to top ----------
@@ -3052,7 +1617,6 @@ html:has(.feedback-overlay), html:has(.modal-shade), html:has(.modal.open), html
   border: 1px solid transparent;
   font-size: 13px;
 
-
   color: var(--ink-soft);
   padding: 6px 12px;
   border-radius: var(--radius-pill);
@@ -3086,7 +1650,6 @@ html:has(.feedback-overlay), html:has(.modal-shade), html:has(.modal.open), html
 }
 .landing-demo-foot {
   font-size: 12px;
-
 
   color: var(--ink-soft);
   text-align: center;
@@ -3294,11 +1857,6 @@ html:has(.feedback-overlay), html:has(.modal-shade), html:has(.modal.open), html
   color: var(--ink);
   padding: 2px 7px;
   border-radius: var(--radius-pill);
-}
-.demo-card-meta {
-  font-size: 12px;
-  color: var(--ink-soft);
-  text-transform: capitalize;
 }
 /* Keep set-badge + set-name on one row; truncate the name when it's long. */
 .demo-version-line { flex-wrap: nowrap; min-width: 0; }

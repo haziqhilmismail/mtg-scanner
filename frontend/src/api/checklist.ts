@@ -2,7 +2,7 @@
 // Decimal values come back as strings (Pydantic Decimal serialization).
 
 import type { Settings } from '../types.ts';
-import { imageUrl, request } from './http.ts';
+import { request } from './http.ts';
 
 export type ListingStatus = 'active' | 'archived';
 export type OrderStatus = 'claimed' | 'cancelled';
@@ -113,36 +113,6 @@ export interface PostUpdatePayload {
   pricing?: Settings | null;
 }
 
-// ---------- Bulk import ----------
-export interface BulkImportLineResult {
-  raw: string;
-  ok: boolean;
-  error: string | null;
-  listing_id: number | null;
-  name: string | null;
-  set_code: string | null;
-  collector_number: string | null;
-  is_foil: boolean;
-  qty: number;
-  unit_price_myr: string | null;
-  image_url: string | null;
-}
-
-export interface BulkImportResult {
-  created: number;
-  skipped: number;
-  lines: BulkImportLineResult[];
-}
-
-// ---------- Scryfall sets ----------
-export interface SetEntry {
-  code: string;
-  name: string;
-  released_at: string | null;
-  set_type: string | null;
-  icon_svg_uri: string | null;
-}
-
 export interface OrderItem {
   id: number;
   order_id: number;
@@ -169,34 +139,11 @@ export interface Order {
   dropoff_method: string | null;
   dropoff_address: string | null;
   notes: string | null;
-  // Optional delivery-proof photo metadata. Bytes are fetched via
-  // ordersApi.deliveryPhotoUrl(id) — auth via the image token in the URL.
   has_delivery_photo: boolean;
   delivery_photo_uploaded_at: string | null;
   items: OrderItem[];
   created_at: string;
   updated_at: string;
-}
-
-export interface OrderItemPayload {
-  listing_id: number;
-  qty: number;
-  unit_price_myr?: string;
-}
-
-export interface OrderCreatePayload {
-  // Provide either `buyer_id` (existing buyer) or `buyer_fb_name` (lookup-or-create).
-  // Backend resolves it to an existing buyer by case-insensitive FB name, or creates one.
-  // `buyer_fb_url` and `buyer_phone` are written back onto the buyer only when
-  // the stored field is still null — they don't overwrite existing data.
-  buyer_id?: number;
-  buyer_fb_name?: string;
-  buyer_fb_url?: string | null;
-  buyer_phone?: string | null;
-  items: OrderItemPayload[];
-  dropoff_method?: string | null;
-  dropoff_address?: string | null;
-  notes?: string | null;
 }
 
 async function json<T>(method: string, url: string, body?: unknown, keepalive = false): Promise<T> {
@@ -214,10 +161,8 @@ async function json<T>(method: string, url: string, body?: unknown, keepalive = 
 // ---------- Buyers ----------
 export const buyersApi = {
   list: () => json<Buyer[]>('GET', '/api/buyers'),
-  create: (payload: BuyerCreatePayload) => json<Buyer>('POST', '/api/buyers', payload),
   update: (id: number, payload: Partial<BuyerCreatePayload>) =>
     json<Buyer>('PATCH', `/api/buyers/${id}`, payload),
-  remove: (id: number) => json<void>('DELETE', `/api/buyers/${id}`),
 };
 
 // ---------- Listings ----------
@@ -227,9 +172,6 @@ export const listingsApi = {
   create: (payload: ListingCreatePayload) => json<Listing>('POST', '/api/listings', payload),
   update: (id: number, payload: Partial<ListingCreatePayload> & { status?: ListingStatus }) =>
     json<Listing>('PATCH', `/api/listings/${id}`, payload),
-  archive: (id: number) => json<void>('DELETE', `/api/listings/${id}`),
-  bulkImport: (text: string, post_id: number | null) =>
-    json<BulkImportResult>('POST', '/api/listings/bulk-import', { text, post_id }),
 };
 
 // ---------- Orders ----------
@@ -249,7 +191,6 @@ export const salesApi = {
 export const ordersApi = {
   list: (includeArchived = false) =>
     json<Order[]>('GET', `/api/orders${includeArchived ? '?include_archived=true' : ''}`),
-  create: (payload: OrderCreatePayload) => json<Order>('POST', '/api/orders', payload),
   update: (id: number, payload: { status?: OrderStatus; paid_at?: string | null; delivered_at?: string | null; dropoff_method?: string | null; dropoff_address?: string | null; notes?: string | null }) =>
     json<Order>('PATCH', `/api/orders/${id}`, payload),
   markPaid: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-paid`),
@@ -259,16 +200,6 @@ export const ordersApi = {
   unsendPrices: (id: number) => json<Order>('DELETE', `/api/orders/${id}/prices-sent`),
   markDelivered: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-delivered`),
   cancel: (id: number) => json<Order>('POST', `/api/orders/${id}/cancel`),
-  archive: (id: number) => json<Order>('POST', `/api/orders/${id}/archive`),
-  unarchive: (id: number) => json<Order>('POST', `/api/orders/${id}/unarchive`),
-  uploadDeliveryPhoto: (id: number, image: File) =>
-    postMultipart<Order>(`/api/orders/${id}/delivery-photo`, { image }),
-  deleteDeliveryPhoto: (id: number) =>
-    json<void>('DELETE', `/api/orders/${id}/delivery-photo`),
-  // A cache-busting `v=` is appended so a freshly uploaded photo replaces the
-  // cached version in the browser without a hard refresh.
-  deliveryPhotoUrl: (id: number, version?: string | null) =>
-    imageUrl(`/api/orders/${id}/delivery-photo`, { v: version }),
 };
 
 // ---------- Posts ----------
@@ -297,50 +228,5 @@ export const postsApi = {
   // `keepalive` lets the save finish as the page closes.
   update: (id: number, payload: PostUpdatePayload, keepalive = false) =>
     json<Post>('PATCH', `/api/posts/${id}`, payload, keepalive),
-  uploadImage: (id: number, image: File) =>
-    postMultipart<Post>(`/api/posts/${id}/image`, { image }),
-  deleteImage: (id: number) => json<void>('DELETE', `/api/posts/${id}/image`),
   remove: (id: number) => json<void>('DELETE', `/api/posts/${id}`),
-  imageUrl: (id: number) => imageUrl(`/api/posts/${id}/image`),
-  // Replace the full set of stock items linked to this post (set-membership semantics).
-  setListings: (id: number, listing_ids: number[]) =>
-    json<Post>('PUT', `/api/posts/${id}/listings`, { listing_ids }),
-};
-
-// ---------- Scryfall sets (cached) ----------
-let _setsCache: SetEntry[] | null = null;
-let _setsPromise: Promise<SetEntry[]> | null = null;
-
-export const setsApi = {
-  list: async (): Promise<SetEntry[]> => {
-    if (_setsCache) return _setsCache;
-    if (_setsPromise) return _setsPromise;
-    _setsPromise = json<SetEntry[]>('GET', '/api/sets')
-      .then(data => {
-        _setsCache = data;
-        _setsPromise = null;
-        return data;
-      })
-      .catch(e => { _setsPromise = null; throw e; });
-    return _setsPromise;
-  },
-};
-
-// ---------- Scryfall card-names catalog (cached) ----------
-let _cardNamesCache: string[] | null = null;
-let _cardNamesPromise: Promise<string[]> | null = null;
-
-export const cardNamesApi = {
-  list: async (): Promise<string[]> => {
-    if (_cardNamesCache) return _cardNamesCache;
-    if (_cardNamesPromise) return _cardNamesPromise;
-    _cardNamesPromise = json<string[]>('GET', '/api/card-names')
-      .then(data => {
-        _cardNamesCache = data;
-        _cardNamesPromise = null;
-        return data;
-      })
-      .catch(e => { _cardNamesPromise = null; throw e; });
-    return _cardNamesPromise;
-  },
 };
