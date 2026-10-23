@@ -28,6 +28,7 @@ const PATHS = {
   refresh: 'M19 12a7 7 0 1 1-2.100-5M19 4v4h-4',
   chevronDown: 'M6 9l6 6 6-6',
   chevronUp: 'M6 15l6-6 6 6',
+  chevronUpDown: 'M8 9l4-4 4 4M8 15l4 4 4-4',
   warning: 'M12 4 2.500 20h19L12 4ZM12 10v4.500M12 17.500h.01',
   minus: 'M5 12h14',
   edit: 'M4 20h4l10.500-10.500a2.100 2.100 0 0 0-3-3L5 17v3ZM13.500 7.500l3 3',
