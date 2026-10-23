@@ -8,9 +8,10 @@ import {
   scanImage,
   type SavedScan,
   moveScans as apiMoveScans,
+  orderScans as apiOrderScans,
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
-import type { Batch, Candidate, DetectedCard, PillOffset, RelookupMsg, ScanUiState } from '../types.ts';
+import type { Batch, Candidate, DetectedCard, LockedPrice, RelookupMsg, ScanUiState } from '../types.ts';
 import { bboxKey, canRetry, freshState, generateBatchId, normalizeUiState } from '../utils.ts';
 import type { T } from './useLang.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
@@ -87,6 +88,8 @@ function uiStateOf(b: Batch): ScanUiState {
     pillOffset: b.pillOffset,
     versionOk: b.versionOk,
     picks: b.picks,
+    locked: b.locked,
+    lockedAt: b.lockedAt ?? null,
   };
 }
 
@@ -96,6 +99,7 @@ function batchFromSavedScan(saved: SavedScan): Batch {
     id: `s${saved.scan_id}`,
     scanId: saved.scan_id,
     postId: saved.post_id ?? null,
+    position: saved.position ?? null,
     listed: (saved.listed ?? []).map(bboxKey),
     filename: saved.filename,
     status: 'done',
@@ -185,8 +189,12 @@ export function useScanner(userId: number | null, signOut: () => void) {
           return b;
         });
         // Older pages go in front: newest is at the END of the array
-        // (matches "append on upload" UX).
-        commit(prev => [...loaded, ...prev]);
+        // (matches "append on upload" UX). A photo already in the list stays
+        // once, so loading again (e.g. the effect re-running) can't double it.
+        commit(prev => {
+          const have = new Set(prev.map(b => b.scanId));
+          return [...loaded.filter(b => !have.has(b.scanId)), ...prev];
+        });
         if (seeded) flushLater(SAVE_DELAY_MS);
         if (page.length < SCANS_PAGE) break;
         before = page[page.length - 1].scan_id;
@@ -306,13 +314,14 @@ export function useScanner(userId: number | null, signOut: () => void) {
       id: generateBatchId(),
       scanId: null,
       postId,
+      position: null,
       listed: [],
       filename: file.name,
       file,
       status: 'scanning',
       response: null,
       isFoil: [], priceOverride: [], quantity: [],
-      multOverride: [], removed: [], pillOffset: [], versionOk: [], picks: [],
+      multOverride: [], removed: [], pillOffset: [], versionOk: [], picks: [], locked: [],
       relookupBusy: [], relookupMsg: [],
     }));
     commit(prev => [...prev, ...stubs]);
@@ -409,11 +418,16 @@ export function useScanner(userId: number | null, signOut: () => void) {
     [updateCardArray],
   );
 
-  const setPillOffset = useCallback(
-    (batchId: string, idx: number, offset: PillOffset | null) =>
-      updateCardArray(batchId, 'pillOffset', idx, offset),
-    [updateCardArray],
-  );
+
+  // The photo is finished (on its post and downloaded or shared): its prices
+  // stay what buyers saw until the seller chooses Edit prices.
+  const lockBatch = useCallback((batchId: string, locked: (LockedPrice | null)[]) => {
+    const at = new Date().toISOString();
+    commit(prev => prev.map(b => (b.id === batchId ? { ...b, locked, lockedAt: at } : b)));
+  }, []);
+  const unlockBatch = useCallback((batchId: string) => {
+    commit(prev => prev.map(b => (b.id === batchId ? { ...b, locked: b.locked.map(() => null), lockedAt: null } : b)));
+  }, []);
 
   // A card of this photo is now on the checklist.
   const markListed = useCallback((batchId: string, bbox: number[]) => {
@@ -449,6 +463,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
           pillOffset: [...b.pillOffset, null],
           versionOk: [...b.versionOk, false],
           picks: [...b.picks, null],
+          locked: [...b.locked, null],
           relookupBusy: [...b.relookupBusy, false],
           relookupMsg: [...b.relookupMsg, isManual
             ? { type: 'err', text: 'no match — type a name to look it up', action: 'use as-is' }
@@ -572,13 +587,29 @@ export function useScanner(userId: number | null, signOut: () => void) {
   const moveBatches = useCallback(async (ids: string[], postId: number | null) => {
     const moving = batchesRef.current.filter(b => ids.includes(b.id));
     const before = new Map(moving.map(b => [b.id, b.postId]));
-    commit(prev => prev.map(b => (before.has(b.id) ? { ...b, postId } : b)));
+    // Into another post: after its photos, until placed (as the server does).
+    commit(prev => prev.map(b => (before.has(b.id) ? { ...b, postId, position: null } : b)));
     const scanIds = moving.filter(b => b.scanId != null).map(b => b.scanId as number);
     if (!scanIds.length) return;
     try {
       await apiMoveScans(scanIds, postId);
     } catch (e) {
       commit(prev => prev.map(b => (before.has(b.id) ? { ...b, postId: before.get(b.id) ?? null } : b)));
+      throw e;
+    }
+  }, []);
+
+  // A post's photos in a new order (`ids`, Photo 1 first): saved at once,
+  // put back if the server says no.
+  const orderBatches = useCallback(async (ids: string[]) => {
+    const was = new Map(batchesRef.current.map(b => [b.id, b.position]));
+    const place = new Map(ids.map((id, i) => [id, i]));
+    commit(prev => prev.map(b => (place.has(b.id) ? { ...b, position: place.get(b.id)! } : b)));
+    const scanIds = ids.map(id => batchesRef.current.find(b => b.id === id)?.scanId).filter((s): s is number => s != null);
+    try {
+      await apiOrderScans(scanIds);
+    } catch (e) {
+      commit(prev => prev.map(b => (place.has(b.id) ? { ...b, position: was.get(b.id) ?? null } : b)));
       throw e;
     }
   }, []);
@@ -603,9 +634,12 @@ export function useScanner(userId: number | null, signOut: () => void) {
     clearNotice,
     addFiles,
     retryBatches,
+    lockBatch,
+    unlockBatch,
     scanProgress,
     removeBatch,
     moveBatches,
+    orderBatches,
     toggleFoil,
     setAllFoil,
     setPriceOverride,
@@ -614,7 +648,6 @@ export function useScanner(userId: number | null, signOut: () => void) {
     setMultOverride,
     stepMult,
     setRemoved,
-    setPillOffset,
     confirmVersion,
     markListed,
     appendFramedCard,

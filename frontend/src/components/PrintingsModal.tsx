@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchPrintings } from '../api.ts';
-import type { Candidate } from '../types.ts';
+import type { Candidate, RelookupMsg } from '../types.ts';
 import { fmt2, smallScryfallImage } from '../utils.ts';
 import type { T } from '../hooks/useLang.ts';
+import { useBackClose } from '../hooks/useBackClose.ts';
 
 interface Props {
   open: boolean;
@@ -10,15 +11,23 @@ interface Props {
   currentSid: string;
   onClose: () => void;
   onSelect: (printing: Candidate) => void;
+  // Wrong card altogether: look it up by another name, or keep the name as
+  // typed and price it by hand.
+  busy: boolean;
+  msg: RelookupMsg | null;
+  onFind: (name: string) => void;
+  onUseAsIs: (name: string) => void;
   t: T;
 }
 
 const PAGE_SIZE = 30;
 
-export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, t }: Props) {
+export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, busy, msg, onFind, onUseAsIs, t }: Props) {
+  useBackClose(open, onClose);
+  const [name, setName] = useState(cardName);
+  useEffect(() => { setName(cardName); }, [cardName, open]);
   const [printings, setPrintings] = useState<Candidate[]>([]);
   const [status, setStatus] = useState<string>('');
-  const [filter, setFilter] = useState<string>('');
   const [loading, setLoading] = useState(false);
   // Cap rendered cards to PAGE_SIZE at a time; resets when filter or list changes.
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -27,7 +36,6 @@ export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, 
   useEffect(() => {
     if (!open || !cardName) return;
     setPrintings([]);
-    setFilter('');
     setStatus(t('modal_loading_from'));
     setLoading(true);
     fetchPrintings(cardName).then(
@@ -50,48 +58,28 @@ export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, 
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     };
   }, [open, onClose]);
 
-  const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    if (!q) return printings;
-    return printings.filter(p =>
-      (p.set_name || '').toLowerCase().includes(q) ||
-      (p.set || '').toLowerCase().includes(q) ||
-      (p.collector_number || '').toLowerCase().includes(q),
-    );
-  }, [printings, filter]);
+  // A new list starts from the first page again.
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [printings]);
 
-  // Reset the page window any time the visible list shrinks/grows (new fetch,
-  // new filter). Otherwise an old large visibleCount would render too many
-  // items the next time the modal opens.
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [filter, printings]);
+  const visible = useMemo(() => printings.slice(0, visibleCount), [printings, visibleCount]);
+  const remaining = Math.max(0, printings.length - visible.length);
 
-  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
-  const remaining = Math.max(0, filtered.length - visible.length);
-
-  // Update status text based on filter state
+  // How many printings, and how many CK prices.
   useEffect(() => {
     if (loading || !printings.length) return;
     const total = printings.length;
-    const ckCount = filtered.filter(
+    const ckCount = printings.filter(
       p => p.price_source_normal === 'cardkingdom' || p.price_source_foil === 'cardkingdom',
     ).length;
-    if (filtered.length === 0) {
-      setStatus(t('modal_count_filtered_none'));
-    } else if (filter.trim()) {
-      setStatus(t('modal_count_filtered', { shown: filtered.length, total }));
-    } else if (total === 1) {
-      setStatus(t('modal_count_summary_singular', { ck: ckCount }));
-    } else {
-      setStatus(t('modal_count_summary', { n: total, ck: ckCount }));
-    }
-  }, [filtered, filter, loading, printings.length, t]);
+    setStatus(total === 1 ? t('modal_count_summary_singular', { ck: ckCount }) : t('modal_count_summary', { n: total, ck: ckCount }));
+  }, [printings, loading, t]);
 
   if (!open) return null;
 
@@ -106,24 +94,17 @@ export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, 
           <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
         </div>
         <div className="modal-status">{status}</div>
-        {printings.length >= 8 && (
-          <div className="modal-filter">
+        <div className="modal-search">
+          <form className="modal-search-row" onSubmit={e => { e.preventDefault(); onFind(name); }}>
             <input
-              autoFocus
-              type="text"
-              placeholder={t('printings_filter_placeholder')}
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
+              type="text" value={name} disabled={busy} aria-label={t('type_card_name')}
+              placeholder={t('type_card_name')} onChange={e => setName(e.target.value)}
             />
-            <button
-              type="button"
-              className="clear-filter"
-              onClick={() => setFilter('')}
-            >
-              {t('clear')}
-            </button>
-          </div>
-        )}
+            <button type="submit" className="accent" disabled={busy}>{busy ? t('looking_up') : t('find')}</button>
+            <button type="button" className={msg?.type === 'err' ? 'accent' : ''} disabled={busy} onClick={() => onUseAsIs(name)}>{t('use_asis')}</button>
+          </form>
+          {msg ? <p className={`modal-search-msg ${msg.type}`}>{msg.text}</p> : <p className="modal-search-msg">{t('relookup_hint')}</p>}
+        </div>
         <div className="modal-grid">
           {visible.map(p => (
             <PrintingCard

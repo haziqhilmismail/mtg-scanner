@@ -103,6 +103,8 @@ export function PostTile({ title, covers, photos, needs, pending, total, setting
 
 interface PhotoTileProps {
   summary: BatchSummary;
+  // Its "Photo N" in the post order; null while it is not saved yet.
+  number: number | null;
   settings: Settings;
   t: T;
   selecting: boolean;
@@ -111,7 +113,7 @@ interface PhotoTileProps {
   onToggle: () => void;
 }
 
-export function PhotoTile({ summary, settings, t, selecting, selected, onOpen, onToggle }: PhotoTileProps) {
+export function PhotoTile({ summary, number, settings, t, selecting, selected, onOpen, onToggle }: PhotoTileProps) {
   const { batch, cards, needs, pending, total } = summary;
   const src = batch.response ? (batch.response.thumb_url ?? batch.response.image_b64) : null;
   let meta: string;
@@ -136,10 +138,15 @@ export function PhotoTile({ summary, settings, t, selecting, selected, onOpen, o
         ) : null}
       </span>
       <span className="scan-tile-body">
-        <span className="scan-tile-title">{batch.filename}</span>
+        <span className="scan-tile-title">{number != null ? t('photo_n', { n: number }) : batch.filename}</span>
+        {number != null ? <span className="scan-tile-file">{batch.filename}</span> : null}
         <span className="scan-tile-meta">{meta}</span>
         <NeedsBadge n={needs} t={t} />
-        <PendingBadge text={pending > 0 ? t('scans_cards_not_added', { n: pending }) : null} />
+        {batch.lockedAt ? (
+          <span className="locked-badge"><Icon name="lock" size={13} />{t('tile_locked')}</span>
+        ) : (
+          <PendingBadge text={pending > 0 ? t('scans_cards_not_added', { n: pending }) : null} />
+        )}
       </span>
     </button>
   );

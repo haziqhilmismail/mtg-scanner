@@ -1,5 +1,6 @@
-import type { Batch, Candidate, CardRowData, Credits, DetectedCard, PillOffset, ScanUiState, Settings } from './types.ts';
+import type { Batch, Candidate, CardRowData, Credits, DetectedCard, LockedPrice, PillOffset, ScanUiState, Settings } from './types.ts';
 import type { T } from './i18n.ts';
+import type { Payment } from './api.ts';
 
 export function fmt2(n: number | null | undefined): string {
   if (n == null || isNaN(n as number)) return '—';
@@ -69,6 +70,18 @@ export function pillLabel(
   return cd.qty > 1 ? `${unit} ×${cd.qty}` : unit;
 }
 
+// What a card's label on the photo says ('' = no label), on screen and in the
+// exported image alike. A live-price post prints only what CK won't decide:
+// an RM price set on the card, or the card's own multiplier.
+export function photoLabel(cd: CardRowData, settings: Settings): string {
+  if (settings.priceMode === 'live') {
+    if (cd.hasOverride && Number.isFinite(cd.unitPrice)) return pillLabel(cd, settings);
+    return cd.hasMultOverride ? `CK ×${cd.mult}` : '';
+  }
+  if (cd.needsPrice || !Number.isFinite(cd.unitPrice)) return '';
+  return pillLabel(cd, settings);
+}
+
 export function formatMyrWithFoil(price: number, isFoil: boolean, settings: Settings): string {
   const base = formatMyr(price, settings);
   if (isFoil && settings.foilStyle === 'suffix') return base + 'F';
@@ -124,7 +137,23 @@ export function listingFields(cd: CardRowData) {
 // A photo still scanning (or failed before saving) has no scanId yet and counts as newest; `|| 0` ties two of them.
 const newestFirst = (a: Batch, b: Batch) => (b.scanId ?? Infinity) - (a.scanId ?? Infinity) || 0;
 
+// A post's photos in the order the seller gave them (their order on
+// Facebook): placed ones first, then the rest oldest scan first, unsaved last.
+const lastIfNull = (v: number | null) => v ?? Number.MAX_SAFE_INTEGER;
+export const byPostOrder = (a: Batch, b: Batch) =>
+  lastIfNull(a.position) - lastIfNull(b.position) || lastIfNull(a.scanId) - lastIfNull(b.scanId);
+
+// "Photo N": each saved photo's number in its post, the same on every page.
+export function photoNumbers(batches: Batch[]): Map<string, number> {
+  const byPost = new Map<number | null, Batch[]>();
+  for (const b of batches) if (b.scanId != null) byPost.set(b.postId, [...(byPost.get(b.postId) ?? []), b]);
+  const out = new Map<string, number>();
+  for (const list of byPost.values()) [...list].sort(byPostOrder).forEach((b, i) => out.set(b.id, i + 1));
+  return out;
+}
+
 export const PHOTO_SORTS = {
+  post: byPostOrder,
   newest: newestFirst,
   oldest: (a: Batch, b: Batch) => newestFirst(b, a),
   name: (a: Batch, b: Batch) =>
@@ -154,6 +183,10 @@ export const matchThumbs = (batch: Batch): string[] =>
   (batch.response?.cards ?? []).map(c => c.candidates[0]?.image_url).filter((u): u is string => !!u).map(smallScryfallImage);
 
 // The images in a paste (Ctrl/⌘+V), named for when they were pasted.
+// Whether a popup is open over the page: a paste then belongs to it, not
+// to the page's drop area behind it.
+export const popupOpen = () => !!document.querySelector('.feedback-overlay, .modal-shade, .dlg-shade, .modal.open');
+
 export function pastedImages(e: ClipboardEvent): File[] {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   return Array.from(e.clipboardData?.items ?? [])
@@ -228,6 +261,18 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
     const needsPrice = !hasOverride && (isManual || !ckSourceMatched);
     const unitPrice = hasOverride ? override : needsPrice ? NaN : autoPrice;
     const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
+    // A finished photo keeps the prices buyers saw, whatever CK or the
+    // multipliers do since.
+    const lock = batch.lockedAt ? batch.locked[origIdx] : null;
+    if (lock) {
+      return {
+        card: c, sel, origIdx, removed, isFoil, isManual, needsPrice: false,
+        usd: lock.usd, mult: lock.mult, globalMult, hasMultOverride,
+        autoPrice: lock.manual ? autoPrice : lock.price, qty, unitPrice: lock.price,
+        hasOverride: lock.manual, lineTotal: lock.price * qty, source: (lock.manual ? 'manual' : 'cardkingdom') as CardRowData['source'],
+        pillOffset: batch.pillOffset?.[origIdx] ?? null,
+      };
+    }
     const source = isManual
       ? 'manual'
       : (isFoil
@@ -243,6 +288,13 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
   });
 }
 
+// The prices to lock a photo at when it is finished: each kept card's price
+// as it stands, and how it was worked out.
+export function lockPrices(cards: CardRowData[]): (LockedPrice | null)[] {
+  return cards.map(cd => (cd.removed || !(cd.unitPrice > 0) ? null
+    : { price: cd.unitPrice, usd: cd.usd, mult: cd.mult, manual: cd.hasOverride }));
+}
+
 // Per-card state for a scan nobody has edited yet: foil and quantity seeded
 // from Gemini's guesses, no overrides.
 export function freshState(cards: DetectedCard[]): ScanUiState {
@@ -256,10 +308,11 @@ export function freshState(cards: DetectedCard[]): ScanUiState {
     pillOffset: new Array(n).fill(null),
     versionOk: new Array(n).fill(false),
     picks: new Array(n).fill(null),
+    locked: new Array(n).fill(null),
   };
 }
 
-const VALID: { [K in Exclude<keyof ScanUiState, 'rev'>]: (v: unknown) => boolean } = {
+const VALID: { [K in Exclude<keyof ScanUiState, 'rev' | 'lockedAt'>]: (v: unknown) => boolean } = {
   isFoil: v => typeof v === 'boolean',
   priceOverride: v => v === null || typeof v === 'string',
   quantity: v => Number.isInteger(v) && (v as number) >= 1,
@@ -268,6 +321,10 @@ const VALID: { [K in Exclude<keyof ScanUiState, 'rev'>]: (v: unknown) => boolean
   pillOffset: v => v === null || (Number.isFinite((v as PillOffset)?.dx) && Number.isFinite((v as PillOffset)?.dy)),
   versionOk: v => typeof v === 'boolean',
   picks: v => v === null || typeof (v as Candidate)?.name === 'string',
+  locked: v => v === null || (
+    Number.isFinite((v as LockedPrice)?.price) && (v as LockedPrice).price > 0
+    && Number.isFinite((v as LockedPrice).usd) && Number.isFinite((v as LockedPrice).mult)
+    && typeof (v as LockedPrice).manual === 'boolean'),
 };
 
 // A scan's saved per-card state, made safe to use: one entry per card, each
@@ -278,6 +335,7 @@ export function normalizeUiState(raw: unknown, cards: DetectedCard[]): ScanUiSta
   const saved = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const state = freshState(cards);
   if (Number.isInteger(saved.rev)) state.rev = saved.rev as number;
+  if (typeof saved.lockedAt === 'string' && saved.lockedAt) state.lockedAt = saved.lockedAt;
   for (const k of Object.keys(VALID) as (keyof typeof VALID)[]) {
     const arr = saved[k];
     if (!Array.isArray(arr)) continue;
@@ -293,9 +351,65 @@ export function nextFreeDate(credits: Credits | null, lang: string): string {
     : '';
 }
 
-// Why there are no scans left and when the next one returns: on the upload
-// area, and in Claims, whose claim reading costs a scan.
+// How a card's price was worked out, for the buyer: "$3.60 × 2.5 → RM9" (the
+// arrow because the result is rounded). null when the price charged is not
+// that formula's result (a hand-set price, or prices refreshed since the
+// claim), so a buyer never sees a sum that does not match what they pay.
+export function priceWorking(cd: CardRowData, charged: number, settings: Settings): string | null {
+  if (cd.hasOverride || !(cd.usd > 0) || Math.abs(cd.autoPrice - charged) > 0.005) return null;
+  return `$${cd.usd.toFixed(2)} × ${cd.mult} → ${formatMyr(cd.autoPrice, settings)}`;
+}
+
+// The seller's payment details as lines under a copied summary; none when
+// nothing is filled in.
+export function paymentLines(p: Payment | null, t: T): string[] {
+  if (!p) return [];
+  const account = [p.bank_name, p.bank_account_number].filter(Boolean).join(' ');
+  const lines: string[] = [];
+  if (account) lines.push(t('pay_copy_account', { account }) + (p.bank_account_holder ? ` (${p.bank_account_holder})` : ''));
+  if (p.payment_note) lines.push(p.payment_note);
+  return lines;
+}
+
+// Whether saving claims should end with the tip-jar popup: from the third
+// save on, at most once every 30 days, so a regular seller is asked about
+// once a month and a first-time one not at all.
+export const SUPPORT_ASK_AFTER_SAVES = 3;
+export function dueForSupportAsk(saves: number, askedAt: number | null, now: number): boolean {
+  return saves >= SUPPORT_ASK_AFTER_SAVES && (askedAt == null || now - askedAt >= 30 * 24 * 3600 * 1000);
+}
+
+// The balance line under Find Claims ('' when credits don't apply).
+export function creditsLine(credits: Credits | null, t: T, lang: string): string {
+  if (!credits?.enforced) return '';
+  if (credits.unlimited) return t('credits_unlimited');
+  let line = t('credits_free_left', { n: Math.max(0, credits.limit - credits.used), limit: credits.limit });
+  if (credits.bonus > 0) line += ' ' + t('credits_plus_extra', { n: credits.bonus });
+  const nextBack = nextFreeDate(credits, lang);
+  if (credits.used > 0 && nextBack) line += ' · ' + t('credits_next_back', { date: nextBack });
+  return line;
+}
+
+// Why there are no claim reads left and when the next one returns.
 export function creditsOutText(credits: Credits, t: T, lang: string): string {
   const date = nextFreeDate(credits, lang);
   return date ? t('credits_out_body', { date, limit: credits.limit }) : t('credits_out_body_plain', { limit: credits.limit });
+}
+
+// How a comment screenshot got its photo: the seller picked it, the app saw
+// the photo in it (sure, or a best guess between look-alike photos), or it
+// follows the screenshot before (comments scrolled past the photo).
+// 'none': not sorted yet.
+export type SortedBy = 'picked' | 'found' | 'guess' | 'follows' | 'none';
+
+// Which photo each screenshot, in the order taken, is about. Each has the
+// photo the app saw in it (`sure`) or its best guess (`guess`), either may be
+// null; `before` is the photo of the screenshot already there ahead of them.
+export function sortScreenshots<P>(seen: Array<{ sure: P | null; guess: P | null }>, before: P | null): Array<{ scanId: P | null; by: SortedBy }> {
+  let last = before;
+  return seen.map(({ sure, guess }) => {
+    if (sure != null) { last = sure; return { scanId: sure, by: 'found' as const }; }
+    if (guess != null) { last = guess; return { scanId: guess, by: 'guess' as const }; }
+    return last != null ? { scanId: last, by: 'follows' as const } : { scanId: null, by: 'none' as const };
+  });
 }

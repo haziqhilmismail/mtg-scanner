@@ -4,7 +4,7 @@ import { postsApi, type PostCreatePayload } from '../api/checklist.ts';
 import {
   defaultToUpload, editPricing, LEGACY_KEY, LEGACY_VERSION_KEY, legacyPricing, pricingKnown, resolvePricing, type PricingState,
 } from '../lib/pricing.ts';
-import type { Settings } from '../types.ts';
+import { DEFAULT_SETTINGS, type PriceMode, type Settings } from '../types.ts';
 import { useSaveQueue } from './useSaveQueue.ts';
 
 // Edits are saved this long after the last change.
@@ -88,9 +88,11 @@ export function usePricing() {
   // Every new post starts with a copy of the default, once it is known, so
   // changing the default later doesn't reprice it. Not known (offline): the
   // post follows the default.
-  const createPost = useCallback(async (payload: Omit<PostCreatePayload, 'pricing'>) => {
+  const createPost = useCallback(async (payload: Omit<PostCreatePayload, 'pricing'>, priceMode: PriceMode = 'photo') => {
     const known = await meAnswer.current;
-    const post = await postsApi.create({ ...payload, pricing: known ? resolvePricing(null, stateRef.current.userDefault) : null });
+    // The post type always goes with it, even before the default is known.
+    const pricing = { ...(known ? resolvePricing(null, stateRef.current.userDefault) : DEFAULT_SETTINGS), priceMode };
+    const post = await postsApi.create({ ...payload, pricing });
     set({ ...stateRef.current, posts: { ...stateRef.current.posts, [post.id]: post.pricing } });
     return post;
   }, [set]);
@@ -107,9 +109,9 @@ export function usePricing() {
     };
   }, [state]);
 
-  // Whether a post is priced the same as the default.
+  // Whether a post is priced the same as the default (its type aside).
   const isDefault = useCallback(
-    (postId: number) => JSON.stringify(pricingFor(postId)) === JSON.stringify(pricingFor(null)),
+    (postId: number) => JSON.stringify({ ...pricingFor(postId), priceMode: 'photo' }) === JSON.stringify({ ...pricingFor(null), priceMode: 'photo' }),
     [pricingFor],
   );
 

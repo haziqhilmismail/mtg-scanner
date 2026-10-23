@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, matchThumbs, normalizeUiState, notAdded, sortPhotos, type PhotoSort } from './utils.ts';
+import { DEFAULT_SETTINGS, type Batch, type Candidate, type CardRowData, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
+import { applyRounding, computeCardData, dueForSupportAsk, lockPrices, matchThumbs, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
+import type { T } from './i18n.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
@@ -35,9 +36,9 @@ test('no rounding, and the minimum price', () => {
 test('a price box holding only "." is no price, not RM0', () => {
   const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
   const batch: Batch = {
-    id: 'b', scanId: 1, postId: null, listed: [], filename: '', status: 'done',
+    id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ candidates: [sel] } as DetectedCard] },
-    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false], picks: [null],
+    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false], picks: [null], locked: [null],
     relookupBusy: [false], relookupMsg: [null],
   };
   const settings = { ...DEFAULT_SETTINGS, multNormal: 3 };
@@ -58,6 +59,8 @@ test('saved per-card state is fitted to the cards, entry by entry', () => {
     removed: 'no',
     pillOffset: [{ dx: 1, dy: 2 }, { dx: 'x', dy: 0 }],
     picks: [{ name: 'Sol Ring', set: 'c21' }, 'Sol Ring', { set: 'c21' }],
+    locked: [{ price: 9, usd: 3.6, mult: 2.5, manual: false }, { price: 0, usd: 1, mult: 1, manual: false }, 'x'],
+    lockedAt: '2026-10-23T12:00:00Z',
     rev: 1700000000000,
   };
   assert.deepEqual(normalizeUiState(saved, cards), {
@@ -69,6 +72,8 @@ test('saved per-card state is fitted to the cards, entry by entry', () => {
     pillOffset: [{ dx: 1, dy: 2 }, null, null],
     versionOk: [false, false, false],
     picks: [{ name: 'Sol Ring', set: 'c21' }, null, null],
+    locked: [{ price: 9, usd: 3.6, mult: 2.5, manual: false }, null, null],
+    lockedAt: '2026-10-23T12:00:00Z',
     rev: 1700000000000,
   });
   assert.deepEqual(normalizeUiState(null, [card(true)]).isFoil, [true]);
@@ -80,11 +85,11 @@ test('a photo still has to add its priced, kept cards that are not listed', () =
   const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
   const card = (x: number) => ({ candidates: [sel], bbox: [x, 0, 5, 5] } as DetectedCard);
   const batch: Batch = {
-    id: 'b', scanId: 1, postId: 7, listed: ['0,0,5,5'], filename: '', status: 'done',
+    id: 'b', scanId: 1, postId: 7, position: null, listed: ['0,0,5,5'], filename: '', status: 'done',
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [card(0), card(10), card(20), card(30)] },
     isFoil: [false, false, false, false], priceOverride: [null, null, null, '0'], quantity: [1, 1, 1, 1],
     multOverride: [null, null, null, null], removed: [false, false, true, false], pillOffset: [null, null, null, null],
-    versionOk: [false, false, false, false], picks: [null, null, null, null], relookupBusy: [], relookupMsg: [],
+    versionOk: [false, false, false, false], picks: [null, null, null, null], locked: [null, null, null, null], relookupBusy: [], relookupMsg: [],
   };
   // Listed, not added, removed, priced at zero.
   assert.deepEqual(notAdded(batch, computeCardData(batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
@@ -118,4 +123,82 @@ test('match thumbnails are the small image of each top candidate, without the em
     'https://cards.scryfall.io/small/front/c/d/cd.jpg?2',
   ]);
   assert.deepEqual(matchThumbs({ response: null } as Batch), []);
+});
+
+test('the tip-jar popup waits for the third save, then asks once a month', () => {
+  const day = 24 * 3600 * 1000;
+  assert.equal(dueForSupportAsk(2, null, 100 * day), false);
+  assert.equal(dueForSupportAsk(3, null, 100 * day), true);
+  assert.equal(dueForSupportAsk(9, 100 * day, 129 * day), false);
+  assert.equal(dueForSupportAsk(9, 100 * day, 130 * day), true);
+});
+
+test('the price working shows only when it gives the price charged', () => {
+  const cd = { usd: 3.6, mult: 2.5, autoPrice: 9, hasOverride: false } as CardRowData;
+  const s = { ...DEFAULT_SETTINGS, showCurrency: true, currencyLabel: 'RM', showCents: false };
+  assert.equal(priceWorking(cd, 9, s), '$3.60 × 2.5 → RM9');
+  assert.equal(priceWorking(cd, 10, s), null);                                   // refreshed since the claim
+  assert.equal(priceWorking({ ...cd, hasOverride: true }, 9, s), null);          // hand-set price
+  assert.equal(priceWorking({ ...cd, usd: 0 }, 9, s), null);                     // no CK price
+});
+
+test('payment details become the lines under a copied summary', () => {
+  const t = ((key: string, v?: Record<string, string>) => `${key}:${v?.account ?? ''}`) as unknown as T;
+  const full = { bank_name: 'Maybank', bank_account_number: '1234', bank_account_holder: 'Haziq', payment_note: 'Send your name.', qr_version: null };
+  assert.deepEqual(paymentLines(full, t), ['pay_copy_account:Maybank 1234 (Haziq)', 'Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: '', bank_account_number: '', bank_account_holder: '' }, t), ['Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: '', bank_account_number: '', bank_account_holder: '', payment_note: '' }, t), []);
+  assert.deepEqual(paymentLines(null, t), []);
+});
+
+test('a finished photo keeps its prices and their working whatever changes after', () => {
+  const sel = { name: 'X', usd: 3.6, price_source_normal: 'cardkingdom' } as Candidate;
+  const batch: Batch = {
+    id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
+    response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ candidates: [sel] } as DetectedCard, { candidates: [sel] } as DetectedCard] },
+    isFoil: [false, false], priceOverride: [null, '7'], quantity: [1, 2], multOverride: [null, null], removed: [false, false],
+    pillOffset: [null, null], versionOk: [false, false], picks: [null, null], locked: [null, null], relookupBusy: [], relookupMsg: [],
+  };
+  const posted = { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up' as const, roundStep: 1 as const };
+  const finished = { ...batch, locked: lockPrices(computeCardData(batch, posted)), lockedAt: '2026-10-23T12:00:00Z' };
+  // CK moves and the multiplier changes after posting.
+  finished.response = { ...batch.response!, cards: [{ candidates: [{ ...sel, usd: 9 }] } as DetectedCard, { candidates: [{ ...sel, usd: 9 }] } as DetectedCard] };
+  const [ck, typed] = computeCardData(finished, { ...posted, multNormal: 4 });
+  assert.equal(ck.unitPrice, 9);
+  assert.equal(priceWorking(ck, 9, posted), '$3.60 × 2.5 → RM9');
+  assert.deepEqual([typed.unitPrice, typed.lineTotal], [7, 14]);
+  assert.equal(priceWorking(typed, 7, posted), null);
+  // Edit prices: the lock no longer counts, so prices follow again.
+  assert.equal(computeCardData({ ...finished, lockedAt: null }, { ...posted, multNormal: 4 })[0].unitPrice, 36);
+});
+
+test('comment screenshots go to the photo they show, else the one before', () => {
+  const seen = (sure: number | null, guess: number | null = null) => ({ sure, guess });
+  // Photo 3 with its comments, two scrolls of comments, photo 5 (a guess between look-alikes), then comments.
+  assert.deepEqual(sortScreenshots([seen(3), seen(null), seen(null), seen(null, 5), seen(null)], null), [
+    { scanId: 3, by: 'found' }, { scanId: 3, by: 'follows' }, { scanId: 3, by: 'follows' },
+    { scanId: 5, by: 'guess' }, { scanId: 5, by: 'follows' },
+  ]);
+  // Comments only, nothing before: not sorted. Added later: they follow what is there.
+  assert.deepEqual(sortScreenshots([seen(null)], null), [{ scanId: null, by: 'none' }]);
+  assert.deepEqual(sortScreenshots([seen(null)], 7), [{ scanId: 7, by: 'follows' }]);
+});
+
+test('photos are numbered in the order the seller gave them, then oldest scan first', () => {
+  const b = (id: string, postId: number | null, scanId: number | null, position: number | null) => ({ id, postId, scanId, position, filename: id } as Batch);
+  const batches = [b('new', 1, 9, null), b('c', 1, 3, 0), b('a', 1, 1, 2), b('b', 1, 2, 1), b('scanning', 1, null, null), b('other', 2, 4, null)];
+  assert.deepEqual([...photoNumbers(batches)].sort(), [['a', 3], ['b', 2], ['c', 1], ['new', 4], ['other', 1]]);
+  const ids = sortPhotos(batches.filter(x => x.postId === 1).map(batch => ({ batch })), 'post').map(s => s.batch.id);
+  assert.deepEqual(ids, ['c', 'b', 'a', 'new', 'scanning']);
+});
+
+test('a live-price photo labels only what CK does not decide', () => {
+  const cd = (o: Partial<CardRowData>) => ({ unitPrice: 9, isFoil: false, qty: 1, needsPrice: false, hasOverride: false, hasMultOverride: false, mult: 2.5, ...o } as CardRowData);
+  const s = { ...DEFAULT_SETTINGS, showCurrency: true, currencyLabel: 'RM', showCents: false };
+  const live = { ...s, priceMode: 'live' as const };
+  assert.equal(photoLabel(cd({}), s), 'RM9');                                   // price on photo: every card
+  assert.equal(photoLabel(cd({}), live), '');                                   // live, post rate: nothing
+  assert.equal(photoLabel(cd({ hasOverride: true, unitPrice: 12 }), live), 'RM12');
+  assert.equal(photoLabel(cd({ hasMultOverride: true, mult: 3 }), live), 'CK ×3');
+  assert.equal(photoLabel(cd({ needsPrice: true, unitPrice: NaN }), s), '');
 });

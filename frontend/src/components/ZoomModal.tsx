@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useBackClose } from '../hooks/useBackClose.ts';
 
 interface Props {
   src: string | null;
@@ -7,15 +8,16 @@ interface Props {
 }
 
 export function ZoomModal({ src, caption, onClose }: Props) {
+  useBackClose(!!src, onClose);
   // Esc to close
   useEffect(() => {
     if (!src) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     };
   }, [src, onClose]);
 
