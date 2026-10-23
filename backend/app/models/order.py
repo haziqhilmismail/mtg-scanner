@@ -43,6 +43,10 @@ class Order(Base, TimestampMixin):
     # Independent flags — either may be set without the other.
     # delivered_at without paid_at = "took on credit, hasn't paid yet"
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Live-price posts: when the seller sent the buyer their prices. Until then
+    # the prices are an estimate the seller may refresh from CK; after, they
+    # stay what the buyer was told.
+    prices_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Cached running total of order items (recompute on item add/remove)

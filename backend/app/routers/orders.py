@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -175,6 +176,48 @@ async def update_order(
     updates = payload.model_dump(exclude_unset=True)
     for k, v in updates.items():
         setattr(order, k, v)
+    await db.flush()
+    return await _load_order(db, order.id, user_id)
+
+
+class ItemPrice(BaseModel):
+    id: int
+    unit_price_myr: Decimal = Field(..., ge=0, decimal_places=2)
+
+
+class OrderPrices(BaseModel):
+    items: list[ItemPrice] = Field(default_factory=list, max_length=500)
+    # Also mark them sent to the buyer, which fixes them.
+    sent: bool = False
+
+
+@router.put("/{order_id}/prices", response_model=OrderRead)
+async def set_prices(order_id: int, body: OrderPrices, db: DbSession, user_id: CurrentUserId) -> Order:
+    """Live-price posts: put today's prices on an order whose prices were not
+    sent yet (Refresh prices), and optionally mark them sent (the seller just
+    copied or shared the buyer's total). 409 once sent: the buyer was told."""
+    order = await _load_order(db, order_id, user_id)
+    if order.prices_sent_at is not None:
+        raise HTTPException(409, "These prices were already sent to the buyer")
+    price = {p.id: p.unit_price_myr for p in body.items}
+    total = Decimal("0.00")
+    for item in order.items:
+        if item.id in price:
+            item.unit_price_myr = price[item.id]
+            item.line_total_myr = price[item.id] * item.qty
+        total += item.line_total_myr
+    order.total_myr = total
+    if body.sent:
+        order.prices_sent_at = datetime.now(timezone.utc)
+    await db.flush()
+    return await _load_order(db, order.id, user_id)
+
+
+@router.delete("/{order_id}/prices-sent", response_model=OrderRead)
+async def unsend_prices(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+    """Resend at today's price: the prices are an estimate again."""
+    order = await _load_order(db, order_id, user_id)
+    order.prices_sent_at = None
     await db.flush()
     return await _load_order(db, order.id, user_id)
 
