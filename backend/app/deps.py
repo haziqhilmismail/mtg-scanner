@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
 from .db import get_session
+from .models import User
 from .services.auth_service import decode_image_token, decode_session_token
 
 
@@ -42,11 +43,14 @@ def get_optional_user_id(authorization: str | None = Header(default=None)) -> in
 OptionalUserId = Annotated[int | None, Depends(get_optional_user_id)]
 
 
-def get_current_user_id(user_id: OptionalUserId) -> int:
+async def get_current_user_id(user_id: OptionalUserId, db: DbSession) -> int:
     """The signed-in user (an `Authorization: Bearer <jwt>` header issued by
     `/api/auth/google`); 401 without one. Solo user when auth is off."""
     if user_id is None:
         raise HTTPException(401, "Missing, invalid or expired token")
+    # A deleted account's token stays valid for days; its user row is gone.
+    if settings.auth_enabled and await db.get(User, user_id) is None:
+        raise HTTPException(401, "Account not found")
     return user_id
 
 
