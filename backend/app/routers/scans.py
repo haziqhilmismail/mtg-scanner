@@ -16,7 +16,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from ..deps import CurrentUserId, DbSession, ImageUserId, limiter
 from ..models import Listing, ListingStatus, Order, OrderItem, OrderStatus, Post, Scan
-from ..services.listings import drop_listing
+from ..services.listings import drop_listing, locked_prices
 from ..services.cardkingdom_prices import enrich as enrich_with_ck
 from ..services.cardkingdom_prices import get_index as get_ck_index
 
@@ -114,7 +114,16 @@ async def save_scan_state(scan_id: int, body: ScanState, db: DbSession, user_id:
         stored_is_int = func.coalesce(func.json_type(Scan.ui_state, "$.rev"), "") == "integer"
         newer = newer & ~(stored_is_int & (func.json_extract(Scan.ui_state, "$.rev") > rev))
     result = await db.execute(update(Scan).where(newer).values(ui_state=state).execution_options(synchronize_session=False))
-    if result.rowcount != 1 or not any(picks or []):  # most saves pick nothing: leave gemini_raw (and its photo) alone
+    if result.rowcount != 1:
+        return
+    # A finished photo: its stock listings carry the prices it was posted with.
+    if prices := locked_prices(state, scan_row.gemini_raw):
+        for listing in (await db.scalars(select(Listing).where(
+            Listing.scan_id == scan_id, Listing.status != ListingStatus.archived,
+        ))).all():
+            if listing.bbox and tuple(listing.bbox) in prices:
+                listing.unit_price_myr = prices[tuple(listing.bbox)]
+    if not any(picks or []):  # most saves pick nothing: leave gemini_raw (and its photo) alone
         return
     # The UPDATE holds SQLite's write lock until the session commits, so this
     # re-read and write can't interleave with another writer of this scan.
