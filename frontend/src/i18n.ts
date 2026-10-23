@@ -453,6 +453,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     preview_expand: 'Expand',
     preview_collapse: 'Close',
     footer_right: 'Not affiliated with Wizards of the Coast',
+    privacy_link: 'Privacy',
 
     // Checklist
     ck_orders: 'Orders',
@@ -1187,6 +1188,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     preview_expand: 'Besarkan',
     preview_collapse: 'Tutup',
     footer_right: 'Tiada kaitan dengan Wizards of the Coast',
+    privacy_link: 'Privasi',
 
     // Senarai Semak
     ck_orders: 'Pesanan',
