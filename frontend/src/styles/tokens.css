@@ -31,6 +31,8 @@
   --green-soft: rgba(52, 199, 89, 0.16);
   --warn: #d70015;          /* destructive and errors, 5.6:1 on paper */
   --warn-soft: rgba(255, 59, 48, 0.12);
+  --danger-fill: #d70015;   /* the filled red button, both themes: white text on #ff6961 fails contrast */
+  --row-hover: rgba(118, 118, 128, 0.06);   /* a list row under the pointer: --fill at half strength */
   --on-accent: #ffffff;
 
   --glass: rgba(255, 255, 255, 0.72);
@@ -44,13 +46,18 @@
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 18px;
-  --radius-xl: 26px;
+  --radius-xl: 16px;        /* dialogs */
   --radius-pill: 999px;
   --tap: 44px;              /* minimum touch target */
   --bar-h: 56px;            /* top bar */
+  --z-sticky: 30;           /* sticky action bar, back to top */
+  --z-bar: 40;              /* top bar */
+  --z-dialog: 60;           /* dialogs */
+  --z-dialog-top: 65;       /* a dialog over a dialog: a confirm, the photo viewer */
+  --z-toast: 70;
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --seg-thumb: #ffffff;     /* selected segment */
-  --seg-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  --seg-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 [data-theme="dark"] {
   color-scheme: dark;
@@ -75,13 +82,14 @@
   --green-soft: rgba(48, 209, 88, 0.18);
   --warn: #ff6961;          /* 6.2:1 on paper */
   --warn-soft: rgba(255, 69, 58, 0.2);
+  --row-hover: rgba(118, 118, 128, 0.12);
   --seg-thumb: #636366;
   --seg-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   --glass: rgba(30, 30, 32, 0.72);
   --glass-border: rgba(255, 255, 255, 0.12);
   --scrim: rgba(0, 0, 0, 0.56);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow: none;           /* cards sit flat in the dark */
   --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 

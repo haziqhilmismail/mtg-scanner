@@ -18,7 +18,7 @@
 .payment-foot { padding-top: 12px; border-top: 1px solid var(--rule); }
 .payment-delete { color: var(--warn); padding-left: 0; }
 .payment-delete:disabled { color: var(--ink-faint); }
-.payment-privacy-shade { z-index: 110; }
+.payment-privacy-shade { z-index: var(--z-dialog-top); }
 /* Paste and drop need a keyboard and mouse. */
 @media (hover: none) { .payment-qr-paste { display: none; } }
 .payment-privacy ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }

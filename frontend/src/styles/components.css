@@ -20,7 +20,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 /* (i) explanations: hover with a mouse, tap on a phone. */
 .info-tip { position: relative; display: inline-flex; align-items: center; }
 .info-tip-bubble {
-  position: absolute; z-index: 30; bottom: calc(100% + 8px); padding: 10px 12px; border-radius: var(--radius);
+  position: absolute; z-index: var(--z-sticky); bottom: calc(100% + 8px); padding: 10px 12px; border-radius: var(--radius);
   background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg);
   font-size: 13px; font-weight: 400; line-height: 1.45; text-align: left;
   visibility: hidden; opacity: 0; transition: opacity 0.15s ease;
@@ -156,7 +156,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .price-input-wrap input:focus { box-shadow: none; }
 .price-input-wrap {
   display: inline-flex; align-items: center;
-  border: 0.5px solid var(--rule);
+  border: 1px solid var(--rule);
   background: var(--surface);
   border-radius: var(--radius);
   padding-left: 8px;
@@ -190,7 +190,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
    A temporary, focused task. Centred card on wide screens; on a phone it
    rises from the bottom edge with a grabber, within thumb reach. */
 .modal {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; inset: 0; z-index: var(--z-dialog);
   display: none; align-items: center; justify-content: center; padding: 24px;
 }
 .modal.open { display: flex; }
@@ -273,7 +273,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 
 /* Zoom modal */
 .zoom-modal {
-  position: fixed; inset: 0; z-index: 200;
+  position: fixed; inset: 0; z-index: var(--z-dialog-top);
   display: none; align-items: center; justify-content: center; padding: 24px;
 }
 .zoom-modal.open { display: flex; }
@@ -299,7 +299,7 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
    Rare and direct: a title, one line of consequence, two clear choices.
    Buttons share the width so neither reads as the default by size alone. */
 .dlg-shade {
-  position: fixed; inset: 0; z-index: 300;
+  position: fixed; inset: 0; z-index: var(--z-dialog-top);
   background: var(--scrim);
   display: flex; align-items: center; justify-content: center; padding: 20px;
   animation: dlg-fade 0.18s ease-out;
@@ -351,14 +351,14 @@ html:has(.feedback-overlay), html:has(.modal.open), html:has(.dlg-shade) { overf
 /* Footer */
 .foot a { color: inherit; }
 .foot {
-  margin-top: 48px; padding-top: 16px; border-top: 0.5px solid var(--rule);
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule);
   font-size: 12px; color: var(--ink-soft);
   display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px;
 }
 
 /* ---------- Feedback sheet ---------- */
 .feedback-overlay {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; inset: 0; z-index: var(--z-dialog);
   background: var(--scrim);
   display: flex; align-items: center; justify-content: center;
   padding: clamp(12px, 4vw, 32px);
@@ -398,26 +398,25 @@ html:has(.feedback-overlay), html:has(.modal.open), html:has(.dlg-shade) { overf
    Floats at the bottom right; appears once the user has scrolled more than
    a viewport. */
 .float-back-top {
-  position: fixed; z-index: 30;
+  position: fixed; z-index: var(--z-sticky);
   right: clamp(12px, 3vw, 24px);
   bottom: calc(20px + env(safe-area-inset-bottom));
   width: var(--tap); height: var(--tap); min-height: 0; padding: 0;
-  background: var(--glass); color: var(--ink);
-  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  border: 0.5px solid var(--rule); border-radius: 50%;
+  background: var(--paper); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 50%;
   box-shadow: var(--shadow-lg);
   opacity: 0; pointer-events: none; transform: translateY(8px);
   transition: opacity 0.25s ease, transform 0.25s var(--ease);
 }
 .float-back-top.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
-.float-back-top:hover { background: var(--glass); }
+.float-back-top:hover { background: var(--surface-2); }
 
 .error-boundary {
   max-width: 520px;
   margin: 80px auto;
   padding: 28px 32px;
   background: var(--paper);
-  border: 0.5px solid var(--rule);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   text-align: center;
 }
