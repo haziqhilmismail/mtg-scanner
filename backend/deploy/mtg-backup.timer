@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up the MTG scanner every night
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Kuala_Lumpur
+# A night missed while the server was off runs as soon as it is back.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

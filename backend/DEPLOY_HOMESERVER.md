@@ -161,6 +161,49 @@ timer holds it, and logs "held", until someone reviews it and runs
 `DEPLOY_INFRA=1 ./deploy.sh`. For deeper disk cleanup occasionally: `docker system prune -af` (removes
 *all* unused images + build cache; the next build re-pulls the base image).
 
+### Nightly backup
+
+`deploy/backup.sh` runs every night at 03:30 Kuala Lumpur time, from a systemd
+user timer (no root). It makes a consistent copy of `data/app.db`, checks it,
+and keeps it gzipped in `~/backups/mtg-scanner`. If `.env` sets
+`BACKUP_NAS_DIR`, it also copies the database backups there and mirrors the
+uploaded files (`scans/`, `posts/`, `orders/`, `payment_qr/`). Each backup is
+deleted after 30 days, as PRIVACY.md promises. A failure goes to the Telegram
+bot in `.env`.
+
+Use a NAS folder that only you can open: the backups hold buyers' names, phone
+numbers and payment details.
+
+Install it once on the server:
+
+```bash
+loginctl enable-linger "$USER"   # user timers run while you are logged out
+systemctl --user link ~/mtg-scanner/backend/deploy/mtg-backup.service
+systemctl --user enable --now ~/mtg-scanner/backend/deploy/mtg-backup.timer
+```
+
+Check it, or run one now:
+
+```bash
+systemctl --user list-timers mtg-backup.timer
+systemctl --user start mtg-backup.service
+journalctl --user -u mtg-backup.service -n 30 --no-pager
+~/mtg-scanner/backend/deploy/test_backup.sh   # the script's own test, on fake data
+```
+
+Restore the database from a backup:
+
+```bash
+cd ~/mtg-scanner/backend
+docker compose down
+rm -f data/app.db-journal data/app.db-wal data/app.db-shm   # else SQLite replays them onto the restored file
+gunzip -c ~/backups/mtg-scanner/app-2026-10-24.db.gz > data/app.db
+docker compose up -d
+```
+
+Then delete again each account that was deleted after the backup date. To
+restore the uploaded files, copy `$BACKUP_NAS_DIR/files/*` back into `data/`.
+
 ## Notes / caveats
 
 - **CardKingdom refresh** runs in-app: `POST /api/refresh-ck`, triggered nightly
@@ -169,5 +212,4 @@ timer holds it, and logs "held", until someone reviews it and runs
 - **Rate limiting** (slowapi) is per signed-in user. Every request arrives from
   the same proxy address, so anonymous calls share one bucket.
 - **Uptime** is now on you — if the VM/Proxmox host is down, the app is down.
-- **Backups**: `./data/app.db` is your whole business state. Snapshot it
-  (Proxmox snapshot or a nightly `cp`/`litestream`) so a disk loss isn't fatal.
+- **Backups** run every night: see "Nightly backup" above.
