@@ -1,7 +1,7 @@
 # MTG scanner backend
 
 FastAPI + SQLAlchemy 2 (async) + SQLite, behind the React frontend
-(`mtg-scanner-frontend`, on Vercel). It prices Magic cards from photos
+(`frontend/`, on Vercel). It prices Magic cards from photos
 (Gemini, or the local scanner below; prices from CardKingdom, card data from
 Scryfall) and keeps the seller's stock, posts, buyers and orders.
 
