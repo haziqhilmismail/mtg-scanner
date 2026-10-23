@@ -11,6 +11,7 @@ venv/
 
 # Local data — ./data on the host is the production source of truth
 data/*.db
+data/*.db.bak*
 data/*.db-journal
 data/*.db.tmp
 data/ck_pricelist.json
