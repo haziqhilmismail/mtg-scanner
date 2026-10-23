@@ -1,10 +1,9 @@
 // The pictures the Claims page points at: the post's photos and the cards in
-// them. The same tiles serve as the post's inventory and as the pickers the
-// seller taps when the app could not tell which photo or card a comment means.
+// them. The same tiles serve as the post's inventory and as the picker the
+// seller taps when the app could not tell which card a comment means.
 
 import { useState } from 'react';
 import type { Batch, CardRowData } from '../types.ts';
-import { Icon } from './Icon.tsx';
 import type { T } from '../hooks/useLang.ts';
 
 // One card that can be claimed: a scanned card in one of the post's photos.
@@ -54,46 +53,6 @@ export function CardTile({ card, price, status, selected, onClick }: TileProps) 
     </button>
   ) : (
     <div className="card-tile">{body}</div>
-  );
-}
-
-interface PhotoPickerProps {
-  photos: Photo[];
-  value: number | 'all' | null;
-  suggest: number | null;
-  onPick: (v: number | 'all') => void;
-  t: T;
-}
-
-// Which photo a screenshot's comments are about, picked by its picture.
-export function PhotoPicker({ photos, value, suggest, onPick, t }: PhotoPickerProps) {
-  return (
-    <div className="photo-picker" role="group" aria-label={t('claims_page_photo')}>
-      {photos.map(p => {
-        const id = p.batch.scanId as number;
-        return (
-          <button
-            key={p.batch.id} type="button"
-            className={`photo-pick ${value === id ? 'is-selected' : ''}`}
-            aria-pressed={value === id}
-            onClick={() => onPick(id)}
-          >
-            <span className="photo-pick-img"><img src={photoThumb(p)} alt="" loading="lazy" decoding="async" /></span>
-            <span className="photo-pick-label">{t('claims_photo_short', { n: p.index })}</span>
-            {value == null && suggest === id ? <span className="photo-pick-hint">{t('claims_same_as_before')}</span> : null}
-          </button>
-        );
-      })}
-      {photos.length > 1 ? (
-        <button
-          type="button" className={`photo-pick is-all ${value === 'all' ? 'is-selected' : ''}`}
-          aria-pressed={value === 'all'} onClick={() => onPick('all')}
-        >
-          <span className="photo-pick-img"><Icon name="photo" size={22} /></span>
-          <span className="photo-pick-label">{t('claims_several_photos')}</span>
-        </button>
-      ) : null}
-    </div>
   );
 }
 

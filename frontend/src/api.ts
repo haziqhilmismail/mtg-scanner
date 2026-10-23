@@ -264,7 +264,8 @@ export async function exportAllImages(images: ExportAllImage[]): Promise<Blob> {
 
 export interface ClaimPage {
   text: string;              // the thread as read from the screenshot
-  scan_id: number | null;    // which photo the screenshot shows, when it could tell
+  scan_id: number | null;    // which photo the screenshot shows, when it is sure
+  guess: number | null;      // its best guess when a look-alike photo scored nearly as well
 }
 
 // OCR screenshots of a comment thread. `scanIds` are the photos each
@@ -290,13 +291,15 @@ export interface ClaimDraft {
   items: Array<{ scan_id: number; card_id: number; qty: number; said: string; unclear: string }>;
 }
 
-export async function parseClaims(text: string, photos: CataloguePhoto[]): Promise<ClaimDraft[]> {
+export async function parseClaims(
+  text: string, photos: CataloguePhoto[],
+): Promise<{ claims: ClaimDraft[]; credits: Credits }> {
   const r = await request('/api/claims/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, photos }),
   });
-  return ((await r.json()) as { claims: ClaimDraft[] }).claims;
+  return r.json();
 }
 
 export interface ConfirmClaim {
@@ -317,4 +320,35 @@ export async function confirmClaims(postId: number | null, claims: ConfirmClaim[
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ post_id: postId, claims }),
   });
+}
+
+// The seller's payment details, added to the summaries copied for buyers.
+export interface Payment {
+  bank_name: string;
+  bank_account_number: string;
+  bank_account_holder: string;
+  payment_note: string;
+  qr_version: string | null;   // changes when the QR is replaced; null = no QR
+}
+
+export const paymentApi = {
+  get: async (): Promise<Payment> => (await request('/api/payment')).json(),
+  save: async (p: Omit<Payment, 'qr_version'>): Promise<Payment> => (await request('/api/payment', {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(p),
+  })).json(),
+  uploadQr: async (file: File): Promise<Payment> => {
+    const fd = new FormData();
+    fd.append('image', file);
+    return (await request('/api/payment/qr', { method: 'PUT', body: fd })).json();
+  },
+  deleteQr: async (): Promise<Payment> => (await request('/api/payment/qr', { method: 'DELETE' })).json(),
+  qrUrl: (version: string) => imageUrl('/api/payment/qr', { v: version }),
+};
+
+// Cards & Hobbies drop-off slips as a PDF, eight to an A4 page. Every field
+// may be empty: the slip then has a line to write it on.
+export async function dropoffSlipsPdf(body: { seller: string; slips: Array<{ buyer: string; phone: string }>; blank: number }): Promise<Blob> {
+  return (await request('/api/slips', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  })).blob();
 }
