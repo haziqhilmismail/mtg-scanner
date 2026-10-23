@@ -17,7 +17,7 @@ import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
 import { PricingPage } from './views/PricingPage.tsx';
 import { Profile } from './views/Profile.tsx';
-import { Scanner } from './views/Scanner.tsx';
+import { Scanner } from './views/scanner/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
 
 export default function App() {
