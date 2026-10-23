@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- Dev only: `npm run dev` serves it at /ui-gallery.html. The build's only
+     entry is index.html, so it never ships. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>UI primitives (dev)</title>
+    <script>
+      (function () {
+        var t = new URLSearchParams(location.search).get('theme');
+        document.documentElement.dataset.theme = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      })();
+    </script>
+    <style>
+      /* Layout for this page only; the parts themselves are in src/styles/ui.css. */
+      .gallery { max-width: 1240px; margin: 0 auto; padding: 16px 16px 120px; }
+      .gallery-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .gallery-head .ui-seg { min-width: 220px; }
+      .gallery-title { flex: 1 0 100%; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+      .gallery-section { margin-top: 28px; }
+      .gallery-label { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.02em; }
+      .gallery-stack { display: flex; flex-direction: column; gap: 12px; }
+      .gallery-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .gallery-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .gallery-between { justify-content: space-between; }
+      .gallery-title-row { display: flex; align-items: center; gap: 8px; }
+      .gallery-title-row .ui-section-title { flex: 1; }
+      .gallery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+      .gallery-mosaic { flex: none; width: 44px; height: 44px; border-radius: 12px; background: var(--fill); display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+      .gallery-price { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 14px; background: var(--surface); font-size: 34px; font-weight: 700; line-height: 1.1; }
+      .gallery-approx { font-weight: 400; color: var(--ink-soft); }
+      .gallery-gold { color: var(--gold); }
+      .gallery-search { flex-wrap: nowrap; align-items: flex-end; }
+      .gallery-grow { flex: 1; }
+      .gallery-printings { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+      .gallery-printing { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-height: 0; padding: 8px; border-radius: 12px; background: var(--surface); }
+      .gallery-printing[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent-fill); }
+      .gallery-printing-art { aspect-ratio: 63 / 88; border-radius: 8px; background: var(--fill); }
+      @media (min-width: 768px) { .gallery { padding-inline: 24px; } }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/ui-gallery.tsx"></script>
+  </body>
+</html>
