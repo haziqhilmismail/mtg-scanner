@@ -64,6 +64,7 @@ from .routers import orders as orders_router
 from .routers import payment as payment_router
 from .routers import posts as posts_router
 from .routers import scans as scans_router
+from .routers import slips as slips_router
 from .services import bug_reporter
 from .services import credits
 from .services import local_scan
@@ -900,9 +901,10 @@ app.include_router(claims_router.router)
 app.include_router(credits_router.router)
 app.include_router(listings_router.router)
 app.include_router(orders_router.router)
-app.include_router(posts_router.router)
 app.include_router(payment_router.router)
+app.include_router(posts_router.router)
 app.include_router(scans_router.router)
+app.include_router(slips_router.router)
 
 
 # Global handler for *unexpected* exceptions only. FastAPI's built-in
