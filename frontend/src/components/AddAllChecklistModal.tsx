@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Post } from '../api/checklist.ts';
 import type { T } from '../hooks/useLang.ts';
+import { useBackClose } from '../hooks/useBackClose.ts';
 
 interface Props {
   // Number of scanned images whose cards will be added.
@@ -16,6 +17,7 @@ interface Props {
 // only while open (Scanner renders it conditionally), so the select resets to
 // "no post" each time it's reopened.
 export function AddAllChecklistModal({ count, posts, onClose, onConfirm, t }: Props) {
+  useBackClose(true, onClose);
   const [postId, setPostId] = useState<number | null>(null);
 
   return (
