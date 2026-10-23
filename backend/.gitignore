@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local config — secrets live in the host's .env, never the repo
+.env
+.env.local
+
+# Local data — ./data on the host is the production source of truth
+data/*.db
+data/*.db-journal
+data/*.db.tmp
+data/ck_pricelist.json
+data/scans/
+data/posts/
+data/orders/
+data/payment_qr/
+
+# Auto-generated session-signing secret — MUST NOT be committed
+data/jwt_secret.txt
+
+# Local scanner models + card embedding index (~95 MB of ONNX, ~90 MB index)
+# and the index builder's image cache. See README "Local scanner".
+data/models/
+data/card_index.npz
+data/index_build_cache/
+# PyTorch weights the ONNX models are exported from
+*.pt
+
+# OS / editor
+.DS_Store
+*.log

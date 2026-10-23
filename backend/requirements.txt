@@ -1,0 +1,23 @@
+# Existing scanner deps (carried over from app/requirements.txt)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pillow>=10.4
+pillow-heif>=0.18  # HEIC/HEIF decode (iPhone photos); ships prebuilt wheels with libheif bundled
+numpy>=1.26  # classical bbox refiner
+scipy>=1.13  # ndimage label / sobel / morphology for the classical detector
+google-genai>=0.3
+aiohttp>=3.10
+python-multipart>=0.0.9
+ijson>=3.2  # streaming JSON parser for the CK pricelist — keeps startup under 512MB
+
+# New for the order/checklist layer
+sqlalchemy[asyncio]>=2.0.30
+aiosqlite>=0.20
+alembic>=1.13
+pydantic>=2.14  # MISSING: PATCH fields that may be omitted but not null
+pydantic-settings>=2.4
+slowapi>=0.1.9  # rate limiting
+
+# Auth: Google sign-in verification + our own session JWTs
+google-auth>=2.30
+pyjwt>=2.9
