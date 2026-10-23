@@ -48,12 +48,13 @@ async def read_screenshots(
             raise HTTPException(413, "Screenshot too large (max 15 MB)")
         try:
             # Matching + Tesseract take a few seconds per screenshot; keep the loop free.
-            text, scan_id = await asyncio.to_thread(claims.read_screenshot, raw, photos)
+            text, scan_id, sure = await asyncio.to_thread(claims.read_screenshot, raw, photos)
         except ValueError as e:
             raise HTTPException(400, str(e))
         except RuntimeError as e:
             raise HTTPException(503, str(e))
-        pages.append({"text": text, "scan_id": scan_id})
+        # A look-alike photo scored nearly as well: offered as a guess to check.
+        pages.append({"text": text, "scan_id": scan_id if sure else None, "guess": None if sure else scan_id})
     return {"pages": pages}
 
 
