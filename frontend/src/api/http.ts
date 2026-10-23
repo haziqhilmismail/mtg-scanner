@@ -4,6 +4,14 @@
 
 import type { Credits } from '../types.ts';
 
+// Where the API lives. The real site calls the Cloudflare Tunnel straight,
+// which skips the Vercel rewrite and the Tailscale Funnel (about 5x faster per
+// request). Everywhere else (Vercel previews, the dev server) stays on the
+// same-site /api route, because the backend's CORS list only has the real site.
+const API_BASE = typeof location !== 'undefined' && location.hostname === 'mtg.haziqhilmi.com'
+  ? 'https://api.haziqhilmi.com' : '';
+export const apiUrl = (path: string) => API_BASE + path;
+
 function storedToken(key: string) {
   return {
     get: (): string | null => {
@@ -31,7 +39,7 @@ export function imageUrl(path: string, params: Record<string, string | number | 
   const t = imageToken.get();
   if (t) q.set('token', t);
   const qs = q.toString();
-  return qs ? `${path}?${qs}` : path;
+  return apiUrl(qs ? `${path}?${qs}` : path);
 }
 
 // Builds a Headers object pre-populated with the session token when present.
@@ -55,7 +63,7 @@ export class OutOfCreditsError extends Error {
 // with `.status` and the raw `.detail` attached for callers that branch on
 // them. 402 is always "out of scan credits".
 export async function request(url: string, init: RequestInit = {}): Promise<Response> {
-  const r = await fetch(url, { ...init, headers: authHeaders(init.headers) });
+  const r = await fetch(apiUrl(url), { ...init, headers: authHeaders(init.headers) });
   if (r.ok) return r;
   const text = await r.text().catch(() => '');
   let detail: unknown;
