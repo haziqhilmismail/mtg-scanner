@@ -24,6 +24,10 @@ class Scan(Base, TimestampMixin):
     # Deleting a post unfiles its photos (see routers/posts.py); it never
     # deletes them.
     post_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    # Its place in the post, as the seller ordered the photos (their order on
+    # Facebook): Photo 1, 2, 3 everywhere. NULL = not placed yet, so after the
+    # placed ones, oldest scan first.
+    position: Mapped[int | None] = mapped_column(Integer)
     filename: Mapped[str] = mapped_column(String(255))
     # Original photo lives on disk so /api/export still works after a server restart.
     image_path: Mapped[str | None] = mapped_column(String(512))

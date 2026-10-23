@@ -97,3 +97,24 @@ def test_cards_follow_their_photo(client):
     left = {l["id"]: l["scan_id"] for l in client.get("/api/listings", headers=me).json()}
     assert left == {sold: None}
     assert loose not in left and legacy not in left
+
+
+def test_photos_keep_the_order_the_seller_gives_them(client):
+    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
+    sunday = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()["id"]
+    a, b, c = (_upload(client, me, post)["scan_id"] for _ in range(3))
+    positions = lambda: {s["scan_id"]: s["position"] for s in client.get("/api/scans?lite=1&limit=500", headers=me).json()}
+    assert positions() == {a: None, b: None, c: None}                     # not placed: scan order
+
+    assert client.put("/api/scans/order", json={"scan_ids": [c, a, b]}, headers=me).status_code == 204
+    assert positions() == {c: 0, a: 1, b: 2}
+    assert client.put("/api/scans/order", json={"scan_ids": [a]}, headers=them).status_code == 204
+    assert positions()[a] == 1                                             # not theirs to order
+
+    # Moved to another post: unplaced there, so after its photos.
+    client.post("/api/scans/move", json={"scan_ids": [b], "post_id": sunday}, headers=me)
+    assert positions()[b] is None
