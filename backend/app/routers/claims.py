@@ -12,6 +12,7 @@ from ..deps import CurrentUserId, DbSession, limiter
 from ..models import Listing, ListingStatus, Post, Scan, User
 from ..schemas import OrderCreate, OrderItemCreate, OrderRead
 from ..services import claims, credits
+from ..services.listings import locked_prices
 from . import orders as orders_router
 
 router = APIRouter(prefix="/api/claims", tags=["claims"])
@@ -149,16 +150,20 @@ async def confirm_claims(body: ConfirmRequest, db: DbSession, user_id: CurrentUs
         if not post or post.user_id != user_id:
             raise HTTPException(404, "Post not found")
     scan_ids = {i.scan_id for c in body.claims for i in c.items}
-    owned = set((await db.scalars(
-        select(Scan.id).where(Scan.id.in_(scan_ids), Scan.user_id == user_id)
-    )).all())
-    if scan_ids - owned:
+    scans = {s.id: s for s in (await db.scalars(
+        select(Scan).where(Scan.id.in_(scan_ids), Scan.user_id == user_id)
+    )).all()}
+    if scan_ids - scans.keys():
         raise HTTPException(404, "Scan not found")
+    # A card of a finished photo sells at the price it was posted with.
+    locked = {sid: locked_prices(s.ui_state, s.gemini_raw) for sid, s in scans.items()}
 
     orders = []
     for claim in body.claims:
         lines: list[OrderItemCreate] = []
         for item in claim.items:
+            if (price := locked[item.scan_id].get(tuple(item.bbox))) is not None:
+                item = item.model_copy(update={"unit_price_myr": price})
             listing = await _listing_for(db, user_id, post, item)
             lines.append(OrderItemCreate(listing_id=listing.id, qty=item.qty, unit_price_myr=item.unit_price_myr))
         orders.append(await orders_router.create_order(

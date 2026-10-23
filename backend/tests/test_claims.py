@@ -273,3 +273,32 @@ def test_live_gemini_reads_tagged_replies_as_the_buyers_claims(monkeypatch, thre
     got = {d.buyer: [(i.card_id, i.qty) for i in d.items] for d in drafts}
     assert got == {"Amir Rahman": [(1, 1)], "Daniel Tan": [(2, 1)]}, drafts
     assert all("Haziq Hilmi" not in d.comment for d in drafts), drafts
+
+
+def test_a_finished_photo_keeps_its_posted_prices(client):
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
+    scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, data={"post_id": str(post)}, headers=me).json()["scan_id"]
+    bbox = client.get("/api/scans?lite=1", headers=me).json()[0]["cards"][0]["bbox"]
+    item = lambda price: {**_item(scan, 0, "Sol Ring", price), "bbox": bbox}
+    listing = client.post("/api/listings", headers=me, json={
+        "name": "Sol Ring", "unit_price_myr": "10.00", "scan_id": scan, "bbox": bbox, "post_ids": [post]}).json()["id"]
+    price_of = lambda: next(l for l in client.get("/api/listings", headers=me).json() if l["id"] == listing)["unit_price_myr"]
+
+    # Finishing locks the photo: its listing takes the posted price.
+    lock = {"lockedAt": "2026-10-23T12:00:00Z", "locked": [{"price": 12, "usd": 4, "mult": 3, "manual": False}]}
+    assert client.patch(f"/api/scans/{scan}/state", headers=me, json={"state": lock}).status_code == 204
+    assert price_of() == "12.00"
+
+    # A claim sells at that price, whatever the client sends.
+    r = client.post("/api/claims/confirm", headers=me, json={"post_id": post, "claims": [{"buyer": "Aiman", "items": [item("99.00")]}]})
+    assert r.status_code == 201 and r.json()[0]["total_myr"] == "12.00"
+    assert price_of() == "12.00"
+
+    # Edit prices unlocks it: claims follow the photo again.
+    assert client.patch(f"/api/scans/{scan}/state", headers=me, json={"state": {"lockedAt": None, "locked": [None]}}).status_code == 204
+    r = client.post("/api/claims/confirm", headers=me, json={"post_id": post, "claims": [{"buyer": "Siti", "items": [item("15.00")]}]})
+    assert r.json()[0]["total_myr"] == "15.00" and price_of() == "15.00"
+
