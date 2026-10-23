@@ -1,4 +1,4 @@
-# Extra deps for the experimental local scanner (SCANNER_BACKEND=local).
+# Extra deps for the local scanner (SCANNER_BACKEND=local).
 # Kept apart because the Gemini pipeline doesn't need them; the Dockerfile
 # installs both so either backend works in the image.
 #   pip install -r requirements.txt -r requirements-local-scanner.txt

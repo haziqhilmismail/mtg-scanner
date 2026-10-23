@@ -1,9 +1,9 @@
 """
 card_scanner.py
 ---------------
-The experimental local scan pipeline: photo in, identified cards out, with no
-cloud model involved. Enabled with SCANNER_BACKEND=local (see local_scan.py
-for the FastAPI glue); the default pipeline is still Gemini.
+The local scan pipeline: photo in, identified cards out, with no cloud model
+involved. Enabled with SCANNER_BACKEND=local, which production runs (see
+local_scan.py for the FastAPI glue); the code default is Gemini.
 
   1. DETECT   card_detector.py   YOLO11n-OBB finds every card as a rotated quad.
   2. NAME     card_embedder.py   each quad is warped flat, embedded, and matched

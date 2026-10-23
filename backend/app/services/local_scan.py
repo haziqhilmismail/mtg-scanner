@@ -1,7 +1,7 @@
 """
 local_scan.py
 -------------
-FastAPI-side glue for the experimental local scanner (SCANNER_BACKEND=local).
+FastAPI-side glue for the local scanner (SCANNER_BACKEND=local).
 
 Keeps the heavy imports (onnxruntime, rapidocr) out of the default Gemini
 deployment: card_scanner is only imported once `load()` runs, so a server on

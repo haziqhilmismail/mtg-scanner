@@ -5,9 +5,9 @@
 import type { Credits } from '../types.ts';
 
 // Where the API lives. The real site calls the Cloudflare Tunnel straight,
-// which skips the Vercel rewrite and the Tailscale Funnel (about 5x faster per
-// request). Everywhere else (Vercel previews, the dev server) stays on the
-// same-site /api route, because the backend's CORS list only has the real site.
+// which skips the hop through the Vercel rewrite. Everywhere else (Vercel
+// previews, the dev server) stays on the same-site /api route, because the
+// backend's CORS list only has the real site.
 const API_BASE = typeof location !== 'undefined' && location.hostname === 'mtg.haziqhilmi.com'
   ? 'https://api.haziqhilmi.com' : '';
 export const apiUrl = (path: string) => API_BASE + path;

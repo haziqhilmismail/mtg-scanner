@@ -6,15 +6,15 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now mtg-deploy.timer
 #
-# Adjust User= / WorkingDirectory= / ExecStart= if your checkout lives
-# somewhere other than /home/user/mtg-scanner-backend.
+# Adjust User= / WorkingDirectory= / ExecStart= if your checkout's backend/
+# lives somewhere other than /home/user/mtg-scanner/backend.
 [Unit]
-Description=Pull latest mtg-scanner-backend and rebuild the container
+Description=Pull latest mtg-scanner and rebuild the backend container
 Wants=network-online.target docker.service
 After=network-online.target docker.service
 
 [Service]
 Type=oneshot
 User=haziq
-WorkingDirectory=/home/user/mtg-scanner-backend
-ExecStart=/home/user/mtg-scanner-backend/deploy.sh
+WorkingDirectory=/home/user/mtg-scanner/backend
+ExecStart=/home/user/mtg-scanner/backend/deploy.sh
