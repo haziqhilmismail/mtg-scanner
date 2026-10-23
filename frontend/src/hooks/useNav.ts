@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { readStored, writeStored } from './usePersistedState.ts';
 
-// 'checklist' is the page Claims replaced; still reachable from a link at the
-// bottom of Claims for anyone with stock or orders in it.
+// 'checklist' is the page Claims replaced. No link opens it now; App still
+// renders it, so a link can bring it back.
 export type View = 'scanner' | 'claims' | 'checklist';
 
 // Where the user is: the tab, the open post (gallery folder key, shared with
@@ -32,8 +32,10 @@ const isNav = (s: unknown): s is Nav => !!s && typeof s === 'object' && 'view' i
 // A reload keeps the entry's own state; a fresh visit opens the last tab and
 // post, as remembered in localStorage (the open photo isn't remembered).
 function initial(): Nav {
-  if (isNav(history.state)) return history.state;
-  return { view: readStored<View>(TAB_KEY, 'scanner'), folder: readStored<string | null>(FOLDER_KEY, null), photo: null };
+  const n: Nav = isNav(history.state) ? history.state
+    : { view: readStored<View>(TAB_KEY, 'scanner'), folder: readStored<string | null>(FOLDER_KEY, null), photo: null };
+  // No link opens the old checklist now, so nobody is left on it after a reload.
+  return n.view === 'checklist' ? { ...n, view: 'claims' } : n;
 }
 
 export function useNav() {

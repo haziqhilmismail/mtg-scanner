@@ -4,6 +4,7 @@ import type { AuthUser } from '../api/auth.ts';
 import type { Appearance, Lang } from '../types.ts';
 import { FeedbackModal } from './FeedbackModal.tsx';
 import { Icon } from './Icon.tsx';
+import { SupportSheet } from './SupportSheet.tsx';
 import type { T } from '../hooks/useLang.ts';
 
 interface Props {
@@ -21,6 +22,8 @@ interface Props {
   onRedeemVoucher?: () => void;
   // Opens the default-pricing sheet; absent on the sign-in screen.
   onDefaultPricing?: () => void;
+  // Opens the payment-details sheet; absent on the sign-in screen.
+  onPaymentDetails?: () => void;
 }
 
 const LANGS: Lang[] = ['en', 'ms'];
@@ -29,10 +32,11 @@ const APPEARANCES: Appearance[] = ['auto', 'light', 'dark'];
 // The "More" menu: display preferences, feedback and the account, tucked
 // behind one button so the bar stays clear for the content.
 export function AppMenu({
-  lang, onLangChange, appearance, onAppearanceChange, t, status, user, onSignOut, onRedeemVoucher, onDefaultPricing,
+  lang, onLangChange, appearance, onAppearanceChange, t, status, user, onSignOut, onRedeemVoucher, onDefaultPricing, onPaymentDetails,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -128,6 +132,14 @@ export function AppMenu({
                 <Icon name="tag" />{t('menu_default_pricing')}
               </button>
             ) : null}
+            {onPaymentDetails ? (
+              <button
+                type="button" role="menuitem" className="menu-item"
+                onClick={() => { setOpen(false); onPaymentDetails(); }}
+              >
+                <Icon name="wallet" />{t('pay_title')}
+              </button>
+            ) : null}
             {onRedeemVoucher ? (
               <button
                 type="button" role="menuitem" className="menu-item"
@@ -136,6 +148,12 @@ export function AppMenu({
                 <Icon name="ticket" />{t('voucher_title')}
               </button>
             ) : null}
+            <button
+              type="button" role="menuitem" className="menu-item"
+              onClick={() => { setOpen(false); setSupportOpen(true); }}
+            >
+              <Icon name="heart" />{t('support_open')}
+            </button>
             <button
               type="button" role="menuitem" className="menu-item"
               onClick={() => { setOpen(false); setFeedbackOpen(true); }}
@@ -157,7 +175,10 @@ export function AppMenu({
       {/* Portalled to <body>: the app bar's backdrop filter would otherwise
           become the containing block for this fixed-position sheet. */}
       {createPortal(
-        <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />,
+        <>
+          <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
+          <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} t={t} />
+        </>,
         document.body,
       )}
     </div>

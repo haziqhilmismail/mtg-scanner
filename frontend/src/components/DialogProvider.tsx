@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useBackClose } from '../hooks/useBackClose.ts';
 
 // Promise-based replacement for window.confirm / prompt / alert. Single
 // dialog visible at a time. Components call useDialog() and `await` the
@@ -81,10 +82,12 @@ function DialogShade({ pending, onClose }: { pending: Pending; onClose: (value: 
   const [promptValue, setPromptValue] = useState(
     pending.kind === 'prompt' ? (pending.opts.defaultValue ?? '') : '',
   );
+  // Back on a phone is Cancel (OK for an alert).
+  useBackClose(true, () => onClose(pending.kind === 'alert' ? undefined : pending.kind === 'confirm' ? false : null));
 
   // Lock body scroll + Escape to dismiss + initial focus on the right field.
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (pending.kind === 'alert') onClose(undefined);
@@ -100,7 +103,7 @@ function DialogShade({ pending, onClose }: { pending: Pending; onClose: (value: 
     }, 0);
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

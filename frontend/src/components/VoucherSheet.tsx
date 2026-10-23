@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { redeemVoucher } from '../api.ts';
 import type { Credits } from '../types.ts';
 import type { T } from '../hooks/useLang.ts';
+import { useBackClose } from '../hooks/useBackClose.ts';
 
 interface Props {
   open: boolean;
@@ -15,6 +16,7 @@ type Status = 'idle' | 'sending' | 'done';
 
 // One field, one job: type a voucher code, get more scans.
 export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
+  useBackClose(open, onClose);
   const [code, setCode] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');

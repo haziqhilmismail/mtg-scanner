@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { fetchCredits, fetchHealth, type Health } from './api.ts';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { fetchCredits, fetchHealth, paymentApi, type Health, type Payment } from './api.ts';
 import { formatRelativeTime } from './utils.ts';
 import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
@@ -7,6 +7,7 @@ import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
 import { PricingSheet } from './components/PricingSheet.tsx';
 import { TopTabs } from './components/TopTabs.tsx';
+import { PaymentSheet } from './components/PaymentSheet.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useLang } from './hooks/useLang.ts';
@@ -15,11 +16,14 @@ import { usePricing } from './hooks/usePricing.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useTheme } from './hooks/useTheme.ts';
 import type { Appearance, Credits, Lang } from './types.ts';
-import { Checklist } from './views/Checklist.tsx';
 import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
 import { Scanner } from './views/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
+
+// The page Claims replaced. No link opens it any more, so its code is a
+// separate chunk that is only downloaded if it is ever shown.
+const Checklist = lazy(() => import('./views/Checklist.tsx').then(m => ({ default: m.Checklist })));
 
 export default function App() {
   const { theme, appearance, setAppearance } = useTheme();
@@ -97,10 +101,17 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
     );
   }, []);
 
-  // Scan-credit balance. Refetched whenever a scan finishes (scanProgress
-  // ticks) so the line under the upload area is always current.
+  // Credit balance, shown under Find Claims. Refetched whenever a scan
+  // finishes too: with the Gemini scanner on, a scan costs a credit.
   const [credits, setCredits] = useState<Credits | null>(null);
   const [voucherOpen, setVoucherOpen] = useState(false);
+
+  // How buyers pay this seller, added to every summary copied for a buyer.
+  const [payment, setPayment] = useState<Payment | null>(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  useEffect(() => {
+    paymentApi.get().then(setPayment, () => { /* summaries just go without it */ });
+  }, []);
   const scansDone = scanner.scanProgress?.done ?? -1;
   useEffect(() => {
     fetchCredits().then(setCredits, () => { /* balance line just stays hidden */ });
@@ -139,6 +150,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
         onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
         onDefaultPricing={() => go({ sheet: 'pricing' })}
+        onPaymentDetails={() => setPaymentOpen(true)}
+        onHome={() => go({ view: 'scanner', folder: null, photo: null })}
       />
     <TopTabs
       view={view === 'scanner' ? 'scanner' : 'claims'}
@@ -147,30 +160,37 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       claimsLabel={t('nav_claims')}
     />
     <main className="wrap">
-      {view === 'scanner' ? (
+      {/* Both tabs stay mounted, so switching shows them at once instead of
+          loading again; the hidden one ignores keys and paste. */}
+      <div hidden={view !== 'scanner'}>
         <Scanner
+          active={view === 'scanner'}
           scanner={scanner}
           nav={navStore}
           pricing={pricing}
           health={health}
           t={t}
           lang={lang}
-          credits={credits}
-          onEnterVoucher={() => setVoucherOpen(true)}
         />
-      ) : view === 'claims' ? (
+      </div>
+      <div hidden={view !== 'claims'}>
         <Claims
+          active={view === 'claims'}
           scanner={scanner}
           pricing={pricing}
           t={t}
           lang={lang}
           folderKey={nav.folder}
           onFolderChange={key => replace({ folder: key })}
-          onOpenOldChecklist={() => go({ view: 'checklist' })}
+          credits={credits}
+          onCredits={setCredits}
+          payment={payment}
+          onEnterVoucher={() => setVoucherOpen(true)}
         />
-      ) : (
-        <Checklist createPost={pricing.createPost} t={t} />
-      )}
+      </div>
+      {view === 'checklist' ? (
+        <Suspense fallback={null}><Checklist createPost={pricing.createPost} t={t} /></Suspense>
+      ) : null}
 
       <footer className="foot">
         <span>{t('footer_left')}</span>
@@ -180,6 +200,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
     <Notice source={scanner} t={t} />
     <Notice source={pricing} t={t} />
     <FloatingBackToTop />
+    <PaymentSheet open={paymentOpen} onClose={() => setPaymentOpen(false)} payment={payment} onSaved={setPayment} t={t} />
     <VoucherSheet
       open={voucherOpen}
       onClose={() => setVoucherOpen(false)}

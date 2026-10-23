@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { reportBug } from '../lib/bugReporter.ts';
 import type { T } from '../hooks/useLang.ts';
+import { useBackClose } from '../hooks/useBackClose.ts';
 
 interface Props {
   open: boolean;
@@ -15,6 +16,7 @@ interface Props {
 type Status = 'idle' | 'sending' | 'sent' | 'error';
 
 export function FeedbackModal({ open, onClose, t }: Props) {
+  useBackClose(open, onClose);
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [errMsg, setErrMsg] = useState('');

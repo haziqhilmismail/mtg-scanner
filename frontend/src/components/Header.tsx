@@ -19,17 +19,21 @@ interface Props {
   onRedeemVoucher?: () => void;
   // Opens the default-pricing sheet.
   onDefaultPricing?: () => void;
+  // Opens the payment-details sheet.
+  onPaymentDetails?: () => void;
+  // The app name goes home: the Scanner's list of posts.
+  onHome: () => void;
 }
 
 export function Header({
   title, healthLabel, healthState,
   lang, onLangChange, appearance, onAppearanceChange, t,
-  user, onSignOut, onRedeemVoucher, onDefaultPricing,
+  user, onSignOut, onRedeemVoucher, onDefaultPricing, onPaymentDetails, onHome,
 }: Props) {
   return (
     <header className="app-bar">
       <div className="app-bar-inner">
-        <h1 className="app-bar-title">{title}</h1>
+        <h1 className="app-bar-title"><button type="button" onClick={onHome}>{title}</button></h1>
         <div className="app-bar-actions">
           {/* The dot alone would rely on colour, so the label sits beside it
               on wide screens and in the menu on narrow ones. */}
@@ -48,6 +52,7 @@ export function Header({
             onSignOut={onSignOut}
             onRedeemVoucher={onRedeemVoucher}
             onDefaultPricing={onDefaultPricing}
+            onPaymentDetails={onPaymentDetails}
           />
         </div>
       </div>

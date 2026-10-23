@@ -153,6 +153,9 @@ img { max-width: 100%; }
   margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.app-bar-title button { all: unset; position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+.app-bar-title button:hover, .app-bar-title button:active { background: none; transform: none; }
+.app-bar-title button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; border-radius: 6px; }
 .app-bar-actions { display: flex; align-items: center; gap: 4px; flex: none; }
 .bar-status {
   display: inline-flex; align-items: center; gap: 7px;
@@ -1192,7 +1195,9 @@ button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .modal-title { font-size: 20px; font-weight: 700; margin: 0; line-height: 1.2; }
 .modal-title em { color: inherit; font-style: normal; font-weight: 700; }
 .modal-close, .feedback-close {
-  all: unset; box-sizing: border-box; cursor: pointer; flex: none;
+  /* position: relative after `all: unset`: the touch hit area (button::after)
+     sizes to the nearest positioned box, which was the whole popup. */
+  all: unset; position: relative; box-sizing: border-box; cursor: pointer; flex: none;
   width: 32px; height: 32px;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--fill); color: var(--ink-soft);
@@ -2722,6 +2727,22 @@ img.zoomable:hover {
   padding: 16px;
   animation: sheet-pop 0.3s var(--ease);
 }
+/* Popups scroll on their own and hold the swipe, and the page behind stays
+   still while one is open (a phone otherwise scrolls the page instead). */
+.feedback-modal, .modal-card { max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.feedback-overlay, .modal-shade { overscroll-behavior: contain; }
+/* Keep the scrollbar off the rounded corners: it is drawn square and would
+   stick out of the curve. */
+.feedback-modal::-webkit-scrollbar, .modal-card::-webkit-scrollbar, .modal-grid::-webkit-scrollbar { width: 12px; }
+.feedback-modal::-webkit-scrollbar-track, .modal-card::-webkit-scrollbar-track, .modal-grid::-webkit-scrollbar-track { background: transparent; margin-block: 22px; }
+.feedback-modal::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb, .modal-grid::-webkit-scrollbar-thumb {
+  background: var(--fill-strong); background-clip: padding-box; border: 3px solid transparent; border-radius: var(--radius-pill);
+}
+/* Only the page is locked: hidden overflow on body too makes body its own
+   scroller, and the sticky header then slides away with the page. */
+html:has(.feedback-overlay), html:has(.modal-shade), html:has(.modal.open), html:has(.dlg-shade) { overflow: hidden; }
+.modal-grid { overscroll-behavior: contain; }
+
 @media (max-width: 600px) {
   .modal-shade, .feedback-overlay { padding: 0; align-items: flex-end; }
   .modal-card, .feedback-modal {
@@ -2781,6 +2802,11 @@ img.zoomable:hover {
 }
 .voucher-input::placeholder { font-weight: 400; letter-spacing: 0.04em; }
 .voucher-success { margin: 4px 0; font-size: 17px; color: var(--green); }
+.support-qr { display: block; width: min(280px, 100%); aspect-ratio: 1; margin: 4px auto; border-radius: var(--radius); object-fit: contain; background: #fff; }
+.support-qr-empty {
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px;
+  background: none; border: 2px dashed var(--rule-strong); color: var(--ink-soft); font-size: 15px;
+}
 .feedback-success { font-size: 13px; color: var(--green); flex: 1; }
 .feedback-error { font-size: 13px; color: var(--warn); flex: 1; }
 .feedback-foot .accent { margin-left: auto; min-width: 96px; min-height: var(--tap); }
