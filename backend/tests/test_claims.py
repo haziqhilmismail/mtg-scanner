@@ -53,6 +53,12 @@ def test_locates_the_right_photo_in_phone_and_pc_layouts():
     sid, box, _ = claims.locate_photo(pc, photos)
     assert sid == 3
     assert claims._thread_region(pc, box).size[0] < 700              # the column beside the photo
+    # PC, photo inside a comment: room on its right, but the thread is under it.
+    inline = Image.new("RGB", (533, 629), (36, 37, 38))
+    inline.paste(photos[1].resize((322, 242)), (71, 42))
+    sid, box, _ = claims.locate_photo(inline, photos)
+    assert sid == 1
+    assert claims._thread_region(inline, box).size == (533, 629 - (box[1] + box[3]))
     # No photo in the screenshot, or one we don't have: no match.
     assert claims.locate_photo(Image.new("RGB", (1170, 2400), (36, 37, 38)), photos) == (None, None, False)
     assert claims.locate_photo(phone, {1: photos[1], 3: photos[3]})[0] is None
