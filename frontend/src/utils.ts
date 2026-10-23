@@ -1,5 +1,5 @@
 import type { Batch, Candidate, CardRowData, Credits, DetectedCard, LockedPrice, PillOffset, ScanUiState, Settings } from './types.ts';
-import type { T } from './i18n.ts';
+import type { T } from './i18n/index.ts';
 import type { Payment } from './api.ts';
 
 export function fmt2(n: number | null | undefined): string {

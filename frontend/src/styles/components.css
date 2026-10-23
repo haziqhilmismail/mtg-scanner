@@ -1,0 +1,430 @@
+/* ---------- Review section heading ---------- */
+.review-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  margin: 4px 0 14px;
+}
+.review-title { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.review-head h2 { font-size: 22px; font-weight: 700; color: var(--ink); margin: 0; }
+.review-head .meta { font-size: 15px; color: var(--ink-soft); }
+.review-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button.destructive, button.ghost.destructive { color: var(--warn); }
+@media (max-width: 767px) {
+  /* Title and running total share the first row; actions take the next. */
+  .review-actions { width: 100%; }
+  .review-actions button { flex: 1 1 auto; }
+}
+
+/* (i) explanations: hover with a mouse, tap on a phone. */
+.info-tip { position: relative; display: inline-flex; align-items: center; }
+.info-tip-bubble {
+  position: absolute; z-index: 30; bottom: calc(100% + 8px); padding: 10px 12px; border-radius: var(--radius);
+  background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg);
+  font-size: 13px; font-weight: 400; line-height: 1.45; text-align: left;
+  visibility: hidden; opacity: 0; transition: opacity 0.15s ease;
+}
+.info-tip-bubble.is-below { bottom: auto; top: calc(100% + 8px); }
+.info-tip.is-open .info-tip-bubble { visibility: visible; opacity: 1; }
+@media (hover: hover) {
+  .info-tip:hover .info-tip-bubble, .info-tip:focus-within .info-tip-bubble { visibility: visible; opacity: 1; }
+}
+.info-btn { width: 32px; height: 32px; min-height: 0; padding: 0; font-family: Georgia, serif; font-style: italic; font-weight: 700; }
+
+/* Back / position / step controls above a post's photos and a single photo. */
+/* Wraps: a long post name takes the first line to itself and the position
+   and step buttons drop to the next, instead of squeezing it into a column. */
+.photo-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: var(--tap); margin: -4px 0 8px; }
+.photo-nav-steps { display: flex; gap: 6px; margin-left: auto; }
+.photo-steps-bottom { display: flex; justify-content: space-between; gap: 10px; margin: 18px 0 8px; }
+.photo-step { flex: 1; max-width: 220px; min-height: 56px; justify-content: flex-start; gap: 6px; border-radius: var(--radius); }
+.photo-step.next { justify-content: flex-end; text-align: right; }
+.photo-step > span { display: flex; flex-direction: column; }
+.photo-step-dir { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+/* Posts › post › photo: earlier levels are links back, the last is this page. */
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; font-size: 15px; }
+.crumbs-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.crumbs-sep { color: var(--ink-faint); }
+.crumbs-link { min-height: var(--tap); padding: 4px 6px; background: transparent; color: var(--accent); font-weight: 500; overflow-wrap: anywhere; text-align: left; }
+.crumbs-link:hover { background: var(--fill); }
+.crumbs-current { padding: 4px 6px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.level-label { margin: 18px 0 8px; font-size: 17px; font-weight: 700; }
+.level-label .meta { font-weight: 500; color: var(--ink-soft); }
+/* A post's name doubles as its rename control: click it and type. */
+.title-btn {
+  min-height: 0; max-width: 100%; padding: 2px 8px; margin: -2px -8px; gap: 8px;
+  background: transparent; color: inherit; border-radius: 8px;
+  font: inherit; letter-spacing: inherit; text-align: left; cursor: text;
+}
+.title-btn span { overflow-wrap: anywhere; }
+.title-btn .icon { color: var(--ink-faint); }
+.title-btn:hover { background: var(--fill); }
+.title-btn:hover .icon { color: var(--accent); }
+/* A post's name is long free text, so while it's being edited the title takes
+   the whole row (the total and actions wrap below) and the field fills it. */
+.review-title.is-editing { flex: 1 1 100%; }
+.title-edit {
+  width: calc(100% + 18px); min-height: 0; padding: 2px 8px; margin: -3px -9px;
+  font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.015em;
+  background: var(--paper); border-radius: 8px;
+}
+.review-title { min-width: 0; }
+.review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+/* A post's own page: its name gets the whole row and wraps only between words. */
+.review-title.post-title { flex: 1 1 100%; }
+.review-title.post-title h2 { flex: 1 1 auto; min-width: 0; overflow-wrap: normal; word-break: normal; }
+.review-title.post-title .title-btn span { overflow-wrap: normal; }
+.round-btn {
+  width: 36px; height: 36px; min-height: 0; padding: 0; flex: none;
+  background: var(--fill); color: var(--accent); border: 0; border-radius: 50%;
+}
+.round-btn.destructive { color: var(--warn); }
+
+/* Tap the two pictures: both large, side by side. */
+.feedback-overlay.compare-shade { background: rgba(0, 0, 0, 0.88); }
+/* As wide as fits the screen's height too, so both cards show whole. */
+.compare-pop { display: flex; flex-direction: column; align-items: center; gap: 20px; width: min(760px, 100%, calc((100dvh - 220px) * 1.4)); max-height: 100%; overflow-y: auto; color: #fff; }
+.compare-pop h2 { margin: 0; font-size: 20px; font-weight: 600; text-align: center; }
+.compare-pair { display: flex; align-items: center; gap: 12px; width: 100%; }
+.compare-pair figure { flex: 1 1 0; min-width: 0; margin: 0; padding: 16px; border-radius: 24px; background: #1c1c1e; display: flex; flex-direction: column; gap: 12px; }
+.compare-pair img, .compare-pair .tile-img-none { display: block; width: 100%; aspect-ratio: 63 / 88; object-fit: cover; border-radius: 10px; background: #2c2c2e; }
+.compare-pair figcaption { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.compare-pair figcaption strong { font-size: 17px; }
+.compare-pair figcaption span { font-size: 13px; color: #a1a1a6; }
+.compare-pair .tile-arrow { width: 44px; height: 44px; border-radius: 50%; background: #2c2c2e; color: #fff; }
+.compare-actions { display: flex; align-items: center; gap: 12px; }
+.compare-actions .tile-change { flex: none; background: #2c2c2e; color: #409cff; }
+.compare-actions .feedback-close { width: var(--tap); height: var(--tap); background: #2c2c2e; color: #fff; }
+.compare-switch, .compare-narrow { display: none; }
+/* Phone: one card large, the switch on top; a tap on the card shows the other. */
+@media (max-width: 600px) {
+  .feedback-overlay.compare-shade { align-items: center; padding: 16px; }
+  .compare-pop { width: 100%; justify-content: center; gap: 20px; }
+  .compare-pop h2, .compare-wide, .compare-pair .tile-arrow, .compare-actions .tile-change { display: none; }
+  .compare-narrow { display: inline; }
+  .compare-switch { display: inline-flex; flex: none; background: #2c2c2e; }
+  .compare-switch button { color: #fff; padding-inline: 18px; }
+  .compare-switch button.active { background: #636366; }
+  .compare-pair { flex: none; }
+  .compare-pair figure { gap: 14px; padding: 0; border-radius: 0; background: transparent; cursor: pointer; }
+  .compare-pair.show-yours .is-match, .compare-pair.show-match .is-yours { display: none; }
+  /* The box is the picture's own size, so the rounded corners sit on the card. */
+  .compare-pair img { width: auto; height: min(62dvh, calc(88vw * 88 / 63)); max-width: 88%; object-fit: cover; aspect-ratio: auto; margin: 0 auto; background: none; border-radius: 16px; }
+  .compare-pair .tile-img-none { max-height: 62dvh; border-radius: 16px; }
+  .compare-pair figcaption strong { font-size: 19px; }
+  .compare-tap { margin-top: 6px; font-size: 13px; color: #8e8e93; }
+}
+
+/* Version display */
+.version-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.set-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px;
+  background: var(--fill); color: var(--ink);
+  border-radius: 6px; font-size: 13px; font-weight: 600;
+}
+.set-badge .cn { color: var(--ink-soft); font-weight: 500; }
+.set-badge .rarity { width: 7px; height: 7px; border-radius: 50%; }
+.set-badge .rarity.common { background: #8e8e93; }
+.set-badge .rarity.uncommon { background: #aeb4bd; }
+.set-badge .rarity.rare { background: #d4a017; }
+.set-badge .rarity.mythic { background: #ff6723; }
+.set-badge .rarity.special { background: #af52de; }
+.set-name { font-size: 13px; color: var(--ink-soft); line-height: 1.25; }
+
+.price-input-wrap {
+  display: flex; align-items: center; flex: 1; min-width: 0;
+  background: var(--fill); border: 1px solid transparent;
+  border-radius: 10px; overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.price-input-wrap:focus-within { border-color: var(--accent-fill); box-shadow: 0 0 0 3px var(--accent-soft); }
+.price-input-wrap.set { border-color: var(--accent-fill); }
+.price-input-wrap.required { border-color: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.price-input-wrap .prefix {
+  display: inline-flex; align-items: center; padding: 0 2px 0 10px;
+  color: var(--ink-soft); font-size: 13px; font-weight: 600; user-select: none;
+}
+.price-input-wrap.set .prefix { color: var(--accent); }
+.price-input-wrap.required .prefix { color: var(--warn); }
+.price-input-wrap input {
+  flex: 1; min-width: 0; min-height: 34px; padding: 4px 8px 4px 4px;
+  background: transparent; border: 0; border-radius: 0; box-shadow: none;
+  font-size: 15px; font-weight: 600; color: var(--ink);
+  appearance: textfield; -moz-appearance: textfield;
+}
+.price-input-wrap input:focus { box-shadow: none; }
+.price-input-wrap {
+  display: inline-flex; align-items: center;
+  border: 0.5px solid var(--rule);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding-left: 8px;
+  flex: 0 0 auto;
+}
+.price-input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227,0.12);
+}
+.price-input-wrap .prefix {
+  font-size: 13px; font-weight: 600;
+  color: var(--ink-soft);
+}
+.price-input-wrap input {
+  width: 70px;
+  border: none; background: transparent;
+  padding: 6px 8px;
+  font-size: 15px; font-weight: 600;
+  color: var(--accent);
+  outline: none;
+}
+.clear-btn {
+  width: 36px; min-height: 36px; padding: 0;
+  background: var(--fill); color: var(--ink-soft);
+  border: 0; border-radius: 10px; font-size: 17px;
+}
+.clear-btn:hover { color: var(--warn); }
+.clear-btn:disabled { opacity: 0; pointer-events: none; }
+
+/* ---------- Sheets ----------
+   A temporary, focused task. Centred card on wide screens; on a phone it
+   rises from the bottom edge with a grabber, within thumb reach. */
+.modal {
+  position: fixed; inset: 0; z-index: 100;
+  display: none; align-items: center; justify-content: center; padding: 24px;
+}
+.modal.open { display: flex; }
+.modal-backdrop { position: absolute; inset: 0; background: var(--scrim); cursor: pointer; animation: dlg-fade 0.2s ease-out; }
+.modal-box {
+  position: relative; z-index: 1;
+  width: min(1100px, 100%); max-height: 88vh; max-height: 88dvh;
+  display: flex; flex-direction: column;
+  background: var(--paper); border: 0;
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden;
+  animation: sheet-pop 0.3s var(--ease);
+}
+@keyframes sheet-pop { from { opacity: 0; transform: scale(0.96); } }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 16px 16px 12px 22px; border: 0;
+  background: transparent; color: var(--ink);
+}
+.modal-title { font-size: 20px; font-weight: 700; margin: 0; line-height: 1.2; }
+.modal-title em { color: inherit; font-style: normal; font-weight: 700; }
+.modal-close, .feedback-close {
+  /* position: relative after `all: unset`: the touch hit area (button::after)
+     sizes to the nearest positioned box, which was the whole popup. */
+  all: unset; position: relative; box-sizing: border-box; cursor: pointer; flex: none;
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--fill); color: var(--ink-soft);
+  border-radius: 50%; font-size: 20px; line-height: 1;
+}
+.modal-close:hover, .feedback-close:hover { background: var(--fill-strong); }
+.modal-status { padding: 0 22px 12px; border: 0; background: transparent; font-size: 13px; color: var(--ink-soft); }
+.modal-grid {
+  padding: 16px 22px 22px; overflow-y: auto; flex: 1;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; grid-auto-rows: max-content;
+}
+.modal-more { padding: 0 22px 22px; display: flex; justify-content: center; }
+.modal-more-btn { font-size: 15px; }
+.printing-card {
+  position: relative; display: flex; flex-direction: column; cursor: pointer;
+  background: var(--surface-2); border: 0;
+  border-radius: var(--radius); overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+.printing-card:hover { box-shadow: 0 0 0 2px var(--rule-strong); }
+/* The current printing is marked by a ring and by a checkmark badge. */
+.printing-card.current { box-shadow: 0 0 0 2.5px var(--accent-fill); }
+.printing-card.current::before {
+  content: '✓'; position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-fill); color: #fff;
+  border-radius: 50%; font-size: 13px; font-weight: 700;
+}
+.printing-card .img { display: block; width: 100%; aspect-ratio: 488 / 680; background: var(--fill); object-fit: contain; }
+.printing-card .info { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 3px; }
+.printing-card .set-code { font-size: 13px; font-weight: 600; color: var(--ink); }
+.printing-card .set-name-small { font-size: 13px; color: var(--ink-soft); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.printing-card .price-row { font-size: 13px; margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+.printing-card .price-row.foil { color: var(--gold); }
+.printing-card .price-row .src { font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 5px; }
+.printing-card .price-row .src.ck { background: var(--green-soft); color: var(--green); }
+.printing-card .price-row .src.none { background: var(--fill); color: var(--ink-soft); }
+@media (max-width: 600px) {
+  .modal { padding: 0; align-items: flex-end; }
+  .modal-box {
+    width: 100%; max-height: 92dvh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: sheet-up 0.38s var(--ease);
+  }
+  .modal-box::before, .feedback-modal::before {
+    content: ''; flex: none; align-self: center;
+    width: 36px; height: 5px; margin: 6px auto 0;
+    border-radius: 3px; background: var(--fill-strong);
+  }
+  .modal-head { padding: 10px 12px 10px 16px; }
+  .modal-status { padding-inline: 16px; }
+  .modal-grid { padding: 14px 16px 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Zoom modal */
+.zoom-modal {
+  position: fixed; inset: 0; z-index: 200;
+  display: none; align-items: center; justify-content: center; padding: 24px;
+}
+.zoom-modal.open { display: flex; }
+.zoom-backdrop {
+  position: absolute; inset: 0; cursor: zoom-out;
+  background: rgba(0, 0, 0, 0.72);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+.zoom-image {
+  position: relative; z-index: 1;
+  max-width: min(900px, 96vw); max-height: 88vh; max-height: 88dvh;
+  border: 0; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  cursor: zoom-out; object-fit: contain; display: block;
+}
+.zoom-caption {
+  position: absolute; bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 2;
+  padding: 6px 14px; border-radius: var(--radius-pill);
+  background: rgba(60, 60, 67, 0.72); color: #fff;
+  font-size: 13px; font-weight: 500; pointer-events: none;
+}
+
+/* ---------- Alerts (confirm / prompt / alert) ----------
+   Rare and direct: a title, one line of consequence, two clear choices.
+   Buttons share the width so neither reads as the default by size alone. */
+.dlg-shade {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--scrim);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: dlg-fade 0.18s ease-out;
+}
+@keyframes dlg-fade { from { opacity: 0; } }
+.dlg-card {
+  width: min(340px, 100%); padding: 22px 16px 16px;
+  background: var(--paper); border: 0;
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+  text-align: center;
+  animation: dlg-pop 0.28s var(--ease);
+}
+@keyframes dlg-pop { from { transform: scale(1.08); opacity: 0; } }
+.dlg-title { margin: 0 6px 6px; font-size: 17px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+.dlg-msg { margin: 0 6px 18px; font-size: 15px; line-height: 1.35; color: var(--ink-soft); }
+.dlg-input { width: 100%; min-height: var(--tap); margin-bottom: 16px; text-align: left; }
+.dlg-actions { display: flex; gap: 8px; }
+.dlg-actions button { flex: 1 1 0; min-width: 0; min-height: var(--tap); font-size: 17px; }
+.dlg-actions button.ghost { background: var(--fill); color: var(--ink); }
+.dlg-actions button.warn { background: var(--warn-soft); color: var(--warn); }
+.dlg-actions button.warn:hover { background: var(--warn-soft); filter: brightness(0.96); }
+
+/* Popups scroll on their own and hold the swipe, and the page behind stays
+   still while one is open (a phone otherwise scrolls the page instead). */
+.feedback-modal { max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.feedback-overlay { overscroll-behavior: contain; }
+/* Keep the scrollbar off the rounded corners: it is drawn square and would
+   stick out of the curve. */
+.feedback-modal::-webkit-scrollbar, .modal-grid::-webkit-scrollbar { width: 12px; }
+.feedback-modal::-webkit-scrollbar-track, .modal-grid::-webkit-scrollbar-track { background: transparent; margin-block: 22px; }
+.feedback-modal::-webkit-scrollbar-thumb, .modal-grid::-webkit-scrollbar-thumb {
+  background: var(--fill-strong); background-clip: padding-box; border: 3px solid transparent; border-radius: var(--radius-pill);
+}
+/* Only the page is locked: hidden overflow on body too makes body its own
+   scroller, and the sticky header then slides away with the page. */
+html:has(.feedback-overlay), html:has(.modal.open), html:has(.dlg-shade) { overflow: hidden; }
+.modal-grid { overscroll-behavior: contain; }
+
+@media (max-width: 600px) {
+  .feedback-overlay { padding: 0; align-items: flex-end; }
+  .feedback-modal {
+    width: 100%; max-width: none; max-height: 92dvh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    animation: sheet-up 0.38s var(--ease);
+  }
+}
+
+/* Footer */
+.foot a { color: inherit; }
+.foot {
+  margin-top: 48px; padding-top: 16px; border-top: 0.5px solid var(--rule);
+  font-size: 12px; color: var(--ink-soft);
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px;
+}
+
+/* ---------- Feedback sheet ---------- */
+.feedback-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--scrim);
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(12px, 4vw, 32px);
+  animation: dlg-fade 0.2s ease-out;
+}
+.feedback-modal {
+  width: 100%; max-width: 480px; padding: 20px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--paper); border: 0;
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+  animation: sheet-pop 0.3s var(--ease);
+}
+.feedback-modal::before { margin: -12px auto 0; }
+.feedback-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.feedback-head h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink); }
+.feedback-sub { margin: 0; font-size: 15px; color: var(--ink-soft); line-height: 1.4; }
+.feedback-textarea { width: 100%; min-height: 140px; padding: 12px; font-size: 17px; line-height: 1.4; resize: vertical; }
+.feedback-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.feedback-count { font-size: 13px; color: var(--ink-soft); }
+.voucher-form { display: flex; flex-direction: column; gap: 12px; }
+.voucher-input {
+  width: 100%; min-height: 52px; text-align: center;
+  font-size: 20px; font-weight: 600; letter-spacing: 0.04em;
+}
+.voucher-input::placeholder { font-weight: 400; letter-spacing: 0.04em; }
+.voucher-success { margin: 4px 0; font-size: 17px; color: var(--green); }
+.support-qr { display: block; width: min(280px, 100%); aspect-ratio: 1; margin: 4px auto; border-radius: var(--radius); object-fit: contain; background: #fff; }
+.support-qr-empty {
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px;
+  background: none; border: 2px dashed var(--rule-strong); color: var(--ink-soft); font-size: 15px;
+}
+.feedback-success { font-size: 13px; color: var(--green); flex: 1; }
+.feedback-error { font-size: 13px; color: var(--warn); flex: 1; }
+.feedback-foot .accent { margin-left: auto; min-width: 96px; min-height: var(--tap); }
+
+/* ---------- Back to top ----------
+   Floats on the functional layer above the tab bar; appears once the user
+   has scrolled more than a viewport. */
+.float-back-top {
+  position: fixed; z-index: 30;
+  right: clamp(12px, 3vw, 24px);
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  width: var(--tap); height: var(--tap); min-height: 0; padding: 0;
+  background: var(--glass); color: var(--ink);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border: 0.5px solid var(--rule); border-radius: 50%;
+  box-shadow: var(--shadow-lg);
+  opacity: 0; pointer-events: none; transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s var(--ease);
+}
+.float-back-top.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.float-back-top:hover { background: var(--glass); }
+@media (max-width: 767px) {
+  /* Compact widths: clear the tab bar. */
+  .float-back-top { bottom: calc(var(--tabbar-h) + 24px + env(safe-area-inset-bottom)); }
+}
+
+.error-boundary {
+  max-width: 520px;
+  margin: 80px auto;
+  padding: 28px 32px;
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.error-boundary h2 {
+  margin: 0 0 12px;
+  color: var(--accent);
+}
+.error-boundary p { margin: 6px 0; color: var(--ink); }
+.error-boundary .hint { color: var(--ink-soft); font-size: 15px; margin-bottom: 18px; }

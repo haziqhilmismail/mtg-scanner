@@ -1,0 +1,31 @@
+// English + Malay strings, merged from the area files. Strings with
+// placeholders use {name} tokens.
+
+import type { Lang } from '../types.ts';
+import * as claims from './claims.ts';
+import * as login from './login.ts';
+import * as scanner from './scanner.ts';
+import * as settings from './settings.ts';
+import * as shell from './shell.ts';
+
+type Vars = Record<string, string | number>;
+
+// A translate function bound to the current language (see useLang).
+export type T = (k: string, vars?: Vars) => string;
+
+export const AREAS = { shell, scanner, claims, settings, login };
+
+const STRINGS: Record<Lang, Record<string, string>> = {
+  en: { ...shell.en, ...scanner.en, ...claims.en, ...settings.en, ...login.en },
+  ms: { ...shell.ms, ...scanner.ms, ...claims.ms, ...settings.ms, ...login.ms },
+};
+
+export function translate(lang: Lang, key: string, vars?: Vars): string {
+  let s = STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;
+  if (vars) {
+    for (const k of Object.keys(vars)) {
+      s = s.split('{' + k + '}').join(String(vars[k]));
+    }
+  }
+  return s;
+}

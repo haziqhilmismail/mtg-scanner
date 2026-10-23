@@ -10,7 +10,7 @@ import { TopTabs } from './components/TopTabs.tsx';
 import { PaymentSheet } from './components/PaymentSheet.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
-import { useLang } from './hooks/useLang.ts';
+import { TProvider, useLang } from './hooks/useLang.ts';
 import { useNav } from './hooks/useNav.ts';
 import { usePricing } from './hooks/usePricing.ts';
 import { useScanner } from './hooks/useScanner.ts';
@@ -40,6 +40,7 @@ export default function App() {
   }
   if (auth.status === 'unauthenticated' && auth.config?.auth_enabled) {
     return (
+      <TProvider value={t}>
       <DialogProvider>
         <Login
           clientId={auth.config.google_client_id}
@@ -53,21 +54,24 @@ export default function App() {
           setAppearance={setAppearance}
         />
       </DialogProvider>
+      </TProvider>
     );
   }
 
   // Keyed by user so signing in as someone else starts from a clean slate:
   // the scans are fetched again, with the new user's token, after sign-in.
   return (
-    <Workspace
-      key={auth.user?.id ?? 'none'}
-      auth={auth}
-      lang={lang}
-      setLang={setLang}
-      t={t}
-      appearance={appearance}
-      setAppearance={setAppearance}
-    />
+    <TProvider value={t}>
+      <Workspace
+        key={auth.user?.id ?? 'none'}
+        auth={auth}
+        lang={lang}
+        setLang={setLang}
+        t={t}
+        appearance={appearance}
+        setAppearance={setAppearance}
+      />
+    </TProvider>
   );
 }
 
