@@ -191,7 +191,7 @@ async def refresh_ck(request: Request):
     failed and the rebuild ran from a week-old cache — see
     cardkingdom_prices.py for the new contract.
 
-    Guarded by `refresh_ck_token` when configured: the public Funnel URL means
+    Guarded by `refresh_ck_token` when configured: the API's URL is public, so
     anyone could otherwise trigger a 50 MB rebuild. The scheduled GitHub Action
     sends the matching X-Refresh-Token header."""
     idx = await get_ck_index()

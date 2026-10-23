@@ -8,8 +8,8 @@
 #   docker compose logs -f            # tail logs
 #   docker compose pull && docker compose up -d --build   # after a git pull
 #
-# Public access is provided by Tailscale Funnel pointing at localhost:8000 —
-# see DEPLOY_HOMESERVER.md.
+# Public access is through a Cloudflare Tunnel (a cloudflared container)
+# pointing at localhost:8000 — see DEPLOY_HOMESERVER.md.
 # Fixed, so the container keeps its name whatever the checkout folder is called.
 name: mtg-scanner-backend
 
@@ -44,8 +44,8 @@ services:
     # Scratch space for FastAPI upload spooling + PIL/HEIF temp files.
     tmpfs:
       - /tmp:size=256m
-    # Bind to loopback only: nothing reaches this port except Tailscale Funnel
-    # (and other processes on the box). The home LAN / WAN can't hit it directly.
+    # Bind to loopback only: nothing reaches this port except the Cloudflare
+    # Tunnel (and other processes on the box). The home LAN / WAN can't hit it directly.
     ports:
       - "127.0.0.1:8000:8000"
     # Secrets + config come from a .env file on the host (NOT committed):
@@ -53,5 +53,6 @@ services:
     env_file:
       - .env
     volumes:
-      # SQLite DB, scans/, posts/, ck_index.db, jwt_secret.txt all live here.
+      # SQLite DB, uploaded files, ck_index.db, the local scanner's models and
+      # jwt_secret.txt all live here.
       - ./data:/app/data

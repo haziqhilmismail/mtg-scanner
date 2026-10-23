@@ -69,8 +69,8 @@ ImageUserId = Annotated[int, Depends(get_image_user_id)]
 
 
 def _rate_limit_key(request: Request) -> str:
-    """Per signed-in user; strangers by address. Behind Tailscale Funnel every
-    request shares one address, so keying by it alone made all limits global."""
+    """Per signed-in user; strangers by address. Behind the Cloudflare Tunnel
+    every request shares one address, so keying by it alone made all limits global."""
     user_id = bearer_user_id(request.headers.get("authorization"))
     return f"user:{user_id}" if user_id is not None else get_remote_address(request)
 

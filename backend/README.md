@@ -2,8 +2,8 @@
 
 FastAPI + SQLAlchemy 2 (async) + SQLite, behind the React frontend
 (`frontend/`, on Vercel). It prices Magic cards from photos
-(Gemini, or the local scanner below; prices from CardKingdom, card data from
-Scryfall) and keeps the seller's stock, posts, buyers and orders.
+(named by the local scanner below, or by Gemini; prices from CardKingdom, card
+data from Scryfall) and keeps the seller's stock, posts, buyers and orders.
 
 ## Layout
 
@@ -15,7 +15,7 @@ app/
 ├── deps.py       # DbSession, CurrentUserId (bearer), ImageUserId (?token=), the rate limiter
 ├── models/       # SQLAlchemy tables
 ├── schemas/      # Pydantic request/response shapes
-├── routers/      # auth, bugs, buyers, claims, credits, listings, orders, posts
+├── routers/      # auth, bugs, buyers, claims, credits, listings, orders, payment, posts, scans, slips
 └── services/     # Gemini, Scryfall, CardKingdom, overlay render, credits, local scanner...
 migrations/       # Alembic; `alembic upgrade head` runs on every start
 scripts/          # make_voucher.py, build_embedding_index.py
@@ -54,11 +54,12 @@ python -m pytest tests
 
 Production runs in Docker on the home server; see `DEPLOY_HOMESERVER.md`.
 
-## Local scanner (experimental)
+## Local scanner
 
-`SCANNER_BACKEND=local` swaps Gemini out of `/api/scan` for a pipeline that
-runs entirely on the server's CPU — no cloud model, no API key. The default
-is still `gemini`; nothing changes unless the setting is flipped.
+Production runs `SCANNER_BACKEND=local`: `/api/scan` uses a pipeline that runs
+entirely on the server's CPU — no cloud model, no API key, and scans cost no
+credits. The code default is `gemini`, because the local scanner needs the
+three files under Setup.
 
 | Step     | Module              | What it does |
 |----------|---------------------|--------------|

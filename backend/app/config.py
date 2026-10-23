@@ -21,10 +21,11 @@ class Settings(BaseSettings):
 
     # Which pipeline /api/scan runs:
     #   "gemini" — cloud model locates + names the cards (classical bbox
-    #              assist as configured below). The production default.
-    #   "local"  — experimental, fully offline: YOLO-OBB detector → DINOv3
-    #              embedding retrieval → collector-line OCR for version + foil.
-    #              See services/card_scanner.py. Needs the three files below.
+    #              assist as configured below). The default: needs only a key.
+    #   "local"  — fully offline, and what production runs: YOLO-OBB
+    #              detector → DINOv3 embedding retrieval → collector-line OCR
+    #              for version + foil. See services/card_scanner.py. Needs the
+    #              three files below.
     scanner_backend: str = "gemini"
     # Local scanner files. Not in the repo or the image — they live in data/.
     # README "Local scanner" covers how to produce them.
@@ -50,7 +51,7 @@ class Settings(BaseSettings):
     # Falls back to Gemini's bbox on noisy photos.
     use_classical_bbox: bool = True
 
-    # Database — SQLite by default, swap to a postgres URL when going multi-user
+    # Database — SQLite, one file in data/
     database_url: str = f"sqlite+aiosqlite:///{DATA_DIR / 'app.db'}"
 
     # Solo-mode owner: when google_client_id is empty every API call is attributed
@@ -76,12 +77,13 @@ class Settings(BaseSettings):
 
     # Shared secret guarding POST /api/refresh-ck. Empty = endpoint stays open
     # (back-compat). When set, callers must send a matching `X-Refresh-Token`
-    # header — the scheduled GitHub Action passes it from a repo secret so the
-    # public Funnel URL can't be used by anyone to trigger 50 MB CK rebuilds.
+    # header — the scheduled GitHub Action passes it from a repo secret so
+    # nobody who finds the public API URL can trigger 50 MB CK rebuilds.
     refresh_ck_token: str = ""
 
-    # CORS — frontend dev server + same-origin. In production, append the
-    # Vercel URL via env: CORS_ORIGINS="https://my-app.vercel.app,http://..."
+    # CORS — frontend dev server + same-origin. In production, add the site's
+    # own domain via env, since it calls the API cross-origin:
+    #   CORS_ORIGINS="https://mtg.haziqhilmi.com"
     # NoDecode disables pydantic-settings' JSON pre-parser so the validator
     # below can accept both comma-separated and JSON-array forms.
     cors_origins: Annotated[list[str], NoDecode] = [

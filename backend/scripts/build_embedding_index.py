@@ -2,7 +2,7 @@
 build_embedding_index.py
 ------------------------
 One-off (or occasional refresh) script that builds the card embedding index
-used by the experimental local scanner (services/card_embedder.py).
+used by the local scanner (services/card_embedder.py).
 
 Pipeline:
   1. Hit Scryfall's /bulk-data endpoint and download the latest
