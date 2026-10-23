@@ -597,3 +597,64 @@
   color: var(--ink-soft);
   text-align: center;
 }
+
+/* ---------- The sign-in page's menu ----------
+   Language, appearance, support and feedback behind one button, until the
+   sign-in page gets the top bar. */
+.bar-btn {
+  width: var(--tap); height: var(--tap); padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; border-radius: 50%;
+  color: var(--ink); cursor: pointer;
+  transition: background 0.15s ease;
+}
+.bar-btn:hover, .bar-btn[aria-expanded="true"] { background: var(--fill); }
+.user-avatar {
+  width: 24px; height: 24px; border-radius: 50%;
+  object-fit: cover; background: var(--fill);
+}
+.user-avatar.placeholder {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 13px; color: var(--ink-soft);
+}
+.app-menu { position: relative; }
+.menu-popover {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
+  width: min(320px, calc(100vw - 24px));
+  padding: 6px;
+  /* Sits inside the app bar, whose own backdrop filter stops a nested one
+     from seeing the page, so the menu is a solid surface instead. */
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  transform-origin: top right;
+  animation: menu-in 0.22s var(--ease);
+}
+@keyframes menu-in { from { opacity: 0; transform: scale(0.94); } }
+.menu-account {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px 12px;
+}
+.menu-account .user-avatar { width: 40px; height: 40px; font-size: 17px; }
+.menu-account-text { display: flex; flex-direction: column; min-width: 0; }
+.menu-account-text strong { font-size: 15px; font-weight: 600; }
+.menu-account-text span { font-size: 13px; color: var(--ink-soft); }
+.menu-account-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-status {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px 10px; font-size: 13px; color: var(--ink-soft);
+}
+.menu-group { padding: 6px 0; border-top: 0.5px solid var(--rule); }
+.menu-popover > :first-child { border-top: 0; }
+.menu-row { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+.menu-row-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+.menu-item {
+  width: 100%; min-height: var(--tap); padding: 0 12px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 12px;
+  background: transparent; border: 0; border-radius: var(--radius-sm);
+  font-size: 17px; font-weight: 400; color: var(--ink); text-align: left; cursor: pointer;
+}
+.menu-item:hover { background: var(--fill); }
+.menu-item.destructive { color: var(--warn); }
+

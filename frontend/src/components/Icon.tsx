@@ -43,6 +43,7 @@ const PATHS = {
   tag: 'M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9ZM7.500 7.500h.01',
   external: 'M7 17 17 7M9 7h8v8',
   swap: 'M7 4 4 7l3 3M4 7h13M17 20l3-3-3-3M20 17H7',
+  person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0',
 } as const;
 
 export type IconName = keyof typeof PATHS;

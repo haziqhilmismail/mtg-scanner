@@ -22,7 +22,7 @@ export function PricingPage({ postId, title, crumbs, pricing, health, t }: Props
     <>
       <Breadcrumbs items={crumbs} />
       <div className="review-head">
-        <div className="review-title"><h2>{title}</h2></div>
+        <div className="review-title"><h1 className="page-title">{title}</h1></div>
       </div>
       {postId == null ? <p className="claims-hint">{t('pricing_default_sub')}</p> : null}
       {pricing.pricingKnown(postId) ? (

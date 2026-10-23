@@ -1,26 +1,36 @@
 /* ---------- App bar ----------
-   Part of the functional layer: translucent so content scrolls beneath it,
-   with a hairline instead of a solid fill (see .glass). */
+   Solid, on every page: the mark, the two tabs, the prices status (wide
+   screens) and the avatar that opens Profile. */
 .app-bar {
   position: sticky; top: 0; z-index: 40;
-  background: var(--glass);
-  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  border-bottom: 0.5px solid var(--rule);
+  background: var(--bg);
+  border-bottom: 1px solid var(--rule);
   padding-top: env(safe-area-inset-top);
 }
 .app-bar-inner {
   max-width: 1240px; margin: 0 auto;
   height: var(--bar-h); padding: 0 24px;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: stretch; gap: 12px;
 }
-.app-bar-title {
-  margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.brand {
+  display: flex; align-items: center; gap: 10px; margin-right: 12px;
+  color: var(--ink); text-decoration: none;
+  font-size: 17px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap;
 }
-.app-bar-title button { all: unset; position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
-.app-bar-title button:hover, .app-bar-title button:active { background: none; transform: none; }
-.app-bar-title button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; border-radius: 6px; }
-.app-bar-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.brand-mark {
+  flex: none; width: 28px; height: 28px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-fill); color: var(--on-accent);
+}
+.brand-name { display: none; }
+.nav-tabs { display: flex; gap: 4px; }
+.nav-tab {
+  display: flex; align-items: center; padding: 0 12px;
+  color: var(--ink-soft); font-size: 15px; font-weight: 500; text-decoration: none;
+}
+.nav-tab:hover { color: var(--ink); }
+.nav-tab.is-on { color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent-fill); }
+.app-bar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
 .bar-status {
   display: inline-flex; align-items: center; gap: 7px;
   font-size: 13px; color: var(--ink-soft); padding: 0 8px;
@@ -32,63 +42,45 @@
 }
 .status-dot.ok { background: var(--green); }
 .status-dot.err { background: var(--warn); }
-.bar-btn {
-  width: var(--tap); height: var(--tap); padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 0; border-radius: 50%;
-  color: var(--ink); cursor: pointer;
-  transition: background 0.15s ease;
+.avatar-link {
+  flex: none; width: var(--tap); height: var(--tap);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; text-decoration: none;
 }
-.bar-btn:hover, .bar-btn[aria-expanded="true"] { background: var(--fill); }
-.bar-btn .user-avatar { width: 30px; height: 30px; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule);
+  font-size: 13px; font-weight: 600;
+}
+.avatar.lg { width: 48px; height: 48px; font-size: 17px; }
+.avatar-link[aria-current="page"] .avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-fill); }
+@media (min-width: 768px) {
+  .brand-name { display: inline; }
+}
 @media (max-width: 767px) {
-  .app-bar-inner { padding: 0 8px 0 16px; }
-  /* Narrow: the dot stays, its label moves into the More menu. */
-  .bar-status-label { display: none; }
-  .bar-status:not(.err) { display: none; }
+  .app-bar-inner { padding: 0 6px 0 16px; }
+  /* The status line lives on Profile on a phone. */
+  .bar-status { display: none; }
 }
 
-/* ---------- More menu ---------- */
-.app-menu { position: relative; }
-.menu-popover {
-  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
-  width: min(320px, calc(100vw - 24px));
-  padding: 6px;
-  /* Sits inside the app bar, whose own backdrop filter stops a nested one
-     from seeing the page, so the menu is a solid surface instead. */
-  background: var(--paper);
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  transform-origin: top right;
-  animation: menu-in 0.22s var(--ease);
-}
-@keyframes menu-in { from { opacity: 0; transform: scale(0.94); } }
-.menu-account {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px 12px;
-}
-.menu-account .user-avatar { width: 40px; height: 40px; font-size: 17px; }
-.menu-account-text { display: flex; flex-direction: column; min-width: 0; }
-.menu-account-text strong { font-size: 15px; font-weight: 600; }
-.menu-account-text span { font-size: 13px; color: var(--ink-soft); }
-.menu-account-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-status {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px 10px; font-size: 13px; color: var(--ink-soft);
-}
-.menu-group { padding: 6px 0; border-top: 0.5px solid var(--rule); }
-.menu-popover > :first-child { border-top: 0; }
-.menu-row { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
-.menu-row-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
-.menu-item {
-  width: 100%; min-height: var(--tap); padding: 0 12px;
-  display: flex; align-items: center; justify-content: flex-start; gap: 12px;
-  background: transparent; border: 0; border-radius: var(--radius-sm);
-  font-size: 17px; font-weight: 400; color: var(--ink); text-align: left; cursor: pointer;
-}
-.menu-item:hover { background: var(--fill); }
-.menu-item.destructive { color: var(--warn); }
+/* ---------- Profile ---------- */
+.profile-account { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 14px; }
+.profile-account-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.profile-account-text strong { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.profile-account-text span { font-size: 13px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.profile-signout { color: var(--ink); }
+.profile-status { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--ink-soft); }
+.profile-status.err { color: var(--warn); }
+.profile-note { margin: 0 0 12px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.panel > .pricing-button { margin-bottom: 12px; }
+.profile-pref { display: flex; flex-direction: column; gap: 8px; }
+.profile-pref + .profile-pref { margin-top: 16px; }
+.profile-pref > span { font-size: 15px; color: var(--ink-soft); }
+.profile-pref .segmented { align-self: flex-start; }
+.profile-pref .segmented button { min-height: 40px; min-width: 96px; font-size: 15px; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-actions button { flex: 1 1 200px; min-height: var(--tap); }
 
 /* ---------- Segmented control ----------
    Selection state for closely related choices: gray track, raised thumb. */
@@ -107,57 +99,8 @@
   background: var(--seg-thumb); box-shadow: var(--seg-shadow); font-weight: 600;
 }
 
-/* ---------- Tab bar ----------
-   Compact widths: floats above content at the bottom, within thumb reach.
-   Wide widths: the same two destinations become a segmented control
-   centred in the app bar. */
-.tab-bar {
-  position: fixed; z-index: 45;
-  left: 50%; bottom: calc(10px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  display: flex; gap: 2px; padding: 4px;
-  background: var(--glass);
-  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  border: 0.5px solid var(--rule);
-  border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-lg);
-}
-.tab-bar button {
-  min-width: 96px; height: calc(var(--tabbar-h) - 8px); padding: 0 18px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  background: transparent; border: 0; border-radius: var(--radius-pill);
-  font-size: 11px; font-weight: 600; color: var(--ink-soft); cursor: pointer;
-  transition: background 0.2s var(--ease), color 0.2s var(--ease);
-}
-.tab-bar button.active { color: var(--accent); background: var(--fill); }
-@media (min-width: 768px) {
-  .tab-bar {
-    top: calc((var(--bar-h) - 36px) / 2 + env(safe-area-inset-top)); bottom: auto;
-    padding: 2px; gap: 0;
-    background: var(--fill); border: 0; border-radius: 9px; box-shadow: none;
-    -webkit-backdrop-filter: none; backdrop-filter: none;
-  }
-  .tab-bar button {
-    flex-direction: row; gap: 6px; height: 32px; min-width: 124px; padding: 0 14px;
-    border-radius: 7px; font-size: 13px; font-weight: 500; color: var(--ink);
-  }
-  .tab-bar button .icon { width: 16px; height: 16px; }
-  .tab-bar button.active {
-    color: var(--ink); font-weight: 600;
-    background: var(--seg-thumb); box-shadow: var(--seg-shadow);
-  }
-}
-
 /* ---------- Auth UI ---------- */
 .auth-bootstrap { position: fixed; inset: 0; background: var(--bg); }
-.user-avatar {
-  width: 24px; height: 24px; border-radius: 50%;
-  object-fit: cover; background: var(--fill);
-}
-.user-avatar.placeholder {
-  display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 600; font-size: 13px; color: var(--ink-soft);
-}
 
 /* ---------- Panels ----------
    A grouped section: plain header above, content on a rounded card. */

@@ -5,6 +5,9 @@
 }
 .review-title { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
 .review-head h2 { font-size: 22px; font-weight: 700; color: var(--ink); margin: 0; }
+/* One per page: "Posts · 2", the post's name, "Photo 2 of 2", "Claims". */
+.page-title { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink); }
+.page-title .meta { font-weight: 500; color: var(--ink-soft); }
 .review-head .meta { font-size: 15px; color: var(--ink-soft); }
 .review-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button.destructive, button.ghost.destructive { color: var(--warn); }
@@ -63,14 +66,14 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .review-title.is-editing { flex: 1 1 100%; }
 .title-edit {
   width: calc(100% + 18px); min-height: 0; padding: 2px 8px; margin: -3px -9px;
-  font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.015em;
+  font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.01em;
   background: var(--paper); border-radius: 8px;
 }
 .review-title { min-width: 0; }
-.review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.review-title h1, .review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 /* A post's own page: its name gets the whole row and wraps only between words. */
 .review-title.post-title { flex: 1 1 100%; }
-.review-title.post-title h2 { flex: 1 1 auto; min-width: 0; overflow-wrap: normal; word-break: normal; }
+.review-title.post-title h1 { flex: 1 1 auto; min-width: 0; overflow-wrap: normal; word-break: normal; }
 .review-title.post-title .title-btn span { overflow-wrap: normal; }
 .round-btn {
   width: 36px; height: 36px; min-height: 0; padding: 0; flex: none;
@@ -392,8 +395,8 @@ html:has(.feedback-overlay), html:has(.modal.open), html:has(.dlg-shade) { overf
 .feedback-foot .accent { margin-left: auto; min-width: 96px; min-height: var(--tap); }
 
 /* ---------- Back to top ----------
-   Floats on the functional layer above the tab bar; appears once the user
-   has scrolled more than a viewport. */
+   Floats at the bottom right; appears once the user has scrolled more than
+   a viewport. */
 .float-back-top {
   position: fixed; z-index: 30;
   right: clamp(12px, 3vw, 24px);
@@ -408,10 +411,6 @@ html:has(.feedback-overlay), html:has(.modal.open), html:has(.dlg-shade) { overf
 }
 .float-back-top.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
 .float-back-top:hover { background: var(--glass); }
-@media (max-width: 767px) {
-  /* Compact widths: clear the tab bar. */
-  .float-back-top { bottom: calc(var(--tabbar-h) + 24px + env(safe-area-inset-bottom)); }
-}
 
 .error-boundary {
   max-width: 520px;
