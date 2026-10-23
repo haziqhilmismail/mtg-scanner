@@ -115,10 +115,15 @@ def _thread_region(shot: Image.Image, box: tuple[int, int, int, int] | None) -> 
         return shot
     x, y, w, h = box
     right, below = shot.width - (x + w), shot.height - (y + h)
-    if right > 0.2 * shot.width:           # PC: thread in a column beside the photo
+    # PC photo viewer: the photo fills the screen's height, the thread is a
+    # column beside it. A photo inside a comment (PC or phone) is shorter,
+    # with the thread under it, and can still leave room on its right.
+    if right > 0.2 * shot.width and h > 0.6 * shot.height:
         return shot.crop((x + w, 0, shot.width, shot.height))
-    if below > 0.15 * shot.height:         # phone: thread under the photo
+    if below > 0.15 * shot.height:
         return shot.crop((0, y + h, shot.width, shot.height))
+    if right > 0.2 * shot.width:
+        return shot.crop((x + w, 0, shot.width, shot.height))
     return shot
 
 
