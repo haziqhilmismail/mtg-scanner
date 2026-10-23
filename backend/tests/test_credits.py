@@ -254,6 +254,22 @@ def test_scan_spends_a_credit_and_refuses_when_out(client):
     assert _scan(client, token).status_code == 402
 
 
+def test_local_scan_is_free_even_when_out_of_credits(client, monkeypatch):
+    uid = run(_dispose_then(new_user()))
+    run(_dispose_then(add_events(uid, days_ago=1, n=LIMIT)))
+    run(engine.dispose())
+    token = issue_session_token(uid)
+
+    async def fake_local(pil):
+        return []
+    monkeypatch.setattr(main.settings, "scanner_backend", "local")
+    monkeypatch.setattr(main.local_scan, "scan_cards", fake_local)
+
+    ok = _scan(client, token)
+    assert ok.status_code == 200 and ok.json()["credits"]["remaining"] == 0
+    assert client.calls["gemini"] == 0
+
+
 def test_failed_scan_costs_nothing(client):
     uid = run(_dispose_then(new_user()))
     run(engine.dispose())

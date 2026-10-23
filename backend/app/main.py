@@ -21,7 +21,7 @@ import re
 import time
 import traceback
 import zipfile
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -285,7 +285,7 @@ def _normalise_upload(raw: bytes) -> tuple[Image.Image, bytes]:
 
 
 @app.post("/api/scan")
-@limiter.limit("30/minute;200/hour")  # Gemini calls — quota- and cost-sensitive
+@limiter.limit("10/minute;100/hour")  # local scans load the home server's CPU; Gemini scans cost money
 async def scan(
     request: Request,
     db: DbSession,
@@ -308,8 +308,9 @@ async def scan(
     # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
     pil, norm_bytes = await asyncio.to_thread(_normalise_upload, raw)
 
-    # One credit per photo, handed back if anything below fails.
-    async with credits.spend(db, user_id):
+    # A Gemini scan costs one credit, handed back if anything below fails. A
+    # local scan is free: the rate limit and local_scan's lock guard the CPU.
+    async with nullcontext() if settings.use_local_scanner else credits.spend(db, user_id):
         result = await _scan_pipeline(db, user_id, image.filename, pil, norm_bytes, post_id)
     result["credits"] = await credits.status(db, user_id)
     return result
