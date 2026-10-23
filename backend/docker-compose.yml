@@ -10,6 +10,9 @@
 #
 # Public access is provided by Tailscale Funnel pointing at localhost:8000 —
 # see DEPLOY_HOMESERVER.md.
+# Fixed, so the container keeps its name whatever the checkout folder is called.
+name: mtg-scanner-backend
+
 services:
   backend:
     build: .
