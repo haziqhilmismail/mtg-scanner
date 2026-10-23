@@ -1,0 +1,54 @@
+# Self-hosted deployment for the homeserver (Ubuntu in Proxmox).
+#
+# All persistent state lives in ./data on the host — that directory is the
+# source of truth.
+#
+# Usage:
+#   docker compose up -d --build      # build + start in the background
+#   docker compose logs -f            # tail logs
+#   docker compose pull && docker compose up -d --build   # after a git pull
+#
+# Public access is provided by Tailscale Funnel pointing at localhost:8000 —
+# see DEPLOY_HOMESERVER.md.
+services:
+  backend:
+    build: .
+    image: mtg-scanner-backend:local
+    container_name: mtg-scanner-backend
+    restart: unless-stopped
+    # --- Hardening (defense-in-depth if the app is ever RCE'd) ---
+    # Drop every Linux capability + block privilege escalation: even running as
+    # root the process can't escalate (no setuid gains, no raw sockets, no
+    # mount). The app binds :8000 (>1024), so it needs no capability. These are
+    # the highest-value protections and have no operational side effects.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # ...but add back CAP_DAC_OVERRIDE. The app runs as root while ./data is a
+    # bind mount owned by the host user (uid != 0); without this one capability
+    # root can't bypass the file-permission check and every SQLite INSERT fails
+    # with "attempt to write a readonly database". DAC_OVERRIDE only bypasses
+    # file perms inside the container — it grants no escalation, network, or
+    # mount powers, so the hardening still holds.
+    cap_add:
+      - DAC_OVERRIDE
+    # NOTE: a read-only root FS (`read_only: true`) is intentionally NOT used.
+    # SQLite writes -wal/-journal/-shm sidecar files and takes a write lock when
+    # it opens app.db for writing; with a read-only root those operations are
+    # denied and every INSERT fails with "attempt to write a readonly database".
+    # cap_drop + no-new-privileges already contain the blast radius without it.
+    # Scratch space for FastAPI upload spooling + PIL/HEIF temp files.
+    tmpfs:
+      - /tmp:size=256m
+    # Bind to loopback only: nothing reaches this port except Tailscale Funnel
+    # (and other processes on the box). The home LAN / WAN can't hit it directly.
+    ports:
+      - "127.0.0.1:8000:8000"
+    # Secrets + config come from a .env file on the host (NOT committed):
+    # GEMINI_API_KEY, GOOGLE_CLIENT_ID, ALLOWED_EMAILS, JWT_SECRET, etc.
+    env_file:
+      - .env
+    volumes:
+      # SQLite DB, scans/, posts/, ck_index.db, jwt_secret.txt all live here.
+      - ./data:/app/data
