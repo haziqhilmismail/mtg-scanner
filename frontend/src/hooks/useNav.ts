@@ -1,99 +1,58 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { readStored, writeStored } from './usePersistedState.ts';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { formatRoute, parseRoute, POSTS, type Route } from '../routes.ts';
 
-export type View = 'scanner' | 'claims';
-
-// Where the user is: the tab, the open post (gallery folder key, shared with
-// Claims), the open photo and a sheet open over any of them. Every level is
-// its own browser history entry, so the browser's and the phone's back and
-// forward move between them.
-// `up`: the entry was pushed from its parent level, so going up is going back.
-export interface Nav { view: View; folder: string | null; photo: string | null; sheet?: 'pricing'; up?: boolean }
-
-const TAB_KEY = 'mtg.tab';
-const FOLDER_KEY = 'mtg.scans.folder';
-
-function parentOf(n: Nav): Nav | null {
-  if (n.sheet) return { ...n, sheet: undefined };
-  if (n.view !== 'scanner') return null;
-  if (n.photo != null) return { ...n, photo: null };
-  if (n.folder != null) return { ...n, folder: null };
-  return null;
-}
-
-const same = (a: Nav | null, b: Nav | null) =>
-  !!a && !!b && a.view === b.view && a.folder === b.folder && a.photo === b.photo && a.sheet === b.sheet;
-
-const isNav = (s: unknown): s is Nav => !!s && typeof s === 'object' && 'view' in s;
-
-// A reload keeps the entry's own state; a fresh visit opens the last tab and
-// post, as remembered in localStorage (the open photo isn't remembered).
-function initial(): Nav {
-  return isNav(history.state) ? history.state
-    : { view: readStored<View>(TAB_KEY, 'scanner'), folder: readStored<string | null>(FOLDER_KEY, null), photo: null };
-}
+// Where the user is. The URL is the source of truth: every page has its own
+// path, so the browser's Back, a reload and a copied link all land on it.
+const fromLocation = () => parseRoute(location.pathname, location.search) ?? POSTS;
+const same = (a: Route, b: Route) => formatRoute(a) === formatRoute(b);
 
 export function useNav() {
-  const [nav, setNav] = useState<Nav>(initial);
-  const navRef = useRef(nav);
-  // A history.back() of up() not yet arrived: another up() would go two levels.
-  const goingBack = useRef(false);
+  const [route, setRoute] = useState<Route>(fromLocation);
+  const routeRef = useRef(route);
 
-  const commit = useCallback((next: Nav, push: boolean) => {
-    navRef.current = next;
-    if (push) history.pushState(next, '');
-    else history.replaceState(next, '');
-    setNav(next);
+  const commit = useCallback((next: Route, push: boolean) => {
+    routeRef.current = next;
+    if (push) history.pushState(null, '', formatRoute(next));
+    else history.replaceState(null, '', formatRoute(next));
+    setRoute(next);
   }, []);
 
   useEffect(() => {
-    // The entry the app opened on gets its state, so coming back to it works.
-    history.replaceState(navRef.current, '');
-    const onPop = (e: PopStateEvent) => {
-      const next = isNav(e.state) ? e.state : { view: 'scanner' as const, folder: null, photo: null };
-      navRef.current = next;
-      goingBack.current = false;
-      setNav(next);
+    // An unknown path shows Posts, and the address bar says so.
+    const url = formatRoute(routeRef.current);
+    if (location.pathname + location.search !== url) history.replaceState(null, '', url);
+    // useBackClose adds entries with the page's own URL while a popup is
+    // open; they parse to the same page and change nothing here.
+    const onPop = () => {
+      const next = fromLocation();
+      if (same(next, routeRef.current)) return;
+      routeRef.current = next;
+      setRoute(next);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  useEffect(() => {
-    writeStored(TAB_KEY, nav.view);
-    writeStored(FOLDER_KEY, nav.folder);
-  }, [nav.view, nav.folder]);
+  // A new page: its own history entry.
+  const go = useCallback((next: Route) => { if (!same(next, routeRef.current)) commit(next, true); }, [commit]);
 
-  // A new level: its own history entry.
-  const go = useCallback((patch: Partial<Nav>) => {
-    const cur = navRef.current;
-    const next = { ...cur, ...patch };
-    if (same(next, cur)) return;
-    commit({ ...next, up: same(parentOf(next), cur) }, true);
-  }, [commit]);
-
-  // The same level, changed in place (next photo, the post a photo is filed
-  // under, a correction): no new entry.
-  const replace = useCallback((patch: Partial<Nav>) => {
-    const cur = navRef.current;
-    const next = { ...cur, ...patch };
-    commit({ ...next, up: !!cur.up && same(parentOf(next), parentOf(cur)) }, false);
-  }, [commit]);
-
-  // Up one level, for the in-page back buttons and Esc: back through history
-  // when the entry below is the parent, else the parent replaces this entry.
-  const up = useCallback(() => {
-    const cur = navRef.current;
-    const parent = parentOf(cur);
-    if (!parent || goingBack.current) return;
-    if (cur.up) { goingBack.current = true; history.back(); }
-    else commit({ ...parent, up: false }, false);
-  }, [commit]);
+  // The same page, changed in place (the next photo, another post on
+  // Claims) or a page whose subject is gone: no new entry.
+  const replace = useCallback((next: Route) => commit(next, false), [commit]);
 
   // Where the user is now, for code that resumes after awaiting the user.
-  const current = useCallback(() => navRef.current, []);
+  const current = useCallback(() => routeRef.current, []);
 
-  return { nav, go, replace, up, current };
+  return { route, go, replace, current };
 }
 
 export type NavStore = ReturnType<typeof useNav>;
+
+const NavContext = createContext<NavStore | null>(null);
+export const NavProvider = NavContext.Provider;
+
+export function useNavStore(): NavStore {
+  const nav = useContext(NavContext);
+  if (!nav) throw new Error('useNavStore needs a NavProvider');
+  return nav;
+}

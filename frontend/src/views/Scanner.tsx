@@ -9,6 +9,7 @@ import { migrateAdded } from '../lib/addedMarkers.ts';
 import type { Batch, Candidate, PriceMode, Settings } from '../types.ts';
 import { byPostOrder, computeCardData, downloadBlob, formatMyr, listingFields, lockPrices, matchThumbs, notAdded, PHOTO_SORTS, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from '../utils.ts';
 import { readStored, writeStored } from '../hooks/usePersistedState.ts';
+import { POSTS, routeFolder, UNFILED } from '../routes.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 interface Folder {
@@ -21,13 +22,14 @@ interface Folder {
   total: number;
 }
 
-const UNFILED = 'unfiled';
 import { ActiveBatchView } from '../components/ActiveBatchView.tsx';
 import { AddAllChecklistModal } from '../components/AddAllChecklistModal.tsx';
 import { useDialog } from '../components/DialogProvider.tsx';
 import { PrintingsModal } from '../components/PrintingsModal.tsx';
 import { PhotoTile, PostTile, summarise, type BatchSummary } from '../components/ScanGallery.tsx';
-import { PricingFields, SettingsPanel } from '../components/SettingsPanel.tsx';
+import { PricingRow } from '../components/SettingsPanel.tsx';
+import { Breadcrumbs } from '../components/Breadcrumbs.tsx';
+import { PricingPage } from './PricingPage.tsx';
 import { InfoTip } from '../components/InfoTip.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { UploadZone } from '../components/UploadZone.tsx';
@@ -37,7 +39,7 @@ interface Props {
   // The tab is showing (both tabs stay mounted, so switching doesn't reload).
   active: boolean;
   scanner: ScannerStore;
-  // Which post and photo are open; each is a browser history entry.
+  // Which post, photo or pricing page is open: the URL (see useNav).
   nav: NavStore;
   // Pricing per post and the default; pricingFor() prices every photo.
   pricing: PricingStore;
@@ -74,7 +76,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
   };
 }
 
-export function Scanner({ active, scanner, nav: { nav, go, replace, up, current }, pricing, health, t, lang }: Props) {
+export function Scanner({ active, scanner, nav: { route, go, replace, current }, pricing, health, t, lang }: Props) {
   const dialog = useDialog();
   const { pricingFor, listPosts, createPost } = pricing;
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
@@ -277,10 +279,13 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
   }, [scanner, dialog, t]);
 
   // ---------- Gallery navigation ----------
-  // Three levels: all posts → one post's photos → one photo, each a browser
-  // history entry (see useNav).
-  const folderKey = nav.folder;
-  const photoId = nav.photo;
+  // Three levels: all posts → one post's photos → one photo, each with its
+  // own URL (see useNav).
+  const folderKey = route.page === 'post' || route.page === 'photo' || route.page === 'pricing' ? route.folder : null;
+  // The open photo, found by its scan id: a photo scanned this session keeps
+  // its own batch id, so the URL names the scan.
+  const activeBatch = route.page === 'photo' ? (scanner.batches.find(b => b.scanId === route.scanId) ?? null) : null;
+  const photoId = activeBatch?.id ?? null;
   // The photos Prev/Next step through, fixed when a photo is opened so the
   // order doesn't shift under you as you fix things.
   const [navIds, setNavIds] = useState<string[]>([]);
@@ -339,7 +344,7 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
   // back to the list rather than show an empty screen.
   useEffect(() => {
     if (folderKey != null && postsLoaded && !scanner.loadingSaved && !openFolder && photoId == null) {
-      replace({ folder: null });
+      replace(POSTS);
     }
   }, [folderKey, postsLoaded, scanner.loadingSaved, openFolder, photoId, replace]);
 
@@ -382,13 +387,13 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
           total={f.total}
           settings={pricingFor(f.postId)}
           t={t}
-          onOpen={() => goTo(f.key)}
+          to={{ page: 'post', folder: f.key }}
         />
       ))}
     </div>
   );
 
-  const goTo = useCallback((key: string | null) => go({ folder: key, photo: null }), [go]);
+  const goTo = useCallback((key: string) => go({ page: 'post', folder: key }), [go]);
 
   // Another post (opened, or come back to through history) starts unfiltered.
   useEffect(() => {
@@ -397,29 +402,29 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
     setSelected(new Set());
   }, [folderKey]);
 
-  const openPhoto = useCallback((id: string, ids: string[]) => {
+  // The tile is a link to the photo; this keeps the order it was opened in.
+  const openPhoto = useCallback((ids: string[]) => {
     setNavIds(ids);
-    go({ photo: id });
     setSelecting(false);
     window.scrollTo({ top: 0 });
-  }, [go]);
+  }, []);
 
-  const activeBatch = scanner.batches.find(b => b.id === photoId) ?? null;
-  // An open photo that has gone (deleted), once every saved photo has
-  // loaded: up to its post, back through history when that is the entry below.
+  // A photo URL with no such photo (deleted, or not this user's), once every
+  // saved photo has loaded: its post takes the entry's place.
   useEffect(() => {
-    if (photoId != null && !activeBatch && !scanner.loadingSaved) up();
-  }, [photoId, activeBatch, scanner.loadingSaved, up]);
+    if (route.page === 'photo' && !activeBatch && !scanner.loadingSaved) replace({ page: 'post', folder: route.folder });
+  }, [route, activeBatch, scanner.loadingSaved, replace]);
 
   // Reached through history (or a reload) rather than a tile, a photo steps
   // through its post in gallery order.
   const stepIds = photoId != null && navIds.includes(photoId) ? navIds : (openFolder?.items.map(s => s.batch.id) ?? []);
-  const liveNavIds = stepIds.filter(id => scanner.batches.some(b => b.id === id));
+  // Only a saved photo has a page of its own.
+  const liveNavIds = stepIds.filter(id => scanner.batches.some(b => b.id === id && b.scanId != null));
   const navIndex = photoId ? liveNavIds.indexOf(photoId) : -1;
   const step = useCallback((delta: number) => {
-    const next = liveNavIds[navIndex + delta];
-    if (next) { replace({ photo: next }); window.scrollTo({ top: 0 }); }
-  }, [liveNavIds, navIndex, replace]);
+    const next = scanner.batches.find(b => b.id === liveNavIds[navIndex + delta]);
+    if (next?.scanId != null && folderKey != null) { replace({ page: 'photo', folder: folderKey, scanId: next.scanId }); window.scrollTo({ top: 0 }); }
+  }, [liveNavIds, navIndex, replace, scanner.batches, folderKey]);
 
   // Warm the cache with the next and previous photos' match images, so a step shows them at once.
   const neighbourThumbs = (navIndex < 0 ? [] : [liveNavIds[navIndex - 1], liveNavIds[navIndex + 1]])
@@ -445,7 +450,7 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
       if (photoId != null) {
         if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
-        else if (e.key === 'Escape') up();
+        else if (e.key === 'Escape' && folderKey != null) go({ page: 'post', folder: folderKey });
         return;
       }
       if (e.key === '/') {
@@ -455,7 +460,7 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
       }
       if (e.key === 'Escape' && folderKey != null) {
         if (selecting) { setSelecting(false); setSelected(new Set()); }
-        else up();
+        else go(POSTS);
         return;
       }
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
@@ -473,7 +478,7 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, photoId, step, folderKey, selecting, up]);
+  }, [active, photoId, step, folderKey, selecting, go]);
 
   // Swipe left/right on the photo's header to step, like a photo roll. Kept
   // to the header so it can't fight dragging a price pill or scrolling a row.
@@ -520,14 +525,16 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
       destructive: true,
     });
     if (!ok) return;
-    // Deleting the open photo goes back to its post, so no entry is left for
-    // it. Asked after the confirm: the user may have gone back meanwhile.
-    const open = current().photo;
-    if (open != null && ids.includes(open)) up();
+    // Deleting the open photo: its post takes the entry's place, so none is
+    // left for it. Asked after the confirm: the user may have moved on.
+    const cur = current();
+    if (cur.page === 'photo' && ids.some(id => scanner.batches.find(b => b.id === id)?.scanId === cur.scanId)) {
+      replace({ page: 'post', folder: cur.folder });
+    }
     for (const id of ids) await scanner.removeBatch(id);
     setSelected(new Set());
     setSelecting(false);
-  }, [dialog, scanner, current, up, t]);
+  }, [dialog, scanner, current, replace, t]);
 
   // Renaming a post: click its name on the post page and type. Enter or
   // clicking away saves, Esc cancels. null = not editing.
@@ -554,12 +561,12 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
     try {
       await postsApi.update(folder.postId, { status });
       // Still on the post: the user may have left it meanwhile.
-      if (archived && current().folder === folder.key) up();
+      if (archived && routeFolder(current()) === folder.key) go(POSTS);
     } catch (e) {
       await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
     }
-  }, [dialog, refreshPosts, current, up, t]);
+  }, [dialog, refreshPosts, current, go, t]);
 
   // Deleting a post takes its photos with it. The server refuses while any
   // of its cards are still claimed, so no buyer's claim is lost silently.
@@ -583,9 +590,9 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
       return;
     }
     for (const s of folder.items) await scanner.removeBatch(s.batch.id);
-    if (current().folder === folder.key) up();
+    if (routeFolder(current()) === folder.key) replace(POSTS);
     await refreshPosts();
-  }, [dialog, scanner, current, up, refreshPosts, t]);
+  }, [dialog, scanner, current, replace, refreshPosts, t]);
 
   const finishFolder = useCallback(async (folder: Folder) => {
     const targets = folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null);
@@ -715,54 +722,12 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
       )}
     </UploadZone>
   );
-  // A post's pricing, which it can make the default; for unfiled photos
-  // (null), the default itself. Shown once that pricing is known.
-  const pricingPanel = (postId: number | null) => pricing.pricingKnown(postId) && (
-    <SettingsPanel title={postId == null ? t('menu_default_pricing') : t('settings_title')} settings={pricingFor(postId)} t={t}>
-      {postId != null ? (
-        <div className="post-type-row">
-          <div className="segmented" role="group" aria-label={t('post_type_title')}>
-            {(['photo', 'live'] as const).map(mode => (
-              <button key={mode} type="button" className={pricingFor(postId).priceMode === mode ? 'active' : ''} aria-pressed={pricingFor(postId).priceMode === mode}
-                onClick={() => pricing.update(postId, 'priceMode', mode)}>{t(`post_type_${mode}`)}</button>
-            ))}
-          </div>
-          <p>{t(`post_type_${pricingFor(postId).priceMode}_desc`)}</p>
-        </div>
-      ) : null}
-      <PricingFields
-        settings={pricingFor(postId)}
-        update={(key, value) => pricing.update(postId, key, value)}
-        t={t}
-        health={health}
-      />
-      {postId != null ? (
-        <div className="pricing-default-row">
-          <button type="button" disabled={pricing.isDefault(postId)} onClick={() => pricing.makeDefault(postId)}>
-            {pricing.isDefault(postId) ? t('pricing_is_default') : t('pricing_set_default')}
-          </button>
-        </div>
-      ) : null}
-    </SettingsPanel>
+  // A post's pricing (for unfiled photos, the default itself): its summary,
+  // linking to its page. Shown once that pricing is known.
+  const pricingTitle = (folder: Folder) => (folder.postId == null ? t('menu_default_pricing') : t('settings_title'));
+  const pricingPanel = (folder: Folder) => pricing.pricingKnown(folder.postId) && (
+    <PricingRow title={pricingTitle(folder)} settings={pricingFor(folder.postId)} t={t} to={{ page: 'pricing', folder: folder.key }} />
   );
-
-  // Where the seller is: Posts › post › photo. Each earlier level is a link
-  // back to it; the last one is the page itself.
-  const crumbs = (trail: Array<{ label: string; onClick?: () => void }>) => (
-    <nav className="crumbs" aria-label={t('crumbs_label')}>
-      {trail.map((c, i) => (
-        <span className="crumbs-item" key={i}>
-          {i > 0 ? <Icon name="chevronRight" size={14} className="crumbs-sep" /> : null}
-          {c.onClick ? (
-            <button type="button" className="crumbs-link" onClick={c.onClick}>{c.label}</button>
-          ) : (
-            <span className="crumbs-current" aria-current="page">{c.label}</span>
-          )}
-        </span>
-      ))}
-    </nav>
-  );
-  const toPosts = () => go({ folder: null, photo: null });
 
   return (
     <>
@@ -780,13 +745,13 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
               if (Math.abs(dx) > 60 && Math.abs(dy) < 40) step(dx < 0 ? 1 : -1);
             }}
           >
-            {crumbs([
-              { label: t('scans_title'), onClick: toPosts },
-              ...(openFolder ? [{ label: openFolder.title, onClick: up }] : []),
+            <Breadcrumbs items={[
+              { label: t('scans_title'), to: POSTS },
+              ...(openFolder ? [{ label: openFolder.title, to: { page: 'post' as const, folder: openFolder.key } }] : []),
               { label: numbers.has(activeBatch.id)
                 ? t('crumbs_photo', { n: numbers.get(activeBatch.id)!, total: [...numbers.keys()].filter(id => scanner.batches.find(b => b.id === id)?.postId === activeBatch.postId).length })
                 : t('crumbs_photo_one') },
-            ])}
+            ]} />
             <span className="photo-nav-steps">
               <button
                 type="button" className="round-btn"
@@ -845,11 +810,21 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
             })}
           </nav>
         </section>
+      ) : route.page === 'pricing' && openFolder ? (
+        /* ---------- A post's pricing ---------- */
+        <PricingPage
+          postId={openFolder.postId}
+          title={pricingTitle(openFolder)}
+          crumbs={[{ label: t('scans_title'), to: POSTS }, { label: openFolder.title, to: { page: 'post', folder: openFolder.key } }, { label: t('crumbs_pricing') }]}
+          pricing={pricing}
+          health={health}
+          t={t}
+        />
       ) : openFolder ? (
         /* ---------- One post's photos ---------- */
         <>
           <div className="photo-nav">
-            {crumbs([{ label: t('scans_title'), onClick: up }, { label: openFolder.title }])}
+            <Breadcrumbs items={[{ label: t('scans_title'), to: POSTS }, { label: openFolder.title }]} />
           </div>
           <div className="review-head">
             <div className={`review-title post-title ${titleDraft != null ? 'is-editing' : ''}`}>
@@ -933,7 +908,7 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
             <p className="archived-note"><Icon name="archive" size={16} />{t('scans_archived_note')}</p>
           ) : null}
           {upload}
-          {pricingPanel(openFolder.postId)}
+          {pricingPanel(openFolder)}
           {progress}
           <h3 className="level-label">
             {t('scans_photos_label')}{openFolder.items.length ? <span className="meta"> · {openFolder.items.length}</span> : null}
@@ -1022,7 +997,8 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
                   t={t}
                   selecting={selecting}
                   selected={selected.has(s.batch.id)}
-                  onOpen={() => openPhoto(s.batch.id, visibleItems.map(v => v.batch.id))}
+                  to={s.batch.scanId != null ? { page: 'photo', folder: openFolder.key, scanId: s.batch.scanId } : null}
+                  onOpen={() => openPhoto(visibleItems.map(v => v.batch.id))}
                   onToggle={() => setSelected(prev => {
                     const next = new Set(prev);
                     if (next.has(s.batch.id)) next.delete(s.batch.id); else next.add(s.batch.id);

@@ -39,13 +39,13 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .photo-step.next { justify-content: flex-end; text-align: right; }
 .photo-step > span { display: flex; flex-direction: column; }
 .photo-step-dir { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
-/* Posts › post › photo: earlier levels are links back, the last is this page. */
-.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; font-size: 15px; }
+/* Posts / post / photo: the pages above are links, the last is this page. */
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; min-height: var(--tap); font-size: 15px; }
 .crumbs-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
-.crumbs-sep { color: var(--ink-faint); }
-.crumbs-link { min-height: var(--tap); padding: 4px 6px; background: transparent; color: var(--accent); font-weight: 500; overflow-wrap: anywhere; text-align: left; }
-.crumbs-link:hover { background: var(--fill); }
-.crumbs-current { padding: 4px 6px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.crumbs-sep { padding: 0 2px; color: var(--ink-faint); }
+.crumbs-link { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 4px; color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+.crumbs-link:hover { text-decoration: underline; }
+.crumbs-current { padding: 0 4px; color: var(--ink-soft); overflow-wrap: anywhere; }
 .level-label { margin: 18px 0 8px; font-size: 17px; font-weight: 700; }
 .level-label .meta { font-weight: 500; color: var(--ink-soft); }
 /* A post's name doubles as its rename control: click it and type. */
