@@ -26,6 +26,15 @@ if [ "$local_sha" = "$remote_sha" ]; then
   exit 0
 fi
 
+# A change to how the server runs the app (container setup, dependencies, this
+# script, the timer) never goes live by itself: the timer stops here until
+# someone has read it and runs `DEPLOY_INFRA=1 ./deploy.sh` by hand.
+infra=$(git diff --name-only "$local_sha" "$remote_sha" -- docker-compose.yml Dockerfile .dockerignore deploy.sh deploy/ 'requirements*.txt' | tr '\n' ' ')
+if [ -n "$infra" ] && [ "${DEPLOY_INFRA:-}" != 1 ]; then
+  echo "$(date -Is) [deploy] held @ ${remote_sha:0:8}: server setup changed (${infra% }); review, then run DEPLOY_INFRA=1 $0"
+  exit 0
+fi
+
 echo "$(date -Is) [deploy] ${local_sha:0:8} -> ${remote_sha:0:8}, deploying"
 # --ff-only refuses to clobber local commits: if tower has diverged it fails
 # loudly instead of silently merging. (.env and data/ are gitignored, so a
