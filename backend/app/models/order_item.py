@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
 class OrderItem(Base, TimestampMixin):
     __tablename__ = "order_items"
+    # Ids are never reused (see migration e6c1f8a3b5d2).
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(

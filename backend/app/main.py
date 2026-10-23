@@ -91,10 +91,11 @@ async def lifespan(_app: FastAPI):
     alembic_cfg = AlembicConfig(str(BASE_DIR.parent / "alembic.ini"))
     await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
 
-    # 2) Seed solo-mode user if it doesn't exist
+    # 2) Seed solo-mode user if it doesn't exist. Only in solo mode: with
+    #    sign-in on, a re-created id 1 would be claimed by the next new account.
     async with async_session_factory() as s:
         existing = await s.scalar(select(User).where(User.id == settings.solo_user_id))
-        if not existing:
+        if not existing and not settings.auth_enabled:
             s.add(User(
                 id=settings.solo_user_id,
                 email=f"solo-{settings.solo_user_id}@local",
