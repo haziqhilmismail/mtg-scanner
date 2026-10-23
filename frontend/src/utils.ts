@@ -185,7 +185,7 @@ export const matchThumbs = (batch: Batch): string[] =>
 // The images in a paste (Ctrl/⌘+V), named for when they were pasted.
 // Whether a popup is open over the page: a paste then belongs to it, not
 // to the page's drop area behind it.
-export const popupOpen = () => !!document.querySelector('.feedback-overlay, .modal-shade, .dlg-shade, .modal.open');
+export const popupOpen = () => !!document.querySelector('.feedback-overlay, .modal-shade, .dlg-shade, .modal.open, dialog[open]');
 
 export function pastedImages(e: ClipboardEvent): File[] {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
