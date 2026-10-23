@@ -13,8 +13,8 @@ import {
   type CataloguePhoto, type ConfirmClaim, type Payment,
 } from '../api.ts';
 import {
-  buyersApi, listingsApi, ordersApi,
-  type Buyer, type Listing, type Order, type Post,
+  buyersApi, listingsApi, ordersApi, salesApi,
+  type Buyer, type Listing, type Order, type Post, type SentLine,
 } from '../api/checklist.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import {
@@ -565,16 +565,19 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
   }, [workingOf, unitNow, totalNow, live, settings, t, payment]);
 
   // Copied or shared to the buyer: a live post's prices are now sent and stay.
-  const markSent = useCallback(async (g: (typeof groups)[number]) => {
-    if (!live) return;
+  // Whether every order now holds the prices the buyer was sent.
+  const markSent = useCallback(async (g: (typeof groups)[number]): Promise<boolean> => {
+    if (!live) return true;
+    let all = true;
     for (const o of g.orders) {
       if (o.prices_sent_at) continue;
       const items = o.items.filter(i => inThisPost(listingsById.get(i.listing_id))).map(i => ({ id: i.id, unit_price_myr: unitNow(i).toFixed(2) }));
       try {
         const saved = await ordersApi.setPrices(o.id, items, true);
         setOrders(prev => prev.map(x => (x.id === saved.id ? saved : x)));
-      } catch { /* stays an estimate: copying again sends it */ }
+      } catch { all = false; /* stays an estimate: copying again sends it */ }
     }
+    return all;
   }, [live, inThisPost, listingsById, unitNow]);
   const resend = useCallback(async (g: (typeof groups)[number]) => {
     for (const o of g.orders) {
@@ -637,10 +640,27 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
     setCopied(key);
     setTimeout(() => setCopied(c => (c === key ? null : c)), 1500);
   };
+  // What was just sent to the buyer, kept as sales records: each line's
+  // price is read from the order on the server; the page adds how the card
+  // was priced. Only once markSent has saved a live post's prices, so the
+  // record holds what the buyer saw.
+  const recordSales = useCallback((g: (typeof groups)[number], channel: 'copy' | 'share') => {
+    const lines: SentLine[] = g.items.map(i => {
+      const cd = cardOfListing(listingsById.get(i.listing_id))?.cd;
+      return {
+        order_item_id: i.id,
+        app_usd: cd && cd.usd > 0 ? cd.usd.toFixed(2) : null,
+        app_mult: cd && cd.mult > 0 ? cd.mult.toFixed(3) : null,
+        price_kind: !cd ? null : cd.isManual ? 'manual' : cd.hasOverride ? 'override' : 'auto',
+      };
+    });
+    // Best effort: a lost call is made up the next time the summary is sent.
+    salesApi.record(channel, postId, settings.priceMode, lines).catch(() => {});
+  }, [cardOfListing, listingsById, postId, settings.priceMode]);
   const copySummary = useCallback(async (g: (typeof groups)[number]) => {
     try { await navigator.clipboard.writeText(summaryText(g)); flash(`${g.buyerId}:text`); } catch { return; /* clipboard blocked */ }
-    await markSent(g);
-  }, [summaryText, markSent]);
+    if (await markSent(g)) recordSales(g, 'copy');
+  }, [summaryText, markSent, recordSales]);
   const copyQr = useCallback(async (g: (typeof groups)[number]) => {
     if (!qrFile) return;
     try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': qrFile })]); flash(`${g.buyerId}:qr`); } catch { /* clipboard blocked */ }
@@ -648,8 +668,8 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
   const shareWithQr = useCallback(async (g: (typeof groups)[number]) => {
     if (!qrFile) return;
     try { await navigator.share({ text: summaryText(g), files: [qrFile] }); } catch { return; /* cancelled */ }
-    await markSent(g);
-  }, [qrFile, summaryText, markSent]);
+    if (await markSent(g)) recordSales(g, 'share');
+  }, [qrFile, summaryText, markSent, recordSales]);
 
   // ---------- render ----------
   if (!loaded || (scanner.loadingSaved && scanner.batches.length === 0)) {

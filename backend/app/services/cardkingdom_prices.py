@@ -31,6 +31,7 @@ $0.99 because that's what the seller wants to multiply against.
 import asyncio
 import sqlite3
 import time
+from datetime import datetime, timezone
 
 import aiohttp
 import ijson
@@ -151,6 +152,8 @@ class CKPriceIndex:
     def __init__(self):
         self._conn: sqlite3.Connection | None = None
         self.matched_scryfall_count: int = 0
+        # When the open price list was downloaded (the file's time), UTC.
+        self.fetched_at: datetime | None = None
 
     async def refresh(self, force: bool = False) -> None:
         """
@@ -195,6 +198,7 @@ class CKPriceIndex:
         old = self._conn
         self._conn = conn
         self.matched_scryfall_count = unique
+        self.fetched_at = datetime.fromtimestamp(DB_FILE.stat().st_mtime, timezone.utc)
         del old  # refcount-close lets in-flight lookups release the old handle
         print(f"[cardkingdom] opened existing cache: {unique} unique scryfall_ids "
               f"({total} rows)", flush=True)
@@ -297,6 +301,7 @@ class CKPriceIndex:
         read_conn = sqlite3.connect(DB_FILE, check_same_thread=False, isolation_level=None)
         old = self._conn
         self._conn = read_conn
+        self.fetched_at = datetime.fromtimestamp(DB_FILE.stat().st_mtime, timezone.utc)
         del old  # refcount-close; safe vs. in-flight lookups holding the prior ref
         return unique_count, product_count
 
