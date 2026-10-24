@@ -7,9 +7,6 @@ import { pausableTimer } from './pausableTimer.ts';
 export interface ToastUndo {
   undoLabel: string;
   onUndo: () => void;
-  // Runs once if the toast goes without Undo: its time ran out, or another
-  // toast took its place. The moment for what Undo would have stopped.
-  onEnd?: () => void;
 }
 type ShowToast = (message: string, undo?: ToastUndo) => void;
 
@@ -27,34 +24,13 @@ interface Shown { id: number; message: string; undo?: ToastUndo }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [shown, setShown] = useState<Shown | null>(null);
-  // The toast showing until it settles: Undo pressed, or gone without it.
-  const live = useRef<Shown | null>(null);
-  const ids = useRef(0);
-  const settle = useCallback((toast: Shown, undone: boolean) => {
-    if (live.current !== toast) return;
-    live.current = null;
-    if (undone) toast.undo?.onUndo();
-    else toast.undo?.onEnd?.();
-  }, []);
-  const show = useCallback<ShowToast>((message, undo) => {
-    if (live.current) settle(live.current, false);
-    const toast = { id: ++ids.current, message, undo };
-    live.current = toast;
-    setShown(toast);
-  }, [settle]);
+  const show = useCallback<ShowToast>((message, undo) => setShown(s => ({ id: (s?.id ?? 0) + 1, message, undo })), []);
   // Everything outside an open modal dialog is inert, so the region moves
   // into the newest one: a toast over a dialog keeps a working Undo.
   const host = useTopModal();
   const region = (
     <div className="ui-toasts" role="status">
-      {shown ? (
-        <ToastBar
-          key={shown.id}
-          toast={shown}
-          onUndo={() => settle(shown, true)}
-          onGone={() => { settle(shown, false); setShown(s => (s?.id === shown.id ? null : s)); }}
-        />
-      ) : null}
+      {shown ? <ToastBar key={shown.id} toast={shown} onGone={() => setShown(s => (s?.id === shown.id ? null : s))} /> : null}
     </div>
   );
   return (
@@ -65,10 +41,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function ToastBar({ toast, onUndo, onGone }: { toast: Shown; onUndo: () => void; onGone: () => void }) {
+function ToastBar({ toast, onGone }: { toast: Shown; onGone: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof pausableTimer> | null>(null);
   const leave = useRef(() => {});
+  // The toast still takes clicks while it fades out: Undo runs once.
+  const undone = useRef(false);
   leave.current = () => {
     timer.current?.stop();
     hideEl(ref.current!).then(onGone, onGone);
@@ -98,7 +76,7 @@ function ToastBar({ toast, onUndo, onGone }: { toast: Shown; onUndo: () => void;
     >
       <span className="ui-toast-text">{toast.message}</span>
       {toast.undo ? (
-        <button type="button" className="ui-btn ui-btn--plain" onClick={() => { onUndo(); leave.current(); }}>
+        <button type="button" className="ui-btn ui-btn--plain" onClick={() => { if (undone.current) return; undone.current = true; toast.undo?.onUndo(); leave.current(); }}>
           {toast.undo.undoLabel}
         </button>
       ) : null}

@@ -333,16 +333,15 @@ export interface Payment {
 
 export const paymentApi = {
   get: async (): Promise<Payment> => (await request('/api/payment')).json(),
-  // `keepalive` lets a delete finish as the page closes.
-  save: async (p: Omit<Payment, 'qr_version'>, keepalive = false): Promise<Payment> => (await request('/api/payment', {
-    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(p), keepalive,
+  save: async (p: Omit<Payment, 'qr_version'>): Promise<Payment> => (await request('/api/payment', {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(p),
   })).json(),
   uploadQr: async (file: File): Promise<Payment> => {
     const fd = new FormData();
     fd.append('image', file);
     return (await request('/api/payment/qr', { method: 'PUT', body: fd })).json();
   },
-  deleteQr: async (keepalive = false): Promise<Payment> => (await request('/api/payment/qr', { method: 'DELETE', keepalive })).json(),
+  deleteQr: async (): Promise<Payment> => (await request('/api/payment/qr', { method: 'DELETE' })).json(),
   qrUrl: (version: string) => imageUrl('/api/payment/qr', { v: version }),
 };
 
