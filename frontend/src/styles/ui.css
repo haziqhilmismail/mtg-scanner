@@ -175,7 +175,7 @@ dialog .ui-toasts { bottom: calc(24px + env(safe-area-inset-bottom)); }
   display: flex; align-items: center; gap: 8px;
   width: 100%; max-width: 560px; min-height: 48px; padding: 4px 6px 4px 16px;
   border-radius: 12px;
-  background: var(--toast-bg, #3a3a3c); color: var(--toast-ink, #fff);
+  background: var(--toast-bg); color: var(--toast-ink);
   box-shadow: var(--shadow-lg);
   font-size: 15px; line-height: 1.3;
   opacity: 0; transform: translateY(8px);
@@ -183,7 +183,7 @@ dialog .ui-toasts { bottom: calc(24px + env(safe-area-inset-bottom)); }
 }
 .ui-toast[data-shown] { opacity: 1; transform: none; transition-duration: 200ms; }
 .ui-toast-text { flex: 1; min-width: 0; padding: 10px 0; overflow-wrap: anywhere; }
-.ui-toast .ui-btn { --ui-bg-hover: color-mix(in srgb, currentColor 16%, transparent); flex: none; min-height: 40px; padding: 0 12px; color: var(--toast-accent, #6cb4ff); }
+.ui-toast .ui-btn { --ui-bg-hover: color-mix(in srgb, currentColor 16%, transparent); flex: none; min-height: 40px; padding: 0 12px; color: var(--toast-accent); }
 
 .ui-menu {
   position: fixed; z-index: calc(var(--z-bar, 40) + 1);
