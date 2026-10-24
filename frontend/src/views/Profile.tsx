@@ -49,7 +49,7 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
               <div className="profile-who-text">
                 <strong className="profile-who-name">{user ? user.name || user.email : t('profile_solo_title')}</strong>
                 <span className="profile-who-sub">
-                  {!user ? t('profile_solo_sub') : user.name ? t('profile_google_as', { email: user.email }) : t('profile_google')}
+                  {t(user ? 'profile_google' : 'profile_solo_sub')}
                 </span>
               </div>
               {user && onSignOut ? (
