@@ -81,8 +81,10 @@ export function SlipsSheet({ open, onClose, buyers, postTitle }: Props) {
               <li key={b.id}>
                 <label className="claims-slip-row">
                   <input type="checkbox" checked={picked.has(b.id)} onChange={e => toggle(b.id, e.target.checked)} />
-                  <span className="claims-slip-name">{b.name}</span>
-                  <span className="claims-slip-phone">{b.phone || t('slips_no_phone')}</span>
+                  <span className="claims-slip-text">
+                    <span className="claims-slip-name">{b.name}</span>
+                    <span className="claims-slip-phone">{b.phone || t('slips_no_phone')}</span>
+                  </span>
                 </label>
               </li>
             ))}

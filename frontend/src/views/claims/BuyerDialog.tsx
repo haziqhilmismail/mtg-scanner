@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
@@ -70,6 +70,7 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, hasPaymen
 // The buyer's number, saved with its own button: nothing saves as you type.
 function PhoneField({ saved, onSave }: { saved: string; onSave: (phone: string) => Promise<boolean> }) {
   const t = useT();
+  const id = useId();
   const [value, setValue] = useState(saved);
   const [busy, setBusy] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -86,14 +87,17 @@ function PhoneField({ saved, onSave }: { saved: string; onSave: (phone: string) 
         setJustSaved(ok);
       }}
     >
-      <TextField
-        label={t('claims_phone')} inputMode="tel" autoComplete="off" maxLength={32}
-        placeholder={t('claims_phone_placeholder')} value={value}
-        onChange={e => { setValue(e.target.value); setJustSaved(false); }}
-      />
-      <button type="submit" className="ui-btn" disabled={!changed || busy}>
-        {justSaved && !changed ? t('claims_phone_saved') : t('claims_phone_save')}
-      </button>
+      <label id={`${id}-label`} htmlFor={`${id}-input`} className="ui-label">{t('claims_phone')}</label>
+      <div className="claims-phone-row">
+        <TextField
+          id={`${id}-input`} aria-labelledby={`${id}-label`} inputMode="tel" autoComplete="off" maxLength={32}
+          placeholder={t('claims_phone_placeholder')} value={value}
+          onChange={e => { setValue(e.target.value); setJustSaved(false); }}
+        />
+        <button type="submit" className="ui-btn" disabled={!changed || busy}>
+          {justSaved && !changed ? t('claims_phone_saved') : t('claims_phone_save')}
+        </button>
+      </div>
     </form>
   );
 }
