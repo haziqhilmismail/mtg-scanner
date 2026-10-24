@@ -2,7 +2,7 @@
 // in dev (see vite.config.ts).
 
 import { imageUrl, request } from './api/http.ts';
-import type { Candidate, Credits, DetectedCard, ScanResponse, ScanUiState } from './types.ts';
+import type { Candidate, Correction, Credits, DetectedCard, ScanResponse, ScanUiState } from './types.ts';
 
 export interface Health {
   ok: boolean;
@@ -70,6 +70,15 @@ export async function saveScanState(id: number, state: ScanUiState, keepalive = 
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ state }),
   });
+}
+
+export function recordCorrection({ scanId, cardId, scryfallId, kind }: Correction): void {
+  request(`/api/scans/${scanId}/cards/${cardId}/correction`, {
+    method: 'PUT',
+    keepalive: true,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scryfall_id: scryfallId, kind }),
+  }).catch(() => {});
 }
 
 export async function deleteScan(id: number): Promise<void> {

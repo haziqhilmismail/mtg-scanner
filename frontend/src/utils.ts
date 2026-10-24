@@ -1,4 +1,4 @@
-import type { Batch, Candidate, CardRowData, Credits, DetectedCard, LockedPrice, PillOffset, ScanUiState, Settings } from './types.ts';
+import type { Batch, Candidate, CardRowData, Correction, Credits, DetectedCard, LockedPrice, PillOffset, ScanUiState, Settings } from './types.ts';
 import type { T } from './i18n.ts';
 import type { Payment } from './api.ts';
 
@@ -286,6 +286,14 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
       pillOffset: batch.pillOffset?.[origIdx] ?? null,
     };
   });
+}
+
+export function correctionFor(batch: Batch, idx: number, picked?: Candidate): Correction | null {
+  const card = batch.response?.cards[idx];
+  const shown = card?.candidates[0]?.scryfall_id ?? '';
+  const scryfallId = picked ? picked.scryfall_id : shown;
+  if (batch.scanId == null || !card || !scryfallId) return null;
+  return { scanId: batch.scanId, cardId: card.id, scryfallId, kind: !picked || scryfallId === shown ? 'confirm' : 'pick' };
 }
 
 // The prices to lock a photo at when it is finished: each kept card's price

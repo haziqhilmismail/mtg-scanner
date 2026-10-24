@@ -632,13 +632,7 @@ export function Scanner({ active, scanner, nav: { nav, go, replace, up, current 
 
   const onPickPrinting = (printing: Candidate) => {
     if (!printingsCtx) return;
-    scanner.replaceCandidate(printingsCtx.batchId, printingsCtx.idx, {
-      ...printing,
-      _lookup_failed: false,
-      _manual: false,
-    });
-    // The seller chose this printing, so the "check the version" notice is answered.
-    scanner.confirmVersion(printingsCtx.batchId, printingsCtx.idx);
+    scanner.pickPrinting(printingsCtx.batchId, printingsCtx.idx, printing);
     scanner.setRelookupMsg(printingsCtx.batchId, printingsCtx.idx, {
       type: 'ok',
       text: t('modal_switched', { name: printing.set_name || printing.set || '' }),

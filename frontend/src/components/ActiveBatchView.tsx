@@ -244,7 +244,7 @@ export function ActiveBatchView({
                 versionOk={batch.versionOk[cd.origIdx]}
                 settings={settings}
                 t={t}
-                onVersionOk={() => scanner.confirmVersion(batch.id, cd.origIdx)}
+                onVersionOk={() => scanner.looksRight(batch.id, cd.origIdx)}
                 onRemove={() => scanner.setRemoved(batch.id, cd.origIdx, true)}
                 onQtyStep={(d) => scanner.stepQuantity(batch.id, cd.origIdx, d)}
                 onMultStep={(d) => scanner.stepMult(batch.id, cd.origIdx, d, cd.globalMult)}
