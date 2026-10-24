@@ -182,7 +182,7 @@ export function CardViewer({ cd, open, start, locked, t, onClose, onChangeCard }
   const printing = set ? [set, `#${cd.sel.collector_number || '?'}`, cd.sel.set_name] : [t('photo_no_printing')];
   const yours = { src: cd.card.crop_b64, alt: t('photo_alt_yours', { name }), label: t('tile_your_card') };
   const caption = (
-    <div className="ui-viewer-caption photo-viewer-caption">
+    <div className="ui-viewer-caption photo-viewer-caption is-card">
       <strong>{name}</strong>
       <span>{[...printing, t(cd.isFoil ? 'foil_on' : 'foil_off')].filter(Boolean).join(' · ')}</span>
       {cd.sel.image_url ? <span className="photo-viewer-hint">{t('photo_viewer_hint')}</span> : null}
