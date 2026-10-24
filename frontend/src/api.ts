@@ -300,9 +300,10 @@ export interface ClaimDraft {
   items: Array<{ scan_id: number; card_id: number; qty: number; said: string; unclear: string }>;
 }
 
+// `skipped`: the comments read as no claim, as "Name: words".
 export async function parseClaims(
   text: string, photos: CataloguePhoto[],
-): Promise<{ claims: ClaimDraft[]; credits: Credits }> {
+): Promise<{ claims: ClaimDraft[]; skipped: string[]; credits: Credits }> {
   const r = await request('/api/claims/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -354,9 +355,9 @@ export const paymentApi = {
   qrUrl: (version: string) => imageUrl('/api/payment/qr', { v: version }),
 };
 
-// Cards & Hobbies drop-off slips as a PDF, eight to an A4 page. Every field
-// may be empty: the slip then has a line to write it on.
-export async function dropoffSlipsPdf(body: { seller: string; slips: Array<{ buyer: string; phone: string }>; blank: number }): Promise<Blob> {
+// Drop-off slips as a PDF, ten to an A4 page. An empty name or phone is a
+// line to write on; the rest of the last page is blank slips.
+export async function dropoffSlipsPdf(body: { slips: Array<{ buyer: string; phone: string }> }): Promise<Blob> {
   return (await request('/api/slips', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
   })).blob();

@@ -201,6 +201,8 @@ export const ordersApi = {
   unsendPrices: (id: number) => json<Order>('DELETE', `/api/orders/${id}/prices-sent`),
   markDelivered: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-delivered`),
   cancel: (id: number) => json<Order>('POST', `/api/orders/${id}/cancel`),
+  // Undoes cancel; the paid and dropped-off times are kept.
+  restore: (id: number) => json<Order>('POST', `/api/orders/${id}/restore`),
 };
 
 // ---------- Posts ----------

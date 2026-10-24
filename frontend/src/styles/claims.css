@@ -1,134 +1,303 @@
-.claim-sort { flex: none; }
-
-/* ---------- Claims ---------- */
-/* A <select> can't wrap its text, so the post picker gets the whole row
-   instead of a narrow box that cuts the name short. */
-.claims-post { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 400; color: var(--ink-soft); min-width: 0; flex: 0 1 320px; }
-.claims-post select { flex: 1; min-width: 0; font-size: 15px; background-color: var(--paper); }
-
-.claims-help-text { margin: 0 0 16px; font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
+/* ---------- Used by the Scanner pages (PostsPage, PostPage, PricingPage) ---------- */
 .claims-hint { margin: 0 0 12px; font-size: 15px; color: var(--ink-soft); }
-.claims-note {
-  display: flex; align-items: flex-start; gap: 6px; margin: 6px 0 0;
-  font-size: 13px; line-height: 1.35; color: var(--warn);
-}
-.claims-note .icon { margin-top: 2px; }
-.claims-note.is-ok { color: var(--green); }
-/* Checking the sorted screenshots: each photo large (full width on a phone)
-   with its screenshots beside it on a PC, under it on a phone. Every picture
-   opens full size on a tap. */
-.drop.drop-compact { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 10px; min-height: 64px; padding: 12px 16px; margin-top: 12px; }
-.drop.drop-compact strong { font-size: 15px; }
+.claims-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.claims-actions .spacer { flex: 1; }
 .post-type-row { margin: 0 0 14px; }
 .post-type-row p { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
 .new-post-type { display: flex; flex-direction: column; gap: 6px; }
 .new-post-type .post-type-label { font-size: 15px; font-weight: 600; }
 .new-post-type p { margin: 0; }
 .post-type-default { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--fill-strong); color: var(--ink-soft); }
-.live-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 0; font-size: 13px; color: var(--warn); }
-.live-status.is-sent { color: var(--green); }
-.live-status .link-btn { font-size: 13px; }
-.claims-head-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
-.claims-review-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.feedback-modal.claims-popup { max-width: 720px; }
-.post-ref { display: flex; flex-direction: column; gap: 18px; }
-.post-ref-photo h3 { margin: 0 0 6px; font-size: 17px; }
-.post-ref-photo h3 .meta { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
-.post-ref-photo img { display: block; width: 100%; max-width: 480px; height: auto; margin-bottom: 8px; border-radius: var(--radius); }
-.sort-group { padding: 12px; margin-bottom: 12px; background: var(--surface-2); border-radius: var(--radius); }
-.sort-group.is-unsorted { box-shadow: inset 0 0 0 1.5px var(--warn); }
-.sort-group-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.sort-group-title { display: flex; align-items: baseline; gap: 8px; font-size: 17px; }
-.sort-group-title .meta { font-size: 13px; color: var(--ink-soft); }
-.sort-photo, .sort-shot-img {
-  display: block; padding: 0; min-height: 0; border: 0; border-radius: var(--radius);
-  background: var(--paper); overflow: hidden; cursor: zoom-in;
-}
-.sort-photo { width: 100%; max-width: 420px; }
-.sort-photo img { display: block; width: 100%; height: auto; }
-.sort-shot { display: grid; grid-template-columns: 1fr; gap: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
-.sort-shot + .sort-shot { margin-top: 10px; }
-.sort-shot-img { width: 100%; }
-.sort-shot-img img { display: block; width: 100%; max-height: 520px; object-fit: contain; object-position: top; background: var(--paper); }
-.sort-shot-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.sort-shot-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.sort-by { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--green); }
-.sort-by.is-guess, .sort-by.is-follows, .sort-by.is-none { color: var(--warn); }
-.sort-move { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
-.sort-move select { flex: 1; min-height: var(--tap); font-size: 16px; }
-.sort-shot textarea { width: 100%; font-size: 15px; line-height: 1.4; background: var(--paper); resize: vertical; }
-@media (min-width: 700px) {
-  .sort-group-head { flex-direction: row; align-items: flex-start; }
-  .sort-photo { width: 320px; flex: none; }
-  .sort-shot { grid-template-columns: 300px minmax(0, 1fr); }
+
+/* ---------- Claims (DESIGN.md section 8) ---------- */
+/* Raw buttons here are written `button.x` so they out-rank buttons.css's
+   bare button, button:hover and button:active; changes to a ui-btn are
+   written `.ui-btn.x`, because ui.css loads after this file. */
+
+.claims-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 8px 0 16px; }
+.claims-head .ui-btn { flex: 0 1 auto; min-width: 0; padding: 0 14px 0 12px; }
+.claims-load-error { margin: 0 0 16px; padding: 10px 12px; border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 13px; overflow-wrap: anywhere; }
+.claims-approx { font-weight: 400; color: var(--ink-soft); }
+
+/* Phone: post and totals, then the buyers. Wide: the totals stay in a side column. */
+.claims-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.claims-main { min-width: 0; container-type: inline-size; }
+@media (min-width: 1024px) {
+  .claims-layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .claims-side { position: sticky; top: calc(var(--bar-h) + 16px); }
+  .claims-main > .ui-section-title:first-child, .claims-main > .ui-section-head:first-child { margin-top: 0; }
 }
 
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.card-tile {
-  display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 6px;
-  border: 0; border-radius: 10px; background: var(--paper); color: var(--ink); text-align: left; font: inherit;
-  box-shadow: inset 0 0 0 1px var(--rule);
+.claims-totals-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 12px; }
+.claims-total { margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.claims-total.is-paid { align-items: flex-end; margin-left: auto; text-align: right; }
+.claims-total-label { font-size: 13px; color: var(--ink-soft); }
+/* An amount never breaks across lines; the two move apart instead. */
+.claims-big { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; white-space: nowrap; }
+.claims-paid { font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--green); white-space: nowrap; }
+.claims-bar { height: 6px; margin: 12px 0 8px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.claims-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--green); }
+.claims-totals-meta { margin: 0; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.claims-totals-meta + .claims-totals-meta { margin-top: 4px; }
+.claims-totals > .ui-btn--primary { margin-top: 14px; }
+.claims-totals-more { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* Side by side while both labels fit on one line, else one per row. */
+.claims-totals-more .ui-btn { flex: 1 1 auto; padding: 0 14px; }
+
+.claims-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 20px 20px; text-align: center; }
+.claims-empty-icon { width: 52px; height: 52px; margin-bottom: 4px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.claims-empty-title { margin: 0; font-size: 20px; font-weight: 700; }
+.claims-empty p { margin: 0; font-size: 15px; line-height: 1.4; color: var(--ink-soft); text-wrap: pretty; }
+.claims-empty .ui-btn { margin-top: 10px; }
+
+.ui-section-title.claims-steps-title { margin: 28px 0 10px; }
+.claims-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 16px; }
+.claims-steps.is-cards { gap: 8px; }
+.claims-step { display: flex; gap: 14px; }
+.claims-steps.is-cards .claims-step { padding: 14px 16px; border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); }
+.claims-step-n { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.claims-step-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.claims-step-text strong { font-size: 17px; font-weight: 600; line-height: 1.3; }
+.claims-step-text span { font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+
+/* ---------- Buyers ---------- */
+.claims-buyers-head { flex-wrap: wrap; }
+.claims-sort { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+.claims-sort .ui-select > select { min-height: var(--tap); padding: 0 34px 0 12px; border-radius: 10px; font-size: 15px; }
+.claims-sort .ui-select-icon { right: 11px; }
+.claims-filter { margin-bottom: 12px; }
+.claims-filter .ui-seg-opt { flex-direction: row; flex-wrap: wrap; gap: 0 4px; }
+.claims-filter-n { color: var(--ink-soft); font-weight: 500; }
+/* Zoomed in, the four choices go two by two instead of breaking words. */
+@container (max-width: 260px) {
+  .claims-filter { flex-wrap: wrap; }
+  .claims-filter .ui-seg-opt { flex: 1 1 40%; }
 }
-button.card-tile { cursor: pointer; }
-button.card-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.card-tile.is-selected { box-shadow: inset 0 0 0 2.5px var(--accent); }
-.card-tile-img { flex: none; width: 40px; height: 56px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
-.card-tile-img img { width: 100%; height: 100%; object-fit: cover; }
-.card-tile-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
-.card-tile-name { font-size: 13px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
-.card-tile-meta { font-size: 12px; color: var(--ink-soft); }
-.card-tile-status { font-size: 12px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
-.card-tile-status.is-free { color: var(--green); }
-.card-tile-status.is-part { color: var(--accent); }
-.card-tile-status.is-taken { color: var(--ink-soft); }
-.card-picker { margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--rule); }
-.card-picker .card-tile { background: var(--surface-2); box-shadow: none; }
-.card-picker .card-tile.is-selected, .card-picker .card-tile:hover { box-shadow: inset 0 0 0 2px var(--accent); }
-.card-picker-hint { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
-.card-picker-photo { margin: 0 0 6px; font-size: 12px; color: var(--ink-soft); overflow-wrap: anywhere; }
-.card-picker > div + div { margin-top: 12px; }
-.card-picker > .link-btn { margin-top: 8px; }
+.claims-none { margin: 0; padding: 24px 16px; text-align: center; font-size: 15px; color: var(--ink-soft); }
 
-/* One column: adding comments, then who claimed what. The post's cards are a
-   popup (In This Post), opened when needed. */
-.claims-work { display: grid; grid-template-columns: minmax(0, 1fr); }
-.inv-foot { margin: 14px 0 0; font-size: 12px; }
-.claims-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
-.claims-actions .spacer, .claim-row-foot .spacer { flex: 1; }
-.claim-draft { padding: 12px; margin-bottom: 10px; background: var(--surface-2); border-radius: var(--radius); }
-.claim-draft-head { display: flex; align-items: center; gap: 8px; }
-.claim-draft-head input { flex: 1; min-width: 0; font-weight: 600; background: var(--paper); }
-.claim-quote { margin: 6px 2px 8px; font-size: 13px; color: var(--ink-soft); }
-.claim-item { margin-top: 8px; }
-.claim-item-row { display: flex; align-items: center; gap: 8px; }
-.claim-item-card { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
-.claim-item-card .card-tile { flex: 1; min-width: 0; }
-.claim-item-photo { flex: none; font-size: 12px; color: var(--ink-soft); }
-.claim-item-q { flex: 1; min-width: 0; margin: 0; }
-.claim-change { flex: none; }
-.claim-qty { display: flex; align-items: center; gap: 4px; font-size: 15px; color: var(--ink-soft); }
-.claim-qty input { width: 48px; text-align: center; background: var(--paper); }
-.claim-draft > .link-btn { margin-top: 8px; }
-.claims-list { display: flex; flex-direction: column; gap: 12px; }
-.claim-row { padding: 14px; background: var(--paper); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
-.claim-row-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.claim-row-name { font-size: 17px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.claim-row-total { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-.claim-row.is-done .claim-row-name, .claim-row.is-done .claim-row-total { color: var(--ink-soft); }
-.claim-row-items { list-style: none; margin: 6px 0 12px; padding: 0; font-size: 15px; color: var(--ink-soft); }
-.claim-row-items li { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
-.claim-row-name { display: flex; flex-direction: column; align-items: flex-start; }
-.claim-row-phone { min-height: 0; padding: 2px 0; font-size: 13px; font-weight: 500; }
-.slips-sheet { max-height: 92dvh; overflow-y: auto; }
-.slips-buyers { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius); }
-.slips-buyers legend { padding: 0 4px; font-size: 13px; color: var(--ink-soft); }
-.slips-buyers .meta { color: var(--ink-soft); font-weight: 400; }
-.claim-item-name { display: flex; flex-direction: column; min-width: 0; }
-.claim-item-working { font-size: 13px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
-.claim-row-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.claims-buyers { display: grid; gap: 12px; align-items: start; }
+@media (min-width: 768px) {
+  .claims-buyers { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+}
+.claims-buyer { container-type: inline-size; min-width: 0; padding: 14px 16px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); }
+/* The total moves under the name when both don't fit (big text, zoom). */
+.claims-buyer-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 10px; }
+button.claims-buyer-open {
+  flex: 1 1 140px; min-width: 0; min-height: var(--tap);
+  display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 3px;
+  margin: -4px; padding: 4px; border: 0; border-radius: 10px;
+  background: none; color: inherit; font: inherit; text-align: left;
+}
+button.claims-buyer-open:hover, button.claims-buyer-open:active { background: none; transform: none; }
+@media (hover: hover) {
+  button.claims-buyer-open:hover .claims-buyer-name-text { text-decoration: underline; text-underline-offset: 3px; }
+}
+.claims-buyer-name { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 17px; font-weight: 600; line-height: 1.25; }
+.claims-buyer-name-text { min-width: 0; overflow-wrap: anywhere; }
+.claims-status { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1.35; font-weight: 400; color: var(--ink-soft); }
+.claims-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.claims-dot.is-unpaid { background: var(--warn); }
+.claims-dot.is-paid { background: var(--green); }
+.claims-dot.is-done { background: var(--ink-faint); }
+.claims-buyer-total { flex: none; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; white-space: nowrap; }
+.claims-buyer.is-done :is(.claims-buyer-name, .claims-buyer-total) { color: var(--ink-soft); }
 
-.form-error {
-  margin-top: 10px; padding: 10px 12px;
-  background: var(--warn-soft); color: var(--warn);
-  border-radius: var(--radius); font-size: 13px;
+.claims-lines { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--rule); }
+.claims-line { display: flex; justify-content: space-between; gap: 12px; }
+.claims-line-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.claims-line-name { font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.claims-line-working { font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.claims-line-total { flex: none; font-size: 15px; font-weight: 600; white-space: nowrap; }
+
+.claims-buyer-actions { display: flex; gap: 8px; margin-top: 14px; }
+.claims-buyer-actions .ui-btn { padding: 0 16px; }
+.claims-buyer-actions .claims-copy { flex: 1 1 auto; min-width: 0; padding: 0 12px; }
+.ui-btn.claims-copy.is-copied { color: var(--green); }
+.ui-icon-btn.claims-qr { padding: 0; }
+.ui-btn.claims-mark-paid { --ui-bg: var(--green-soft); --ui-bg-hover: color-mix(in srgb, var(--green) 26%, transparent); color: var(--green); }
+@container (max-width: 290px) {
+  .claims-buyer-actions { flex-wrap: wrap; }
+  .claims-buyer-actions > :last-child { flex: 1 1 100%; }
+}
+.claims-buyer-done { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+.claims-buyer-done-text { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
+.claims-buyer-done .ui-btn { flex: none; margin: 0 -10px 0 auto; }
+
+/* ---------- Dialogs ---------- */
+@media (max-width: 767px) {
+  .claims-dialog .ui-dialog-foot { flex-wrap: wrap; }
+}
+.claims-intro { margin: 0 4px 14px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.claims-foot-note { margin: 10px 4px 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); overflow-wrap: anywhere; }
+.claims-foot-note a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.claims-foot-note a:hover { text-decoration: underline; }
+@media (pointer: coarse) {
+  /* Touch: the inline link answers to a 44px area, as small buttons do (buttons.css). */
+  .claims-foot-note a { position: relative; }
+  .claims-foot-note a::after { content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, var(--tap)); height: var(--tap); transform: translate(-50%, -50%); }
+}
+button.claims-text-btn { display: inline; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; }
+button.claims-text-btn:hover, button.claims-text-btn:active { background: none; transform: none; text-decoration: underline; }
+.claims-note { display: flex; align-items: flex-start; gap: 8px; margin: 10px 2px 0; font-size: 13px; line-height: 1.35; color: var(--warn); overflow-wrap: anywhere; }
+.claims-note .icon { flex: none; margin-top: 1px; }
+.claims-error { margin-top: 12px; }
+.claims-box { margin: 0; padding: 0; list-style: none; border-radius: var(--radius); background: var(--paper); overflow: hidden; }
+.claims-box > li + li { border-top: 1px solid var(--rule); }
+.claims-spin { flex: none; width: 16px; height: 16px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: claims-spin 0.8s linear infinite; }
+@keyframes claims-spin { to { transform: rotate(360deg); } }
+
+/* The buyer: the message as a bubble, then status, number and Remove. */
+.claims-bubble { margin: 6px 0 0; padding: 14px 16px; border-radius: 16px; background: var(--surface-2); font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.claims-buyer-dialog .ui-field { margin-top: 22px; }
+.ui-dialog-sub .claims-status { display: inline-flex; }
+.claims-phone { display: flex; flex-direction: column; gap: 6px; margin-top: 22px; }
+.claims-phone-row { display: flex; gap: 8px; }
+.claims-buyer-dialog .claims-phone-row .ui-field { flex: 1; margin-top: 0; }
+.claims-phone-row > .ui-btn { flex: none; min-height: 48px; }
+@media (max-width: 767px) {
+  .claims-buyer-dialog .ui-dialog-foot > * { flex: 1 1 auto; }
+}
+.ui-btn.claims-remove { display: flex; margin: 18px auto 0; }
+
+/* Add comments: each screenshot with its photo, then the comments read. */
+/* Phone: the screenshot beside its status, the photo grid below both.
+   Wide: the screenshot in its own column, larger. */
+.claims-shot {
+  display: grid; grid-template-columns: 72px minmax(0, 1fr); grid-template-areas: "thumb head" "rest rest"; gap: 0 12px;
+  margin-bottom: 12px; padding: 12px; border-radius: 14px; background: var(--surface-2);
+}
+.claims-shot-head { grid-area: head; min-width: 0; display: flex; align-items: flex-start; gap: 12px; }
+.claims-shot-rest { grid-area: rest; min-width: 0; container-type: inline-size; }
+button.claims-shot-thumb { grid-area: thumb; width: 72px; height: 128px; min-height: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--fill); cursor: zoom-in; }
+button.claims-shot-thumb:hover { background: var(--fill); }
+.claims-shot-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.claims-shot-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.claims-shot-status { margin: 0; display: flex; align-items: flex-start; gap: 6px; font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.claims-shot-status .icon { flex: none; margin-top: 1px; }
+.claims-shot-status.is-found { color: var(--green); }
+.claims-shot-status.is-picked { color: var(--accent); }
+.claims-shot-status.is-check, .claims-shot-count.is-check { color: var(--warn); }
+.claims-shot-count { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.claims-shot-head > .ui-icon-btn { margin: -8px -8px 0 0; }
+.claims-for { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 6px; }
+.claims-for .ui-btn { flex: none; margin-right: -10px; }
+.claims-photo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+/* Four across until the cells would be smaller than a finger (zoomed in). */
+@container (max-width: 250px) {
+  .claims-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.claims-photo-cell { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 4px; color: var(--ink-soft); cursor: pointer; }
+.claims-photo-cell > input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.claims-photo-thumb { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 4 / 3; border-radius: var(--radius-sm); overflow: hidden; background: var(--fill); color: var(--ink-soft); transition: box-shadow 150ms ease; }
+.claims-photo-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; transition: filter 150ms ease; }
+.claims-photo-check { position: absolute; top: 4px; right: 4px; display: none; width: 20px; height: 20px; padding: 4px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); stroke-width: 3.2; }
+.claims-photo-label { font-size: 13px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+.claims-photo-cell:has(:checked) .claims-photo-thumb { box-shadow: 0 0 0 2px var(--accent-fill); }
+.claims-photo-cell:has(:checked) .claims-photo-check { display: block; }
+.claims-photo-cell:has(:checked) .claims-photo-label { color: var(--accent); font-weight: 600; }
+.claims-photo-cell:has(:focus-visible) .claims-photo-thumb { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+@media (hover: hover) {
+  .claims-photo-cell:hover img { filter: brightness(1.08); }
+}
+.claims-shot-rest > .ui-label { display: block; margin: 16px 0 6px; }
+.claims-read > li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
+.claims-read-name { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.claims-read-text { font-size: 15px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
+.ui-btn.claims-raw-toggle { margin: 6px 0 -6px -10px; }
+.claims-shot .ui-field { margin-top: 12px; }
+.claims-shot .ui-textarea { background: var(--paper); font-size: 15px; line-height: 1.45; }
+.ui-btn.claims-choose { margin-top: 4px; }
+@media (min-width: 768px) {
+  .claims-shot { grid-template-columns: 180px minmax(0, 1fr); grid-template-areas: "thumb head" "thumb rest"; gap: 0 16px; }
+  button.claims-shot-thumb { width: 180px; height: 320px; }
+  .claims-shot-thumb img { object-fit: contain; }
+}
+
+/* Files dragged over the page or the dialog: a quiet layer saying where they go. */
+.claims-drop {
+  position: fixed; inset: 0; z-index: var(--z-dialog, 60);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: var(--scrim); pointer-events: none;
+  animation: claims-fade 150ms var(--ease);
+}
+.claims-drop > span { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-radius: var(--radius-pill); background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg); font-size: 17px; font-weight: 600; text-align: center; }
+@keyframes claims-fade { from { opacity: 0; } }
+
+/* Checking the claims found. */
+.claims-drafts { display: flex; flex-direction: column; gap: 12px; }
+.claims-draft { min-width: 0; padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.claims-draft-buyer .ui-input-el { font-weight: 600; }
+.claims-quote { margin: 8px 2px 10px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
+.claims-draft-item { margin-top: 10px; }
+.claims-draft-item + .claims-draft-item { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.claims-match { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: var(--paper); }
+.claims-match.is-missing { color: var(--warn); }
+.claims-match.is-missing > .icon { flex: none; margin-left: 4px; }
+.claims-match .ui-btn { flex: none; padding: 0 14px; }
+.claims-match-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.claims-match-name { font-size: 15px; font-weight: 600; line-height: 1.25; color: var(--ink); }
+.claims-match-meta { color: var(--ink-soft); }
+.claims-thumb { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 56px; border-radius: 4px; overflow: hidden; background: var(--fill); color: var(--ink-faint); }
+.claims-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.claims-qty { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 15px; }
+.ui-btn.claims-add-card { margin: 8px 0 -6px -10px; }
+
+.claims-picker { margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--paper); }
+.claims-picker-hint { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.claims-picker-photo + .claims-picker-photo { margin-top: 12px; }
+.claims-picker-photo > .claims-label { margin: 0 0 6px; font-size: 13px; color: var(--ink-soft); }
+.claims-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+button.claims-pick-tile {
+  min-width: 0; min-height: var(--tap); display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+  padding: 6px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--ink);
+  font: inherit; text-align: left; transition: transform 150ms var(--ease), box-shadow 150ms ease;
+}
+button.claims-pick-tile:hover { background: var(--surface-2); }
+button.claims-pick-tile[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent-fill); }
+@media (hover: hover) {
+  button.claims-pick-tile:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
+}
+.claims-pick-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.claims-pick-name { font-size: 13px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.claims-pick-meta, .claims-pick-status { font-size: 12px; line-height: 1.25; overflow-wrap: anywhere; }
+.claims-pick-meta { color: var(--ink-soft); }
+.claims-pick-status.is-free { color: var(--green); }
+.claims-pick-status.is-part { color: var(--accent); }
+.claims-pick-status.is-taken { color: var(--ink-soft); }
+.claims-picker > .ui-btn--plain { margin: 8px 0 -4px -10px; }
+
+/* In this post: every photo large. */
+.claims-post-photos { margin: 0; padding: 0; list-style: none; display: grid; gap: 16px; }
+@media (min-width: 768px) {
+  .claims-post-photos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.claims-post-photo { overflow: hidden; border-radius: 14px; background: var(--surface-2); }
+.claims-post-photo.is-chosen { box-shadow: 0 0 0 2px var(--accent-fill); }
+.claims-post-photo-img { display: block; aspect-ratio: 4 / 3; background: var(--fill); }
+.claims-post-photo-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.claims-post-photo-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+.claims-post-photo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.claims-post-photo-text strong { font-size: 17px; font-weight: 600; }
+.claims-post-photo-text > span { font-size: 13px; color: var(--ink-soft); }
+.claims-post-photo-row .ui-btn { flex: none; }
+.claims-chosen { flex: none; display: flex; align-items: center; gap: 6px; min-height: var(--tap); padding: 0 4px; color: var(--green); font-size: 15px; font-weight: 600; }
+
+/* Drop-off slips. */
+.claims-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.claims-list-head .ui-btn { flex: none; margin-right: -10px; }
+.claims-slip-list { border-radius: 14px; background: var(--surface-2); }
+.claims-slip-row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 16px; cursor: pointer; }
+.claims-slip-row > input { flex: none; width: 22px; height: 22px; margin: 0; accent-color: var(--accent-fill); cursor: pointer; }
+.claims-slip-row > input:focus { box-shadow: none; }
+.claims-slip-row > input:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+/* The number sits right of the name, or under it when both don't fit. */
+.claims-slip-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.claims-slip-name { min-width: 0; font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; }
+.claims-slip-phone { margin-left: auto; font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+@media (hover: hover) {
+  .claims-slip-row:hover { background: var(--row-hover); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claims-drop { animation: none; }
 }
