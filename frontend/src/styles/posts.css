@@ -9,8 +9,7 @@
 }
 .scan-progress-label { flex: none; font-size: 13px; color: var(--ink-soft); }
 
-.posts-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 16px; }
-.posts-head .page-title { min-width: 0; overflow-wrap: anywhere; }
+.posts-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 4px 0 16px; }
 .posts-head .ui-btn { flex: none; }
 
 /* In a list or a card, an amount carries "≈" when it is a live price. */
@@ -36,8 +35,9 @@
 
 .postlist + .postlist, .postlist + .posts-archived, .posts-empty + .postlist { margin-top: 16px; }
 .ui-row.postrow { align-items: flex-start; }
-.postrow-head { display: flex; align-items: baseline; gap: 12px; }
-.postrow-head .ui-row-title { flex: 1; min-width: 0; }
+/* The total keeps the right edge beside a short name; under a long one it drops below. */
+.postrow-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
+.postrow-head .ui-row-title { flex: 1 1 auto; min-width: 0; }
 .postrow-total { flex: none; font-size: 17px; font-weight: 700; white-space: nowrap; }
 .postrow-archived { display: flex; align-items: center; }
 .postrow-archived > .ui-row { flex: 1; min-width: 0; }
@@ -58,7 +58,6 @@
 }
 .posts-archived { margin-top: 28px; }
 .posts-archived-toggle { margin: 0 0 10px -10px; }
-.posts-archived-toggle .ui-count { margin-left: -2px; }
 .posts-empty {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: 36px 20px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow);
@@ -92,8 +91,9 @@
 .new-post-tip .icon { flex: none; margin-top: 1px; color: var(--accent); }
 
 /* ---------- One post ---------- */
-.post-head { display: flex; align-items: flex-start; gap: 4px; margin: 0 0 14px; }
-.post-head .page-title { flex: 0 1 auto; min-width: 0; padding-top: 7px; overflow-wrap: anywhere; }
+/* Rename and Manage post follow a short name; a long name takes the line and they go under it. */
+.post-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 4px; margin: 0 0 14px; }
+.post-head .page-title { flex: 0 1 auto; min-width: 0; padding-top: 7px; overflow-wrap: break-word; }
 .post-head-actions { flex: none; display: flex; }
 .post-note {
   display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 10px 12px 10px 14px;
@@ -107,7 +107,9 @@
 .post-layout { display: flex; flex-direction: column; gap: 28px; }
 .post-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .post-main { min-width: 0; }
-.post-main .ui-section-head { margin-top: 0; }
+.post-main .ui-section-head { flex-wrap: wrap; margin-top: 0; }
+.post-main .ui-section-actions { flex: 0 1 auto; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
+.post-main .ui-count { white-space: nowrap; }
 @media (min-width: 1024px) {
   /* The total and its actions stay in view beside a long list of photos. */
   .post-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-areas: "main side"; gap: 24px; align-items: start; }
@@ -117,7 +119,7 @@
 
 .post-summary { display: flex; flex-direction: column; gap: 2px; }
 .post-summary-label, .post-summary-meta { font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
-.post-total { font-family: var(--font-display); font-size: 30px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.post-total { font-family: var(--font-display); font-size: clamp(22px, 9vw, 30px); font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .post-summary-status { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
 .post-summary-line { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
 .post-summary-line .icon { flex: none; margin-top: 1px; }
@@ -126,6 +128,7 @@
 .post-summary-line.is-warn { color: var(--warn); }
 .post-share { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .post-share .ui-btn { min-height: 48px; padding: 6px 12px; }
+@media (max-width: 359px) { .post-share .icon { display: none; } }
 .post-share-line { margin: 0 4px; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
 
 /* A pricing in one line, linking to its page. */
@@ -142,12 +145,17 @@
 .pricing-row-title { font-size: 15px; font-weight: 600; line-height: 1.3; }
 .pricing-row-summary { font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
 .pricing-row-change { flex: none; font-size: 15px; font-weight: 600; color: var(--accent); }
+@media (max-width: 299px) {
+  .pricing-row { flex-wrap: wrap; }
+  .pricing-row-text { flex-basis: calc(100% - 30px); }
+}
 
-.photo-tools { display: flex; gap: 8px; margin-bottom: 8px; }
-.photo-search { flex: 1 1 auto; }
+.photo-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.photo-search { flex: 1 1 180px; }
 .photo-search .ui-input { padding: 0 12px; gap: 6px; }
-.photo-sort { flex: none; }
-.photo-sort select { padding: 0 32px 0 12px; }
+.photo-sort { flex: 1 0 auto; max-width: 100%; }
+@media (min-width: 360px) { .photo-sort { flex-grow: 0; } }
+.photo-tools .photo-sort select { padding: 0 32px 0 12px; }
 .photo-hint { display: flex; align-items: center; gap: 8px; margin: 0 0 10px 4px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
 .photo-hint > span { flex: 1; min-width: 0; }
 .photo-hint .ui-btn { flex: none; }
@@ -160,11 +168,14 @@
 .photo-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .photo-thumb.is-scanning { animation: photo-pulse 1.4s ease-in-out infinite; }
 @media (min-width: 1024px) { .photo-thumb { width: 136px; } }
-.photo-file { font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
+/* A file name shortens in the middle: names differ at their end ("… (2).jpeg"). */
+.photo-file { display: flex; min-width: 0; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.photo-file > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-file > :last-child { flex: none; white-space: pre; }
 .photo-match { font-size: 13px; font-weight: 600; color: var(--accent); overflow-wrap: anywhere; }
 .photorow > .ui-btn { flex: none; align-self: center; }
-label.photorow { cursor: pointer; }
-.photorow.is-selected { background-color: var(--accent-soft); }
+label.photorow { --ui-bg-hover: var(--row-hover); cursor: pointer; }
+label.photorow.is-selected { --ui-bg: var(--accent-soft); --ui-bg-hover: var(--accent-soft); }
 .photorow-check { flex: none; align-self: center; width: 22px; height: 22px; margin: 0; accent-color: var(--accent-fill); cursor: pointer; }
 .photorow-check:focus { box-shadow: none; }
 .photorow-moves { flex: none; display: flex; align-self: center; }
@@ -174,14 +185,15 @@ label.photorow { cursor: pointer; }
   font-size: 15px; line-height: 1.4; text-align: center; color: var(--ink-soft); overflow-wrap: anywhere;
 }
 
-/* Select mode: Download, Move to and Delete share the bar evenly. */
-.select-bar > * { flex: 1 1 0; min-width: 0; }
-.select-bar .ui-btn { padding: 6px 8px; }
+/* Select mode: Download and Delete, with Move to taking the room between. */
+.select-bar .ui-btn { flex: none; padding: 6px 12px; }
 .select-bar .danger-text { color: var(--warn); }
-.move-select > select {
-  min-height: var(--tap); padding: 0 32px 0 12px; border-radius: var(--radius-pill);
+.select-bar .move-select { flex: 1 1 auto; min-width: 0; }
+.select-bar .move-select > select {
+  min-height: var(--tap); padding: 0 30px 0 12px; border-radius: var(--radius-pill);
   color: var(--accent); font-size: 15px; font-weight: 600; text-align: center; text-align-last: center;
 }
+@media (max-width: 374px) { .select-bar .ui-btn .icon { display: none; } }
 
 /* ---------- Pricing settings ---------- */
 .pricing-sub { margin: 4px 0 16px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); overflow-wrap: anywhere; }
@@ -204,8 +216,8 @@ label.photorow { cursor: pointer; }
 
 .pricing-example { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
 .pricing-example-title { margin: 0; font-size: 13px; color: var(--ink-soft); overflow-wrap: anywhere; }
-.pricing-example-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.pricing-example-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.pricing-example-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.pricing-example-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-soft); overflow-wrap: break-word; }
 .pricing-example-kind { font-size: 15px; font-weight: 600; color: var(--ink); }
 .pricing-example-kind.is-foil, .pricing-example-rate.is-foil { color: var(--gold); }
 .pricing-example-live + .pricing-example-live { padding-top: 8px; border-top: 1px solid var(--rule); }
@@ -219,7 +231,7 @@ label.photorow { cursor: pointer; }
   font-weight: 700; line-height: 1.2; white-space: nowrap;
 }
 .price-pill.is-foil { background: #f0c332; color: #19140a; box-shadow: inset 0 0 0 1px rgba(255, 230, 130, 0.9); }
-.pricing-steps { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin: 6px 0 0; padding: 10px 0 0; border-top: 1px solid var(--rule); list-style: none; }
+.pricing-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin: 6px 0 0; padding: 10px 0 0; border-top: 1px solid var(--rule); list-style: none; }
 .pricing-steps li { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
 .pricing-step-dot {
   display: grid; place-items: center; width: 22px; height: 22px; margin-bottom: 4px;
@@ -234,3 +246,10 @@ label.photorow { cursor: pointer; }
 .pricing-caption-text strong { font-size: 15px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
 .pricing-caption .ui-btn { flex: none; }
 .pricing-caption .ui-btn.is-copied { color: var(--green); }
+
+/* Under 300px (a phone at 200% zoom) a row stacks: the picture, then its text. */
+@media (max-width: 299px) {
+  .ui-row.postrow, .ui-row.photorow { flex-wrap: wrap; }
+  .postrow .ui-row-main, .photorow .ui-row-main { flex-basis: 100%; }
+  .chips .ui-chip { flex-shrink: 1; min-width: 0; white-space: normal; }
+}

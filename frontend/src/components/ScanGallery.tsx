@@ -49,7 +49,8 @@ export function Money({ amount, settings }: { amount: number; settings: Settings
   );
 }
 
-const photosLabel = (n: number, t: T) => (n === 1 ? t('scans_photo_one') : t('scans_photos', { n }));
+// A count in words, from a key and its "_one" twin: "1 photo", "3 photos".
+export const countText = (t: T, key: string, n: number) => t(n === 1 ? `${key}_one` : key, { n });
 
 // A post's first photos in a square, the fourth cell saying how many more.
 export function Mosaic({ srcs, photos }: { srcs: string[]; photos: number }) {
@@ -84,7 +85,7 @@ export function PostRow({ title, items, total, settings, t, to }: PostRowProps) 
   const scanning = items.filter(s => s.batch.status === 'scanning').length;
   const waiting = items.filter(s => (live ? s.pending > 0 : s.batch.response && !s.batch.lockedAt)).length;
   const needs = items.reduce((n, s) => n + s.needs, 0);
-  const meta = [live ? t('kind_live') : '', items.length ? photosLabel(items.length, t) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']
+  const meta = [live ? t('kind_live') : '', items.length ? countText(t, 'post_photos_count', items.length) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']
     .filter(Boolean).join(' · ');
   return (
     <Link className="ui-row postrow" to={to}>
@@ -100,7 +101,7 @@ export function PostRow({ title, items, total, settings, t, to }: PostRowProps) 
             {waiting ? (
               <span className="ui-chip ui-chip--accent">
                 <Icon name="addList" size={13} />
-                {t(`${live ? 'posts_not_added' : 'posts_not_finished'}${waiting === 1 ? '_one' : ''}`, { n: waiting })}
+                {countText(t, live ? 'posts_not_added' : 'posts_not_finished', waiting)}
               </span>
             ) : null}
             {needs ? <span className="ui-chip ui-chip--warn"><Icon name="warning" size={13} />{t('scans_to_fix', { n: needs })}</span> : null}

@@ -125,6 +125,10 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       return json(postRead(touch(post, body)));
     }],
     ['DELETE', route('/api/posts/:id'), ({ params: { id } }) => {
+      // As the server: no delete while a card of the post is in an open claim.
+      const listings = new Set(f.listings.filter(l => l.post_ids.includes(Number(id))).map(l => l.id));
+      const open = f.orders.filter(o => o.status !== 'cancelled').flatMap(o => o.items).filter(i => listings.has(i.listing_id)).length;
+      if (open) return json({ detail: `${open} item(s) under this post still claimed in active orders` }, 409);
       f.posts = f.posts.filter(p => p.id !== Number(id));
       f.scans.forEach(s => { if (s.post_id === Number(id)) s.post_id = null; });
       return noContent();

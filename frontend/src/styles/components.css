@@ -41,8 +41,9 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .crumbs { display: flex; align-items: center; gap: 2px; min-width: 0; min-height: var(--tap); font-size: 15px; }
 .crumbs-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
 .crumbs-item:first-child { flex-shrink: 0; }
+.crumbs-item:not(:first-child, :last-child) { flex-shrink: 4; }
 .crumbs-sep { flex: none; padding: 0 2px; color: var(--ink-faint); }
-.crumbs-link { display: block; min-width: 0; padding: 0 4px; line-height: var(--tap); color: var(--accent); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crumbs-link { display: block; min-width: var(--tap); padding: 0 4px; line-height: var(--tap); color: var(--accent); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crumbs-link:hover { text-decoration: underline; }
 .crumbs-current { min-width: 0; padding: 0 4px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .review-title { min-width: 0; }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { relookupScanPrices, type ExportPayload, type Health } from '../../api.ts';
 import { listingsApi, postsApi, type Post } from '../../api/checklist.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
-import { summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
+import { countText, summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
@@ -448,10 +448,9 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     const cards = folder.items.reduce((n, s) => n + s.cards, 0);
     const ok = await dialog.confirm({
       title: t('delete_post_title', { name: folder.title }),
-      message: photos ? t('delete_post_body', {
-        photos: photos === 1 ? t('scans_photo_one') : t('scans_photos', { n: photos }),
-        cards: cards === 1 ? t('post_cards_one') : t('post_cards', { n: cards }),
-      }) : t('delete_post_body_empty'),
+      message: photos
+        ? t('delete_post_body', { photos: countText(t, 'post_photos_count', photos), cards: countText(t, 'post_cards', cards) })
+        : t('delete_post_body_empty'),
       okLabel: t('delete_post'),
       cancelLabel: t('cancel'),
       destructive: true,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
-import { Mosaic, PostRow, thumbOf } from '../../components/ScanGallery.tsx';
+import { countText, Mosaic, PostRow, thumbOf } from '../../components/ScanGallery.tsx';
 import { Spinner } from '../../components/Spinner.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import { usePhotoDrop } from '../../hooks/usePhotoDrop.ts';
@@ -55,7 +55,7 @@ export function PostsPage({ area }: { area: Area }) {
                   <span className="ui-row-main">
                     <span className="ui-row-title">{t('posts_unfiled')}</span>
                     <span className="ui-row-meta">
-                      {unfiledFolder.items.length === 1 ? t('scans_photo_one') : t('scans_photos', { n: unfiledFolder.items.length })} · {t('posts_unfiled_meta')}
+                      {countText(t, 'post_photos_count', unfiledFolder.items.length)} · {t('posts_unfiled_meta')}
                     </span>
                   </span>
                 </Link>
@@ -66,7 +66,7 @@ export function PostsPage({ area }: { area: Area }) {
             <section className="posts-archived">
               <button type="button" className="ui-btn ui-btn--plain posts-archived-toggle" aria-expanded={showArchived} onClick={() => setShowArchived(v => !v)}>
                 <Icon name="archive" size={18} />
-                {t('posts_archived')} <span className="ui-count">· {archivedFolders.length}</span>
+                <span>{t('posts_archived')} <span className="ui-count">· {archivedFolders.length}</span></span>
               </button>
               {showArchived ? (
                 <ul className="ui-list postlist">

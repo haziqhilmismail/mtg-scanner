@@ -1,5 +1,5 @@
 import { Icon } from '../../components/Icon.tsx';
-import { Money } from '../../components/ScanGallery.tsx';
+import { countText, Money } from '../../components/ScanGallery.tsx';
 import type { Area, Folder } from './area.tsx';
 import type { ExportJob } from './exportFiles.ts';
 import type { usePostExport } from './usePostExport.ts';
@@ -24,6 +24,8 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
   const saved = items.filter(s => s.batch.response && s.batch.scanId != null);
   const cards = items.reduce((n, s) => n + s.cards, 0);
   const unpriced = items.reduce((n, s) => n + (s.batch.response ? s.needs : 0), 0);
+  // Cards with no price can't go in the post until they get one.
+  const priced = cards - unpriced;
   const notAdded = saved.reduce((n, s) => n + s.pending, 0);
   const unfinished = saved.filter(s => !s.batch.lockedAt);
   const busy = finishing === folder.key;
@@ -33,7 +35,7 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
     else if (await explainFinish()) await runFinishAll(folder.key, unfinished.map(s => s.batch), folder.postId);
   };
   const waiting = live ? notAdded > 0 : unfinished.length > 0;
-  const n = (key: string, count: number) => t(count === 1 ? `${key}_one` : key, { n: count });
+  const n = (key: string, count: number) => countText(t, key, count);
   const shareLine = !jobs.length ? (!live && saved.length ? t('post_share_none') : '')
     : !live && jobs.length < saved.length ? t('post_share_line_some', { n: jobs.length })
     : n(live ? 'post_share_line_live' : 'post_share_line_photo', jobs.length);
@@ -58,11 +60,11 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
                   <Icon name={live ? 'addList' : 'lock'} size={18} />{busy ? t('post_busy') : t(live ? 'post_add_all' : 'post_finish')}
                 </button>
               </>
-            ) : (
+            ) : !live || priced ? (
               <span className="post-summary-line is-done"><Icon name="check" size={16} />
-                {live ? n('post_all_added', cards) : t('post_finished')}
+                {live ? n('post_all_added', priced) : t('post_finished')}
               </span>
-            )}
+            ) : null}
             {unpriced ? <span className="post-summary-line is-warn"><Icon name="warning" size={16} />{n('post_needs_price', unpriced)}</span> : null}
           </div>
         ) : null}
