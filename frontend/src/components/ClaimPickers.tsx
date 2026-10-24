@@ -25,6 +25,9 @@ export interface CardStatus { text: string; kind: 'free' | 'taken' | 'part' }
 
 export const photoThumb = (p: Photo) => p.batch.response?.thumb_url ?? p.batch.response?.image_b64 ?? '';
 
+// A picture that fails to load leaves its gray box, not a broken-image icon.
+export const hideBroken = (e: { currentTarget: HTMLImageElement }) => { e.currentTarget.style.visibility = 'hidden'; };
+
 interface TileProps {
   card: CardRef;
   price: string;
@@ -37,7 +40,7 @@ function CardTile({ card, price, status, selected, onPick }: TileProps) {
   return (
     <button type="button" className="claims-pick-tile" aria-pressed={selected} onClick={onPick}>
       <span className="claims-thumb">
-        {card.cd.card.crop_b64 ? <img src={card.cd.card.crop_b64} alt="" loading="lazy" decoding="async" /> : null}
+        {card.cd.card.crop_b64 ? <img src={card.cd.card.crop_b64} alt="" loading="lazy" decoding="async" onError={hideBroken} /> : null}
       </span>
       <span className="claims-pick-text">
         <span className="claims-pick-name">{card.cd.sel.name || '?'}</span>

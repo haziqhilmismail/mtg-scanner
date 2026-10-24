@@ -147,9 +147,15 @@ button.claims-text-btn:hover, button.claims-text-btn:active { background: none; 
 .ui-btn.claims-remove { display: flex; margin: 18px auto 0; }
 
 /* Add comments: each screenshot with its photo, then the comments read. */
-.claims-shot { margin-bottom: 12px; padding: 12px; border-radius: 14px; background: var(--surface-2); }
-.claims-shot-head { display: flex; align-items: flex-start; gap: 12px; }
-button.claims-shot-thumb { flex: none; width: 72px; height: 128px; min-height: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--fill); cursor: zoom-in; }
+/* Phone: the screenshot beside its status, the photo grid below both.
+   Wide: the screenshot in its own column, larger. */
+.claims-shot {
+  display: grid; grid-template-columns: 72px minmax(0, 1fr); grid-template-areas: "thumb head" "rest rest"; gap: 0 12px;
+  margin-bottom: 12px; padding: 12px; border-radius: 14px; background: var(--surface-2);
+}
+.claims-shot-head { grid-area: head; min-width: 0; display: flex; align-items: flex-start; gap: 12px; }
+.claims-shot-rest { grid-area: rest; min-width: 0; }
+button.claims-shot-thumb { grid-area: thumb; width: 72px; height: 128px; min-height: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--fill); cursor: zoom-in; }
 button.claims-shot-thumb:hover { background: var(--fill); }
 .claims-shot-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
 .claims-shot-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
@@ -176,7 +182,7 @@ button.claims-shot-thumb:hover { background: var(--fill); }
 @media (hover: hover) {
   .claims-photo-cell:hover img { filter: brightness(1.08); }
 }
-.claims-shot > .ui-label { display: block; margin: 16px 0 6px; }
+.claims-shot-rest > .ui-label { display: block; margin: 16px 0 6px; }
 .claims-read > li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
 .claims-read-name { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .claims-read-text { font-size: 15px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
@@ -189,7 +195,9 @@ button.claims-shot-thumb:hover { background: var(--fill); }
   .claims-paste-hint { display: block; }
 }
 @media (min-width: 768px) {
-  button.claims-shot-thumb { width: 96px; height: 170px; }
+  .claims-shot { grid-template-columns: 180px minmax(0, 1fr); grid-template-areas: "thumb head" "thumb rest"; gap: 0 16px; }
+  button.claims-shot-thumb { width: 180px; height: 320px; }
+  .claims-shot-thumb img { object-fit: contain; }
 }
 
 /* Files dragged over the page or the dialog: a quiet layer saying where they go. */
@@ -252,7 +260,8 @@ button.claims-pick-tile[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(-
 }
 .claims-post-photo { overflow: hidden; border-radius: 14px; background: var(--surface-2); }
 .claims-post-photo.is-chosen { box-shadow: 0 0 0 2px var(--accent-fill); }
-.claims-post-photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--fill); }
+.claims-post-photo-img { display: block; aspect-ratio: 4 / 3; background: var(--fill); }
+.claims-post-photo-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .claims-post-photo-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
 .claims-post-photo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .claims-post-photo-text strong { font-size: 17px; font-weight: 600; }

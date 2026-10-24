@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CardPicker, type CardRef, type CardStatus, type Photo } from '../../components/ClaimPickers.tsx';
+import { CardPicker, hideBroken, type CardRef, type CardStatus, type Photo } from '../../components/ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { Stepper } from '../../components/ui/Stepper.tsx';
@@ -87,7 +87,7 @@ export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, ce
                 <div key={ii} className="claims-draft-item">
                   {card ? (
                     <div className="claims-match">
-                      <span className="claims-thumb">{card.cd.card.crop_b64 ? <img src={card.cd.card.crop_b64} alt="" /> : <Icon name="photo" size={16} />}</span>
+                      <span className="claims-thumb">{card.cd.card.crop_b64 ? <img src={card.cd.card.crop_b64} alt="" onError={hideBroken} /> : <Icon name="photo" size={16} />}</span>
                       <span className="claims-match-text">
                         <span className="claims-match-name">{card.cd.sel.name || '?'}</span>
                         <span className="claims-match-meta">{[photos.length > 1 ? t('claims_photo', { n: card.photo }) : '', priceOf(card)].filter(Boolean).join(' · ')}</span>

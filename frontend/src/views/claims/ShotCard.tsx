@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { photoThumb, type Photo } from '../../components/ClaimPickers.tsx';
+import { hideBroken, photoThumb, type Photo } from '../../components/ClaimPickers.tsx';
 import { Icon, type IconName } from '../../components/Icon.tsx';
 import { TextArea } from '../../components/ui/Field.tsx';
 import { useT } from '../../hooks/useLang.ts';
@@ -51,10 +51,10 @@ export function ShotCard({ shot, photos, onChange, onRemove, onView, onPostPhoto
 
   return (
     <section className="claims-shot" aria-label={shot.name}>
+      <button type="button" className="claims-shot-thumb" aria-label={t('claims_view_shot')} onClick={onView}>
+        <img src={shot.src} alt="" />
+      </button>
       <div className="claims-shot-head">
-        <button type="button" className="claims-shot-thumb" aria-label={t('claims_view_shot')} onClick={onView}>
-          <img src={shot.src} alt="" />
-        </button>
         <div className="claims-shot-info">
           {photos.length > 1 ? (
             <p className={`claims-shot-status ${TONE[shot.by].tone}`}><Icon name={TONE[shot.by].icon} size={15} />{status}</p>
@@ -68,49 +68,51 @@ export function ShotCard({ shot, photos, onChange, onRemove, onView, onPostPhoto
         </button>
       </div>
 
-      <div className="claims-for">
-        <span id={`${id}-for`} className="ui-label">{t('claims_for')}</span>
-        <button type="button" className="ui-btn ui-btn--plain" aria-haspopup="dialog" onClick={onPostPhotos}>
-          <Icon name="photo" size={16} />{t('claims_in_post')}
-        </button>
-      </div>
-      <div className="claims-photo-grid" role="radiogroup" aria-labelledby={`${id}-for`}>
-        {photos.map(p => (
-          <label key={p.batch.id} className="claims-photo-cell">
-            <input type="radio" name={`${id}-photo`} checked={shot.photo === p.batch.scanId} onChange={() => pick(p.batch.scanId as number)} />
-            <span className="claims-photo-thumb">
-              <img src={photoThumb(p)} alt="" loading="lazy" decoding="async" />
-              <Icon name="check" size={12} className="claims-photo-check" />
-            </span>
-            <span className="claims-photo-label">{t('claims_photo', { n: p.index })}</span>
-          </label>
-        ))}
-        {photos.length > 1 ? (
-          <label className="claims-photo-cell">
-            <input type="radio" name={`${id}-photo`} checked={shot.photo === 'all'} onChange={() => pick('all')} />
-            <span className="claims-photo-thumb is-several">
-              <Icon name="photos" size={22} />
-              <Icon name="check" size={12} className="claims-photo-check" />
-            </span>
-            <span className="claims-photo-label">{t('claims_several')}</span>
-          </label>
-        ) : null}
-      </div>
+      <div className="claims-shot-rest">
+        <div className="claims-for">
+          <span id={`${id}-for`} className="ui-label">{t('claims_for')}</span>
+          <button type="button" className="ui-btn ui-btn--plain" aria-haspopup="dialog" onClick={onPostPhotos}>
+            <Icon name="photo" size={16} />{t('claims_in_post')}
+          </button>
+        </div>
+        <div className="claims-photo-grid" role="radiogroup" aria-labelledby={`${id}-for`}>
+          {photos.map(p => (
+            <label key={p.batch.id} className="claims-photo-cell">
+              <input type="radio" name={`${id}-photo`} checked={shot.photo === p.batch.scanId} onChange={() => pick(p.batch.scanId as number)} />
+              <span className="claims-photo-thumb">
+                <img src={photoThumb(p)} alt="" loading="lazy" decoding="async" onError={hideBroken} />
+                <Icon name="check" size={12} className="claims-photo-check" />
+              </span>
+              <span className="claims-photo-label">{t('claims_photo', { n: p.index })}</span>
+            </label>
+          ))}
+          {photos.length > 1 ? (
+            <label className="claims-photo-cell">
+              <input type="radio" name={`${id}-photo`} checked={shot.photo === 'all'} onChange={() => pick('all')} />
+              <span className="claims-photo-thumb is-several">
+                <Icon name="photos" size={22} />
+                <Icon name="check" size={12} className="claims-photo-check" />
+              </span>
+              <span className="claims-photo-label">{t('claims_several')}</span>
+            </label>
+          ) : null}
+        </div>
 
-      {rows.length ? (
-        <>
-          <p className="ui-label">{t('claims_comments_read')}</p>
-          <ul className="claims-box claims-read">
-            {rows.map((r, i) => (
-              <li key={i}><span className="claims-read-name">{r.name}</span><span className="claims-read-text">{r.text}</span></li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      <button type="button" className="ui-btn ui-btn--plain claims-raw-toggle" aria-expanded={raw} onClick={() => setRaw(!raw)}>
-        <Icon name="edit" size={16} />{raw ? t('claims_hide_text') : t('claims_fix_text')}
-      </button>
-      {raw ? <TextArea label={t('claims_text_label')} rows={7} value={shot.text} onChange={e => onChange({ text: e.target.value })} /> : null}
+        {rows.length ? (
+          <>
+            <p className="ui-label">{t('claims_comments_read')}</p>
+            <ul className="claims-box claims-read">
+              {rows.map((r, i) => (
+                <li key={i}><span className="claims-read-name">{r.name}</span><span className="claims-read-text">{r.text}</span></li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        <button type="button" className="ui-btn ui-btn--plain claims-raw-toggle" aria-expanded={raw} onClick={() => setRaw(!raw)}>
+          <Icon name="edit" size={16} />{raw ? t('claims_hide_text') : t('claims_fix_text')}
+        </button>
+        {raw ? <TextArea label={t('claims_text_label')} rows={7} value={shot.text} onChange={e => onChange({ text: e.target.value })} /> : null}
+      </div>
     </section>
   );
 }
