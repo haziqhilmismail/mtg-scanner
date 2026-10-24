@@ -2,7 +2,6 @@
 // Every key appears in one area file only; index.ts merges them.
 
 export const en = {
-  menu_more: 'More',
   menu_language: 'Language',
   menu_appearance: 'Appearance',
   menu_sign_out: 'Sign out',
@@ -33,10 +32,6 @@ export const en = {
   pay_title: 'Payment details',
   pay_sub: 'Optional. Shown under each summary you copy for a buyer.',
   pay_privacy_title: 'What happens to these details?',
-  pay_privacy_1: 'They are used for one thing only: the summaries you copy or share. Nothing is sent to buyers until you paste or share it yourself.',
-  pay_privacy_2: 'Other users of this app cannot see them. They are never sent to the AI that reads claims, or to anyone else.',
-  pay_privacy_3: 'They are saved on the server of this app so they are there on your other devices. The person who runs the server can see what is stored there.',
-  pay_privacy_4: 'Delete my payment details removes them from the server at any time.',
   pay_delete_all: 'Delete my payment details',
   pay_bank: 'Bank',
   pay_account_number: 'Account number',
@@ -45,7 +40,6 @@ export const en = {
   pay_note_placeholder: 'Please send your name and phone number.',
   pay_saved: 'Saved',
   pay_qr: 'DuitNow QR',
-  pay_qr_none: 'Phones can share it with the summary.',
   pay_qr_upload: 'Add QR',
   pay_qr_replace: 'Replace QR',
   pay_qr_remove: 'Remove',
@@ -89,12 +83,10 @@ export const en = {
   feedback_placeholder: 'Tell us what worked, what didn\'t, or what you wish existed…',
   feedback_send: 'Send',
   feedback_sending: 'Sending…',
-  feedback_sent: 'Thanks — sent!',
   feedback_error: 'Could not send: {err}',
 };
 
 export const ms = {
-  menu_more: 'Lagi',
   menu_language: 'Bahasa',
   menu_appearance: 'Paparan',
   menu_sign_out: 'Log keluar',
@@ -125,10 +117,6 @@ export const ms = {
   pay_title: 'Butiran pembayaran',
   pay_sub: 'Pilihan. Dipaparkan di bawah setiap ringkasan yang anda salin untuk pembeli.',
   pay_privacy_title: 'Apa berlaku kepada butiran ini?',
-  pay_privacy_1: 'Ia digunakan untuk satu perkara sahaja: ringkasan yang anda salin atau kongsi. Tiada apa dihantar kepada pembeli sehingga anda sendiri tampal atau kongsi.',
-  pay_privacy_2: 'Pengguna lain aplikasi ini tidak boleh melihatnya. Ia tidak pernah dihantar kepada AI yang membaca tuntutan, atau kepada sesiapa lagi.',
-  pay_privacy_3: 'Ia disimpan di pelayan aplikasi ini supaya ada pada peranti anda yang lain. Orang yang menjalankan pelayan boleh melihat apa yang disimpan di situ.',
-  pay_privacy_4: 'Padam butiran pembayaran saya membuangnya dari pelayan bila-bila masa.',
   pay_delete_all: 'Padam butiran pembayaran saya',
   pay_bank: 'Bank',
   pay_account_number: 'Nombor akaun',
@@ -137,7 +125,6 @@ export const ms = {
   pay_note_placeholder: 'Sila beri nama dan nombor telefon anda.',
   pay_saved: 'Disimpan',
   pay_qr: 'QR DuitNow',
-  pay_qr_none: 'Telefon boleh kongsi QR bersama ringkasan.',
   pay_qr_upload: 'Tambah QR',
   pay_qr_replace: 'Tukar QR',
   pay_qr_remove: 'Buang',
@@ -181,6 +168,5 @@ export const ms = {
   feedback_placeholder: 'Beritahu kami apa yang berjaya, apa yang tidak, atau apa yang anda harapkan…',
   feedback_send: 'Hantar',
   feedback_sending: 'Menghantar…',
-  feedback_sent: 'Terima kasih — dihantar!',
   feedback_error: 'Gagal hantar: {err}',
 };
