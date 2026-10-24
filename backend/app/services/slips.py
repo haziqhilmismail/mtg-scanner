@@ -1,97 +1,134 @@
-"""Drop-off slips for Cards & Hobbies (C&H): 6 x 10.5 cm. One end (3 cm)
-stays empty for the shop's stamp; the rest holds the buyer's name and number,
-a gap, and the seller's name last.
-Ten to an upright A4 page, the text straight: five strips cut across the
-page, each cut in half. Five 6 cm strips need 30 cm and A4 is 29.7, so each
-is 5.94 cm: 0.6 mm short, well inside the shop's "differ significantly".
+"""Drop-off slips: one per buyer, ten to an upright A4 page in a 2 x 5 grid,
+for the seller to cut out and leave with each buyer's cards at the drop-off
+point (frontend/DESIGN.md section 8 and its "Drop-off slips · A4 PDF" board).
 
-Drawn with Pillow at 300 dpi and saved as a PDF, so printed at 100% each slip
-is exactly to size."""
+A slip holds three rows and nothing else: the buyer's name, the buyer's
+number, and the seller's name, which is always a line to write on. A missing
+name or number is a line to write on too. Sizes are the board's CSS pixels
+scaled to print. Drawn with Pillow at 300 dpi in black on white and saved as
+a PDF, so it prints to size and reads in grayscale."""
 
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
 
 DPI = 300
-CM = DPI / 2.54
-PAGE_W, PAGE_H = round(21.0 * CM), round(29.7 * CM)          # A4, upright
+PX = DPI / 96                                     # one CSS pixel of the board, at print size
+PAGE_W, PAGE_H = round(21.0 / 2.54 * DPI), round(29.7 / 2.54 * DPI)   # A4, upright
 COLS, ROWS = 2, 5
-SLIP_LONG, SLIP_SHORT = 10.5 * CM, PAGE_H / ROWS               # laid sideways on the page: 10.5 x 5.94 cm
 PER_PAGE = COLS * ROWS
-STAMP = 3.0 * CM                                              # left empty at the right end for C&H's stamp
-PAD = 0.5 * CM                                                # off the edges a printer can't reach
+SLIP_W, SLIP_H = PAGE_W / COLS, PAGE_H / ROWS
+
+PAD_X = 40 * PX
+GAP = 6 * PX                                      # between a label and what follows it
+LABEL_SIZE = 13 * PX
+VALUE_SIZES = [size * PX for size in range(17, 11, -1)]   # 17px, shrinking to 12px: nothing prints smaller
+LINE_HEIGHT = 1.3
+BASELINES = (53 * PX, 87 * PX, SLIP_H - 36 * PX)  # the three rows; the seller's sits at the bottom
+# A long name wraps down to where the number row still clears the seller's.
+NAME_LINES = 1 + int((BASELINES[2] - 2 * (BASELINES[1] - BASELINES[0]) - BASELINES[0]) // (VALUE_SIZES[-1] * LINE_HEIGHT))
+WRITE_IN = (200 * PX, 190 * PX, 200 * PX)
+RULE = round(PX)                                  # 1px lines and cut lines
+DASH, DASH_GAP = round(4 * PX), round(3 * PX)
+INK, LABEL_INK, LINE_INK = 0, 0x33, 0x76          # black, #333, #767676
 
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-LABELS = ("Buyer's name", "Buyer's number", "Seller's name")
+LABELS = ("Buyer's name:", "Buyer's number:", "Seller's name:")
 
 
-def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(FONT_BOLD if bold else FONT, size)
+def _font(size: float, bold: bool = False) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(FONT_BOLD if bold else FONT, round(size))
 
 
-def _fields(values: tuple[str, str, str], length: float) -> Image.Image:
-    """The slip's fields:
+def _wrap(text: str, font: ImageFont.FreeTypeFont, width: float) -> list[str]:
+    """Greedy word wrap; a word wider than the line (a long handle, a name
+    in a script without spaces) breaks between letters."""
+    lines: list[str] = []
+    line = ""
+    for word in text.split():
+        candidate = f"{line} {word}" if line else word
+        if font.getlength(candidate) <= width:
+            line = candidate
+            continue
+        if line:
+            lines.append(line)
+        line = ""
+        for ch in word:
+            if line and font.getlength(line + ch) > width:
+                lines.append(line)
+                line = ""
+            line += ch
+    return [*lines, line] if line else lines
 
-        Buyer's name: Jane Doe
-        Buyer's number: 012-345 6789
 
-        Seller's name: Muhammad Haziq
+def fit_value(value: str, width: float, max_lines: int) -> tuple[ImageFont.FreeTypeFont, list[str]]:
+    """How `value` fits after its label: one line at 17px down to 14px, else
+    two lines at 17px down to 12px, else 12px on up to `max_lines` lines with
+    the last cut short by an ellipsis."""
+    for lines_wanted, smallest in ((1, 14 * PX), (2, VALUE_SIZES[-1])):
+        for size in (s for s in VALUE_SIZES if s >= smallest):
+            font = _font(size, bold=True)
+            lines = _wrap(value, font, width)
+            if len(lines) <= lines_wanted:
+                return font, lines
+    if len(lines) > max_lines:
+        last = lines[max_lines - 1]
+        while last and font.getlength(last + "…") > width:
+            last = last[:-1]
+        lines = [*lines[:max_lines - 1], last.rstrip() + "…"]
+    return font, lines
 
-    An empty value is a line to write on with a pen."""
-    w, h = round(length), round(SLIP_SHORT - 2 * PAD)
-    img = Image.new("L", (w, h), 255)
-    draw = ImageDraw.Draw(img)
-    # Text baselines: the buyer's two rows as high as they go, the seller's
-    # row as low as it goes, the space between left empty.
-    row = 60
-    baselines = (row - 10, 2 * row, h - 14)
-    label_font = _font(34)
-    for label, value, y in zip(LABELS, values, baselines):
-        text = f"{label}: "
-        draw.text((0, y), text, font=label_font, fill=60, anchor="ls")
-        x = draw.textlength(text, font=label_font)
-        if value:
-            # As large as fits after the label: a long name shrinks, never overflows.
-            size = 42
-            while size > 20 and draw.textlength(value, font=_font(size, True)) > w - x:
-                size -= 2
-            draw.text((x, y), value, font=_font(size, True), fill=0, anchor="ls")
-        else:
-            draw.line((x, y + 4, w, y + 4), fill=150, width=2)
-    return img
+
+def _slip(draw: ImageDraw.ImageDraw, left: float, top: float, buyer: str, phone: str) -> None:
+    label_font = _font(LABEL_SIZE)
+    shift = 0.0                                   # how much a wrapped name pushes the number down
+    for row, (label, value) in enumerate(zip(LABELS, (buyer, phone, ""))):
+        baseline = top + BASELINES[row] + (shift if row == 1 else 0)
+        draw.text((left + PAD_X, baseline), label, font=label_font, fill=LABEL_INK, anchor="ls")
+        x = left + PAD_X + draw.textlength(label, font=label_font) + GAP
+        if not value:
+            draw.rectangle((x, baseline - RULE / 2, x + WRITE_IN[row], baseline + RULE / 2), fill=LINE_INK)
+            continue
+        width = left + SLIP_W - PAD_X - x
+        font, lines = fit_value(value, width, NAME_LINES if row == 0 else 2)
+        step = font.size * LINE_HEIGHT
+        for i, text in enumerate(lines):
+            draw.text((x, baseline + i * step), text, font=font, fill=INK, anchor="ls")
+        if row == 0:
+            shift = (len(lines) - 1) * step
 
 
 def _dashed(draw: ImageDraw.ImageDraw, x0: float, y0: float, x1: float, y1: float) -> None:
-    length = max(abs(x1 - x0), abs(y1 - y0))
-    for start in range(0, int(length), 36):
-        end = min(start + 20, length)
-        f0, f1 = start / length, end / length
-        draw.line((x0 + (x1 - x0) * f0, y0 + (y1 - y0) * f0, x0 + (x1 - x0) * f1, y0 + (y1 - y0) * f1), fill=140, width=3)
+    horizontal = y0 == y1
+    length = (x1 - x0) if horizontal else (y1 - y0)
+    for start in range(0, int(length), DASH + DASH_GAP):
+        end = min(start + DASH, length)
+        if horizontal:
+            draw.rectangle((x0 + start, y0 - RULE / 2, x0 + end, y0 + RULE / 2), fill=LINE_INK)
+        else:
+            draw.rectangle((x0 - RULE / 2, y0 + start, x0 + RULE / 2, y0 + end), fill=LINE_INK)
 
 
-def _page(slips: list[tuple[str, str, str]]) -> Image.Image:
-    page = Image.new("L", (PAGE_W, PAGE_H), 255)
-    draw = ImageDraw.Draw(page)
-    for n, (buyer, phone, seller) in enumerate(slips):
-        x, y = (n % COLS) * SLIP_LONG, (n // COLS) * SLIP_SHORT
-        page.paste(_fields((buyer, phone, seller), SLIP_LONG - STAMP - PAD), (round(x + PAD), round(y + PAD)))
-    # Cut lines: between the strips, and down the middle. The page's own
-    # edges are the outer cuts.
+def page(slips: list[tuple[str, str]]) -> Image.Image:
+    """One A4 page of up to ten (buyer, phone) slips, with cut lines between
+    the slips only: the page's own edges are the outer cuts."""
+    img = Image.new("L", (PAGE_W, PAGE_H), 255)
+    draw = ImageDraw.Draw(img)
+    for n, (buyer, phone) in enumerate(slips):
+        _slip(draw, (n % COLS) * SLIP_W, (n // COLS) * SLIP_H, buyer, phone)
     for r in range(1, ROWS):
-        _dashed(draw, 0, r * SLIP_SHORT, PAGE_W, r * SLIP_SHORT)
-    _dashed(draw, SLIP_LONG, 0, SLIP_LONG, PAGE_H)
-    return page
+        _dashed(draw, 0, r * SLIP_H, PAGE_W, r * SLIP_H)
+    _dashed(draw, SLIP_W, 0, SLIP_W, PAGE_H)
+    return img
 
 
-def render(slips: list[tuple[str, str, str]], seller: str = "") -> bytes:
-    """A PDF of the slips in order (buyer's name, number, seller's name; an
-    empty one is a line to write on), ten to a page. The last page's spare
-    places become blank slips, with the seller's name when given."""
-    slips = slips or [("", "", seller)]
-    while len(slips) % PER_PAGE:
-        slips = [*slips, ("", "", seller)]
-    pages = [_page(slips[i:i + PER_PAGE]) for i in range(0, len(slips), PER_PAGE)]
+def render(slips: list[tuple[str, str]]) -> bytes:
+    """A PDF of the slips in the order given, ten to a page. The rest of the
+    last page is blank slips."""
+    slips = slips or [("", "")]
+    slips = [*slips, *[("", "")] * (-len(slips) % PER_PAGE)]
+    pages = [page(slips[i:i + PER_PAGE]) for i in range(0, len(slips), PER_PAGE)]
     out = BytesIO()
     pages[0].save(out, format="PDF", resolution=DPI, save_all=True, append_images=pages[1:])
     return out.getvalue()
