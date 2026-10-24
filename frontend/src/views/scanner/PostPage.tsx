@@ -4,7 +4,6 @@ import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { PhotoDrop } from '../../components/PhotoDrop.tsx';
 import { PricingRow } from '../../components/SettingsPanel.tsx';
-import { Dialog } from '../../components/ui/Dialog.tsx';
 import { Select, TextField } from '../../components/ui/Field.tsx';
 import { Menu } from '../../components/ui/Menu.tsx';
 import { StickyBar } from '../../components/ui/StickyBar.tsx';
@@ -16,6 +15,7 @@ import { byPostOrder, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../util
 import { keyTaken, ScanProgress, type Area, type Folder } from './area.tsx';
 import { PhotoList } from './PhotoList.tsx';
 import { PostSummary } from './PostSummary.tsx';
+import { RenamePostDialog } from './RenamePostDialog.tsx';
 import { usePostExport } from './usePostExport.ts';
 
 // What the photo list is doing: showing the photos, ticking some, or
@@ -39,8 +39,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   const [mode, setMode] = useState<Mode>(NORMAL);
   const [saving, setSaving] = useState(false);
   // The name being typed in Rename; null while the dialog is closed.
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const renameForm = useId();
+  const [renaming, setRenaming] = useState(false);
   const headId = useId();
   const searchId = useId();
   const addInput = useRef<HTMLInputElement>(null);
@@ -93,13 +92,6 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
     } finally { setSaving(false); }
   };
 
-  const saveName = () => {
-    const title = (renaming ?? '').trim();
-    if (!title) return;
-    setRenaming(null);
-    renamePost(folder, title);
-  };
-
   // Keyboard: / jumps to the search; Esc ends a mode, or goes up to Posts.
   // Never while typing or under a popup.
   useEffect(() => {
@@ -129,7 +121,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
         <h1 className="page-title">{folder.title}</h1>
         {isPost ? (
           <span className="post-head-actions">
-            <button type="button" className="ui-icon-btn" aria-label={t('rename_post')} aria-haspopup="dialog" onClick={() => setRenaming(folder.title)}>
+            <button type="button" className="ui-icon-btn" aria-label={t('rename_post')} aria-haspopup="dialog" onClick={() => setRenaming(true)}>
               <Icon name="edit" size={18} />
             </button>
             <Menu
@@ -269,25 +261,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
 
       <PhotoDrop label={t('post_drop')} onPhotos={addPhotos} t={t} />
 
-      <Dialog
-        open={renaming != null}
-        onClose={() => setRenaming(null)}
-        title={t('rename_post')}
-        closeLabel={t('cancel')}
-        footer={(
-          <>
-            <button type="button" className="ui-btn ui-btn--ink" onClick={() => setRenaming(null)}>{t('cancel')}</button>
-            <button type="submit" form={renameForm} className="ui-btn ui-btn--primary" disabled={!renaming?.trim()}>{t('rename_save')}</button>
-          </>
-        )}
-      >
-        <form id={renameForm} onSubmit={e => { e.preventDefault(); saveName(); }}>
-          <TextField
-            label={t('rename_label')} hint={t('rename_hint')} value={renaming ?? ''} maxLength={255}
-            onChange={e => setRenaming(e.target.value)} data-autofocus=""
-          />
-        </form>
-      </Dialog>
+      <RenamePostDialog open={renaming} title={folder.title} onClose={() => setRenaming(false)} onSave={title => renamePost(folder, title)} t={t} />
     </>
   );
 }
