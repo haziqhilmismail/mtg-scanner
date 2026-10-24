@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type CardRowData, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, dueForSupportAsk, fmt2, formatMyr, initials, lockPrices, matchThumbs, overrideText, parseOverride, readPrice, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
+import { applyRounding, computeCardData, correctionFor, dueForSupportAsk, fmt2, formatMyr, initials, lockPrices, matchThumbs, overrideText, parseOverride, readPrice, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
 import type { T } from './i18n/index.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
@@ -254,4 +254,28 @@ test('a typed price is a number above 0 with at most two decimals, or nothing', 
   assert.equal(readPrice(''), null);
   assert.equal(readPrice('   '), null);
   assert.deepEqual(['0', '0.00', 'abc', '15.555', '1.2.3', '-5', 'RM15'].map(readPrice), Array(7).fill('invalid'));
+});
+
+const shown = (scanId: number | null = 7, sid = 'aaa'): Batch => ({
+  id: 'b', scanId, postId: null, position: null, listed: [], filename: '', status: 'done',
+  response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ id: 5, candidates: [{ scryfall_id: sid } as Candidate] } as DetectedCard] },
+  isFoil: [false], priceOverride: [null], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false], picks: [null], locked: [null],
+  relookupBusy: [false], relookupMsg: [null],
+});
+
+test('"Looks right" confirms the printing the card shows, under the card\'s own id', () => {
+  assert.deepEqual(correctionFor(shown(), 0), { scanId: 7, cardId: 5, scryfallId: 'aaa', kind: 'confirm' });
+});
+
+test('a pick of another printing changes the card; a pick of the shown printing confirms it', () => {
+  assert.deepEqual(correctionFor(shown(), 0, { scryfall_id: 'bbb' } as Candidate), { scanId: 7, cardId: 5, scryfallId: 'bbb', kind: 'pick' });
+  assert.deepEqual(correctionFor(shown(), 0, { scryfall_id: 'aaa' } as Candidate), { scanId: 7, cardId: 5, scryfallId: 'aaa', kind: 'confirm' });
+  assert.deepEqual(correctionFor(shown(7, ''), 0, { scryfall_id: 'bbb' } as Candidate), { scanId: 7, cardId: 5, scryfallId: 'bbb', kind: 'pick' });
+});
+
+test('nothing is reported for an unsaved photo, a missing card, or no printing', () => {
+  assert.equal(correctionFor(shown(null), 0), null);
+  assert.equal(correctionFor(shown(), 3), null);
+  assert.equal(correctionFor(shown(7, ''), 0), null);
+  assert.equal(correctionFor(shown(), 0, { scryfall_id: '' } as Candidate), null);
 });

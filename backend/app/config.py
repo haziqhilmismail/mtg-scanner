@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     # Falls back to Gemini's bbox on noisy photos.
     use_classical_bbox: bool = True
 
+    corrections_dir: Path = DATA_DIR / "corrections"
+
     # Database — SQLite, one file in data/
     database_url: str = f"sqlite+aiosqlite:///{DATA_DIR / 'app.db'}"
 

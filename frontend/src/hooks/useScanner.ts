@@ -9,10 +9,11 @@ import {
   type SavedScan,
   moveScans as apiMoveScans,
   orderScans as apiOrderScans,
+  recordCorrection,
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import type { Batch, Candidate, DetectedCard, LockedPrice, RelookupMsg, ScanUiState } from '../types.ts';
-import { bboxKey, canRetry, freshState, generateBatchId, normalizeUiState } from '../utils.ts';
+import { bboxKey, canRetry, correctionFor, freshState, generateBatchId, normalizeUiState } from '../utils.ts';
 import type { T } from './useLang.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
 
@@ -446,6 +447,13 @@ export function useScanner(userId: number | null, signOut: () => void) {
     [updateCardArray],
   );
 
+  const looksRight = useCallback((batchId: string, idx: number) => {
+    confirmVersion(batchId, idx);
+    const batch = batchesRef.current.find(b => b.id === batchId);
+    const answer = batch && correctionFor(batch, idx);
+    if (answer) recordCorrection(answer);
+  }, [confirmVersion]);
+
   // Append a user-framed card (from the framing tool in BatchPreview's expand
   // mode). Pushes onto every parallel array so indices stay aligned. Seeded
   // foil=false, qty=1 unless the backend hint says otherwise.
@@ -523,6 +531,15 @@ export function useScanner(userId: number | null, signOut: () => void) {
       }),
     );
   }, []);
+
+  const pickPrinting = useCallback((batchId: string, idx: number, printing: Candidate) => {
+    const before = batchesRef.current.find(b => b.id === batchId);
+    const answer = before && correctionFor(before, idx, printing);
+    replaceCandidate(batchId, idx, { ...printing, _lookup_failed: false, _manual: false });
+    // The seller chose this printing, so the "check the version" notice is answered.
+    confirmVersion(batchId, idx);
+    if (answer) recordCorrection(answer);
+  }, [confirmVersion, replaceCandidate]);
 
   const relookupByName = useCallback(
     async (batchId: string, idx: number, name: string, t: T) => {
@@ -654,14 +671,14 @@ export function useScanner(userId: number | null, signOut: () => void) {
     setMultOverride,
     stepMult,
     setRemoved,
-    confirmVersion,
+    looksRight,
     markListed,
     unmarkListed,
     appendFramedCard,
     restoreAll,
     relookupByName,
     useAsIs,
-    replaceCandidate,
+    pickPrinting,
     replaceAllCards,
     setRelookupMsg,
   };

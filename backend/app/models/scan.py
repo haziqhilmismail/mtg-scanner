@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
 class Scan(Base, TimestampMixin):
     __tablename__ = "scans"
+    # Ids are never reused (see migration a7e3c9d1f5b2).
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(
@@ -45,3 +47,6 @@ class Scan(Base, TimestampMixin):
         back_populates="scan",
         cascade="save-update, merge",
     )
+
+    def card(self, card_id: int) -> dict[str, Any] | None:
+        return next((c for c in (self.gemini_raw or {}).get("cards", []) if c.get("id") == card_id), None)

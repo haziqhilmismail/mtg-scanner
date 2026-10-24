@@ -105,6 +105,15 @@ export interface DetectedCard {
   candidates: Candidate[];
 }
 
+export type CorrectionKind = 'pick' | 'confirm';
+
+export interface Correction {
+  scanId: number;
+  cardId: number;
+  scryfallId: string;
+  kind: CorrectionKind;
+}
+
 export interface ScanResponse {
   image_id: string;
   // What goes in <img src>: a data: URL straight after a scan, or a

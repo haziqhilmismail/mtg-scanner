@@ -3,6 +3,7 @@
 from .base import Base, TimestampMixin
 from .bug_event import BugEvent
 from .buyer import Buyer
+from .card_correction import CardCorrection
 from .credits import ScanCreditEvent, Voucher, VoucherRedemption
 from .listing import Listing, ListingStatus
 from .order import Order, OrderStatus
@@ -19,6 +20,7 @@ __all__ = [
     "TimestampMixin",
     "BugEvent",
     "Buyer",
+    "CardCorrection",
     "Listing",
     "ListingStatus",
     "listing_post_links",

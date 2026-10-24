@@ -1,5 +1,6 @@
 """Deleting an account, as PRIVACY.md promises: everything of the user's goes,
-except sales records, which stay with nothing that links them back.
+except sales records and card corrections, which stay with nothing that links
+them back.
 
 SQLite here doesn't enforce foreign keys, so nothing cascades by itself: each
 table is cleared in code, children before parents."""
@@ -8,7 +9,7 @@ from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import (
-    BugEvent, Buyer, Listing, Order, OrderItem, Payment, Post, SaleRecord, Scan,
+    BugEvent, Buyer, CardCorrection, Listing, Order, OrderItem, Payment, Post, SaleRecord, Scan,
     ScanCreditEvent, User, Voucher, VoucherRedemption, listing_post_links,
 )
 
@@ -41,6 +42,8 @@ async def delete_account(db: AsyncSession, user_id: int) -> tuple[dict[str, int]
         "sale_records (links cleared)": update(SaleRecord).where(SaleRecord.user_id == user_id).values(
             order_status=of_its_order(Order.status), paid=of_its_order(Order.paid_at.is_not(None)),
             user_id=None, post_id=None, order_item_id=None),
+        "card_corrections (links cleared)": update(CardCorrection).where(CardCorrection.user_id == user_id).values(
+            user_id=None, scan_id=None),
         "bug_events (user cleared)": update(BugEvent).where(BugEvent.user_id == user_id).values(user_id=None),
         "payments": delete(Payment).where(Payment.order_id.in_(orders)),
         "order_items": delete(OrderItem).where(OrderItem.order_id.in_(orders)),

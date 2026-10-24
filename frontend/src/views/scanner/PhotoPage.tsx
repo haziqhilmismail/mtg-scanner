@@ -72,12 +72,10 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
     }
   }, [batch, dialog, scanner, t]);
 
-  // The seller's answers about the printing: another one picked, or the guess confirmed.
-  const pickPrinting = (batchId: string, idx: number, printing: Candidate) => {
-    scanner.replaceCandidate(batchId, idx, { ...printing, _lookup_failed: false, _manual: false });
-    scanner.confirmVersion(batchId, idx);
-  };
-  const looksRight = (idx: number) => scanner.confirmVersion(batch.id, idx);
+  // The seller's answers about the printing; each one also sends the card's crop
+  // with the answer to the server, as training data (card corrections).
+  const pickPrinting = (batchId: string, idx: number, printing: Candidate) => scanner.pickPrinting(batchId, idx, printing);
+  const looksRight = (idx: number) => scanner.looksRight(batch.id, idx);
 
   const printingsBatch = printingsCtx ? scanner.batches.find(b => b.id === printingsCtx.batchId) : undefined;
   const printingsCard = printingsCtx ? printingsBatch?.response?.cards[printingsCtx.idx]?.candidates[0] : undefined;
