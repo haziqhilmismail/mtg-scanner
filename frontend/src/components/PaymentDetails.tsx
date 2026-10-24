@@ -87,12 +87,13 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
   }, [pickQr]);
 
   // Closing the tab with unsaved edits asks first, like any web form.
+  const dirty = changes != null;
   useEffect(() => {
-    if (!changes) return;
+    if (!dirty) return;
     const ask = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener('beforeunload', ask);
     return () => window.removeEventListener('beforeunload', ask);
-  }, [changes]);
+  }, [dirty]);
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
