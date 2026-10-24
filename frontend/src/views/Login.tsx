@@ -34,12 +34,9 @@ const FEATURES: Array<[IconName, string]> = [
 export function Login({ clientId, onCredential, error, busy, lang, setLang, t, appearance, setAppearance }: Props) {
   const [demo, setDemo] = useState<'scan' | 'claims'>('scan');
   const gis = useGis(clientId, onCredential);
-  const cta = (
-    <>
-      <GoogleButton gis={gis} busy={busy} />
-      <p className="signin-note">{t(gis === 'failed' ? 'lp_google_failed' : 'lp_cta_foot')}</p>
-    </>
-  );
+  const cta = (first: boolean) => (gis === 'failed'
+    ? <p className="signin-error" role={first ? 'alert' : undefined}>{t('lp_google_failed')}</p>
+    : <><GoogleButton gis={gis} busy={busy} /><p className="signin-note">{t('lp_cta_foot')}</p></>);
 
   return (
     <>
@@ -50,7 +47,7 @@ export function Login({ clientId, onCredential, error, busy, lang, setLang, t, a
             <h1 id="signin-title" className="signin-title">{t('lp_title')}</h1>
             <p className="signin-tagline">{t('lp_tagline')}</p>
             <div className="signin-cta">
-              {cta}
+              {cta(true)}
               {error ? <p className="signin-error" role="alert">{error}</p> : null}
             </div>
           </section>
@@ -80,7 +77,7 @@ export function Login({ clientId, onCredential, error, busy, lang, setLang, t, a
             </ul>
           </section>
 
-          <div className="signin-cta signin-again">{cta}</div>
+          <div className="signin-cta signin-again">{cta(false)}</div>
 
           <footer className="signin-foot">
             <div className="signin-prefs">
