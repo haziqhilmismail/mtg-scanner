@@ -41,7 +41,8 @@
 .claims-totals-meta + .claims-totals-meta { margin-top: 4px; }
 .claims-totals > .ui-btn--primary { margin-top: 14px; }
 .claims-totals-more { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.claims-totals-more .ui-btn { flex: 1 1 140px; }
+/* Side by side while both labels fit on one line, else one per row. */
+.claims-totals-more .ui-btn { flex: 1 1 auto; padding: 0 14px; }
 
 .claims-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 20px 20px; text-align: center; }
 .claims-empty-icon { width: 52px; height: 52px; margin-bottom: 4px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
@@ -206,10 +207,6 @@ button.claims-shot-thumb:hover { background: var(--fill); }
 .claims-shot .ui-field { margin-top: 12px; }
 .claims-shot .ui-textarea { background: var(--paper); font-size: 15px; line-height: 1.45; }
 .ui-btn.claims-choose { margin-top: 4px; }
-.claims-paste-hint { display: none; margin: 8px 4px 0; font-size: 13px; color: var(--ink-soft); text-align: center; }
-@media (hover: hover) and (pointer: fine) {
-  .claims-paste-hint { display: block; }
-}
 @media (min-width: 768px) {
   .claims-shot { grid-template-columns: 180px minmax(0, 1fr); grid-template-areas: "thumb head" "thumb rest"; gap: 0 16px; }
   button.claims-shot-thumb { width: 180px; height: 320px; }
