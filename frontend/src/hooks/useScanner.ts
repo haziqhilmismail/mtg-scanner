@@ -435,6 +435,12 @@ export function useScanner(userId: number | null, signOut: () => void) {
     commit(prev => prev.map(b => (b.id === batchId && !b.listed.includes(key) ? { ...b, listed: [...b.listed, key] } : b)));
   }, []);
 
+  // A card of this photo was taken off the checklist.
+  const unmarkListed = useCallback((batchId: string, bbox: number[]) => {
+    const key = bboxKey(bbox);
+    commit(prev => prev.map(b => (b.id === batchId ? { ...b, listed: b.listed.filter(k => k !== key) } : b)));
+  }, []);
+
   const confirmVersion = useCallback(
     (batchId: string, idx: number) => updateCardArray(batchId, 'versionOk', idx, true),
     [updateCardArray],
@@ -650,6 +656,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
     setRemoved,
     confirmVersion,
     markListed,
+    unmarkListed,
     appendFramedCard,
     restoreAll,
     relookupByName,

@@ -172,6 +172,7 @@ export const listingsApi = {
   create: (payload: ListingCreatePayload) => json<Listing>('POST', '/api/listings', payload),
   update: (id: number, payload: Partial<ListingCreatePayload> & { status?: ListingStatus }) =>
     json<Listing>('PATCH', `/api/listings/${id}`, payload),
+  remove: (id: number) => json<void>('DELETE', `/api/listings/${id}`),
 };
 
 // ---------- Orders ----------

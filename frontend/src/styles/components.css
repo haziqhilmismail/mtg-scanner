@@ -81,41 +81,6 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 }
 .round-btn.destructive { color: var(--warn); }
 
-/* Tap the two pictures: both large, side by side. */
-.feedback-overlay.compare-shade { background: rgba(0, 0, 0, 0.88); }
-/* As wide as fits the screen's height too, so both cards show whole. */
-.compare-pop { display: flex; flex-direction: column; align-items: center; gap: 20px; width: min(760px, 100%, calc((100dvh - 220px) * 1.4)); max-height: 100%; overflow-y: auto; color: #fff; }
-.compare-pop h2 { margin: 0; font-size: 20px; font-weight: 600; text-align: center; }
-.compare-pair { display: flex; align-items: center; gap: 12px; width: 100%; }
-.compare-pair figure { flex: 1 1 0; min-width: 0; margin: 0; padding: 16px; border-radius: 24px; background: #1c1c1e; display: flex; flex-direction: column; gap: 12px; }
-.compare-pair img, .compare-pair .tile-img-none { display: block; width: 100%; aspect-ratio: 63 / 88; object-fit: cover; border-radius: 10px; background: #2c2c2e; }
-.compare-pair figcaption { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
-.compare-pair figcaption strong { font-size: 17px; }
-.compare-pair figcaption span { font-size: 13px; color: #a1a1a6; }
-.compare-pair .tile-arrow { width: 44px; height: 44px; border-radius: 50%; background: #2c2c2e; color: #fff; }
-.compare-actions { display: flex; align-items: center; gap: 12px; }
-.compare-actions .tile-change { flex: none; background: #2c2c2e; color: #409cff; }
-.compare-actions .feedback-close { width: var(--tap); height: var(--tap); background: #2c2c2e; color: #fff; }
-.compare-switch, .compare-narrow { display: none; }
-/* Phone: one card large, the switch on top; a tap on the card shows the other. */
-@media (max-width: 600px) {
-  .feedback-overlay.compare-shade { align-items: center; padding: 16px; }
-  .compare-pop { width: 100%; justify-content: center; gap: 20px; }
-  .compare-pop h2, .compare-wide, .compare-pair .tile-arrow, .compare-actions .tile-change { display: none; }
-  .compare-narrow { display: inline; }
-  .compare-switch { display: inline-flex; flex: none; background: #2c2c2e; }
-  .compare-switch button { color: #fff; padding-inline: 18px; }
-  .compare-switch button.active { background: #636366; }
-  .compare-pair { flex: none; }
-  .compare-pair figure { gap: 14px; padding: 0; border-radius: 0; background: transparent; cursor: pointer; }
-  .compare-pair.show-yours .is-match, .compare-pair.show-match .is-yours { display: none; }
-  /* The box is the picture's own size, so the rounded corners sit on the card. */
-  .compare-pair img { width: auto; height: min(62dvh, calc(88vw * 88 / 63)); max-width: 88%; object-fit: cover; aspect-ratio: auto; margin: 0 auto; background: none; border-radius: 16px; }
-  .compare-pair .tile-img-none { max-height: 62dvh; border-radius: 16px; }
-  .compare-pair figcaption strong { font-size: 19px; }
-  .compare-tap { margin-top: 6px; font-size: 13px; color: #8e8e93; }
-}
-
 /* Version display */
 .version-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .set-badge {
@@ -132,86 +97,11 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .set-badge .rarity.special { background: #af52de; }
 .set-name { font-size: 13px; color: var(--ink-soft); line-height: 1.25; }
 
-.price-input-wrap {
-  display: flex; align-items: center; flex: 1; min-width: 0;
-  background: var(--fill); border: 1px solid transparent;
-  border-radius: 10px; overflow: hidden;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.price-input-wrap:focus-within { border-color: var(--accent-fill); box-shadow: 0 0 0 3px var(--accent-soft); }
-.price-input-wrap.set { border-color: var(--accent-fill); }
-.price-input-wrap.required { border-color: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
-.price-input-wrap .prefix {
-  display: inline-flex; align-items: center; padding: 0 2px 0 10px;
-  color: var(--ink-soft); font-size: 13px; font-weight: 600; user-select: none;
-}
-.price-input-wrap.set .prefix { color: var(--accent); }
-.price-input-wrap.required .prefix { color: var(--warn); }
-.price-input-wrap input {
-  flex: 1; min-width: 0; min-height: 34px; padding: 4px 8px 4px 4px;
-  background: transparent; border: 0; border-radius: 0; box-shadow: none;
-  font-size: 15px; font-weight: 600; color: var(--ink);
-  appearance: textfield; -moz-appearance: textfield;
-}
-.price-input-wrap input:focus { box-shadow: none; }
-.price-input-wrap {
-  display: inline-flex; align-items: center;
-  border: 1px solid var(--rule);
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding-left: 8px;
-  flex: 0 0 auto;
-}
-.price-input-wrap:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227,0.12);
-}
-.price-input-wrap .prefix {
-  font-size: 13px; font-weight: 600;
-  color: var(--ink-soft);
-}
-.price-input-wrap input {
-  width: 70px;
-  border: none; background: transparent;
-  padding: 6px 8px;
-  font-size: 15px; font-weight: 600;
-  color: var(--accent);
-  outline: none;
-}
-.clear-btn {
-  width: 36px; min-height: 36px; padding: 0;
-  background: var(--fill); color: var(--ink-soft);
-  border: 0; border-radius: 10px; font-size: 17px;
-}
-.clear-btn:hover { color: var(--warn); }
-.clear-btn:disabled { opacity: 0; pointer-events: none; }
-
 /* ---------- Sheets ----------
    A temporary, focused task. Centred card on wide screens; on a phone it
    rises from the bottom edge with a grabber, within thumb reach. */
-.modal {
-  position: fixed; inset: 0; z-index: var(--z-dialog);
-  display: none; align-items: center; justify-content: center; padding: 24px;
-}
-.modal.open { display: flex; }
-.modal-backdrop { position: absolute; inset: 0; background: var(--scrim); cursor: pointer; animation: dlg-fade 0.2s ease-out; }
-.modal-box {
-  position: relative; z-index: 1;
-  width: min(1100px, 100%); max-height: 88vh; max-height: 88dvh;
-  display: flex; flex-direction: column;
-  background: var(--paper); border: 0;
-  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden;
-  animation: sheet-pop 0.3s var(--ease);
-}
 @keyframes sheet-pop { from { opacity: 0; transform: scale(0.96); } }
 @keyframes sheet-up { from { transform: translateY(100%); } }
-.modal-head {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 16px 16px 12px 22px; border: 0;
-  background: transparent; color: var(--ink);
-}
-.modal-title { font-size: 20px; font-weight: 700; margin: 0; line-height: 1.2; }
-.modal-title em { color: inherit; font-style: normal; font-weight: 700; }
 .modal-close, .feedback-close {
   /* position: relative after `all: unset`: the touch hit area (button::after)
      sizes to the nearest positioned box, which was the whole popup. */
@@ -222,37 +112,6 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   border-radius: 50%; font-size: 20px; line-height: 1;
 }
 .modal-close:hover, .feedback-close:hover { background: var(--fill-strong); }
-.modal-status { padding: 0 22px 12px; border: 0; background: transparent; font-size: 13px; color: var(--ink-soft); }
-.modal-grid {
-  padding: 16px 22px 22px; overflow-y: auto; flex: 1;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; grid-auto-rows: max-content;
-}
-.modal-more { padding: 0 22px 22px; display: flex; justify-content: center; }
-.modal-more-btn { font-size: 15px; }
-.printing-card {
-  position: relative; display: flex; flex-direction: column; cursor: pointer;
-  background: var(--surface-2); border: 0;
-  border-radius: var(--radius); overflow: hidden;
-  transition: box-shadow 0.15s ease;
-}
-.printing-card:hover { box-shadow: 0 0 0 2px var(--rule-strong); }
-/* The current printing is marked by a ring and by a checkmark badge. */
-.printing-card.current { box-shadow: 0 0 0 2.5px var(--accent-fill); }
-.printing-card.current::before {
-  content: '✓'; position: absolute; top: 8px; right: 8px; z-index: 2;
-  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-  background: var(--accent-fill); color: #fff;
-  border-radius: 50%; font-size: 13px; font-weight: 700;
-}
-.printing-card .img { display: block; width: 100%; aspect-ratio: 488 / 680; background: var(--fill); object-fit: contain; }
-.printing-card .info { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 3px; }
-.printing-card .set-code { font-size: 13px; font-weight: 600; color: var(--ink); }
-.printing-card .set-name-small { font-size: 13px; color: var(--ink-soft); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.printing-card .price-row { font-size: 13px; margin-top: 3px; display: flex; align-items: center; gap: 5px; }
-.printing-card .price-row.foil { color: var(--gold); }
-.printing-card .price-row .src { font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 5px; }
-.printing-card .price-row .src.ck { background: var(--green-soft); color: var(--green); }
-.printing-card .price-row .src.none { background: var(--fill); color: var(--ink-soft); }
 @media (max-width: 600px) {
   .modal { padding: 0; align-items: flex-end; }
   .modal-box {
@@ -312,7 +171,6 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 /* Only the page is locked: hidden overflow on body too makes body its own
    scroller, and the sticky header then slides away with the page. */
 html:has(.feedback-overlay), html:has(.modal.open), html:has(.dlg-shade) { overflow: hidden; }
-.modal-grid { overscroll-behavior: contain; }
 
 @media (max-width: 600px) {
   .feedback-overlay { padding: 0; align-items: flex-end; }

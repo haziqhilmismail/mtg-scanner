@@ -1,204 +1,201 @@
-import { useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Icon } from './Icon.tsx';
-import type { CardRowData, Settings } from '../types.ts';
-import { ckSearchUrl, fmt2, formatMyrWithFoil, rarityKey, smallScryfallImage } from '../utils.ts';
-import { AdjustPanel } from './AdjustPanel.tsx';
+import type { ReactNode } from 'react';
 import type { T } from '../hooks/useLang.ts';
-import { useBackClose } from '../hooks/useBackClose.ts';
+import type { CardRowData, Settings } from '../types.ts';
+import { ckSearchUrl, fmt2, formatMyr, rarityKey, smallScryfallImage } from '../utils.ts';
+import { Icon } from './Icon.tsx';
+import { PhotoViewer } from './ui/PhotoViewer.tsx';
+import { Stepper } from './ui/Stepper.tsx';
 
 interface Props {
   cd: CardRowData;
-  // Shown on the compare popup: "From photo 2 · card 1".
-  photoNumber: number | null;
+  // On the post's card list.
   added: boolean;
-  // The photo is finished: the tile shows its price but can't change it.
+  // Being added to the post or taken out of it.
+  adding: boolean;
+  // The photo is finished: its prices are fixed, so only adding and taking out are left.
   locked: boolean;
-  // A live-price post: the price shown is today's estimate.
+  // A live-price post: the auto price is today's, marked ≈.
   live: boolean;
-  versionOk: boolean;
+  // The scanner guessed the printing: the seller checks it.
+  unsure: boolean;
   settings: Settings;
   t: T;
-  onVersionOk: () => void;
-  onRemove: () => void;
-  onQtyStep: (delta: number) => void;
-  onMultStep: (delta: number) => void;
-  onMultClear: () => void;
-  onFoilToggle: () => void;
-  onPriceChange: (v: string | null) => void;
-  onClearOverride: () => void;
+  onView: (side: 0 | 1) => void;
+  onLooksRight: () => void;
+  onToggleAdded: () => void;
+  onEditPrice: () => void;
   onChangeCard: () => void;
+  onQuantity: (qty: number) => void;
+  onRemove: () => void;
+  onRestore: () => void;
 }
 
-function titleLink(cd: CardRowData, t: T) {
-  const name = cd.sel.name || t('unknown_card');
+// The card's name, linked to its Card Kingdom page (or a search there by name).
+function titleLink(cd: CardRowData, name: string, t: T) {
   if (cd.isManual) return name;
   const ck = (cd.isFoil ? cd.sel.ck_url_foil || cd.sel.ck_url_normal : cd.sel.ck_url_normal || cd.sel.ck_url_foil) || '';
-  // CK product page, else a CK search by name: the link is for checking the
-  // card on the retailer the prices come from.
   const url = ck || (cd.sel.name ? ckSearchUrl(cd.sel.name) : '');
   if (!url) return name;
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" title={ck ? t('view_on_ck') : t('search_on_ck')}>
-      {name}<Icon name="external" size={13} className="tile-ext" />
+    <a href={url} target="_blank" rel="noopener noreferrer" title={ck ? t('photo_view_on_ck') : t('photo_search_on_ck')}>
+      {name}<Icon name="external" size={14} className="photo-tile-ext" />
     </a>
   );
 }
 
+// How the price was made: "USD 4.99 × 2.5", "Foil · USD 4.49 × 2.8",
+// "Your price · auto ≈RM13", or that Card Kingdom has no price.
+function formula(cd: CardRowData, live: boolean, settings: Settings, t: T): ReactNode {
+  const foil = cd.isFoil ? <><span className="photo-foil">{t('foil_on')}</span> · </> : null;
+  const noCk = t('photo_no_ck');
+  if (cd.hasOverride) {
+    const yours = <span className="photo-yours">{t('photo_your_price')}</span>;
+    if (cd.ownUsd != null) return <>{foil}{yours} · USD {fmt2(cd.ownUsd)} × {cd.mult}</>;
+    const auto = cd.autoPrice > 0 ? t('photo_auto', { price: `${live ? '≈' : ''}${formatMyr(cd.autoPrice, settings)}` }) : noCk;
+    return <>{foil}{yours} · {auto}</>;
+  }
+  if (cd.needsPrice) return <>{foil}{noCk}</>;
+  return <>{foil}USD {fmt2(cd.usd)} × {cd.mult}</>;
+}
+
+// One card of the photo: your crop next to the matched card, then its name,
+// printing, price and the controls a seller uses on every card. A removed
+// card stays in its place as one row, so it is easy to bring back.
 export function CardRow({
-  cd, photoNumber, added, locked, live, versionOk, settings, t,
-  onVersionOk, onRemove, onQtyStep, onMultStep, onMultClear, onFoilToggle,
-  onPriceChange, onClearOverride, onChangeCard,
+  cd, added, adding, locked, live, unsure, settings, t,
+  onView, onLooksRight, onToggleAdded, onEditPrice, onChangeCard, onQuantity, onRemove, onRestore,
 }: Props) {
-  const [comparing, setComparing] = useState(false);
-  const [side, setSide] = useState<'yours' | 'match'>('yours');
-  useBackClose(comparing, () => setComparing(false));
-  const [editing, setEditing] = useState(false);
+  const name = cd.sel.name || t('unknown_card');
+  const num = cd.origIdx + 1;
+  if (cd.removed) {
+    return (
+      <article className="photo-tile is-removed">
+        <span className="photo-tile-num">{num}</span>
+        <p className="photo-tile-removed"><strong>{t('photo_removed')}</strong> · {name}</p>
+        {locked ? null : (
+          <button type="button" className="ui-btn ui-btn--plain" aria-label={t('photo_restore_card', { name })} onClick={onRestore}>{t('photo_restore')}</button>
+        )}
+      </article>
+    );
+  }
 
-  // The local scanner couldn't read the collector line, so the printing (and
-  // the foil default) is a best guess until the seller picks another or says
-  // it is right.
-  const versionUnsure = !locked && !cd.isManual
-    && cd.card.version_source === 'embedding'
-    && cd.sel.scryfall_id === cd.card.candidates[0]?.scryfall_id
-    && !versionOk;
+  const set = cd.isManual ? '' : cd.sel.set?.toUpperCase() ?? '';
+  const rarity = rarityKey(cd.sel.rarity);
   const matchSrc = cd.sel.image_url || '';
-  const gold = cd.isFoil && settings.foilStyle === 'gold';
-  const price = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
-
-  const working = cd.isManual ? t('user_entered_name')
-    : cd.hasOverride ? <><span className="tile-yours">{t('tile_your_price')}</span> · {t('tile_auto', { price: formatMyrWithFoil(cd.autoPrice, cd.isFoil, settings) })}</>
-      : <>{cd.isFoil ? <span className="tile-foil">{t('foil_on')}</span> : null}{cd.isFoil ? ' · ' : ''}USD {fmt2(cd.usd)} × {cd.mult}</>;
-
-  const classes = ['card-row'];
-  if (cd.isFoil) classes.push('foil');
-  if (versionUnsure) classes.push('unsure');
-
+  const priced = Number.isFinite(cd.unitPrice);
+  const approx = live && !cd.hasOverride ? <span className="photo-approx">≈</span> : null;
   return (
-    <article className={classes.join(' ')}>
-      <button type="button" className="tile-compare" aria-label={t('tile_compare')} title={t('tile_compare')} onClick={() => { setSide('yours'); setComparing(true); }}>
-        <span className="tile-img">
+    <article className={`photo-tile${cd.isFoil ? ' is-foil' : ''}`}>
+      <div className="photo-tile-pair">
+        <button type="button" className="photo-tile-img" aria-label={t('photo_view_yours', { name })} onClick={() => onView(0)}>
           <img src={cd.card.crop_b64} alt="" loading="lazy" />
-          <span className="tile-num">{cd.origIdx + 1}</span>
+          <span className="photo-tile-num">{num}</span>
+          <span className="photo-tile-zoom"><Icon name="expand" size={12} /></span>
+        </button>
+        <span className={`photo-tile-arrow${unsure ? ' is-unsure' : ''}`} aria-hidden="true">
+          {unsure ? '?' : <Icon name="arrowRight" size={18} />}
         </span>
-        <span className={`tile-arrow ${versionUnsure ? 'is-unsure' : ''}`} aria-hidden="true">
-          {versionUnsure ? '?' : <Icon name="chevronRight" size={18} />}
-        </span>
-        <span className="tile-img">
-          {matchSrc ? <img key={matchSrc} src={smallScryfallImage(matchSrc)} alt="" loading="lazy" /> : <span className="tile-img-none">?</span>}
-        </span>
-      </button>
+        <button type="button" className="photo-tile-img" aria-label={t('photo_view_match', { name })} onClick={() => onView(1)}>
+          {matchSrc ? <img key={matchSrc} src={smallScryfallImage(matchSrc)} alt="" loading="lazy" /> : (
+            <span className="photo-tile-none"><Icon name="photo" size={24} />{set ? `${set} · #${cd.sel.collector_number || '?'}` : t('photo_no_match')}</span>
+          )}
+          <span className="photo-tile-zoom"><Icon name="expand" size={12} /></span>
+        </button>
+      </div>
 
-      {versionUnsure ? (
-        <div className="tile-check" title={t('version_unsure')}>
+      {unsure ? (
+        <div className="photo-tile-check">
           <Icon name="warning" size={16} />
           <span>{t('tile_check')}</span>
-          <button type="button" onClick={onVersionOk}>{t('version_unsure_ok')}</button>
+          <button type="button" className="photo-tile-ok" onClick={onLooksRight}>{t('version_unsure_ok')}</button>
         </div>
       ) : null}
 
-      <div className="tile-title">
-        <span className="tile-name">{titleLink(cd, t)}</span>
-        {added ? <span className="tile-in-post" title={t('added_to_list')} aria-label={t('added_to_list')}><Icon name="check" size={16} /></span> : null}
+      <div className="photo-tile-title">
+        <h3 className="photo-tile-name">{titleLink(cd, name, t)}</h3>
+        <button
+          type="button" className={`photo-tile-add${added ? ' is-added' : ''}`}
+          aria-label={t(added ? 'photo_take_out' : 'photo_add', { name })}
+          title={t(added ? 'photo_in_post' : 'photo_add_short')}
+          disabled={adding} aria-busy={adding || undefined}
+          onClick={onToggleAdded}
+        ><span><Icon name={added ? 'check' : 'plus'} size={16} /></span></button>
       </div>
-      {cd.isManual || !cd.sel.set ? null : (
-        <div className="version-line tile-version">
-          <span className="set-badge">
-            {rarityKey(cd.sel.rarity) ? <span className={`rarity ${rarityKey(cd.sel.rarity)}`} /> : null}
-            {cd.sel.set.toUpperCase()}
-            <span className="cn">#{cd.sel.collector_number || '?'}</span>
-          </span>
-          {cd.sel.set_name ? <span className="set-name">{cd.sel.set_name}</span> : null}
-        </div>
-      )}
-      <div className="tile-working">{working}</div>
-      <div className="tile-price-row">
-        {cd.needsPrice ? <span className="tile-needs">{t('price_required')}</span> : (
-          <span className={`tile-price ${gold ? 'foil' : ''}`}>
-            {live && !cd.hasOverride ? <span className="tile-approx">~</span> : null}{price}
-            {cd.qty > 1 ? <span className="tile-subtotal"> × {cd.qty} = {formatMyrWithFoil(cd.lineTotal, cd.isFoil, settings)}</span> : null}
-          </span>
-        )}
+
+      <div className="version-line photo-tile-version">
+        <span className="set-badge">
+          {rarity ? <span className={`rarity ${rarity}`} /> : null}
+          {set ? <>{set}<span className="cn">#{cd.sel.collector_number || '?'}</span></> : t('photo_no_printing')}
+        </span>
+        {set && cd.sel.set_name ? <span className="set-name">{cd.sel.set_name}</span> : null}
+      </div>
+
+      <p className="photo-tile-formula">{formula(cd, live, settings, t)}</p>
+
+      <div className="photo-tile-price">
+        {priced ? (
+          <span className="photo-tile-amount">{approx}{formatMyr(cd.unitPrice, settings)}</span>
+        ) : <span className="photo-tile-setprice">{t('photo_set_price')}</span>}
+        {priced && cd.qty > 1 ? (
+          <span className="photo-tile-each">{t('photo_times', { qty: cd.qty, total: `${approx ? '≈' : ''}${formatMyr(cd.lineTotal, settings)}` })}</span>
+        ) : null}
         {locked ? null : (
           <button
-            type="button" className={`tile-icon-btn ${cd.hasOverride ? 'is-set' : ''} ${cd.needsPrice ? 'is-needed' : ''}`}
-            aria-label={t('tile_edit_price')} title={t('tile_edit_price')} onClick={() => setEditing(true)}
+            type="button" className={`ui-icon-btn ui-icon-btn--sm photo-tile-edit${cd.hasOverride ? ' is-set' : ''}${priced ? '' : ' is-needed'}`}
+            aria-label={t('photo_edit_price', { name })} title={t('tile_edit_price')} onClick={onEditPrice}
           ><Icon name="edit" size={16} /></button>
         )}
       </div>
 
       {locked ? null : (
-        <div className="tile-foot">
-          <button type="button" className="tile-change" onClick={onChangeCard}>
+        <div className="photo-tile-actions">
+          <button type="button" className="ui-btn photo-tile-change" onClick={onChangeCard}>
             <Icon name="swap" size={16} />{t('tile_change_card')}
           </button>
-          <div className="tile-qty">
-            {cd.qty > 1 ? (
-              <button type="button" aria-label={t('tile_qty_down')} onClick={() => onQtyStep(-1)}><Icon name="minus" size={18} /></button>
-            ) : (
-              <button type="button" className="is-remove" aria-label={t('remove_card')} title={t('remove_card')} onClick={onRemove}><Icon name="trash" size={18} /></button>
-            )}
-            <span aria-live="polite">{cd.qty}</span>
-            <button type="button" aria-label={t('tile_qty_up')} onClick={() => onQtyStep(1)}><Icon name="plus" size={18} /></button>
-          </div>
+          <Stepper
+            value={cd.qty} onChange={onQuantity} min={1}
+            label={t('photo_qty', { name })} decrementLabel={t('tile_qty_down')} incrementLabel={t('tile_qty_up')}
+            onRemove={onRemove} removeLabel={t('photo_remove_card', { name })}
+          />
         </div>
       )}
-
-      {comparing ? createPortal(
-        <div className="feedback-overlay compare-shade" onClick={() => setComparing(false)}>
-          <div className="compare-pop" role="dialog" aria-modal="true" aria-label={cd.sel.name || t('unknown_card')} onClick={e => e.stopPropagation()}>
-            <h2>{cd.sel.name || t('unknown_card')}</h2>
-            {/* Phone: one card at a time, switched here or by tapping the card. */}
-            <div className="segmented compare-switch" role="group" aria-label={t('tile_compare')}>
-              <button type="button" className={side === 'yours' ? 'active' : ''} aria-pressed={side === 'yours'} onClick={() => setSide('yours')}>{t('tile_your_card')}</button>
-              <button type="button" className={side === 'match' ? 'active' : ''} aria-pressed={side === 'match'} onClick={() => setSide('match')}>{t('tile_matched_card')}</button>
-            </div>
-            <div className={`compare-pair show-${side}`}>
-              <figure className="is-yours" onClick={() => setSide('match')}>
-                <img src={cd.card.crop_b64} alt="" />
-                <figcaption>
-                  <strong className="compare-wide">{t('tile_your_card')}</strong>
-                  <strong className="compare-narrow">{cd.sel.name || t('unknown_card')}</strong>
-                  {photoNumber != null ? <span>{t('tile_from_photo', { photo: photoNumber, n: cd.origIdx + 1 })}</span> : null}
-                  <span className="compare-narrow compare-tap">{t('tile_tap_match')}</span>
-                </figcaption>
-              </figure>
-              <span className="tile-arrow" aria-hidden="true"><Icon name="chevronRight" size={18} /></span>
-              <figure className="is-match" onClick={() => setSide('yours')}>
-                {matchSrc ? <img src={matchSrc} alt="" /> : <span className="tile-img-none">?</span>}
-                <figcaption>
-                  <strong className="compare-wide">{t('tile_matched_card')}</strong>
-                  <strong className="compare-narrow">{cd.sel.name || t('unknown_card')}</strong>
-                  <span>{[cd.sel.set?.toUpperCase(), cd.sel.collector_number ? `#${cd.sel.collector_number}` : '', cd.sel.set_name, cd.isFoil ? t('foil_on') : t('foil_off')].filter(Boolean).join(' · ')}</span>
-                  <span className="compare-narrow compare-tap">{t('tile_tap_yours')}</span>
-                </figcaption>
-              </figure>
-            </div>
-            <div className="compare-actions">
-              {locked ? null : (
-                <button type="button" className="tile-change" onClick={() => { setComparing(false); onChangeCard(); }}>
-                  <Icon name="swap" size={16} />{t('tile_change_card')}
-                </button>
-              )}
-              <button type="button" className="feedback-close" onClick={() => setComparing(false)} aria-label={t('voucher_close')}>×</button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      ) : null}
-
-      {editing ? (
-        <AdjustPanel
-          cd={cd} live={live} settings={settings} t={t}
-          onClose={() => setEditing(false)}
-          onFoilToggle={onFoilToggle}
-          onMultStep={onMultStep}
-          onMultClear={onMultClear}
-          onPriceChange={onPriceChange}
-          onClearOverride={onClearOverride}
-        />
-      ) : null}
     </article>
   );
 }
 
+interface ViewerProps {
+  cd: CardRowData;
+  open: boolean;
+  // Which picture shows first: your card (0) or the matched one (1).
+  start: 0 | 1;
+  locked: boolean;
+  t: T;
+  onClose: () => void;
+  onChangeCard: () => void;
+}
+
+// Your card and the matched card full screen; a click on the picture flips
+// between them. With no matched picture, your card alone.
+export function CardViewer({ cd, open, start, locked, t, onClose, onChangeCard }: ViewerProps) {
+  const name = cd.sel.name || t('unknown_card');
+  const set = cd.isManual ? '' : cd.sel.set?.toUpperCase() ?? '';
+  const printing = set ? [set, `#${cd.sel.collector_number || '?'}`, cd.sel.set_name] : [t('photo_no_printing')];
+  const yours = { src: cd.card.crop_b64, alt: t('photo_alt_yours', { name }), label: t('tile_your_card') };
+  const caption = (
+    <div className="ui-viewer-caption photo-viewer-caption">
+      <strong>{name}</strong>
+      <span>{[...printing, t(cd.isFoil ? 'foil_on' : 'foil_off')].filter(Boolean).join(' · ')}</span>
+      {cd.sel.image_url ? <span className="photo-viewer-hint">{t('photo_viewer_hint')}</span> : null}
+      {locked ? null : (
+        <button type="button" className="ui-btn" onClick={onChangeCard}><Icon name="swap" size={16} />{t('tile_change_card')}</button>
+      )}
+    </div>
+  );
+  const common = { open, onClose, label: name, closeLabel: t('voucher_close') };
+  return cd.sel.image_url ? (
+    <PhotoViewer
+      {...common} start={start} flipLabel={t('photo_flip')}
+      pair={[yours, { src: cd.sel.image_url, alt: t('photo_alt_match', { name }), label: t('tile_matched_card') }]}
+    >{caption}</PhotoViewer>
+  ) : <PhotoViewer {...common} image={yours}>{caption}</PhotoViewer>;
+}
