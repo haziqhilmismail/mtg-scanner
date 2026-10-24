@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchPrintings } from '../api.ts';
+import type { T } from '../hooks/useLang.ts';
 import type { Candidate, RelookupMsg } from '../types.ts';
 import { fmt2, smallScryfallImage } from '../utils.ts';
-import type { T } from '../hooks/useLang.ts';
-import { useBackClose } from '../hooks/useBackClose.ts';
+import { Icon } from './Icon.tsx';
+import { Dialog } from './ui/Dialog.tsx';
+import { TextField } from './ui/Field.tsx';
 
 interface Props {
   open: boolean;
@@ -22,160 +24,99 @@ interface Props {
 
 const PAGE_SIZE = 30;
 
+// Change card: every printing of the card with its Card Kingdom prices, the
+// current one marked. Choosing one is the change, so there is no Save.
 export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, busy, msg, onFind, onUseAsIs, t }: Props) {
-  useBackClose(open, onClose);
-  const [name, setName] = useState(cardName);
-  useEffect(() => { setName(cardName); }, [cardName, open]);
-  const [printings, setPrintings] = useState<Candidate[]>([]);
-  const [status, setStatus] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  // Cap rendered cards to PAGE_SIZE at a time; resets when filter or list changes.
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  // Load printings on open
-  useEffect(() => {
-    if (!open || !cardName) return;
-    setPrintings([]);
-    setStatus(t('modal_loading_from'));
-    setLoading(true);
-    fetchPrintings(cardName).then(
-      data => {
-        setLoading(false);
-        const list = data.printings || [];
-        setPrintings(list);
-        if (!list.length) setStatus(t('modal_no_printings'));
-      },
-      e => {
-        setLoading(false);
-        const err = e as Error & { status?: number };
-        setStatus(err.status === 404 ? t('modal_no_printings') : `Error: ${err.message}`);
-      },
-    );
-  }, [open, cardName, t]);
-
-  // Esc to close + body scroll lock
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.documentElement.style.overflow = '';
-    };
-  }, [open, onClose]);
-
-  // A new list starts from the first page again.
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [printings]);
-
-  const visible = useMemo(() => printings.slice(0, visibleCount), [printings, visibleCount]);
-  const remaining = Math.max(0, printings.length - visible.length);
-
-  // How many printings, and how many CK prices.
-  useEffect(() => {
-    if (loading || !printings.length) return;
-    const total = printings.length;
-    const ckCount = printings.filter(
-      p => p.price_source_normal === 'cardkingdom' || p.price_source_foil === 'cardkingdom',
-    ).length;
-    setStatus(total === 1 ? t('modal_count_summary_singular', { ck: ckCount }) : t('modal_count_summary', { n: total, ck: ckCount }));
-  }, [printings, loading, t]);
-
-  if (!open) return null;
-
   return (
-    <div className="modal open">
-      <div className="modal-backdrop" onClick={onClose} />
-      <div className="modal-box" role="dialog" aria-modal="true">
-        <div className="modal-head">
-          <h3 className="modal-title">
-            {t('modal_all_printings')} <em>{cardName}</em>
-          </h3>
-          <button className="modal-close" type="button" onClick={onClose} aria-label="Close">×</button>
-        </div>
-        <div className="modal-status">{status}</div>
-        <div className="modal-search">
-          <form className="modal-search-row" onSubmit={e => { e.preventDefault(); onFind(name); }}>
-            <input
-              type="text" value={name} disabled={busy} aria-label={t('type_card_name')}
-              placeholder={t('type_card_name')} onChange={e => setName(e.target.value)}
-            />
-            <button type="submit" className="accent" disabled={busy}>{busy ? t('looking_up') : t('find')}</button>
-            <button type="button" className={msg?.type === 'err' ? 'accent' : ''} disabled={busy} onClick={() => onUseAsIs(name)}>{t('use_asis')}</button>
-          </form>
-          {msg ? <p className={`modal-search-msg ${msg.type}`}>{msg.text}</p> : <p className="modal-search-msg">{t('relookup_hint')}</p>}
-        </div>
-        <div className="modal-grid">
-          {visible.map(p => (
-            <PrintingCard
-              key={`${p.scryfall_id || p.set + p.collector_number}`}
-              p={p}
-              isCurrent={p.scryfall_id === currentSid}
-              onPick={() => onSelect(p)}
-              t={t}
-            />
-          ))}
-        </div>
-        {remaining > 0 && (
-          <div className="modal-more">
-            <button
-              type="button"
-              className="modal-more-btn"
-              onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
-            >
-              {t('modal_show_more', { n: Math.min(PAGE_SIZE, remaining), left: remaining })}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    <Dialog
+      open={open} onClose={onClose} closeLabel={t('voucher_close')} variant="picker" className="change-card"
+      title={t('cc_title')} subtitle={t('cc_subtitle', { name: cardName })}
+    >
+      <Printings cardName={cardName} currentSid={currentSid} onSelect={onSelect} busy={busy} msg={msg} onFind={onFind} onUseAsIs={onUseAsIs} t={t} />
+    </Dialog>
   );
 }
 
-function PrintingCard({
-  p, isCurrent, onPick, t,
-}: {
-  p: Candidate;
-  isCurrent: boolean;
-  onPick: () => void;
-  t: Props['t'];
-}) {
-  const tag = (src: string) =>
-    src === 'cardkingdom' ? <span className="src ck">CK</span>
-      : <span className="src none">—</span>;
+// The body mounts with each opening, so the search box and the list start from the card as it is.
+function Printings({ cardName, currentSid, onSelect, busy, msg, onFind, onUseAsIs, t }: Omit<Props, 'open' | 'onClose'>) {
+  const [name, setName] = useState(cardName);
+  const [printings, setPrintings] = useState<Candidate[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [shown, setShown] = useState(PAGE_SIZE);
+
+  // Find replaces the card, and its new name loads its own printings.
+  useEffect(() => {
+    if (!cardName) return;
+    let current = true;
+    setName(cardName); setPrintings(null); setFailed(false); setShown(PAGE_SIZE);
+    fetchPrintings(cardName).then(
+      data => { if (current) setPrintings(data.printings || []); },
+      (e: Error & { status?: number }) => { if (!current) return; if (e.status === 404) setPrintings([]); else setFailed(true); },
+    );
+    return () => { current = false; };
+  }, [cardName]);
+
+  const ck = printings?.filter(p => p.price_source_normal === 'cardkingdom' || p.price_source_foil === 'cardkingdom').length ?? 0;
+  const status = failed ? t('cc_failed')
+    : printings == null ? t('cc_loading')
+      : printings.length === 0 ? t('cc_none')
+        : t(printings.length === 1 ? 'cc_count_one' : 'cc_count', { n: printings.length, ck });
 
   return (
-    <div
-      className={`printing-card ${isCurrent ? 'current' : ''}`}
-      onClick={onPick}
-    >
-      {p.image_url
-        ? (
-          <img
-            className="img"
-            src={smallScryfallImage(p.image_url)}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            width={146}
-            height={204}
-          />
-        )
-        : <div className="img" />}
-      <div className="info">
-        <div className="set-code">
-          {(p.set || '?').toUpperCase()} · #{p.collector_number || '?'}
-        </div>
-        <div className="set-name-small">{p.set_name || ''}</div>
-        {p.usd > 0
-          ? <div className="price-row">{tag(p.price_source_normal)}USD {fmt2(p.usd)}</div>
-          : <div className="price-row" style={{ color: 'var(--ink-soft)' }}>{tag('none')}{t('modal_no_normal')}</div>}
-        {p.usd_foil > 0 ? (
-          <div className="price-row foil">
-            {tag(p.price_source_foil)}{t('modal_foil_label')} {fmt2(p.usd_foil)}
-          </div>
-        ) : null}
+    <>
+      <form className="cc-search" role="search" onSubmit={e => { e.preventDefault(); onFind(name); }}>
+        <TextField
+          type="search" aria-label={t('cc_name')} className="cc-search-field"
+          prefix={<Icon name="search" size={18} />} enterKeyHint="search" autoComplete="off"
+          value={name} disabled={busy} onChange={e => setName(e.target.value)}
+        />
+        <button type="submit" className="ui-btn ui-btn--primary" disabled={busy}>{busy ? t('cc_finding') : t('find')}</button>
+      </form>
+      {msg && msg.type !== 'busy' ? <p className={`cc-msg is-${msg.type}`} role="status">{msg.text}</p> : null}
+      <p className="cc-status" aria-live="polite">{status}</p>
+
+      {printings?.length ? (
+        <ul className="cc-grid">
+          {printings.slice(0, shown).map(p => (
+            <li key={p.scryfall_id || `${p.set}-${p.collector_number}`}>
+              <Printing p={p} current={!!currentSid && p.scryfall_id === currentSid} onPick={() => onSelect(p)} t={t} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {printings && printings.length > shown ? (
+        <button type="button" className="ui-btn ui-btn--block cc-more" onClick={() => setShown(n => n + PAGE_SIZE)}>
+          {t('cc_more', { n: Math.min(PAGE_SIZE, printings.length - shown) })}
+        </button>
+      ) : null}
+
+      <div className="cc-asis">
+        <span>{t('cc_asis_hint')}</span>
+        <button type="button" className="ui-btn" disabled={busy} onClick={() => onUseAsIs(name)}>{t('use_asis')}</button>
       </div>
-    </div>
+    </>
+  );
+}
+
+function Printing({ p, current, onPick, t }: { p: Candidate; current: boolean; onPick: () => void; t: T }) {
+  const code = `${(p.set || '?').toUpperCase()} · #${p.collector_number || '?'}`;
+  const normal = p.price_source_normal === 'cardkingdom' && p.usd > 0;
+  const foil = p.price_source_foil === 'cardkingdom' && p.usd_foil > 0;
+  return (
+    <button type="button" className={`cc-printing${current ? ' is-current' : ''}`} aria-current={current || undefined} onClick={onPick}>
+      <span className="cc-printing-img">
+        {p.image_url ? <img src={smallScryfallImage(p.image_url)} alt="" loading="lazy" decoding="async" width={146} height={204} /> : (
+          <span className="cc-printing-none"><Icon name="photo" size={24} />{code}</span>
+        )}
+        {current ? <span className="cc-printing-check"><Icon name="check" size={14} /></span> : null}
+      </span>
+      <span className="cc-printing-text">
+        <span className="cc-printing-code">{code}</span>
+        <span className="cc-printing-set">{p.set_name || ''}</span>
+        {normal ? <span className="cc-printing-price">USD {fmt2(p.usd)}</span> : <span className="cc-printing-price is-none">{t('cc_no_normal')}</span>}
+        {foil ? <span className="cc-printing-price is-foil">{t('foil_on')} · USD {fmt2(p.usd_foil)}</span> : null}
+        {current ? <span className="cc-printing-current">{t('cc_current')}</span> : null}
+      </span>
+    </button>
   );
 }

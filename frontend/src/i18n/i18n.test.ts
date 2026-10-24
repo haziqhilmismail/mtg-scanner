@@ -3,11 +3,12 @@ import { test } from 'node:test';
 import * as claims from './claims.ts';
 import { translate } from './index.ts';
 import * as login from './login.ts';
+import * as photo from './photo.ts';
 import * as scanner from './scanner.ts';
 import * as settings from './settings.ts';
 import * as shell from './shell.ts';
 
-const AREAS = { shell, scanner, claims, settings, login };
+const AREAS = { shell, scanner, photo, claims, settings, login };
 
 test('every area file has the same keys in English and Malay', () => {
   for (const area of Object.values(AREAS)) {
