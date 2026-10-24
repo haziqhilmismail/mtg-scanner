@@ -1139,8 +1139,8 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
       </div>
       <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} asking t={t} />
       <SlipsSheet
-        open={slipsOpen} onClose={() => setSlipsOpen(false)} t={t}
-        buyers={groups.map(g => ({ id: g.buyerId, name: g.name, phone: phoneOf(g.buyerId), done: g.state === 'done' }))}
+        open={slipsOpen} onClose={() => setSlipsOpen(false)} postTitle=""
+        buyers={groups.map(g => ({ id: g.buyerId, name: g.name, phone: phoneOf(g.buyerId) }))}
       />
     </>
   );

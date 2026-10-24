@@ -8,6 +8,9 @@ import type { T } from '../../i18n/index.ts';
 import type { CardRowData } from '../../types.ts';
 import { paymentLines } from '../../utils.ts';
 
+// "1 card", "3 cards": counted strings come as `key` ({n}) and `key_one`.
+export const counted = (t: T, key: string, n: number) => t(n === 1 ? `${key}_one` : key, { n: n.toLocaleString('en-MY') });
+
 export type PayState = 'unpaid' | 'paid' | 'done';
 export const PAY_STATES: readonly PayState[] = ['unpaid', 'paid', 'done'];
 
