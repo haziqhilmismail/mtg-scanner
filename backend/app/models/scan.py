@@ -47,3 +47,6 @@ class Scan(Base, TimestampMixin):
         back_populates="scan",
         cascade="save-update, merge",
     )
+
+    def card(self, card_id: int) -> dict[str, Any] | None:
+        return next((c for c in (self.gemini_raw or {}).get("cards", []) if c.get("id") == card_id), None)
