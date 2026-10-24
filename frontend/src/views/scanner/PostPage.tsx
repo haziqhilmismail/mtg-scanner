@@ -1,303 +1,276 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AddAllChecklistModal } from '../../components/AddAllChecklistModal.tsx';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
-import { InfoTip } from '../../components/InfoTip.tsx';
-import { PhotoTile, type BatchSummary } from '../../components/ScanGallery.tsx';
+import { PhotoDrop } from '../../components/PhotoDrop.tsx';
 import { PricingRow } from '../../components/SettingsPanel.tsx';
-import { UploadZone } from '../../components/UploadZone.tsx';
+import { Select, TextField } from '../../components/ui/Field.tsx';
+import { Menu } from '../../components/ui/Menu.tsx';
+import { StickyBar } from '../../components/ui/StickyBar.tsx';
+import { useToast } from '../../components/ui/Toast.tsx';
+import { photosOf } from '../../lib/photoFiles.ts';
 import { POSTS, UNFILED } from '../../routes.ts';
 import type { Batch } from '../../types.ts';
-import { byPostOrder, formatMyr, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
-import { keyTaken, moveTileFocus, ScanProgress, type Area, type Folder } from './area.tsx';
+import { byPostOrder, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
+import { keyTaken, ScanProgress, type Area, type Folder } from './area.tsx';
+import { PhotoList } from './PhotoList.tsx';
+import { PostSummary } from './PostSummary.tsx';
+import { RenamePostDialog } from './RenamePostDialog.tsx';
+import { usePostExport } from './usePostExport.ts';
 
-// One post: its name, total and actions, then its photos to search, sort,
-// select and reorder.
+// What the photo list is doing: showing the photos, ticking some, or
+// moving them into a new order that is saved in one go.
+type Mode =
+  | { kind: 'normal' }
+  | { kind: 'select'; selected: Set<string> }
+  | { kind: 'reorder'; draft: string[] };
+const NORMAL: Mode = { kind: 'normal' };
+
+// One post: its name with Rename and Manage post, its total and actions,
+// then its photos to search, sort, select and reorder.
 export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   const {
-    t, scanner, pricing, pricingFor, go, pickerPosts, postTitle, numbers, pricingTitle,
-    sharePhone, ready, finishing, share, explainFinish, runFinishAll, deliverFolder,
-    deletePhotos, renamePost, setArchived, deletePost, moveTo, sort, setSort, openPhoto,
+    t, scanner, pricingFor, go, pickerPosts, postTitle, numbers, exportJob,
+    renamePost, setArchived, deletePost, deletePhotos, moveTo, sort, setSort, openPhoto,
   } = area;
   const dialog = useDialog();
+  const toast = useToast();
   const [query, setQuery] = useState('');
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [reordering, setReordering] = useState(false);
-  // Renaming: click the name and type. Enter or clicking away saves, Esc
-  // cancels. null = not editing.
-  const [titleDraft, setTitleDraft] = useState<string | null>(null);
-  // Unfiled photos ask which post to finish into; the picker holds them.
-  const [finishTargets, setFinishTargets] = useState<{ key: string; batches: Batch[] } | null>(null);
+  const [mode, setMode] = useState<Mode>(NORMAL);
+  const [saving, setSaving] = useState(false);
+  // The name being typed in Rename; null while the dialog is closed.
+  const [renaming, setRenaming] = useState(false);
+  const headId = useId();
+  const searchId = useId();
+  const addInput = useRef<HTMLInputElement>(null);
 
-  const live = pricingFor(folder.postId).priceMode === 'live';
+  const settings = pricingFor(folder.postId);
+  const live = settings.priceMode === 'live';
+  const isPost = folder.postId != null;
   const q = query.trim().toLowerCase();
-  const matches = useCallback((s: BatchSummary) => !q || s.haystack.includes(q), [q]);
-  const visibleItems = useMemo(() => sortPhotos(folder.items.filter(matches), sort), [folder, matches, sort]);
-  // The saved photos in post order, for reordering.
-  const postOrdered = useMemo(() => folder.items.map(s => s.batch).filter(b => b.scanId != null).sort(byPostOrder), [folder]);
+  // The saved photos in post order: what reorder moves and what exports.
+  const saved = useMemo(() => folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null).sort(byPostOrder), [folder]);
+  // The labelled photos of some of them: a live post's every photo, a
+  // price-on-photo post's finished ones (their prices are the ones claims use).
+  const jobsOf = (batches: Batch[]) => batches.filter(b => live || b.lockedAt).flatMap(b => exportJob(b) ?? []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const shareJobs = useMemo(() => (isPost ? jobsOf(saved) : []), [isPost, saved, live, exportJob]);
+  const exp = usePostExport(shareJobs, folder.title, t);
+  const visible = useMemo(
+    () => sortPhotos(folder.items.filter(s => !q || s.names.some(n => n.toLowerCase().includes(q))), sort),
+    [folder, q, sort],
+  );
+  const selected = mode.kind === 'select' ? mode.selected : new Set<string>();
+  const draft = mode.kind === 'reorder' ? mode.draft : [];
+  const dirty = draft.join() !== saved.map(b => b.id).join();
 
-  const clearSelection = () => { setSelected(new Set()); setSelecting(false); };
+  const addPhotos = (photos: File[]) => (photos.length ? scanner.addFiles(photos, folder.postId) : toast(t('drop_no_photos')));
 
-  const saveTitle = () => {
-    const title = (titleDraft ?? '').trim();
-    setTitleDraft(null);
-    renamePost(folder, title);
+  const endMode = () => setMode(NORMAL);
+  const startSelect = () => { setQuery(''); setMode({ kind: 'select', selected: new Set() }); };
+  const startReorder = () => setMode({ kind: 'reorder', draft: saved.map(b => b.id) });
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (!next.delete(id)) next.add(id);
+    setMode({ kind: 'select', selected: next });
   };
 
-  const moveInOrder = async (i: number, by: -1 | 1) => {
-    const ids = postOrdered.map(b => b.id);
-    [ids[i], ids[i + by]] = [ids[i + by], ids[i]];
-    try { await scanner.orderBatches(ids); } catch (e) {
+  const move = (i: number, by: -1 | 1) => {
+    const next = [...draft];
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    setMode({ kind: 'reorder', draft: next });
+  };
+
+  const saveOrder = async () => {
+    setSaving(true);
+    try {
+      await scanner.orderBatches(draft);
+      endMode();
+      toast(t('reorder_saved'));
+    } catch (e) {
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
-    }
+    } finally { setSaving(false); }
   };
 
-  const finishFolder = async () => {
-    const targets = folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null);
-    if (targets.length === 0) {
-      await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_all_none') });
-      return;
-    }
-    if (!live && !(await explainFinish())) return;
-    if (folder.postId == null) { setFinishTargets({ key: folder.key, batches: targets }); return; }
-    const ok = await dialog.confirm({
-      title: t(live ? 'live_add_all_title' : 'finish_all_confirm_title'),
-      message: t(live ? 'live_add_all_msg' : 'finish_all_confirm_msg', { n: targets.length, post: folder.title }),
-      okLabel: t(live ? 'live_add_all' : 'finish_all_confirm_ok'),
-    });
-    if (ok) runFinishAll(folder.key, targets, folder.postId);
-  };
-
-  // Keyboard: / jumps to the search, Esc ends selecting or goes to Posts,
-  // arrows move between the tiles. Never while typing or under a popup.
+  // Keyboard: / jumps to the search; Esc ends a mode, or goes up to Posts.
+  // Never while typing or under a popup.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (keyTaken(e)) return;
-      if (e.key === '/') {
-        const search = document.querySelector<HTMLInputElement>('.scan-search input');
+      if (e.key === '/' && mode.kind === 'normal') {
+        const search = document.getElementById(searchId);
         if (search) { e.preventDefault(); search.focus(); }
-        return;
+      } else if (e.key === 'Escape') {
+        if (mode.kind === 'normal') go(POSTS);
+        else setMode(NORMAL);
       }
-      if (e.key === 'Escape') {
-        if (selecting) { setSelecting(false); setSelected(new Set()); }
-        else go(POSTS);
-        return;
-      }
-      moveTileFocus(e);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selecting, go]);
+  }, [mode.kind, go, searchId]);
+
+  const count = folder.items.length;
+  const allSelected = count > 0 && selected.size === count;
+  const chosenJobs = jobsOf(saved.filter(b => selected.has(b.id)));
+  const moveTargets = pickerPosts.filter(p => p.id !== folder.postId);
 
   return (
     <>
-      <div className="photo-nav">
-        <Breadcrumbs items={[{ label: t('scans_title'), to: POSTS }, { label: folder.title }]} />
-      </div>
-      <div className="review-head">
-        <div className={`review-title post-title ${titleDraft != null ? 'is-editing' : ''}`}>
-          {folder.postId == null ? (
-            <h1 className="page-title">{folder.title}</h1>
-          ) : titleDraft != null ? (
-            <input
-              className="title-edit"
-              type="text"
-              value={titleDraft}
-              aria-label={t('scans_rename_title')}
-              maxLength={255}
-              autoFocus
-              onFocus={e => e.target.select()}
-              onChange={e => setTitleDraft(e.target.value)}
-              onBlur={saveTitle}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); saveTitle(); }
-                if (e.key === 'Escape') { e.preventDefault(); setTitleDraft(null); }
-              }}
-            />
-          ) : (
-            <h1 className="page-title">
-              <button
-                type="button" className="title-btn"
-                title={t('scans_rename')}
-                onClick={() => setTitleDraft(folder.title)}
-              >
-                <span>{folder.title}</span>
-                <Icon name="edit" size={16} />
-              </button>
-            </h1>
-          )}
-        </div>
-        {folder.total > 0 ? (
-          <span className="all-scans-total">
-            <span className="label">{folder.items.length === 1 ? t('scans_photo_one') : t('scans_photos', { n: folder.items.length })}</span>
-            <span className="value">{formatMyr(folder.total, pricingFor(folder.postId))}</span>
-          </span>
-        ) : null}
-        {folder.items.some(s => s.batch.response) || folder.postId != null ? (
-          <span className="review-actions">
-            {ready?.key === folder.key ? (
-              <button className="accent" onClick={share}>
-                <Icon name="share" size={18} />{t('share_n_photos', { n: ready.files.length })}
-              </button>
-            ) : (
-              <>
-                {live ? (
-                  folder.items.some(s => s.pending > 0) ? (
-                    <button className="accent" disabled={finishing != null} onClick={finishFolder}>
-                      <Icon name="addList" size={18} />{finishing === folder.key ? t('finish_busy') : t('live_add_all')}
-                    </button>
-                  ) : null
-                ) : folder.items.some(s => s.batch.response && !s.batch.lockedAt) ? (
-                  <button className="accent" disabled={finishing != null} onClick={finishFolder}>
-                    <Icon name="lock" size={18} />{finishing === folder.key ? t('finish_busy') : t('finish_all')}
-                  </button>
-                ) : null}
-                {(live ? folder.items.some(s => s.batch.response) : folder.items.some(s => s.batch.lockedAt)) ? (
-                  <button disabled={finishing != null} onClick={() => deliverFolder(folder.key, folder.items.map(s => s.batch))}>
-                    <Icon name={sharePhone ? 'share' : 'download'} size={18} />{t(sharePhone ? 'share_all' : 'download_all')}
-                  </button>
-                ) : null}
-              </>
-            )}
-            {folder.postId != null ? (
-              <>
-                <button className="ghost" onClick={() => setArchived(folder, !folder.archived)}>
-                  <Icon name="archive" size={18} />{folder.archived ? t('scans_unarchive') : t('scans_archive')}
-                </button>
-                <button className="ghost destructive" onClick={() => deletePost(folder)}>
-                  <Icon name="trash" size={18} />{t('scans_delete_post')}
-                </button>
-              </>
-            ) : null}
+      <Breadcrumbs items={[{ label: t('scans_title'), to: POSTS }, { label: folder.title }]} />
+      <div className="post-head">
+        <h1 className="page-title">{folder.title}</h1>
+        {isPost ? (
+          <span className="post-head-actions">
+            <button type="button" className="ui-icon-btn" aria-label={t('rename_post')} aria-haspopup="dialog" onClick={() => setRenaming(true)}>
+              <Icon name="edit" size={18} />
+            </button>
+            <Menu
+              label={t('manage_post')}
+              items={[
+                folder.archived
+                  ? { label: t('restore_post'), hint: t('restore_post_hint'), onSelect: () => setArchived(folder, false) }
+                  : { label: t('archive_post'), hint: t('archive_post_hint'), onSelect: () => setArchived(folder, true) },
+                { label: t('delete_post'), hint: t('delete_post_hint'), destructive: true, onSelect: () => deletePost(folder) },
+              ]}
+            >
+              <Icon name="more" size={20} />
+            </Menu>
           </span>
         ) : null}
       </div>
       {folder.archived ? (
-        <p className="archived-note"><Icon name="archive" size={16} />{t('scans_archived_note')}</p>
-      ) : null}
-      <UploadZone active onFiles={files => scanner.addFiles(files, folder.postId)} t={t} compact />
-      {pricing.pricingKnown(folder.postId) ? (
-        <PricingRow title={pricingTitle(folder)} settings={pricingFor(folder.postId)} t={t} to={{ page: 'pricing', folder: folder.key }} />
-      ) : null}
-      <ScanProgress progress={scanner.scanProgress} t={t} />
-      <h3 className="level-label">
-        {t('scans_photos_label')}{folder.items.length ? <span className="meta"> · {folder.items.length}</span> : null}
-      </h3>
-      {folder.items.length > 0 ? (
-        <div className="gallery-bar">
-          {selecting ? (
-            <>
-              <span className="gallery-bar-count">{t('scans_n_selected', { n: selected.size })}</span>
-              <select
-                className="gallery-move"
-                value=""
-                disabled={selected.size === 0}
-                aria-label={t('scans_move_to')}
-                onChange={async e => {
-                  const v = e.target.value;
-                  if (!v) return;
-                  await moveTo([...selected], v === UNFILED ? null : Number(v));
-                  clearSelection();
-                }}
-              >
-                <option value="">{t('scans_move_to')}</option>
-                {pickerPosts.filter(p => p.id !== folder.postId).map(p => (
-                  <option key={p.id} value={p.id}>{postTitle(p)}</option>
-                ))}
-                {folder.postId != null ? <option value={UNFILED}>{t('scans_unfiled')}</option> : null}
-              </select>
-              <button className="destructive" disabled={selected.size === 0} onClick={async () => { if (await deletePhotos([...selected])) clearSelection(); }}>
-                <Icon name="trash" size={18} />{t('scans_delete')}
-              </button>
-              <button className="ghost" onClick={clearSelection}>{t('scans_select_done')}</button>
-            </>
-          ) : (
-            <>
-              <label className="scan-search">
-                <Icon name="search" size={18} />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  placeholder={t('scans_search')}
-                  aria-label={t('scans_search')}
-                />
-              </label>
-              <select className="gallery-sort" value={sort} aria-label={t('scans_sort')} onChange={e => setSort(e.target.value as PhotoSort)}>
-                {(Object.keys(PHOTO_SORTS) as PhotoSort[]).map(k => (
-                  <option key={k} value={k}>{t(`scans_sort_${k}`)}</option>
-                ))}
-              </select>
-              <InfoTip label={t('post_order_info_title')} text={t('post_order_info')} />
-              <button className="ghost" onClick={() => setReordering(true)}>{t('scans_reorder')}</button>
-              <button className="ghost" onClick={() => setSelecting(true)}>{t('scans_select')}</button>
-            </>
-          )}
+        <div className="post-note">
+          <Icon name="archive" size={18} />
+          <span>{t('post_archived_note')}</span>
+          <button type="button" className="ui-btn" onClick={() => setArchived(folder, false)}>{t('posts_restore')}</button>
         </div>
       ) : null}
-      {reordering ? (
-        /* Post order as a list: move a photo up or down, saved at once. */
-        <div className="reorder-list">
-          <p className="claims-hint">{t('scans_reorder_hint')}</p>
-          {postOrdered.map((b, i) => (
-            <div className="reorder-row" key={b.id}>
-              <span className="reorder-num">{i + 1}</span>
-              {b.response ? <img src={b.response.thumb_url ?? b.response.image_b64} alt="" /> : null}
-              <span className="reorder-name">
-                <strong>{t('photo_n', { n: i + 1 })}</strong>
-                <span>{b.filename}</span>
-              </span>
-              <button type="button" className="round-btn" aria-label={t('scans_move_up')} disabled={i === 0} onClick={() => moveInOrder(i, -1)}>
-                <Icon name="chevronUp" size={18} />
-              </button>
-              <button type="button" className="round-btn" aria-label={t('scans_move_down')} disabled={i === postOrdered.length - 1} onClick={() => moveInOrder(i, 1)}>
-                <Icon name="chevronDown" size={18} />
-              </button>
-            </div>
-          ))}
-          <div className="claims-actions">
-            <span className="spacer" />
-            <button type="button" className="accent" onClick={() => setReordering(false)}>{t('scans_select_done')}</button>
-          </div>
-        </div>
-      ) : folder.items.length === 0 ? (
-        <p className="gallery-empty">{t('scans_empty_post')}</p>
-      ) : visibleItems.length === 0 ? (
-        <p className="gallery-empty">{q ? t('scans_no_matches') : t('scans_none_to_fix')}</p>
-      ) : (
-        <div className="gallery-grid">
-          {visibleItems.map(s => (
-            <PhotoTile
-              key={s.batch.id}
-              summary={s}
-              number={numbers.get(s.batch.id) ?? null}
-              settings={pricingFor(s.batch.postId)}
-              t={t}
-              selecting={selecting}
-              selected={selected.has(s.batch.id)}
-              to={s.batch.scanId != null ? { page: 'photo', folder: folder.key, scanId: s.batch.scanId } : null}
-              onOpen={() => openPhoto(visibleItems.map(v => v.batch.id))}
-              onToggle={() => setSelected(prev => {
-                const next = new Set(prev);
-                if (next.has(s.batch.id)) next.delete(s.batch.id); else next.add(s.batch.id);
-                return next;
-              })}
-            />
-          ))}
-        </div>
-      )}
+      {!isPost ? <p className="post-note"><Icon name="folder" size={18} /><span>{t('unfiled_note')}</span></p> : null}
 
-      {finishTargets && (
-        <AddAllChecklistModal
-          count={finishTargets.batches.length}
-          posts={pickerPosts}
-          onClose={() => setFinishTargets(null)}
-          onConfirm={postId => { setFinishTargets(null); runFinishAll(finishTargets.key, finishTargets.batches, postId); }}
-          t={t}
-        />
-      )}
+      <div className="post-layout">
+        <div className="post-side">
+          {isPost && count ? <PostSummary area={area} folder={folder} quiet={mode.kind === 'reorder'} jobs={shareJobs} exp={exp} /> : null}
+          <PostPricingRow area={area} folder={folder} />
+        </div>
+
+        <section className="post-main" aria-labelledby={headId}>
+          <ScanProgress progress={scanner.scanProgress} t={t} />
+          <div className="ui-section-head">
+            <h2 className="ui-section-title" id={headId} aria-live={mode.kind === 'select' ? 'polite' : undefined}>
+              {mode.kind === 'select' ? (selected.size ? t('photos_selected', { n: selected.size }) : t('photos_select_title'))
+                : mode.kind === 'reorder' ? t('reorder_title')
+                : <>{t('post_photos')}{count ? <span className="ui-count"> · {count}</span> : null}</>}
+            </h2>
+            <div className="ui-section-actions">
+              {mode.kind === 'select' ? (
+                <>
+                  <button type="button" className="ui-btn ui-btn--plain" onClick={() => setMode({ kind: 'select', selected: new Set(allSelected ? [] : folder.items.map(s => s.batch.id)) })}>
+                    {t(allSelected ? 'photos_select_none' : 'photos_select_all')}
+                  </button>
+                  <button type="button" className="ui-btn ui-btn--ink" onClick={endMode}>{t('cancel')}</button>
+                </>
+              ) : mode.kind === 'normal' ? (
+                <>
+                  {count ? <button type="button" className="ui-btn ui-btn--plain" onClick={startSelect}>{t('post_select')}</button> : null}
+                  <button type="button" className="ui-btn" onClick={() => addInput.current?.click()}>
+                    <Icon name="plus" size={18} />{t('post_add_photos')}
+                  </button>
+                  <input
+                    ref={addInput} type="file" accept="image/*" multiple hidden
+                    onChange={e => { const photos = photosOf(e.target.files ?? []); e.target.value = ''; addPhotos(photos); }}
+                  />
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {mode.kind === 'reorder' ? <p className="photo-hint">{t('reorder_hint')}</p> : null}
+          {mode.kind === 'normal' && count ? (
+            <>
+              <div className="photo-tools">
+                <TextField
+                  id={searchId} type="search" className="photo-search" aria-label={t('post_search')} placeholder={t('post_search')}
+                  prefix={<Icon name="search" size={18} />} value={query} onChange={e => setQuery(e.target.value)}
+                />
+                <Select className="photo-sort" aria-label={t('post_sort')} value={sort} onChange={e => setSort(e.target.value as PhotoSort)}>
+                  {(Object.keys(PHOTO_SORTS) as PhotoSort[]).map(k => <option key={k} value={k}>{t(`scans_sort_${k}`)}</option>)}
+                </Select>
+              </div>
+              {isPost && sort === 'post' && !q && saved.length > 1 ? (
+                <div className="photo-hint">
+                  <span>{t('post_order_hint')}</span>
+                  <button type="button" className="ui-btn ui-btn--plain" onClick={startReorder}>{t('post_reorder')}</button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {!count ? (
+            <p className="photos-empty">{t('post_no_photos')}</p>
+          ) : mode.kind === 'normal' && !visible.length ? (
+            <p className="photos-empty">{t('post_no_match', { q: query.trim() })}</p>
+          ) : (
+            <PhotoList
+              items={mode.kind === 'reorder' ? draft.flatMap(id => folder.items.find(s => s.batch.id === id) ?? []) : visible}
+              inPost={isPost}
+              numbers={mode.kind === 'reorder' ? new Map(draft.map((id, i) => [id, i + 1])) : numbers}
+              settings={settings}
+              t={t}
+              photoRoute={scanId => ({ page: 'photo', folder: folder.key, scanId })}
+              mode={mode.kind === 'select' ? { kind: 'select', selected, onToggle: toggle }
+                : mode.kind === 'reorder' ? { kind: 'reorder', onMove: move } : {
+                kind: 'normal', query, showFile: sort === 'name',
+                onOpen: () => openPhoto(visible.map(s => s.batch.id)),
+                onRetry: id => scanner.retryBatches([id]),
+              }}
+            />
+          )}
+        </section>
+      </div>
+
+      {mode.kind === 'select' ? (
+        <StickyBar className="select-bar">
+          <button type="button" className="ui-btn" disabled={!chosenJobs.length || exp.busy} onClick={() => exp.download(chosenJobs)}>
+            <Icon name="download" size={18} />{t('photos_download')}
+          </button>
+          <span className="ui-select move-select">
+            <select
+              aria-label={t('photos_move')} value="" disabled={!selected.size}
+              onChange={async e => {
+                const to = e.target.value;
+                if (to && await moveTo([...selected], to === UNFILED ? null : Number(to))) endMode();
+              }}
+            >
+              <option value="">{t('photos_move')}</option>
+              {moveTargets.map(p => <option key={p.id} value={p.id}>{postTitle(p)}</option>)}
+              {isPost ? <option value={UNFILED}>{t('posts_unfiled')}</option> : null}
+            </select>
+            <Icon name="chevronUpDown" size={14} className="ui-select-icon" />
+          </span>
+          <button type="button" className="ui-btn danger-text" disabled={!selected.size} onClick={async () => { if (await deletePhotos([...selected])) endMode(); }}>
+            <Icon name="trash" size={18} />{t('photos_delete')}
+          </button>
+        </StickyBar>
+      ) : mode.kind === 'reorder' ? (
+        <StickyBar>
+          <span className="ui-sticky-status" aria-live="polite">{dirty ? t('reorder_unsaved') : ''}</span>
+          <button type="button" className="ui-btn ui-btn--ink" onClick={endMode}>{t('cancel')}</button>
+          <button type="button" className="ui-btn ui-btn--primary" disabled={!dirty || saving} onClick={saveOrder}>{t('reorder_save')}</button>
+        </StickyBar>
+      ) : null}
+
+      <PhotoDrop label={t('post_drop')} onPhotos={addPhotos} t={t} />
+
+      <RenamePostDialog open={renaming} title={folder.title} onClose={() => setRenaming(false)} onSave={title => renamePost(folder, title)} t={t} />
     </>
   );
+}
+
+// The post's pricing, or for the unfiled photos the default, once it is known.
+function PostPricingRow({ area, folder }: { area: Area; folder: Folder }) {
+  const { t, pricing, pricingFor } = area;
+  if (!pricing.pricingKnown(folder.postId)) return null;
+  return folder.postId == null
+    ? <PricingRow title={t('pricing_row_default')} settings={pricingFor(null)} t={t} to={{ page: 'profile-pricing' }} />
+    : <PricingRow title={t('settings_title')} settings={pricingFor(folder.postId)} t={t} to={{ page: 'pricing', folder: folder.key }} />;
 }
