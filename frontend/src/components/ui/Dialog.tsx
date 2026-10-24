@@ -6,6 +6,7 @@ interface Common {
   open: boolean;
   // Cancel: ×, Esc, a click on the backdrop and the phone's Back all call it.
   onClose: () => void;
+  onExited?: () => void;
   title: ReactNode;
   subtitle?: ReactNode;
   // Cancel (ui-btn ui-btn--ink) first, then the one primary button.
@@ -14,8 +15,6 @@ interface Common {
   className?: string;
 }
 
-// A dialog with a close button, or (alert) the small centred confirm, which
-// has none: its footer's Cancel is the way out.
 export type DialogProps = Common & (
   | { variant?: 'default' | 'picker'; closeLabel: string }
   | { variant: 'alert'; closeLabel?: never }
@@ -23,13 +22,14 @@ export type DialogProps = Common & (
 
 // Render it always and switch `open`: its content mounts only while it is
 // open, and stays through the exit transition.
-export function Dialog({ open, onClose, title, subtitle, footer, children, className, variant = 'default', closeLabel }: DialogProps) {
+export function Dialog({ open, onClose, onExited, title, subtitle, footer, children, className, variant = 'default', closeLabel }: DialogProps) {
   const id = useId();
   const alert = variant === 'alert';
   return (
     <Modal
       open={open}
       onClose={onClose}
+      onExited={onExited}
       className={`ui-dialog ui-dialog--${variant}${className ? ` ${className}` : ''}`}
       role={alert ? 'alertdialog' : undefined}
       aria-labelledby={`${id}-title`}

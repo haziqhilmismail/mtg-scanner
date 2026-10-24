@@ -2,8 +2,6 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore, type DialogHTM
 import { useBackClose } from '../../hooks/useBackClose.ts';
 import { hideEl, showEl } from './motion.ts';
 
-// The open modal dialogs, oldest first. Everything outside the newest one is
-// inert, so the toast region moves inside it (useTopModal).
 const stack: HTMLDialogElement[] = [];
 const listeners = new Set<() => void>();
 function track(el: HTMLDialogElement, open: boolean) {
@@ -13,42 +11,46 @@ function track(el: HTMLDialogElement, open: boolean) {
   else stack.splice(at, 1);
   listeners.forEach(l => l());
 }
+// The newest open modal dialog. A toast moves into it, because everything
+// outside it is inert; the move mounts the toast again, which restarts it.
 export const useTopModal = () => useSyncExternalStore(
   listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
   () => stack[stack.length - 1] ?? null,
 );
 
-export interface ModalProps extends Omit<DialogHTMLAttributes<HTMLDialogElement>, 'open' | 'onClose' | 'onCancel'> {
+export interface ModalProps extends Omit<DialogHTMLAttributes<HTMLDialogElement>, 'open' | 'onClose' | 'onCancel' | 'onClick' | 'onPointerDown' | 'onKeyDown' | 'tabIndex'> {
   open: boolean;
   // Cancel: Esc, a click on the backdrop, the phone's Back.
   onClose: () => void;
+  onExited?: () => void;  // after the exit transition, once it is closed
   children: ReactNode;
 }
 
-// A native modal <dialog> driven by `open`. While its exit transition runs it
-// stays mounted and keeps showing the content it had when it was open; then
-// focus goes back to whatever opened it.
-export function Modal({ open, ...rest }: ModalProps) {
+// A native modal <dialog> driven by `open`. Its content mounts when it opens
+// and unmounts after it has closed, so state inside starts fresh each time.
+// While its exit transition runs it keeps showing the content it had when it
+// was open; then focus goes back to whatever opened it.
+export function Modal({ open, onExited, ...rest }: ModalProps) {
   const [present, setPresent] = useState(open);
   if (open && !present) setPresent(true);
-  return present ? <ModalBox open={open} onExited={() => setPresent(false)} {...rest} /> : null;
+  return present ? <ModalBox open={open} onExited={() => { setPresent(false); onExited?.(); }} {...rest} /> : null;
 }
 
-function ModalBox({ open, onClose, onExited, children, ...rest }: ModalProps & { onExited: () => void }) {
+function ModalBox({ open, onClose, onExited, children, ...rest }: Omit<ModalProps, 'onExited'> & { onExited: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const shown = useRef(children);
   if (open) shown.current = children;
-  const latest = useRef({ open, onClose, onExited });
-  latest.current = { open, onClose, onExited };
+  const latest = useRef({ onClose, onExited });
+  latest.current = { onClose, onExited };
   const opener = useRef<Element | null>(null);
-  const generation = useRef(0);
+  const openCount = useRef(0);
   const pressedBackdrop = useRef(false);
   useBackClose(open, onClose);
 
   useLayoutEffect(() => {
     if (!open) return;
     const el = ref.current!;
-    const mine = ++generation.current;
+    const thisOpen = ++openCount.current;
     if (!el.open) {
       opener.current = document.activeElement;
       el.showModal();
@@ -61,14 +63,14 @@ function ModalBox({ open, onClose, onExited, children, ...rest }: ModalProps & {
     return () => {
       track(el, false);
       const finish = () => {
-        if (generation.current !== mine) return;  // opened again meanwhile
+        if (openCount.current !== thisOpen) return;
         el.close();
         const back = opener.current;
         const lost = !document.activeElement || document.activeElement === document.body || el.contains(document.activeElement);
         if (back instanceof HTMLElement && back.isConnected && lost) back.focus();
         latest.current.onExited();
       };
-      hideEl(el).then(finish, () => { /* interrupted by a reopen */ });
+      hideEl(el).then(finish, finish);
     };
   }, [open]);
 
@@ -76,17 +78,16 @@ function ModalBox({ open, onClose, onExited, children, ...rest }: ModalProps & {
     <dialog
       ref={ref}
       aria-modal="true"
-      // A click on text inside focuses the dialog, not <body>, so keys still
-      // pass through it (see onKeyDown).
+      // Page shortcuts out of this branch's reach (Scanner.tsx's own selector
+      // list, legacy dialogs that close on Esc at document level) must not see
+      // keys typed here, so they stop at the dialog. tabIndex makes a click on
+      // text focus the dialog, not <body>, so later keys still pass through it.
       tabIndex={-1}
+      onKeyDown={e => e.stopPropagation()}
       {...rest}
       onCancel={e => { e.preventDefault(); latest.current.onClose(); }}
-      // Closed by the browser itself (a second Esc): tell the owner.
-      onClose={() => { if (latest.current.open) latest.current.onClose(); }}
       onPointerDown={e => { pressedBackdrop.current = e.target === e.currentTarget; }}
       onClick={e => { if (pressedBackdrop.current && e.target === e.currentTarget) latest.current.onClose(); }}
-      // Keys typed in a dialog are not the page's shortcuts (Scanner's arrows and Esc).
-      onKeyDown={e => e.stopPropagation()}
     >
       {shown.current}
     </dialog>
