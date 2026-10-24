@@ -192,6 +192,11 @@
 .photo-viewer-caption strong { font-size: 17px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .photo-viewer-caption span { font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
 .photo-viewer-caption .ui-btn { margin-top: 8px; }
+/* A card fills the viewer's height (a crop can be smaller than the screen), keeping its rounded corners. */
+.ui-viewer:has(.photo-viewer-caption.is-card) .ui-viewer-media { container-type: size; }
+.ui-viewer:has(.photo-viewer-caption.is-card) .ui-viewer-media img {
+  width: min(100cqw, 100cqh * 63 / 88); height: auto; max-width: none; max-height: none; aspect-ratio: 63 / 88; object-fit: cover;
+}
 
 @media (min-width: 600px) {
   .photo-actions-row { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
@@ -222,7 +227,7 @@
 .ep-mult .ui-stepper { display: flex; width: 100%; }
 .ep-own-row { display: flex; align-items: flex-start; gap: 8px; }
 .ep-unit { flex: none; }
-.ep-unit .ui-seg-opt { min-height: 44px; padding: 4px 14px; }
+.ep-unit .ui-seg-opt { flex: 1 1 auto; min-height: 44px; padding: 4px 14px; white-space: nowrap; overflow-wrap: normal; }
 .ep-own-field { flex: 1; min-width: 0; }
 
 /* ---------- Change card ---------- */
