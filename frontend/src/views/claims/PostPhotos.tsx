@@ -1,4 +1,4 @@
-import { photoThumb, type Photo } from '../../components/ClaimPickers.tsx';
+import { hideBroken, photoThumb, type Photo } from '../../components/ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { useT } from '../../hooks/useLang.ts';
@@ -32,7 +32,7 @@ export function PostPhotos({ open, onClose, photos, postTitle, chosen, cents, li
           const value = p.cards.reduce((sum, c) => sum + (Number.isFinite(c.cd.unitPrice) ? c.cd.unitPrice * c.cd.qty : 0), 0);
           return (
             <li key={p.batch.id} className={chosen === scanId ? 'claims-post-photo is-chosen' : 'claims-post-photo'}>
-              <img src={photoThumb(p)} alt={t('claims_photo', { n: p.index })} loading="lazy" decoding="async" />
+              <span className="claims-post-photo-img"><img src={photoThumb(p)} alt={t('claims_photo', { n: p.index })} loading="lazy" decoding="async" onError={hideBroken} /></span>
               <div className="claims-post-photo-row">
                 <span className="claims-post-photo-text">
                   <strong>{t('claims_photo', { n: p.index })}</strong>
