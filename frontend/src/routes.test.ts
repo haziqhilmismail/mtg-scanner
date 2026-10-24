@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatRoute, parentOf, parseRoute, type Route } from './routes.ts';
+import { folderOf, formatRoute, parseRoute, type Route } from './routes.ts';
 
 test('every page round-trips through its URL', () => {
   const pages: Array<[Route, string]> = [
@@ -35,11 +35,8 @@ test('a trailing slash and a bad post on Claims are tolerated', () => {
   assert.deepEqual(parseRoute('/claims', '?post=abc'), { page: 'claims', folder: null });
 });
 
-test('the parent of a page', () => {
-  assert.deepEqual(parentOf({ page: 'photo', folder: 'p5', scanId: 12 }), { page: 'post', folder: 'p5' });
-  assert.deepEqual(parentOf({ page: 'pricing', folder: 'unfiled' }), { page: 'post', folder: 'unfiled' });
-  assert.deepEqual(parentOf({ page: 'post', folder: 'p5' }), { page: 'posts' });
-  assert.deepEqual(parentOf({ page: 'profile-pricing' }), { page: 'profile' });
-  assert.equal(parentOf({ page: 'claims', folder: 'p5' }), null);
-  assert.equal(parentOf({ page: 'posts' }), null);
+test('a post id names its folder', () => {
+  assert.equal(folderOf(5), 'p5');
+  assert.equal(folderOf(null), 'unfiled');
+  assert.equal(formatRoute({ page: 'post', folder: folderOf(5) }), '/posts/5');
 });

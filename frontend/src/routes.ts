@@ -12,6 +12,9 @@ export type Route =
 export const POSTS: Route = { page: 'posts' };
 export const UNFILED = 'unfiled';
 
+// The folder of a post, or of the photos with no post.
+export const folderOf = (postId: number | null) => (postId == null ? UNFILED : `p${postId}`);
+
 const segmentOf = (folder: string) => (folder === UNFILED ? UNFILED : folder.slice(1));
 const folderFromSegment = (segment: string) =>
   segment === UNFILED ? UNFILED : /^\d+$/.test(segment) ? 'p' + segment : null;
@@ -52,16 +55,5 @@ export function formatRoute(r: Route): string {
     case 'claims': return r.folder == null ? '/claims' : `/claims?post=${segmentOf(r.folder)}`;
     case 'profile': return '/profile';
     case 'profile-pricing': return '/profile/pricing';
-  }
-}
-
-// The page above this one: for Esc, and for a page whose subject is gone.
-export function parentOf(r: Route): Route | null {
-  switch (r.page) {
-    case 'photo':
-    case 'pricing': return { page: 'post', folder: r.folder };
-    case 'post': return POSTS;
-    case 'profile-pricing': return { page: 'profile' };
-    default: return null;
   }
 }

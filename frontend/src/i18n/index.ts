@@ -13,8 +13,6 @@ type Vars = Record<string, string | number>;
 // A translate function bound to the current language (see useLang).
 export type T = (k: string, vars?: Vars) => string;
 
-export const AREAS = { shell, scanner, claims, settings, login };
-
 const STRINGS: Record<Lang, Record<string, string>> = {
   en: { ...shell.en, ...scanner.en, ...claims.en, ...settings.en, ...login.en },
   ms: { ...shell.ms, ...scanner.ms, ...claims.ms, ...settings.ms, ...login.ms },

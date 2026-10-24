@@ -5,7 +5,7 @@ import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { PrintingsModal } from '../../components/PrintingsModal.tsx';
-import { POSTS } from '../../routes.ts';
+import { folderOf, POSTS } from '../../routes.ts';
 import type { Batch, Candidate } from '../../types.ts';
 import { matchThumbs } from '../../utils.ts';
 import { keyTaken, type Area } from './area.tsx';
@@ -18,7 +18,7 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
     deletePhotos, liveNavIds, navIndex, step,
   } = area;
   const dialog = useDialog();
-  const folder = openFolder?.key ?? batch.id;
+  const folder = folderOf(batch.postId);
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
 
   // "Photo 2 of 2": the photo's place in its post, once it is saved.
