@@ -310,7 +310,6 @@ dialog .ui-toasts { bottom: calc(24px + env(safe-area-inset-bottom)); }
   width: 100%; height: 100%; max-width: none; max-height: none;
   margin: 0; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); border: 0;
   background: var(--bg);
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
   color: var(--ink);
   opacity: 0; transition: opacity 180ms var(--ease);
 }

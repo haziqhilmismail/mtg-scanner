@@ -10,8 +10,8 @@ import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { migrateAdded } from '../../lib/addedMarkers.ts';
 import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
-import type { Batch, PriceMode, Settings } from '../../types.ts';
-import { byPostOrder, computeCardData, downloadBlob, listingFields, lockPrices, notAdded, photoLabel, photoNumbers, popupOpen, type PhotoSort } from '../../utils.ts';
+import type { Batch, CardRowData, PriceMode, Settings } from '../../types.ts';
+import { bboxKey, byPostOrder, computeCardData, downloadBlob, goldPill, listingFields, lockPrices, notAdded, photoLabel, photoNumbers, popupOpen, type PhotoSort } from '../../utils.ts';
 
 // One post's worth of scans in the gallery. `postId` null is the Unfiled group.
 export interface Folder {
@@ -58,7 +58,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
       return {
         bbox: cd.card.bbox,
         corners: cd.card.corners,
-        is_foil: cd.isFoil && settings.foilStyle === 'gold',
+        is_foil: goldPill(cd, settings),
         label_override: label,
       };
     }),
@@ -141,28 +141,44 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
 
   useEffect(() => { refreshPosts(); }, [refreshPosts]);
 
+  // One card onto the checklist of a post, tied to its photo so deleting the
+  // photo takes it off again.
+  const addCard = useCallback(async (batch: Batch, cd: CardRowData, postId = batch.postId) => {
+    await listingsApi.create({
+      ...listingFields(cd),
+      scan_id: batch.scanId,
+      bbox: cd.card.bbox,
+      post_ids: postId != null ? [postId] : [],
+    });
+    scanner.markListed(batch.id, cd.card.bbox);
+  }, [scanner.markListed]);
+
+  // Takes a card off its post's checklist, unless a buyer's claim holds it.
+  const takeOutCard = useCallback(async (batch: Batch, cd: CardRowData): Promise<'claimed' | 'taken out'> => {
+    const key = bboxKey(cd.card.bbox);
+    // shortcut: reads every listing of the seller to find the card's own; ask the server for one scan's if that grows slow.
+    const its = (await listingsApi.list('active')).filter(l => l.scan_id === batch.scanId && l.bbox && bboxKey(l.bbox) === key);
+    if (its.some(l => (l.qty_committed ?? 0) > 0)) return 'claimed';
+    for (const l of its) await listingsApi.remove(l.id);
+    scanner.unmarkListed(batch.id, cd.card.bbox);
+    return 'taken out';
+  }, [scanner.unmarkListed]);
+
   // Core add-all: push every visible, priced card of a batch that is not on
-  // the checklist yet, each tied to the photo so deleting the photo takes it
-  // off again. Returns how many cards failed.
+  // the checklist yet. Returns how many cards failed.
   const addBatchCore = useCallback(async (batch: Batch, postId: number | null) => {
     if (!batch.response || batch.scanId == null) return 0;
     let failed = 0;
     for (const cd of notAdded(batch, computeCardData(batch, pricingFor(batch.postId)))) {
       try {
-        await listingsApi.create({
-          ...listingFields(cd),
-          scan_id: batch.scanId,
-          bbox: cd.card.bbox,
-          post_ids: postId != null ? [postId] : [],
-        });
-        scanner.markListed(batch.id, cd.card.bbox);
+        await addCard(batch, cd, postId);
       } catch (e) {
         console.error('Add failed for', cd.sel.name, e);
         failed += 1;
       }
     }
     return failed;
-  }, [pricingFor, scanner.markListed]);
+  }, [pricingFor, addCard]);
 
   const alertFailed = useCallback(async (failed: number) => {
     if (failed) await dialog.alert({ title: t('alert_error_title'), message: t('bulk_add_failed', { n: failed }) });
@@ -240,16 +256,16 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
   }, [finishing, pricingFor, explainFinish, finishCore, dialog, t, alertFailed, failedAlert]);
 
-  // A finished photo's priced image, downloaded or shared whenever the seller
-  // likes (now, later, again for a re-post): its prices stay locked.
+  // A photo's labelled image, downloaded whenever the seller likes (now,
+  // later, again for a re-post). Sharing is the post's, for all its photos.
   const deliverPhoto = useCallback(async (batch: Batch) => {
     if (finishing) return;
     setFinishing(batch.id); setReady(null);
     try {
       const file = await renderImage(batch);
-      if (file) deliver(batch.id, [file]);
+      if (file) downloadBlob(file, file.name);
     } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
-  }, [finishing, renderImage, deliver, failedAlert]);
+  }, [finishing, renderImage, failedAlert]);
 
   const editPrices = useCallback(async (batch: Batch) => {
     const ok = await dialog.confirm({ title: t('edit_prices_title'), message: t('edit_prices_msg'), okLabel: t('edit_prices_ok') });
@@ -301,15 +317,14 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   // cards array which we swap into the batch's response in-place so user
   // overrides (manual prices, foil toggles, qty) survive untouched.
   const refreshScanPrices = useCallback(async (batch: Batch) => {
-    if (batch.scanId == null) return;
+    if (batch.scanId == null) return false;
     try {
       const result = await relookupScanPrices(batch.scanId);
       scanner.replaceAllCards(batch.id, result.cards);
-    } catch (e) {
-      await dialog.alert({
-        title: t('alert_error_title'),
-        message: 'Refresh failed: ' + (e as Error).message,
-      });
+      return true;
+    } catch {
+      await dialog.alert({ title: t('alert_error_title'), message: t('photo_refresh_failed') });
+      return false;
     }
   }, [scanner, dialog, t]);
 
@@ -510,7 +525,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     loading, postsById, pickerPosts, postTitle,
     liveFolders, archivedFolders, openFolder, activeBatch, numbers, pricingTitle,
     sharePhone, ready, finishing, share, finishPhoto, deliverPhoto, editPrices, explainFinish, runFinishAll, deliverFolder,
-    refreshScanPrices, deletePhotos, renamePost, setArchived, deletePost, moveTo, startPost,
+    addCard, takeOutCard, refreshScanPrices, deletePhotos, renamePost, setArchived, deletePost, moveTo, startPost,
     sort, setSort, openPhoto, liveNavIds, navIndex, step,
   };
 }
