@@ -21,14 +21,15 @@ interface Props {
   onCopy: () => void;
   onQr: () => void;
   onStatus: (to: PayState) => void;
+  onSaveName: (name: string) => Promise<boolean>;
   onSavePhone: (phone: string) => Promise<boolean>;
   onRemove: () => void;
   onResend: () => void;
 }
 
-// Everything about one buyer: the exact message, the status, the number for
-// the drop-off slip, and Remove buyer (with Undo on the page).
-export function BuyerDialog({ open, onClose, group: g, message, cents, hasPayment, qrLabel, live, sentOn, onCopy, onQr, onStatus, onSavePhone, onRemove, onResend }: Props) {
+// Everything about one buyer: the exact message, the status, their name, the
+// number for the drop-off slip, and Remove buyer (with Undo on the page).
+export function BuyerDialog({ open, onClose, group: g, message, cents, hasPayment, qrLabel, live, sentOn, onCopy, onQr, onStatus, onSaveName, onSavePhone, onRemove, onResend }: Props) {
   const t = useT();
   return (
     <Dialog
@@ -59,7 +60,14 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, hasPaymen
             label={t('claims_status')} value={g.state} onChange={onStatus}
             options={PAY_STATES.map(s => ({ value: s, label: t(`claims_state_${s}`) }))}
           />
-          <PhoneField key={g.buyerId} saved={g.phone} onSave={onSavePhone} />
+          <SaveField
+            key={`name-${g.buyerId}`} saved={g.name} onSave={onSaveName} required maxLength={255} autoComplete="off"
+            label={t('claims_name')} saveLabel={t('claims_name_save')}
+          />
+          <SaveField
+            key={`phone-${g.buyerId}`} saved={g.phone} onSave={onSavePhone} inputMode="tel" maxLength={32} autoComplete="off"
+            label={t('claims_phone')} placeholder={t('claims_phone_placeholder')} saveLabel={t('claims_phone_save')}
+          />
           <button type="button" className="ui-btn ui-btn--danger claims-remove" onClick={onRemove}>{t('claims_remove')}</button>
         </>
       ) : null}
@@ -67,14 +75,26 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, hasPaymen
   );
 }
 
-// The buyer's number, saved with its own button: nothing saves as you type.
-function PhoneField({ saved, onSave }: { saved: string; onSave: (phone: string) => Promise<boolean> }) {
+interface SaveFieldProps {
+  saved: string;
+  onSave: (value: string) => Promise<boolean>;
+  label: string;
+  saveLabel: string;
+  placeholder?: string;
+  required?: boolean;
+  inputMode?: 'tel';
+  maxLength: number;
+  autoComplete: string;
+}
+
+// One buyer detail, saved with its own button: nothing saves as you type.
+function SaveField({ saved, onSave, label, saveLabel, placeholder, required, inputMode, maxLength, autoComplete }: SaveFieldProps) {
   const t = useT();
   const id = useId();
   const [value, setValue] = useState(saved);
   const [busy, setBusy] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
-  const changed = value.trim() !== saved;
+  const changed = value.trim() !== saved && !(required && !value.trim());
   return (
     <form
       className="claims-phone"
@@ -87,15 +107,15 @@ function PhoneField({ saved, onSave }: { saved: string; onSave: (phone: string) 
         setJustSaved(ok);
       }}
     >
-      <label id={`${id}-label`} htmlFor={`${id}-input`} className="ui-label">{t('claims_phone')}</label>
+      <label id={`${id}-label`} htmlFor={`${id}-input`} className="ui-label">{label}</label>
       <div className="claims-phone-row">
         <TextField
-          id={`${id}-input`} aria-labelledby={`${id}-label`} inputMode="tel" autoComplete="off" maxLength={32}
-          placeholder={t('claims_phone_placeholder')} value={value}
+          id={`${id}-input`} aria-labelledby={`${id}-label`} inputMode={inputMode} autoComplete={autoComplete} maxLength={maxLength}
+          placeholder={placeholder} value={value}
           onChange={e => { setValue(e.target.value); setJustSaved(false); }}
         />
         <button type="submit" className="ui-btn" disabled={!changed || busy}>
-          {justSaved && !changed ? t('claims_phone_saved') : t('claims_phone_save')}
+          {justSaved && value.trim() === saved ? t('claims_phone_saved') : saveLabel}
         </button>
       </div>
     </form>

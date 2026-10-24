@@ -268,9 +268,9 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
     cancelOrders(ids, true);
     toast(t('claims_toast_removed', { name: g.name.trim() }), { undoLabel: t('claims_undo'), onUndo: () => cancelOrders(ids, false) });
   };
-  const savePhone = async (g: BuyerGroup, phone: string) => {
+  const saveBuyer = async (g: BuyerGroup, change: { fb_name: string } | { phone: string | null }) => {
     try {
-      const saved = await buyersApi.update(g.buyerId, { phone: phone || null });
+      const saved = await buyersApi.update(g.buyerId, change);
       setBuyers(prev => prev.map(b => (b.id === saved.id ? saved : b)));
       return true;
     } catch {
@@ -534,7 +534,8 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
         hasPayment={paymentLines(payment, t).length > 0}
         qrLabel={qrAction ? t(qrAction === 'share' ? 'claims_share_qr' : 'claims_copy_qr') : null}
         onCopy={() => buyer && copy(buyer)} onQr={sendQr} onStatus={to => buyer && move(buyer, to)}
-        onSavePhone={phone => (buyer ? savePhone(buyer, phone) : Promise.resolve(false))}
+        onSaveName={name => (buyer ? saveBuyer(buyer, { fb_name: name }) : Promise.resolve(false))}
+        onSavePhone={phone => (buyer ? saveBuyer(buyer, { phone: phone || null }) : Promise.resolve(false))}
         onRemove={() => buyer && remove(buyer)} onResend={() => buyer && resend(buyer)}
       />
       <SlipsSheet
