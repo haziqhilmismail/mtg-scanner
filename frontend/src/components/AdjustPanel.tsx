@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import type { T } from '../hooks/useLang.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { computeCardData, fmt2, formatMyr, overrideText, parseOverride, type PriceOverride } from '../utils.ts';
+import { computeCardData, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../utils.ts';
 import { Dialog } from './ui/Dialog.tsx';
 import { TextField } from './ui/Field.tsx';
 import { Segmented } from './ui/Segmented.tsx';
@@ -22,16 +22,6 @@ interface Props {
   t: T;
   onClose: () => void;
   onSave: (edit: PriceEdit) => void;
-}
-
-// The price box as typed: empty (no price of the seller's own), a price above
-// 0, or not a price. Commas and spaces are how people write 1,240.
-export function readPrice(text: string): number | null | 'invalid' {
-  const clean = text.replace(/[,\s]/g, '');
-  if (!clean) return null;
-  if (!/^(\d+\.?\d{0,2}|\.\d{1,2})$/.test(clean)) return 'invalid';
-  const n = Number(clean);
-  return n > 0 ? n : 'invalid';
 }
 
 const MULT_MIN = 1;
