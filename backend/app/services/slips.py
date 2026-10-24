@@ -8,6 +8,7 @@ name or number is a line to write on too. Sizes are the board's CSS pixels
 scaled to print. Drawn with Pillow at 300 dpi in black on white and saved as
 a PDF, so it prints to size and reads in grayscale."""
 
+from functools import cache
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
@@ -39,6 +40,26 @@ LABELS = ("Buyer's name:", "Buyer's number:", "Seller's name:")
 
 def _font(size: float, bold: bool = False) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(FONT_BOLD if bold else FONT, round(size))
+
+
+@cache
+def _drawable(ch: str) -> bool:
+    """Whether DejaVu has a glyph for `ch`; a missing one prints as an empty box."""
+    return ch.isspace() or _ink(ch) != _ink("\U0010FFFD")
+
+
+@cache
+def _ink(ch: str) -> bytes:
+    font = _font(VALUE_SIZES[0], bold=True)
+    img = Image.new("L", (font.size * 2, font.size * 2))
+    ImageDraw.Draw(img).text((0, 0), ch, font=font, fill=255)
+    return img.tobytes()
+
+
+def printable(value: str) -> str:
+    """`value` without the characters the slip can't print (emoji, scripts
+    DejaVu lacks). Nothing left means the slip gets a write-in line."""
+    return " ".join("".join(ch for ch in value if _drawable(ch)).split())
 
 
 def _wrap(text: str, font: ImageFont.FreeTypeFont, width: float) -> list[str]:
@@ -83,7 +104,7 @@ def fit_value(value: str, width: float, max_lines: int) -> tuple[ImageFont.FreeT
 def _slip(draw: ImageDraw.ImageDraw, left: float, top: float, buyer: str, phone: str) -> None:
     label_font = _font(LABEL_SIZE)
     shift = 0.0                                   # how much a wrapped name pushes the number down
-    for row, (label, value) in enumerate(zip(LABELS, (buyer, phone, ""))):
+    for row, (label, value) in enumerate(zip(LABELS, (printable(buyer), printable(phone), ""))):
         baseline = top + BASELINES[row] + (shift if row == 1 else 0)
         draw.text((left + PAD_X, baseline), label, font=label_font, fill=LABEL_INK, anchor="ls")
         x = left + PAD_X + draw.textlength(label, font=label_font) + GAP

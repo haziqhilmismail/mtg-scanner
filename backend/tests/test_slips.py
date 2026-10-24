@@ -64,3 +64,9 @@ def test_cut_lines_run_between_slips_only():
     # Nothing runs along the page's own edges (away from where the cuts meet them).
     assert ink((0, 0, middle - 10, 4)) == 255 and ink((0, slips.PAGE_H - 4, middle - 10, slips.PAGE_H)) == 255
     assert ink((0, 10, 4, first_cut - 10)) == 255 and ink((slips.PAGE_W - 4, 10, slips.PAGE_W, first_cut - 10)) == 255
+
+
+def test_characters_the_font_lacks_are_left_out_not_printed_as_boxes():
+    assert slips.printable("Aina 🌸") == "Aina"
+    assert slips.printable("Zoë  Ñúñez") == "Zoë Ñúñez"
+    assert slips.printable("王小明") == ""                                            # nothing printable: a write-in line
