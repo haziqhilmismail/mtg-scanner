@@ -77,22 +77,23 @@ def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
     class _Models:
         def generate_content(self, **kw):
             assert "Sol Ring" in kw["contents"][0] and "nak no 1" in kw["contents"][0]
-            return type("R", (), {"parsed": [
+            return type("R", (), {"parsed": claims.ParseResult(claims=[
                 D(buyer="Aiman", comment="nak no 1", unclear="", items=[
                     I(scan_id=7, card_id=0, qty=0, said="no 1", unclear=""),      # qty 0 → 1
                     I(scan_id=0, card_id=1, qty=1, said="island", unclear=""),    # one photo: scan filled in
                     I(scan_id=7, card_id=9, qty=1, said="bolt", unclear=""),      # not on offer → unclear
                 ]),
-                D(buyer="Nobody", comment="pm", unclear="", items=[]),           # nothing claimed → dropped
-            ]})()
+                D(buyer="Nobody", comment="pm", unclear="", items=[]),           # nothing claimed → skipped
+            ], skipped=["Farah: ada lagi?"])})()
     monkeypatch.setattr(claims, "get_client", lambda: type("Cl", (), {"models": _Models()})())
 
-    drafts = claims.parse_claims("Aiman\nnak no 1", [photo], "Seller")
-    assert [d.buyer for d in drafts] == ["Aiman"]
-    a, b, c = drafts[0].items
+    result = claims.parse_claims("Aiman\nnak no 1", [photo], "Seller")
+    assert [d.buyer for d in result.claims] == ["Aiman"]
+    a, b, c = result.claims[0].items
     assert (a.scan_id, a.card_id, a.qty) == (7, 0, 1)
     assert (b.scan_id, b.card_id) == (7, 1)
     assert c.card_id == -1 and c.unclear
+    assert result.skipped == ["Farah: ada lagi?", "Nobody: pm"]
 
 
 def _item(scan_id, card_id, name, price, qty=1, qty_total=1, foil=False):
@@ -162,12 +163,13 @@ def test_read_and_parse_endpoints(client, monkeypatch):
     seen = {}
     def fake_parse(text, photos, seller):
         seen.update(text=text, photos=len(photos), seller=seller)
-        return [claims.ClaimDraft(buyer="Aiman", comment="nak 1", unclear="", items=[
-            claims.ClaimItemDraft(scan_id=5, card_id=0, qty=1, said="1", unclear="")])]
+        return claims.ParseResult(claims=[claims.ClaimDraft(buyer="Aiman", comment="nak 1", unclear="", items=[
+            claims.ClaimItemDraft(scan_id=5, card_id=0, qty=1, said="1", unclear="")])], skipped=["Farah: ada lagi?"])
     monkeypatch.setattr(claims, "parse_claims", fake_parse)
     r = client.post("/api/claims/parse", headers=me, json={"text": "Aiman\nnak 1", "photos": [
         {"scan_id": 5, "label": "Photo 1", "cards": [{"card_id": 0, "name": "Sol Ring"}]}]})
     assert r.status_code == 200 and r.json()["claims"][0]["items"][0]["card_id"] == 0
+    assert r.json()["skipped"] == ["Farah: ada lagi?"]
     assert seen["text"] == "Aiman\nnak 1" and seen["photos"] == 1
     assert client.post("/api/claims/parse", json={"text": "x", "photos": []}).status_code in (401, 422)
 
@@ -182,7 +184,7 @@ def test_parse_spends_a_credit_and_refuses_when_out(client, monkeypatch):
         calls.append(text)
         if text == "fail":
             raise RuntimeError("gemini is down")
-        return []
+        return claims.ParseResult(claims=[], skipped=[])
     monkeypatch.setattr(claims, "parse_claims", fake_parse)
     remaining = lambda: client.get("/api/credits", headers=me).json()["remaining"]
 
@@ -252,7 +254,7 @@ def test_prompt_explains_seller_tags_in_replies(monkeypatch, thread):
     class _Models:
         def generate_content(self, **kw):
             sent.append(kw["contents"][0])
-            return type("R", (), {"parsed": []})()
+            return type("R", (), {"parsed": None})()
     monkeypatch.setattr(claims, "get_client", lambda: type("Cl", (), {"models": _Models()})())
 
     claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi")
@@ -269,7 +271,7 @@ def test_prompt_explains_seller_tags_in_replies(monkeypatch, thread):
 @pytest.mark.parametrize("thread", [DESKTOP_THREAD, MOBILE_THREAD])
 def test_live_gemini_reads_tagged_replies_as_the_buyers_claims(monkeypatch, thread):
     monkeypatch.setattr(claims.settings, "gemini_api_key", os.environ["GEMINI_LIVE_API_KEY"])
-    drafts = claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi")
+    drafts = claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi").claims
     got = {d.buyer: [(i.card_id, i.qty) for i in d.items] for d in drafts}
     assert got == {"Amir Rahman": [(1, 1)], "Daniel Tan": [(2, 1)]}, drafts
     assert all("Haziq Hilmi" not in d.comment for d in drafts), drafts
