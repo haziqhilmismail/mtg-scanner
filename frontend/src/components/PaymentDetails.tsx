@@ -10,18 +10,8 @@ import { useToast } from './ui/Toast.tsx';
 
 const MAX_QR_BYTES = 8 * 1024 * 1024;  // the server's limit
 
-// A deletion Undo can still stop. It reaches the server when its toast goes,
-// or at once when waiting is unsafe: before a Save, at sign-out, and when the
-// page is hidden (a phone may close a hidden tab without warning).
-let pendingDelete: (() => Promise<void>) | null = null;
-let deleting = Promise.resolve();
-
-export function flushPaymentDelete(): Promise<void> {
-  const run = pendingDelete;
-  pendingDelete = null;
-  if (run) deleting = run();
-  return deleting;
-}
+const qrBlob = (version: string) =>
+  fetch(paymentApi.qrUrl(version)).then(r => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`))));
 
 interface Props {
   payment: Payment | null;  // null until loaded
@@ -66,7 +56,7 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
   const fileRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(() => draftOf(saved));
   const [base, setBase] = useState(saved);
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'deleting'>('idle');
   const [error, setError] = useState('');
   const [qrError, setQrError] = useState('');
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -80,6 +70,7 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
 
   const changes = changesOf(saved, draft);
   const saving = status === 'saving';
+  const busy = saving || status === 'deleting';
   const edit = (next: (d: PaymentDraft) => PaymentDraft) => { setDraft(next); setStatus('idle'); setError(''); };
   const setField = (key: keyof PaymentFields) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -120,12 +111,10 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    if (!changes || saving) return;
+    if (!changes || busy) return;
     const sent = draft;
     setStatus('saving'); setError('');
     try {
-      // A delete still waiting goes first, so it can't wipe what this saves.
-      await flushPaymentDelete();
       let next = saved;
       if (changes.fields) setPayment(next = await paymentApi.save(changes.fields));
       if (changes.qr === 'upload' && sent.qr.kind === 'new') setPayment(next = await paymentApi.uploadQr(sent.qr.file));
@@ -140,40 +129,37 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
     }
   };
 
-  // Everything goes from the form and from copied messages at once; the
-  // server forgets it when the Undo toast goes.
-  const deleteAll = () => {
+  // Deletes at once, and Undo puts everything back, as Undo does on the other
+  // pages. The server keeps the QR as a square PNG, so the same file uploaded
+  // again gives the same picture.
+  const deleteAll = async () => {
     const before = saved;
-    const run = async () => {
-      document.removeEventListener('visibilitychange', onHidden);
-      try {
-        await Promise.all([paymentApi.save(draftOf(NO_PAYMENT).fields, true), before.qr_version ? paymentApi.deleteQr(true) : null]);
-      } catch {
-        // Show what the server still has, so a failed delete isn't taken for done.
-        setPayment(await paymentApi.get().catch(() => before));
-        dialog.alert({ title: t('alert_error_title'), message: t('pay_delete_failed') });
-      }
-    };
-    const onHidden = () => {
-      if (document.visibilityState !== 'hidden' || pendingDelete !== run) return;
-      flushPaymentDelete();
-      toast(t('pay_deleted_toast'));  // its Undo is gone: the delete was sent
-    };
-    pendingDelete = run;
-    document.addEventListener('visibilitychange', onHidden);
-    setPayment(NO_PAYMENT);
-    setDraft(draftOf(NO_PAYMENT));
-    setStatus('idle'); setError(''); setQrError('');
-    toast(t('pay_deleted_toast'), {
-      undoLabel: t('pay_undo'),
-      onUndo: () => {
-        if (pendingDelete !== run) return;
-        pendingDelete = null;
-        document.removeEventListener('visibilitychange', onHidden);
-        setPayment(before);
-      },
-      onEnd: () => { if (pendingDelete === run) flushPaymentDelete(); },
-    });
+    setStatus('deleting'); setError(''); setQrError('');
+    try {
+      const qr = before.qr_version ? await qrBlob(before.qr_version) : null;
+      await Promise.all([paymentApi.save(draftOf(NO_PAYMENT).fields), qr ? paymentApi.deleteQr() : null]);
+      setPayment(NO_PAYMENT);
+      setDraft(draftOf(NO_PAYMENT));
+      toast(t('pay_deleted_toast'), { undoLabel: t('pay_undo'), onUndo: () => restore(before, qr) });
+    } catch {
+      // Show what the server still has, so a failed delete isn't taken for done.
+      setPayment(await paymentApi.get().catch(() => before));
+      dialog.alert({ title: t('alert_error_title'), message: t('pay_delete_failed') });
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  // Undo can come after the seller left Profile, so it writes only App's copy.
+  const restore = async (before: Payment, qr: Blob | null) => {
+    try {
+      let next = await paymentApi.save(draftOf(before).fields);
+      if (qr) next = await paymentApi.uploadQr(new File([qr], 'duitnow-qr.png', { type: 'image/png' }));
+      setPayment(next);
+    } catch {
+      setPayment(await paymentApi.get().catch(() => NO_PAYMENT));
+      dialog.alert({ title: t('alert_error_title'), message: t('pay_restore_failed') });
+    }
   };
 
   const qrSrc = newQrUrl ?? (draft.qr.kind === 'saved' && saved.qr_version ? paymentApi.qrUrl(saved.qr_version) : null);
@@ -240,10 +226,10 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
 
         {error ? <p className="ui-error pay-error" role="alert">{error}</p> : null}
         <div className="pay-foot">
-          <button type="button" className="ui-btn ui-btn--danger pay-delete" disabled={!hasDetails(saved) || saving} onClick={deleteAll}>
+          <button type="button" className="ui-btn ui-btn--danger pay-delete" disabled={!hasDetails(saved) || busy} onClick={deleteAll}>
             {t('pay_delete_all')}
           </button>
-          <button type="submit" className="ui-btn ui-btn--primary pay-save" disabled={!changes || saving}>
+          <button type="submit" className="ui-btn ui-btn--primary pay-save" disabled={!changes || busy}>
             {t(saving ? 'pay_saving' : status === 'saved' && !changes ? 'pay_saved' : 'pay_save')}
           </button>
         </div>

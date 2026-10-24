@@ -5,7 +5,7 @@ import { Avatar } from '../components/Avatar.tsx';
 import { FeedbackModal } from '../components/FeedbackModal.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Link } from '../components/Link.tsx';
-import { flushPaymentDelete, PaymentDetails } from '../components/PaymentDetails.tsx';
+import { PaymentDetails } from '../components/PaymentDetails.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
 import { Segmented } from '../components/ui/Segmented.tsx';
 import { useT } from '../hooks/useLang.ts';
@@ -53,8 +53,7 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
                 </span>
               </div>
               {user && onSignOut ? (
-                // A delete waiting on its Undo goes first, while the session can still send it.
-                <button type="button" className="ui-btn ui-btn--ink profile-signout" onClick={() => { flushPaymentDelete(); onSignOut(); }}>
+                <button type="button" className="ui-btn ui-btn--ink profile-signout" onClick={onSignOut}>
                   {t('menu_sign_out')}
                 </button>
               ) : null}

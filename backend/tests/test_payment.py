@@ -55,3 +55,21 @@ def test_qr_is_cropped_square_from_the_top(client):
     assert client.put("/api/payment/qr", headers=me, files={"image": ("qr.png", buf.getvalue(), "image/png")}).status_code == 200
     got = Image.open(BytesIO(client.get(f"/api/payment/qr?token={issue_image_token(uid)}").content)).convert("RGB")
     assert got.size == (40, 40) and got.getpixel((20, 39)) == (0, 0, 0)
+
+
+def test_stored_qr_uploaded_again_is_the_same_picture(client):
+    # Undo of "Delete my payment details" uploads the stored file again.
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    url = f"/api/payment/qr?token={issue_image_token(uid)}"
+    tall = Image.frombytes("RGBA", (30, 70), bytes((i * 37) % 251 for i in range(30 * 70 * 4)))
+    buf = BytesIO()
+    tall.save(buf, format="PNG")
+    assert client.put("/api/payment/qr", headers=me, files={"image": ("qr.png", buf.getvalue(), "image/png")}).status_code == 200
+    first = client.get(url).content
+    assert client.delete("/api/payment/qr", headers=me).status_code == 200
+    assert client.put("/api/payment/qr", headers=me, files={"image": ("duitnow-qr.png", first, "image/png")}).status_code == 200
+    a, b = Image.open(BytesIO(first)), Image.open(BytesIO(client.get(url).content))
+    assert a.size == b.size == (30, 30) and a.mode == b.mode
+    assert a.tobytes() == b.tobytes()
