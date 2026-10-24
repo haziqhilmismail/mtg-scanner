@@ -61,13 +61,14 @@
   .signin {
     max-width: none; column-gap: 64px; padding-top: 40px;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-    grid-template-areas: "hero try" "what try" "again try" "foot foot";
-    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: "hero try" "what try" "foot foot";
+    grid-template-rows: auto 1fr auto;
   }
   .signin-hero { grid-area: hero; }
   .signin-try { grid-area: try; }
-  .signin-what { grid-area: what; }
-  .signin-again { grid-area: again; align-self: start; }
+  .signin-what { grid-area: what; align-self: start; }
+  /* The first button stays on screen beside the demo; the repeat is for phones. */
+  .signin-again { display: none; }
   .signin-foot { grid-area: foot; }
   .signin-cta { align-items: flex-start; }
   .signin-cta .signin-note { text-align: left; }
