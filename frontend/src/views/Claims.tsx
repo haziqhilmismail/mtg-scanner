@@ -32,9 +32,10 @@ import { usePersistedState } from '../hooks/usePersistedState.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Credits } from '../types.ts';
-import { byPostOrder, computeCardData, creditsLine, photoNumbers, creditsOutText, dueForSupportAsk, paymentLines, priceWorking, formatMyr, formatMyrWithFoil, listingFields, pastedImages, popupOpen, sortScreenshots, type SortedBy } from '../utils.ts';
+import { byPostOrder, computeCardData, creditsLine, photoNumbers, creditsOutText, dueForSupportAsk, paymentLines, formatMyr, formatMyrWithFoil, listingFields, pastedImages, popupOpen, sortScreenshots, type SortedBy } from '../utils.ts';
 import type { T } from '../hooks/useLang.ts';
 import { useBackClose } from '../hooks/useBackClose.ts';
+import { formulaText, priceFormula } from './claims/model.ts';
 
 interface Props {
   // The tab is showing (both tabs stay mounted, so switching doesn't reload).
@@ -542,7 +543,8 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
 
   const workingOf = useCallback((i: Order['items'][number]) => {
     const card = cardOfListing(listingsById.get(i.listing_id));
-    return card ? priceWorking(card.cd, unitNow(i), settings) : null;
+    const f = card ? priceFormula(card.cd, unitNow(i)) : null;
+    return f ? `${formulaText(f)} → ${formatMyr(card!.cd.autoPrice, settings)}` : null;
   }, [cardOfListing, listingsById, settings, unitNow]);
 
   // What a buyer is sent: each card with the working of its price (when it

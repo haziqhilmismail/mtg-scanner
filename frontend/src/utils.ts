@@ -345,24 +345,14 @@ export function nextFreeDate(credits: Credits | null, lang: string): string {
     : '';
 }
 
-// How a card's price was worked out, for the buyer: "$3.60 × 2.5 → RM9" (the
-// arrow because the result is rounded). null when the price charged is not
-// that formula's result (a hand-set price, or prices refreshed since the
-// claim), so a buyer never sees a sum that does not match what they pay.
-export function priceWorking(cd: CardRowData, charged: number, settings: Settings): string | null {
-  if (cd.hasOverride || !(cd.usd > 0) || Math.abs(cd.autoPrice - charged) > 0.005) return null;
-  return `$${cd.usd.toFixed(2)} × ${cd.mult} → ${formatMyr(cd.autoPrice, settings)}`;
-}
-
-// The seller's payment details as lines under a copied summary; none when
-// nothing is filled in.
+// The seller's payment details as lines under a buyer's message
+// (DESIGN.md section 8): "Payment: {bank} {number} ({name})", then the note.
+// Empty parts are left out; nothing filled in gives no lines.
 export function paymentLines(p: Payment | null, t: T): string[] {
   if (!p) return [];
-  const account = [p.bank_name, p.bank_account_number].filter(Boolean).join(' ');
-  const lines: string[] = [];
-  if (account) lines.push(t('pay_copy_account', { account }) + (p.bank_account_holder ? ` (${p.bank_account_holder})` : ''));
-  if (p.payment_note) lines.push(p.payment_note);
-  return lines;
+  const holder = p.bank_account_holder.trim();
+  const account = [p.bank_name.trim(), p.bank_account_number.trim(), holder && `(${holder})`].filter(Boolean).join(' ');
+  return [account && t('pay_copy_account', { account }), p.payment_note.trim()].filter(Boolean);
 }
 
 // Whether saving claims should end with the tip-jar popup: from the third

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type CardRowData, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, dueForSupportAsk, initials, lockPrices, matchThumbs, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
+import { applyRounding, computeCardData, dueForSupportAsk, initials, lockPrices, matchThumbs, sortScreenshots, paymentLines, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
 import type { T } from './i18n/index.ts';
+import { priceFormula } from './views/claims/model.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
   applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
@@ -133,20 +134,13 @@ test('the tip-jar popup waits for the third save, then asks once a month', () =>
   assert.equal(dueForSupportAsk(9, 100 * day, 130 * day), true);
 });
 
-test('the price working shows only when it gives the price charged', () => {
-  const cd = { usd: 3.6, mult: 2.5, autoPrice: 9, hasOverride: false } as CardRowData;
-  const s = { ...DEFAULT_SETTINGS, showCurrency: true, currencyLabel: 'RM', showCents: false };
-  assert.equal(priceWorking(cd, 9, s), '$3.60 × 2.5 → RM9');
-  assert.equal(priceWorking(cd, 10, s), null);                                   // refreshed since the claim
-  assert.equal(priceWorking({ ...cd, hasOverride: true }, 9, s), null);          // hand-set price
-  assert.equal(priceWorking({ ...cd, usd: 0 }, 9, s), null);                     // no CK price
-});
-
-test('payment details become the lines under a copied summary', () => {
+test('payment details become the lines under a buyer message, empty parts left out', () => {
   const t = ((key: string, v?: Record<string, string>) => `${key}:${v?.account ?? ''}`) as unknown as T;
-  const full = { bank_name: 'Maybank', bank_account_number: '1234', bank_account_holder: 'Haziq', payment_note: 'Send your name.', qr_version: null };
-  assert.deepEqual(paymentLines(full, t), ['pay_copy_account:Maybank 1234 (Haziq)', 'Send your name.']);
-  assert.deepEqual(paymentLines({ ...full, bank_name: '', bank_account_number: '', bank_account_holder: '' }, t), ['Send your name.']);
+  const full = { bank_name: 'Maybank', bank_account_number: '1234', bank_account_holder: 'Nurul Huda', payment_note: 'Send your name.', qr_version: null };
+  assert.deepEqual(paymentLines(full, t), ['pay_copy_account:Maybank 1234 (Nurul Huda)', 'Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: '' }, t), ['pay_copy_account:1234 (Nurul Huda)', 'Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: '', bank_account_number: '' }, t), ['pay_copy_account:(Nurul Huda)', 'Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: ' ', bank_account_number: '', bank_account_holder: '' }, t), ['Send your name.']);
   assert.deepEqual(paymentLines({ ...full, bank_name: '', bank_account_number: '', bank_account_holder: '', payment_note: '' }, t), []);
   assert.deepEqual(paymentLines(null, t), []);
 });
@@ -165,9 +159,9 @@ test('a finished photo keeps its prices and their working whatever changes after
   finished.response = { ...batch.response!, cards: [{ candidates: [{ ...sel, usd: 9 }] } as DetectedCard, { candidates: [{ ...sel, usd: 9 }] } as DetectedCard] };
   const [ck, typed] = computeCardData(finished, { ...posted, multNormal: 4 });
   assert.equal(ck.unitPrice, 9);
-  assert.equal(priceWorking(ck, 9, posted), '$3.60 × 2.5 → RM9');
+  assert.deepEqual(priceFormula(ck, 9), { usd: 3.6, mult: 2.5 });
   assert.deepEqual([typed.unitPrice, typed.lineTotal], [7, 14]);
-  assert.equal(priceWorking(typed, 7, posted), null);
+  assert.equal(priceFormula(typed, 7), null);
   // Edit prices: the lock no longer counts, so prices follow again.
   assert.equal(computeCardData({ ...finished, lockedAt: null }, { ...posted, multNormal: 4 })[0].unitPrice, 36);
 });
