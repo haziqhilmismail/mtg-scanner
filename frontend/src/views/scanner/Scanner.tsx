@@ -13,13 +13,14 @@ export function Scanner(props: ScannerProps) {
   const { route, openFolder, activeBatch, t } = area;
   if (activeBatch) return <PhotoPage area={area} batch={activeBatch} />;
   if (route.page === 'pricing' && openFolder) {
+    // The unfiled photos (postId null) are priced with the default.
     return (
       <PricingPage
         postId={openFolder.postId}
-        title={area.pricingTitle(openFolder)}
+        postTitle={openFolder.title}
         crumbs={[{ label: t('scans_title'), to: POSTS }, { label: openFolder.title, to: { page: 'post', folder: openFolder.key } }, { label: t('crumbs_pricing') }]}
+        parent={{ page: 'post', folder: openFolder.key }}
         pricing={area.pricing}
-        health={area.health}
         t={t}
       />
     );

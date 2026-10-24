@@ -179,10 +179,9 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       {page === 'profile-pricing' ? (
         <PricingPage
           postId={null}
-          title={t('menu_default_pricing')}
           crumbs={[{ label: t('nav_profile'), to: { page: 'profile' } }, { label: t('menu_default_pricing') }]}
+          parent={{ page: 'profile' }}
           pricing={pricing}
-          health={health}
           t={t}
         />
       ) : null}

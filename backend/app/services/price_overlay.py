@@ -55,7 +55,8 @@ def render_overlay(
                  Clamped to [0.5, 3.0] so a malformed payload can't blow up
                  the pill to fill the whole photo.
 
-    Returns PNG-encoded bytes.
+    Returns JPEG-encoded bytes: a fifth of the PNG size for a photo, which
+    matters when a phone shares a whole post.
     """
     pil = Image.open(BytesIO(image_bytes)).convert("RGBA")
     W, H = pil.size
@@ -172,18 +173,13 @@ def render_overlay(
             bg_color = (20, 20, 20, 245)
             text_color = (255, 255, 255, 255)
 
+        # The ring: gold on a foil pill; on the dark pill, 18% white
+        # pre-blended, since the layer stores the colour instead of blending it.
+        ring = (255, 230, 130, 255) if is_foil else (62, 62, 62, 245)
         fg_draw.rounded_rectangle(
             [rect_x, rect_y, rect_x + rect_w, rect_y + rect_h],
-            radius=radius,
-            fill=bg_color,
+            radius=radius, fill=bg_color, outline=ring, width=2,
         )
-
-        # Foil pill: subtle highlight stroke
-        if is_foil:
-            fg_draw.rounded_rectangle(
-                [rect_x, rect_y, rect_x + rect_w, rect_y + rect_h],
-                radius=radius, outline=(255, 230, 130, 255), width=2,
-            )
 
         fg_draw.text(
             (rect_x + pad_x - bbox[0], rect_y + pad_y - bbox[1]),
@@ -198,5 +194,5 @@ def render_overlay(
     composed = Image.alpha_composite(composed, fg_layer).convert("RGB")
 
     buf = BytesIO()
-    composed.save(buf, format="PNG", optimize=True)
+    composed.save(buf, format="JPEG", quality=90)
     return buf.getvalue()
