@@ -19,19 +19,22 @@ export function DemoFindClaims() {
   const [who, setWho] = useState(buyers[0].name);
   const [copied, setCopied] = useState<string | null>(null);
   const timer = useRef(0);
+  const root = useRef<HTMLDivElement>(null);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const find = () => {
+    root.current?.focus();
     setStage('reading');
     timer.current = window.setTimeout(() => setStage('found'), READ_MS);
   };
-  const reset = () => { clearTimeout(timer.current); setStage('idle'); setWho(buyers[0].name); setCopied(null); };
+  const reset = () => { clearTimeout(timer.current); root.current?.focus(); setStage('idle'); setWho(buyers[0].name); setCopied(null); };
   const buyer = buyers.find(b => b.name === who)!;
   const message = demoMessage(buyer, t);
   const copy = () => navigator.clipboard?.writeText(message).then(() => setCopied(who), () => { /* blocked: nothing to show */ });
 
   return (
-    <div className="demo">
+    // The pressed button goes away, so focus stays on the demo, not the page.
+    <div className="demo" ref={root} tabIndex={-1}>
       <p className="demo-intro">{t('lp_claims_intro')}</p>
       <figure className="demo-shot" aria-label={t('lp_claims_shot')}>
         <img className="demo-shot-photo" src={DEMO_IMAGE_URL} alt="" />

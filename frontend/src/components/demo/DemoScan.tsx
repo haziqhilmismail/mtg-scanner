@@ -26,25 +26,28 @@ export function DemoScan() {
   const t = useT();
   const [step, setStep] = useState(IDLE);
   const timers = useRef<number[]>([]);
+  const root = useRef<HTMLDivElement>(null);
   const stop = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => stop, []);
 
   const play = () => {
     stop();
+    root.current?.focus();
     setStep(0);
     timers.current = [
       ...STEPS.slice(1).map((s, i) => window.setTimeout(() => setStep(i + 1), s.at)),
       window.setTimeout(() => setStep(DONE), DONE_AT),
     ];
   };
-  const again = () => { stop(); setStep(IDLE); };
+  const again = () => { stop(); root.current?.focus(); setStep(IDLE); };
 
   const n = DEMO_CARDS.length;
   const running = step > IDLE && step < DONE;
   const total = DEMO_CARDS.reduce((sum, c) => sum + c.rmPrice, 0);
 
   return (
-    <div className="demo">
+    // The pressed button goes away, so focus stays on the demo, not the page.
+    <div className="demo" ref={root} tabIndex={-1}>
       <div className="demo-photo" style={{ aspectRatio: `${DEMO_CROP.w} / ${DEMO_CROP.h}` }}>
         <img src={DEMO_IMAGE_URL} alt={t('lp_scan_alt')} />
         <svg viewBox={`${DEMO_CROP.x} 0 ${DEMO_CROP.w} ${DEMO_CROP.h}`} aria-hidden="true">
