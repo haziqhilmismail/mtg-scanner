@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
+import type { T } from '../hooks/useLang.ts';
+import { photosOf } from '../lib/photoFiles.ts';
 import { pastedImages, popupOpen } from '../utils.ts';
+import { Icon } from './Icon.tsx';
+import { useToast } from './ui/Toast.tsx';
 
-// The photos among some files (HEIC from an iPhone often has no type).
-export const photosOf = (files: FileList | File[]) => Array.from(files).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
 const carriesFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');
 
-// Photos dragged onto the page or pasted (Ctrl/⌘+V) go to onFiles: a
+// Photos dragged onto the page or pasted (Ctrl/⌘+V) go to onPhotos: a
 // convenience on a computer, with nothing on screen for it until files are
-// dragged over the page (then `dragging` is true, for a hint of where they
-// go). A drop with no photos in it calls onFiles with none. Ignored while a
-// popup is open over the page.
-export function usePhotoDrop(onFiles: (photos: File[]) => void): boolean {
+// dragged over the page (then a quiet overlay says where they go). Ignored
+// while a popup is open over the page.
+export function PhotoDrop({ label, onPhotos, t }: { label: string; onPhotos: (photos: File[]) => void; t: T }) {
+  const toast = useToast();
   const [dragging, setDragging] = useState(false);
-  const latest = useRef(onFiles);
-  latest.current = onFiles;
+  const take = (photos: File[]) => (photos.length ? onPhotos(photos) : toast(t('drop_no_photos')));
+  const latest = useRef(take);
+  latest.current = take;
 
   useEffect(() => {
     // dragenter and dragleave fire for every element crossed; the drag has
@@ -63,5 +66,5 @@ export function usePhotoDrop(onFiles: (photos: File[]) => void): boolean {
     };
   }, []);
 
-  return dragging;
+  return dragging ? <div className="drop-hint" aria-hidden="true"><span><Icon name="photo" size={28} />{label}</span></div> : null;
 }

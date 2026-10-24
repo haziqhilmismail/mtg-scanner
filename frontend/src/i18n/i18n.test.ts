@@ -26,6 +26,6 @@ test('no key lives in two area files', () => {
 test('translate reads the merged dictionary', () => {
   assert.equal(translate('en', 'nav_claims'), 'Claims');
   assert.equal(translate('ms', 'nav_claims'), 'Tuntutan');
-  assert.equal(translate('en', 'scans_photos', { n: 3 }), '3 photos');
+  assert.equal(translate('en', 'post_photos_count', { n: 3 }), '3 photos');
   assert.equal(translate('ms', 'not_a_key'), 'not_a_key');
 });

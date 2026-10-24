@@ -116,7 +116,7 @@ const decimal = (lo: number, hi: number) => (text: string) => {
   const v = /^(\d+\.?\d*|\.\d+)$/.test(text.trim()) ? Number(text) : NaN;
   return v >= lo && v <= hi ? v : null;
 };
-export const PRICE_FIELDS = {
+const PRICE_FIELDS = {
   multNormal: decimal(1, 5),
   multFoil: decimal(1, 5),
   minPrice: (text: string) => (/^\d+$/.test(text.trim()) ? decimal(0, 50)(text) : null),

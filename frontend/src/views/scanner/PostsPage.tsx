@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
+import { PhotoDrop } from '../../components/PhotoDrop.tsx';
 import { countText, Mosaic, PostRow, thumbOf } from '../../components/ScanGallery.tsx';
 import { Spinner } from '../../components/Spinner.tsx';
-import { useToast } from '../../components/ui/Toast.tsx';
-import { usePhotoDrop } from '../../hooks/usePhotoDrop.ts';
 import { ScanProgress, type Area, type Folder } from './area.tsx';
 import { NewPostDialog } from './NewPostDialog.tsx';
 
@@ -12,12 +11,9 @@ import { NewPostDialog } from './NewPostDialog.tsx';
 // and the archived posts behind their own heading.
 export function PostsPage({ area }: { area: Area }) {
   const { t, scanner, pricingFor, loading, liveFolders, archivedFolders, unfiledFolder, startPost, setArchived } = area;
-  const toast = useToast();
   const [newOpen, setNewOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const defaultKind = pricingFor(null).priceMode;
-  // On a computer, photos dropped or pasted on the page start a post of the default kind.
-  const dragging = usePhotoDrop(photos => (photos.length ? startPost(photos, defaultKind) : toast(t('drop_no_photos'))));
 
   const row = (f: Folder) => (
     <li key={f.key}>
@@ -83,7 +79,8 @@ export function PostsPage({ area }: { area: Area }) {
           ) : null}
         </>
       )}
-      {dragging ? <div className="drop-hint" aria-hidden="true"><span><Icon name="photo" size={28} />{t('new_post_drop')}</span></div> : null}
+      {/* On a computer, photos dropped or pasted on the page start a post of the default kind. */}
+      <PhotoDrop label={t('new_post_drop')} onPhotos={photos => startPost(photos, defaultKind)} t={t} />
       <NewPostDialog open={newOpen} onClose={() => setNewOpen(false)} defaultKind={defaultKind} onStart={startPost} t={t} />
     </>
   );
