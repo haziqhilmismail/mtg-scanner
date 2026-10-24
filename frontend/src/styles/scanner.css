@@ -1,0 +1,61 @@
+/* The dev gallery (ui-gallery.html) lays its samples out on this grid. */
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+@media (min-width: 768px) { .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; } }
+.name-file { display: block; font-size: 12px; font-weight: 400; color: var(--ink-faint); }
+.gallery-empty { margin: 32px 0; text-align: center; font-size: 15px; color: var(--ink-soft); }
+
+@keyframes photo-pulse { 50% { opacity: 0.55; } }
+
+/* ---------- Finalize block ----------
+   Which post the cards belong to, then the actions for this scan. Shown
+   above and below the card list so a long list never hides it. */
+.finalize-block {
+  margin-top: 16px; padding: 14px;
+  background: var(--surface-2); border: 0; border-radius: var(--radius);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.finalize-block-top { margin-top: 0; margin-bottom: 16px; }
+.scan-post-hint { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; color: var(--green); }
+.scan-post-hint svg { flex: none; margin-top: 1px; }
+.scan-post-hint.finish-hint { color: var(--ink-soft); line-height: 1.4; }
+.scan-post-hint.finish-hint svg { color: var(--accent); }
+.scan-post-hint.is-locked { color: var(--ink); font-weight: 600; line-height: 1.4; }
+.post-name { display: inline-block; padding: 0 6px; margin: 0 1px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-weight: 700; white-space: nowrap; }
+.scan-post-hint.is-locked svg { color: var(--accent); }
+.finalize-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.finalize-action-row button { flex: 1 1 0; min-width: 170px; min-height: var(--tap); }
+.finalize-action-row button.ghost { flex: 0 1 auto; min-width: 0; }
+@media (max-width: 480px) { .finalize-action-row button { flex: 1 1 100%; } }
+/* Text-link-style button — the "Apply to all batches" shortcut. */
+.link-btn {
+  min-height: 0; padding: 4px 8px;
+  background: transparent; color: var(--accent);
+  font-size: 13px; font-weight: 600; border-radius: var(--radius-sm);
+}
+.link-btn:hover { background: var(--accent-soft); }
+.finalize-picker-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.scan-post-label { font-size: 15px; font-weight: 600; color: var(--ink); }
+.scan-post-select { flex: 1 1 240px; min-width: 0; font-size: 15px; background-color: var(--paper); }
+
+/* Running total of every scanned image, shown in the Review header */
+.all-scans-total { display: inline-flex; align-items: baseline; gap: 8px; }
+.all-scans-total .label { font-size: 13px; color: var(--ink-soft); }
+.all-scans-total .value { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+
+.pricing-button {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; margin-bottom: 14px; padding: 12px 14px;
+  border-radius: var(--radius); background: var(--surface); color: var(--ink); text-align: left; box-shadow: inset 0 0 0 1px var(--rule);
+  line-height: 1.2; text-decoration: none;
+}
+.pricing-button .icon { color: var(--accent); }
+.pricing-button-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pricing-button-text strong { font-size: 15px; }
+.pricing-button-text span { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
+.pricing-button-edit { font-size: 15px; color: var(--accent); }
+.pricing-sheet { max-width: 640px; max-height: 92dvh; overflow-y: auto; }
+.pricing-sheet .status { margin-top: 0; }
+.pricing-default-row { display: flex; justify-content: flex-end; margin-top: 14px; }
+/* The default-pricing sheet holds the whole pricing form, so it is wider
+   and scrolls on a short screen. */
+.adjust-sheet { max-height: 92dvh; overflow-y: auto; }
+.add-card-btn { margin: 10px 0 4px; }

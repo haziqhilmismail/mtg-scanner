@@ -222,6 +222,8 @@ export interface CardRowData {
   qty: number;
   unitPrice: number;
   hasOverride: boolean;
+  // The USD price the seller typed for the card (see PriceOverride); null for none or an RM price.
+  ownUsd: number | null;
   lineTotal: number;
   source: PriceSource;
   pillOffset: PillOffset | null;

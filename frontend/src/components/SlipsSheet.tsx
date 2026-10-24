@@ -1,92 +1,98 @@
-import { useEffect, useState } from 'react';
+import { useId, useState } from 'react';
 import { dropoffSlipsPdf } from '../api.ts';
-import { usePersistedState } from '../hooks/usePersistedState.ts';
+import { useT } from '../hooks/useLang.ts';
 import { downloadBlob } from '../utils.ts';
-import type { T } from '../hooks/useLang.ts';
-import { useBackClose } from '../hooks/useBackClose.ts';
+import { counted } from '../views/claims/model.ts';
+import { Icon } from './Icon.tsx';
+import { Dialog } from './ui/Dialog.tsx';
+import { useToast } from './ui/Toast.tsx';
 
-export interface SlipBuyer { id: number; name: string; phone: string; done: boolean }
+export interface SlipBuyer { id: number; name: string; phone: string }
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  buyers: SlipBuyer[];
-  t: T;
+  buyers: SlipBuyer[];   // in claim order
+  postTitle: string;
 }
 
-// Printable Cards & Hobbies drop-off slips. Everything is optional: a buyer
-// left out, a missing phone or no seller name leaves a line to write on.
-export function SlipsSheet({ open, onClose, buyers, t }: Props) {
-  useBackClose(open, onClose);
-  const [seller, setSeller] = usePersistedState('mtg.slips.seller', '');
+// Drop-off slips: one per buyer, ticked by default, made into an A4 PDF.
+export function SlipsSheet({ open, onClose, buyers, postTitle }: Props) {
+  const t = useT();
+  const toast = useToast();
+  const listId = useId();
   const [picked, setPicked] = useState<Set<number>>(new Set());
-  const [blank, setBlank] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  // Each time it opens: the buyers not done yet, no extra blanks.
-  useEffect(() => {
-    if (!open) return;
-    setPicked(new Set(buyers.filter(b => !b.done).map(b => b.id))); setBlank(0); setError('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
+  // Each opening starts with every buyer ticked.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) { setPicked(new Set(buyers.map(b => b.id))); setError(''); }
+  }
 
   const chosen = buyers.filter(b => picked.has(b.id));
-  const total = chosen.length + blank;
-  const pages = Math.max(1, Math.ceil(total / 10));
-  const download = async () => {
+  const allOn = chosen.length === buyers.length;
+  const pages = Math.ceil(Math.max(1, chosen.length) / 10);
+  const label = chosen.length === 0 ? t('slips_make_blank')
+    : pages > 1 ? t('slips_make_pages', { n: chosen.length, pages }) : counted(t, 'slips_make', chosen.length);
+  const toggle = (id: number, on: boolean) => setPicked(prev => {
+    const next = new Set(prev);
+    if (on) next.add(id); else next.delete(id);
+    return next;
+  });
+
+  const make = async () => {
     setBusy(true); setError('');
     try {
-      const pdf = await dropoffSlipsPdf({ seller, slips: chosen.map(b => ({ buyer: b.name, phone: b.phone })), blank });
-      downloadBlob(pdf, 'ch-dropoff-slips.pdf');
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+      downloadBlob(await dropoffSlipsPdf({ slips: chosen.map(b => ({ buyer: b.name, phone: b.phone })) }), 'drop-off-slips.pdf');
+      onClose();
+      toast(t('slips_saved'));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="feedback-overlay" onClick={onClose}>
-      <div className="feedback-modal slips-sheet" role="dialog" aria-modal="true" aria-labelledby="slips-title" onClick={e => e.stopPropagation()}>
-        <div className="feedback-head">
-          <h2 id="slips-title">{t('slips_title')}</h2>
-          <button type="button" className="feedback-close" onClick={onClose} aria-label={t('voucher_close')}>×</button>
-        </div>
-        <p className="feedback-sub">{t('slips_sub')}</p>
-        <label className="payment-field">
-          <span>{t('slips_seller')}</span>
-          <input type="text" value={seller} maxLength={60} placeholder={t('slips_optional')} onChange={e => setSeller(e.target.value)} />
-        </label>
-        {buyers.length ? (
-          <fieldset className="slips-buyers">
-            <legend>{t('slips_buyers')}</legend>
+    <Dialog
+      open={open} onClose={onClose} className="claims-dialog" title={t('slips_title')} subtitle={postTitle} closeLabel={t('claims_close')}
+      footer={(
+        <>
+          <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('claims_cancel')}</button>
+          <button type="button" className="ui-btn ui-btn--primary" disabled={busy} onClick={make}>
+            <Icon name="download" size={18} />{busy ? t('slips_making') : label}
+          </button>
+        </>
+      )}
+    >
+      <p className="claims-intro">{t('slips_intro')}</p>
+      {buyers.length ? (
+        <>
+          <div className="claims-list-head">
+            <span id={listId} className="ui-label">{t('slips_buyers')}</span>
+            <button type="button" className="ui-btn ui-btn--plain" onClick={() => setPicked(new Set(allOn ? [] : buyers.map(b => b.id)))}>
+              {allOn ? t('slips_select_none') : t('slips_select_all')}
+            </button>
+          </div>
+          <ul className="claims-box claims-slip-list" aria-labelledby={listId}>
             {buyers.map(b => (
-              <label className="checkbox-row" key={b.id}>
-                <input
-                  type="checkbox" checked={picked.has(b.id)}
-                  onChange={e => setPicked(prev => { const next = new Set(prev); if (e.target.checked) next.add(b.id); else next.delete(b.id); return next; })}
-                />
-                <span>{b.name}{b.phone ? <span className="meta"> · {b.phone}</span> : <span className="meta"> · {t('slips_no_phone')}</span>}</span>
-              </label>
+              <li key={b.id}>
+                <label className="claims-slip-row">
+                  <input type="checkbox" checked={picked.has(b.id)} onChange={e => toggle(b.id, e.target.checked)} />
+                  <span className="claims-slip-text">
+                    <span className="claims-slip-name">{b.name}</span>
+                    <span className="claims-slip-phone">{b.phone || t('slips_no_phone')}</span>
+                  </span>
+                </label>
+              </li>
             ))}
-          </fieldset>
-        ) : null}
-        <label className="payment-field">
-          <span>{t('slips_blank')}</span>
-          <input type="number" inputMode="numeric" min={0} max={80} value={blank} onChange={e => setBlank(Math.max(0, Math.min(80, Math.floor(Number(e.target.value) || 0))))} />
-        </label>
-        <p className="feedback-sub">{t('slips_summary', { n: total, pages })}</p>
-        {error ? <p className="feedback-error" role="alert">{error}</p> : null}
-        <div className="feedback-foot">
-          <button type="button" className="accent" disabled={busy} onClick={download}>{busy ? t('finish_busy') : t('slips_download')}</button>
-        </div>
-      </div>
-    </div>
+          </ul>
+        </>
+      ) : null}
+      <p className="claims-foot-note">{t('slips_note')}</p>
+      {error ? <p className="ui-error" role="alert">{error}</p> : null}
+    </Dialog>
   );
 }

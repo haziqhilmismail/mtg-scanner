@@ -1,0 +1,63 @@
+/* ---------- Buttons ----------
+   Three levels. Default is the gray, quiet one so a screen can hold several;
+   .accent is the single prominent action; .ghost is the plainest. */
+button, .btn {
+  min-height: 36px; padding: 7px 16px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--fill); color: var(--accent);
+  border: 1px solid transparent; border-radius: var(--radius-pill);
+  font-size: 15px; font-weight: 600; line-height: 1.2;
+  cursor: pointer; user-select: none;
+  transition: background 0.15s ease, opacity 0.15s ease, transform 0.15s var(--ease);
+}
+button:hover { background: var(--fill-strong); }
+button:active { transform: scale(0.97); }
+button:disabled { opacity: 0.38; cursor: not-allowed; transform: none; }
+button.ghost { background: transparent; color: var(--accent); border-color: transparent; }
+button.ghost:hover { background: var(--fill); }
+button.accent { background: var(--accent-fill); color: var(--on-accent); }
+button.accent:hover { background: var(--accent-fill); filter: brightness(1.08); }
+button { position: relative; }
+@media (pointer: coarse) {
+  /* Touch: small round buttons keep their look but answer to a 44pt area. */
+  button::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: max(100%, var(--tap)); height: max(100%, var(--tap));
+    transform: translate(-50%, -50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.status {font-size: 13px; color: var(--ink-soft); margin-top: 14px; }
+.status.error { color: var(--warn); }
+.health-badge {
+  display: inline-block; padding: 3px 10px; margin-left: 8px;
+  border: 1px solid var(--rule); border-radius: var(--radius-pill);
+  background: var(--surface); font-size: 13px;
+}
+.health-badge.ok { background: var(--surface-2); border-color: var(--green); color: var(--green); }
+.health-badge.warn { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+.loading::after {
+  content: '…'; display: inline-block; width: 1.4em; text-align: left;
+  animation: dots 1.2s steps(4, end) infinite;
+}
+@keyframes dots { 0%,100% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+/* Loading wheel — centred spinner + optional caption for section-level fetches */
+.loading-wheel {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 48px 0; color: var(--ink-soft);
+}
+.spinner {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid var(--rule); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+.loading-wheel-label {
+  font-size: 13px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }

@@ -68,16 +68,18 @@ class ParseRequest(BaseModel):
 @limiter.limit("20/minute")
 async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user_id: CurrentUserId):
     """Draft claims from thread text (typed, pasted or OCR'd) against the cards
-    the client says are on sale. Saves nothing. Costs one scan credit (it is a
-    Gemini call), handed back if the call fails."""
+    the client says are on sale, and list the comments read as no claim.
+    Saves nothing. Costs one scan credit (it is a Gemini call), handed back if
+    the call fails."""
     user = await db.get(User, user_id)
     seller = (user.fb_name or user.name or "") if user else ""
     async with credits.spend(db, user_id):
         try:
-            drafts = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, seller)
+            result = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, seller)
         except Exception as e:
             raise HTTPException(502, f"Could not work out the claims: {e}")
-    return {"claims": [d.model_dump() for d in drafts], "credits": await credits.status(db, user_id)}
+    return {"claims": [d.model_dump() for d in result.claims], "skipped": result.skipped,
+            "credits": await credits.status(db, user_id)}
 
 
 class ConfirmItem(BaseModel):

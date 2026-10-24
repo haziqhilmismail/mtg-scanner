@@ -1,170 +1,150 @@
-// Landing + sign-in screen. Two columns on desktop:
-//   - Left: marketing copy, feature bullets, Google sign-in button (always visible)
-//   - Right: tabbed interactive demo (scanner playback + order-tracker preview)
-// Stacks vertically on mobile. The Google button is mounted via GIS, same as
-// before — auth flow is unchanged. Language and appearance come from App, so
-// a choice made here carries on after sign-in.
+// The sign-in page: the pitch with Google's button on the first screen, a
+// demo to try, what the app does, and the button again. Language and
+// appearance come from App, so a choice made here carries on after sign-in.
 
 import { useEffect, useRef, useState } from 'react';
-import { DemoChecklist } from '../components/demo/DemoChecklist.tsx';
+import { DemoFindClaims } from '../components/demo/DemoFindClaims.tsx';
 import { DemoScan } from '../components/demo/DemoScan.tsx';
-import { AppMenu } from '../components/AppMenu.tsx';
-import { Icon } from '../components/Icon.tsx';
-import type { Appearance, Lang, Theme } from '../types.ts';
+import { SignedOutHeader } from '../components/Header.tsx';
+import { Icon, type IconName } from '../components/Icon.tsx';
+import { Preferences } from '../components/Preferences.tsx';
+import { Segmented } from '../components/ui/Segmented.tsx';
 import type { T } from '../hooks/useLang.ts';
+import type { Appearance, Lang } from '../types.ts';
 
 interface Props {
   clientId: string;
   onCredential: (credential: string) => void;
   error?: string | null;
-  busy?: boolean;
   lang: Lang;
   setLang: (l: Lang) => void;
   t: T;
-  theme: Theme;
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;
 }
 
-type DemoTab = 'scan' | 'tracker';
+type Gis = 'loading' | 'ready' | 'failed';
+// How long Google's script gets before the page says it didn't load.
+const GIS_WAIT_MS = 10000;
 
-export function Login({ clientId, onCredential, error, busy, lang, setLang, t, theme, appearance, setAppearance }: Props) {
-  const btnRef = useRef<HTMLDivElement | null>(null);
-  const [tab, setTab] = useState<DemoTab>('scan');
+const FEATURES: Array<[IconName, string]> = [
+  ['bolt', 'scan'], ['share', 'export'], ['feedback', 'claims'], ['print', 'slips'],
+];
 
-  useEffect(() => {
-    if (!clientId) return;
-    let cancelled = false;
-
-    const tryInit = () => {
-      if (cancelled) return;
-      if (!window.google?.accounts?.id) {
-        setTimeout(tryInit, 100);
-        return;
-      }
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: (resp) => { if (resp?.credential) onCredential(resp.credential); },
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
-      if (btnRef.current) {
-        btnRef.current.innerHTML = '';
-        window.google.accounts.id.renderButton(btnRef.current, {
-          type: 'standard',
-          theme: theme === 'dark' ? 'filled_black' : 'outline',
-          size: 'large',
-          text: 'continue_with',
-          shape: 'pill',
-          logo_alignment: 'left',
-          width: 280,
-        });
-      }
-    };
-    tryInit();
-    return () => { cancelled = true; };
-  }, [clientId, onCredential, theme]);
+export function Login({ clientId, onCredential, error, lang, setLang, t, appearance, setAppearance }: Props) {
+  const [demo, setDemo] = useState<'scan' | 'claims'>('scan');
+  const gis = useGis(clientId, onCredential);
+  const cta = <><GoogleButton gis={gis} /><p className="signin-note">{t('lp_cta_foot')}</p></>;
 
   return (
-    <div className="landing">
-      <div className="landing-grid">
-        <section className="landing-pitch">
-          <div className="landing-mark" aria-hidden="true"><Icon name="scan" size={34} /></div>
-          <h1 className="landing-title">{t('lp_title')}</h1>
-          <p className="landing-tagline">{t('lp_tagline')}</p>
-
-          <ul className="landing-features">
-            <li>
-              <span className="landing-feature-glyph"><Icon name="bolt" /></span>
-              <div>
-                <strong>{t('lp_feat_scan_head')}</strong>
-                <span>{t('lp_feat_scan_body')}</span>
-              </div>
-            </li>
-            <li>
-              <span className="landing-feature-glyph"><Icon name="checklist" /></span>
-              <div>
-                <strong>{t('lp_feat_track_head')}</strong>
-                <span>{t('lp_feat_track_body')}</span>
-              </div>
-            </li>
-            <li>
-              <span className="landing-feature-glyph"><Icon name="share" /></span>
-              <div>
-                <strong>{t('lp_feat_export_head')}</strong>
-                <span>{t('lp_feat_export_body')}</span>
-              </div>
-            </li>
-          </ul>
-
-          <div className="landing-cta">
-            <div className="landing-google" ref={btnRef} aria-busy={busy ? 'true' : 'false'} />
-            <p className="landing-cta-foot">{t('lp_cta_foot')}</p>
-            {error ? <div className="landing-error">{error}</div> : null}
-          </div>
-        </section>
-
-        <section className="landing-demo" aria-label="Interactive demo">
-          <div className="landing-demo-frame">
-            <div className="landing-demo-bar">
-              <div className="landing-demo-bar-dots" aria-hidden="true">
-                <span /><span /><span />
-              </div>
-              <div className="landing-demo-bar-tabs" role="tablist">
-                <button
-                  role="tab"
-                  aria-selected={tab === 'scan'}
-                  className={`landing-demo-tab ${tab === 'scan' ? 'is-active' : ''}`}
-                  onClick={() => setTab('scan')}
-                >
-                  {t('lp_demo_tab_scan')}
-                </button>
-                <button
-                  role="tab"
-                  aria-selected={tab === 'tracker'}
-                  className={`landing-demo-tab ${tab === 'tracker' ? 'is-active' : ''}`}
-                  onClick={() => setTab('tracker')}
-                >
-                  {t('lp_demo_tab_tracker')}
-                </button>
-              </div>
-              <span className="landing-demo-badge">{t('lp_demo_badge')}</span>
+    <>
+      <SignedOutHeader />
+      <main className="wrap">
+        <div className="signin">
+          <section className="signin-hero" aria-labelledby="signin-title">
+            <h1 id="signin-title" className="signin-title">{t('lp_title')}</h1>
+            <p className="signin-tagline">{t('lp_tagline')}</p>
+            <div className="signin-cta">
+              {gis === 'failed' ? <p className="signin-error" role="alert">{t('lp_google_failed')}</p> : cta}
+              {error ? <p className="signin-error" role="alert">{error}</p> : null}
             </div>
-            <div className="landing-demo-body">
-              {tab === 'scan' ? <DemoScan t={t} /> : <DemoChecklist t={t} />}
-            </div>
-          </div>
-          <p className="landing-demo-foot">{t('lp_demo_foot')}</p>
-        </section>
-      </div>
+          </section>
 
-      <footer className="landing-footer">
-        <a
-          href="https://github.com/haziqhilmismail"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="landing-footer-link"
-        >
-          <svg className="landing-footer-icon" viewBox="0 0 16 16" aria-hidden="true">
-            <path
-              fillRule="evenodd"
-              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+          <section className="signin-try" aria-labelledby="signin-try-title">
+            <h2 id="signin-try-title" className="signin-h2">{t('lp_try')}</h2>
+            <Segmented
+              aria-label={t('lp_demo_switch')} value={demo} onChange={setDemo}
+              options={[{ value: 'scan', label: t('lp_demo_tab_scan') }, { value: 'claims', label: t('lp_demo_tab_claims') }]}
             />
-          </svg>
-          <span>github.com/haziqhilmismail</span>
-        </a>
-        <a href="/privacy.html" className="landing-footer-link">{t('privacy_link')}</a>
-      </footer>
+            {demo === 'scan' ? <DemoScan /> : <DemoFindClaims />}
+            <p className="signin-note">{t('lp_demo_foot')}</p>
+          </section>
 
-      <div className="landing-menu">
-        <AppMenu
-          lang={lang}
-          onLangChange={setLang}
-          appearance={appearance}
-          onAppearanceChange={setAppearance}
-          t={t}
-        />
-      </div>
-    </div>
+          <section className="signin-what" aria-labelledby="signin-what-title">
+            <h2 id="signin-what-title" className="signin-h2">{t('lp_what')}</h2>
+            <ul className="ui-list">
+              {FEATURES.map(([icon, key]) => (
+                <li key={key} className="signin-feature">
+                  <span className="signin-feature-icon" aria-hidden="true"><Icon name={icon} size={18} /></span>
+                  <span className="signin-feature-text">
+                    <strong>{t(`lp_feat_${key}_head`)}</strong>
+                    <span>{t(`lp_feat_${key}_body`)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {gis === 'failed' ? null : <div className="signin-cta signin-again">{cta}</div>}
+
+          <footer className="signin-foot">
+            <div className="signin-prefs">
+              <Preferences lang={lang} setLang={setLang} appearance={appearance} setAppearance={setAppearance} />
+            </div>
+            <div className="signin-links">
+              <a href="/privacy.html">{t('privacy_link')}</a>
+              <a href="https://github.com/haziqhilmismail" target="_blank" rel="noopener noreferrer">{t('lp_github')}</a>
+            </div>
+            <p className="signin-legal">{t('footer_right')}</p>
+          </footer>
+        </div>
+      </main>
+    </>
   );
+}
+
+// Waits for Google's script, then sets up sign-in once per client id.
+function useGis(clientId: string, onCredential: (credential: string) => void): Gis {
+  const [state, setState] = useState<Gis>('loading');
+  const callback = useRef(onCredential);
+  callback.current = onCredential;
+  useEffect(() => {
+    if (!clientId) { setState('failed'); return; }
+    const started = Date.now();
+    let timer = 0;
+    const poll = () => {
+      const id = window.google?.accounts?.id;
+      if (id) {
+        id.initialize({
+          client_id: clientId,
+          callback: resp => { if (resp?.credential) callback.current(resp.credential); },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        setState('ready');
+      } else if (Date.now() - started > GIS_WAIT_MS) {
+        setState('failed');
+      } else {
+        timer = window.setTimeout(poll, 100);
+      }
+    };
+    poll();
+    return () => clearTimeout(timer);
+  }, [clientId]);
+  return state;
+}
+
+// Google's own button, as wide as its slot (at most 400px, Google's limit),
+// drawn again when the slot's width changes.
+function GoogleButton({ gis }: { gis: Gis }) {
+  const slot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = slot.current;
+    const id = window.google?.accounts.id;
+    if (gis !== 'ready' || !el || !id) return;
+    let drawn = 0;
+    let timer = 0;
+    const draw = () => {
+      const width = Math.min(400, Math.floor(el.clientWidth));
+      if (width === drawn) return;
+      drawn = width;
+      el.innerHTML = '';
+      id.renderButton(el, { type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left', width });
+    };
+    const observer = new ResizeObserver(() => { clearTimeout(timer); timer = window.setTimeout(draw, 150); });
+    observer.observe(el);
+    draw();
+    return () => { observer.disconnect(); clearTimeout(timer); };
+  }, [gis]);
+  return <div ref={slot} className="signin-google" aria-busy={gis === 'loading'} />;
 }

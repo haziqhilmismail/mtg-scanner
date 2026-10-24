@@ -1,0 +1,65 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  /* Defensive: any single element that accidentally exceeds viewport width
+     (long unbroken URL, runaway grid item, etc.) would otherwise scroll the
+     whole page sideways on phones. `clip` doesn't establish a containing
+     block the way `hidden` does, so it's safe to set globally. */
+  overflow-x: clip;
+}
+html {
+  /* Text follows the browser's font-size setting; nothing below sets a root
+     pixel size, so zoom and "larger text" both keep working. */
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--bar-h) + 12px);
+}
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font);
+  font-size: 17px; line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh; min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.015em; }
+a { color: var(--accent); }
+img { max-width: 100%; }
+.icon { flex: none; display: block; }
+::selection { background: var(--accent-soft); }
+
+/* Keyboard focus: one visible ring everywhere, never on pointer clicks. */
+:focus { outline: none; }
+:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+
+.wrap {
+  max-width: 1240px; margin: 0 auto;
+  padding: 20px 24px calc(48px + env(safe-area-inset-bottom));
+}
+@media (max-width: 767px) {
+  .wrap { padding: 12px 16px calc(28px + env(safe-area-inset-bottom)); }
+}
+
+/* ---------- Form fields ---------- */
+/* :where() keeps these at zero specificity so any class can restyle a field. */
+:where(input[type="text"], input[type="number"], input[type="tel"], input[type="url"],
+input[type="search"], input[type="email"], input[type="password"], input:not([type]), select, textarea) {
+  min-height: 36px; padding: 6px 12px;
+  background: var(--fill); color: var(--ink);
+  border: 1px solid transparent; border-radius: 10px;
+  font-size: 17px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+input::placeholder, textarea::placeholder { color: var(--ink-faint); opacity: 1; }
+:where(input, select, textarea):focus {
+  outline: none; border-color: var(--accent-fill);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 34px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='16' viewBox='0 0 12 16' fill='none' stroke='%238e8e93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6l3-3 3 3M3 10l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+input[type="checkbox"] { accent-color: var(--accent-fill); }

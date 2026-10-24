@@ -1,0 +1,219 @@
+/* ---------- Review section heading ---------- */
+.review-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  margin: 4px 0 14px;
+}
+.review-title { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.review-head h2 { font-size: 22px; font-weight: 700; color: var(--ink); margin: 0; }
+/* One per page: "Posts · 2", the post's name, "Photo 2 of 2", "Claims". */
+.page-title { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink); }
+.page-title .meta { font-weight: 500; color: var(--ink-soft); }
+.review-head .meta { font-size: 15px; color: var(--ink-soft); }
+button.destructive, button.ghost.destructive { color: var(--warn); }
+
+/* (i) explanations: hover with a mouse, tap on a phone. */
+.info-tip { position: relative; display: inline-flex; align-items: center; }
+.info-tip-bubble {
+  position: absolute; z-index: var(--z-sticky); bottom: calc(100% + 8px); padding: 10px 12px; border-radius: var(--radius);
+  background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg);
+  font-size: 13px; font-weight: 400; line-height: 1.45; text-align: left;
+  visibility: hidden; opacity: 0; transition: opacity 0.15s ease;
+}
+.info-tip-bubble.is-below { bottom: auto; top: calc(100% + 8px); }
+.info-tip.is-open .info-tip-bubble { visibility: visible; opacity: 1; }
+@media (hover: hover) {
+  .info-tip:hover .info-tip-bubble, .info-tip:focus-within .info-tip-bubble { visibility: visible; opacity: 1; }
+}
+.info-btn { width: 32px; height: 32px; min-height: 0; padding: 0; font-family: Georgia, serif; font-style: italic; font-weight: 700; }
+
+/* Back / position / step controls above a post's photos and a single photo. */
+/* Wraps: a long post name takes the first line to itself and the position
+   and step buttons drop to the next, instead of squeezing it into a column. */
+.photo-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: var(--tap); margin: -4px 0 8px; }
+.photo-nav-steps { display: flex; gap: 6px; margin-left: auto; }
+.photo-steps-bottom { display: flex; justify-content: space-between; gap: 10px; margin: 18px 0 8px; }
+.photo-step { flex: 1; max-width: 220px; min-height: 56px; justify-content: flex-start; gap: 6px; border-radius: var(--radius); }
+.photo-step.next { justify-content: flex-end; text-align: right; }
+.photo-step > span { display: flex; flex-direction: column; }
+.photo-step-dir { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+/* Posts / post / photo: the pages above are links, the last is this page. */
+/* One line: a long post name shortens with "…" (the page title below has it whole). */
+.crumbs { display: flex; align-items: center; gap: 2px; min-width: 0; min-height: var(--tap); font-size: 15px; }
+.crumbs-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
+.crumbs-item:first-child { flex-shrink: 0; }
+.crumbs-item:not(:first-child, :last-child) { flex-shrink: 4; }
+.crumbs-sep { flex: none; padding: 0 2px; color: var(--ink-faint); }
+.crumbs-link { display: block; min-width: var(--tap); padding: 0 4px; line-height: var(--tap); color: var(--accent); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crumbs-link:hover { text-decoration: underline; }
+.crumbs-current { min-width: 0; padding: 0 4px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.review-title { min-width: 0; }
+.review-title h1, .review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.round-btn {
+  width: 36px; height: 36px; min-height: 0; padding: 0; flex: none;
+  background: var(--fill); color: var(--accent); border: 0; border-radius: 50%;
+}
+.round-btn.destructive { color: var(--warn); }
+
+/* Version display */
+.version-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.set-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px;
+  background: var(--fill); color: var(--ink);
+  border-radius: 6px; font-size: 13px; font-weight: 600;
+}
+.set-badge .cn { color: var(--ink-soft); font-weight: 500; }
+.set-badge .rarity { width: 7px; height: 7px; border-radius: 50%; }
+.set-badge .rarity.common { background: #8e8e93; }
+.set-badge .rarity.uncommon { background: #aeb4bd; }
+.set-badge .rarity.rare { background: #d4a017; }
+.set-badge .rarity.mythic { background: #ff6723; }
+.set-badge .rarity.special { background: #af52de; }
+.set-name { font-size: 13px; color: var(--ink-soft); line-height: 1.25; }
+
+/* ---------- Sheets ----------
+   A temporary, focused task. Centred card on wide screens; on a phone it
+   rises from the bottom edge with a grabber, within thumb reach. */
+@keyframes sheet-pop { from { opacity: 0; transform: scale(0.96); } }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+.modal-close, .feedback-close {
+  /* position: relative after `all: unset`: the touch hit area (button::after)
+     sizes to the nearest positioned box, which was the whole popup. */
+  all: unset; position: relative; box-sizing: border-box; cursor: pointer; flex: none;
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--fill); color: var(--ink-soft);
+  border-radius: 50%; font-size: 20px; line-height: 1;
+}
+.modal-close:hover, .feedback-close:hover { background: var(--fill-strong); }
+@media (max-width: 600px) {
+  .modal { padding: 0; align-items: flex-end; }
+  .modal-box {
+    width: 100%; max-height: 92dvh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: sheet-up 0.38s var(--ease);
+  }
+  .modal-box::before, .feedback-modal::before {
+    content: ''; flex: none; align-self: center;
+    width: 36px; height: 5px; margin: 6px auto 0;
+    border-radius: 3px; background: var(--fill-strong);
+  }
+  .modal-head { padding: 10px 12px 10px 16px; }
+  .modal-status { padding-inline: 16px; }
+  .modal-grid { padding: 14px 16px 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Zoom modal */
+.zoom-modal {
+  position: fixed; inset: 0; z-index: var(--z-dialog-top);
+  display: none; align-items: center; justify-content: center; padding: 24px;
+}
+.zoom-modal.open { display: flex; }
+.zoom-backdrop {
+  position: absolute; inset: 0; cursor: zoom-out;
+  background: rgba(0, 0, 0, 0.72);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+.zoom-image {
+  position: relative; z-index: 1;
+  max-width: min(900px, 96vw); max-height: 88vh; max-height: 88dvh;
+  border: 0; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  cursor: zoom-out; object-fit: contain; display: block;
+}
+.zoom-caption {
+  position: absolute; bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 2;
+  padding: 6px 14px; border-radius: var(--radius-pill);
+  background: rgba(60, 60, 67, 0.72); color: #fff;
+  font-size: 13px; font-weight: 500; pointer-events: none;
+}
+
+@keyframes dlg-fade { from { opacity: 0; } }
+
+/* Popups scroll on their own and hold the swipe, and the page behind stays
+   still while one is open (a phone otherwise scrolls the page instead). */
+.feedback-modal { max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.feedback-overlay { overscroll-behavior: contain; }
+/* Keep the scrollbar off the rounded corners: it is drawn square and would
+   stick out of the curve. */
+.feedback-modal::-webkit-scrollbar, .modal-grid::-webkit-scrollbar { width: 12px; }
+.feedback-modal::-webkit-scrollbar-track, .modal-grid::-webkit-scrollbar-track { background: transparent; margin-block: 22px; }
+.feedback-modal::-webkit-scrollbar-thumb, .modal-grid::-webkit-scrollbar-thumb {
+  background: var(--fill-strong); background-clip: padding-box; border: 3px solid transparent; border-radius: var(--radius-pill);
+}
+/* Only the page is locked: hidden overflow on body too makes body its own
+   scroller, and the sticky header then slides away with the page. */
+html:has(.feedback-overlay), html:has(.modal.open), html:has(.dlg-shade) { overflow: hidden; }
+
+@media (max-width: 600px) {
+  .feedback-overlay { padding: 0; align-items: flex-end; }
+  .feedback-modal {
+    width: 100%; max-width: none; max-height: 92dvh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    animation: sheet-up 0.38s var(--ease);
+  }
+}
+
+/* Footer */
+.foot a { color: inherit; }
+.foot {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule);
+  font-size: 12px; color: var(--ink-soft);
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px;
+}
+
+/* ---------- Feedback sheet ---------- */
+.feedback-overlay {
+  position: fixed; inset: 0; z-index: var(--z-dialog);
+  background: var(--scrim);
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(12px, 4vw, 32px);
+  animation: dlg-fade 0.2s ease-out;
+}
+.feedback-modal {
+  width: 100%; max-width: 480px; padding: 20px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--paper); border: 0;
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+  animation: sheet-pop 0.3s var(--ease);
+}
+.feedback-modal::before { margin: -12px auto 0; }
+.feedback-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.feedback-head h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink); }
+.feedback-sub { margin: 0; font-size: 15px; color: var(--ink-soft); line-height: 1.4; }
+.feedback-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.feedback-error { font-size: 13px; color: var(--warn); flex: 1; }
+.feedback-foot .accent { margin-left: auto; min-width: 96px; min-height: var(--tap); }
+
+/* ---------- Back to top ----------
+   Floats at the bottom right; appears once the user has scrolled more than
+   a viewport. */
+.float-back-top {
+  position: fixed; z-index: var(--z-sticky);
+  right: clamp(12px, 3vw, 24px);
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  width: var(--tap); height: var(--tap); min-height: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 50%;
+  box-shadow: var(--shadow-lg);
+  opacity: 0; pointer-events: none; transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s var(--ease);
+}
+.float-back-top.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.float-back-top:hover { background: var(--surface-2); }
+
+.error-boundary {
+  max-width: 520px;
+  margin: 80px auto;
+  padding: 28px 32px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.error-boundary h2 {
+  margin: 0 0 12px;
+  color: var(--accent);
+}
+.error-boundary p { margin: 6px 0; color: var(--ink); }
+.error-boundary .hint { color: var(--ink-soft); font-size: 15px; margin-bottom: 18px; }
