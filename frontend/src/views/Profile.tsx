@@ -5,8 +5,8 @@ import { FeedbackModal } from '../components/FeedbackModal.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Link } from '../components/Link.tsx';
 import { PaymentDetails } from '../components/PaymentDetails.tsx';
+import { Preferences } from '../components/Preferences.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
-import { Segmented } from '../components/ui/Segmented.tsx';
 import { useT } from '../hooks/useLang.ts';
 import type { PaymentStore } from '../hooks/usePayment.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
@@ -88,14 +88,7 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
 
           <section className="ui-card profile-stack" aria-labelledby="profile-prefs-title">
             <h2 id="profile-prefs-title" className="ui-card-title">{t('profile_prefs')}</h2>
-            <Segmented
-              label={t('menu_language')} value={lang} onChange={setLang}
-              options={[{ value: 'en', label: <span lang="en">English</span> }, { value: 'ms', label: <span lang="ms">Melayu</span> }]}
-            />
-            <Segmented
-              label={t('menu_appearance')} value={appearance} onChange={setAppearance}
-              options={(['auto', 'light', 'dark'] as const).map(a => ({ value: a, label: t(`appearance_${a}`) }))}
-            />
+            <Preferences lang={lang} setLang={setLang} appearance={appearance} setAppearance={setAppearance} />
           </section>
 
           <section className="ui-card profile-stack" aria-labelledby="profile-help-title">
