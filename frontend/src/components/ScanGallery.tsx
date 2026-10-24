@@ -1,10 +1,12 @@
-// The posts gallery: posts as tiles, then the photos inside one as tiles.
-// Big enough to recognise a scan by its picture, with the things worth
-// knowing before opening it (how many cards, what it's worth, what's wrong).
+// Posts as list rows: big enough to tell a post by its pictures, with what is
+// worth knowing before opening it (its total, how many photos, what waits).
 
+import type { SyntheticEvent } from 'react';
+import type { Route } from '../routes.ts';
 import type { Batch, Settings } from '../types.ts';
 import { computeCardData, formatMyr, notAdded } from '../utils.ts';
 import { Icon } from './Icon.tsx';
+import { Link } from './Link.tsx';
 import type { T } from '../hooks/useLang.ts';
 
 export interface BatchSummary {
@@ -13,16 +15,12 @@ export interface BatchSummary {
   needs: number;      // things to fix: unpriced cards, or 1 if the photo itself failed
   pending: number;    // priced cards not added to the post's card list yet
   total: number;      // priced value of the visible cards
-  haystack: string;   // lower-cased filename + card names, for search
+  names: string[];    // the visible cards' names, for search
 }
 
 export function summarise(batch: Batch, settings: Settings): BatchSummary {
   if (!batch.response) {
-    return {
-      batch, cards: 0, total: 0, pending: 0,
-      needs: batch.status === 'error' ? 1 : 0,
-      haystack: batch.filename.toLowerCase(),
-    };
+    return { batch, cards: 0, total: 0, pending: 0, needs: batch.status === 'error' ? 1 : 0, names: [] };
   }
   const visible = computeCardData(batch, settings).filter(cd => !cd.removed);
   return {
@@ -31,123 +29,90 @@ export function summarise(batch: Batch, settings: Settings): BatchSummary {
     pending: notAdded(batch, visible).length,
     needs: visible.filter(cd => cd.needsPrice).length,
     total: visible.reduce((sum, cd) => sum + (isFinite(cd.lineTotal) ? cd.lineTotal : 0), 0),
-    haystack: [batch.filename, ...visible.map(cd => cd.sel.name || '')].join('\n').toLowerCase(),
+    names: visible.map(cd => cd.sel.name || ''),
   };
 }
 
-function NeedsBadge({ n, t }: { n: number; t: T }) {
-  if (n <= 0) return null;
+// A saved photo that still waits on the seller: on a live post, cards not in
+// the post yet; on a price-on-photo post, prices not locked by Finish.
+export const waits = (s: BatchSummary, live: boolean) =>
+  !!s.batch.response && s.batch.scanId != null && (live ? s.pending > 0 : !s.batch.lockedAt);
+
+// The small picture of a photo, once it has one.
+export const thumbOf = (b: Batch) => (b.response ? b.response.thumb_url ?? b.response.image_b64 : null);
+
+// A picture that won't load leaves its plain cell, not a broken-image icon.
+export const hideBroken = (e: SyntheticEvent<HTMLImageElement>) => { e.currentTarget.hidden = true; };
+
+// An amount, with "≈" when it is a live price: the price is set later.
+export function Money({ amount, settings }: { amount: number; settings: Settings }) {
   return (
-    <span className="needs-badge">
-      <Icon name="warning" size={14} />{t('scans_to_fix', { n })}
-    </span>
+    <>
+      {settings.priceMode === 'live' ? <span className="approx">≈</span> : null}
+      {formatMyr(amount, settings)}
+    </>
   );
 }
 
-function PendingBadge({ text }: { text: string | null }) {
-  if (!text) return null;
-  return <span className="needs-badge pending-badge"><Icon name="addList" size={14} />{text}</span>;
-}
+// A count in words, from a key and its "_one" twin: "1 photo", "3 photos".
+export const countText = (t: T, key: string, n: number) => t(n === 1 ? `${key}_one` : key, { n });
 
-function photosLabel(n: number, t: T) {
-  return n === 1 ? t('scans_photo_one') : t('scans_photos', { n });
-}
-
-// A post's cover: its first few photos side by side, so posts are told apart
-// by what is in them. The last cell says how many more there are.
-const COVER_MAX = 4;
-
-function Cover({ srcs, photos }: { srcs: string[]; photos: number }) {
-  if (!srcs.length) return <span className="scan-tile-img"><Icon name="photo" size={28} /></span>;
-  const shown = srcs.slice(0, COVER_MAX);
+// A post's first photos in a square, the fourth cell saying how many more.
+export function Mosaic({ srcs, photos }: { srcs: string[]; photos: number }) {
+  const shown = srcs.slice(0, 4);
   const more = photos - shown.length;
   return (
-    <span className={`scan-tile-img post-cover n${shown.length}`}>
-      {shown.map((src, i) => (
-        <span className="post-cover-cell" key={i}>
-          <img src={src} alt="" loading="lazy" />
-          {more > 0 && i === shown.length - 1 ? <span className="post-cover-more">+{more}</span> : null}
+    <span className={`mosaic n${shown.length}`} aria-hidden="true">
+      {shown.length ? shown.map((src, i) => (
+        <span className="mosaic-cell" key={i}>
+          <img src={src} alt="" loading="lazy" onError={hideBroken} />
+          {more > 0 && i === shown.length - 1 ? <span className="mosaic-more">+{more}</span> : null}
         </span>
-      ))}
+      )) : <Icon name="photo" size={24} />}
     </span>
   );
 }
 
-interface PostTileProps {
+interface PostRowProps {
   title: string;
-  covers: string[];
-  photos: number;
-  needs: number;
-  pending: number;    // photos with cards not added yet
+  items: BatchSummary[];
   total: number;
   settings: Settings;
   t: T;
-  onOpen: () => void;
+  to: Route;
 }
 
-export function PostTile({ title, covers, photos, needs, pending, total, settings, t, onOpen }: PostTileProps) {
+// One post in the list: its photos, name, total, kind and what still waits.
+// For a live post that is photos with cards not in the post yet; for a
+// price-on-photo post, photos not finished.
+export function PostRow({ title, items, total, settings, t, to }: PostRowProps) {
+  const live = settings.priceMode === 'live';
+  const scanning = items.filter(s => s.batch.status === 'scanning').length;
+  const waiting = items.filter(s => waits(s, live)).length;
+  const needs = items.reduce((n, s) => n + s.needs, 0);
+  const meta = [live ? t('kind_live') : '', items.length ? countText(t, 'post_photos_count', items.length) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']
+    .filter(Boolean).join(' · ');
   return (
-    <button type="button" className="scan-tile" onClick={onOpen}>
-      <Cover srcs={covers} photos={photos} />
-      <span className="scan-tile-body">
-        <span className="scan-tile-title">{title}</span>
-        <span className="scan-tile-meta">
-          {photosLabel(photos, t)}{total > 0 ? ` · ${formatMyr(total, settings)}` : ''}
+    <Link className="ui-row postrow" to={to}>
+      <Mosaic srcs={items.flatMap(s => thumbOf(s.batch) ?? [])} photos={items.length} />
+      <span className="ui-row-main">
+        <span className="postrow-head">
+          <span className="ui-row-title">{title}</span>
+          {items.length ? <span className="postrow-total"><Money amount={total} settings={settings} /></span> : null}
         </span>
-        <NeedsBadge n={needs} t={t} />
-        <PendingBadge text={pending > 0 ? t('scans_photos_not_added', { n: pending }) : null} />
-      </span>
-    </button>
-  );
-}
-
-interface PhotoTileProps {
-  summary: BatchSummary;
-  // Its "Photo N" in the post order; null while it is not saved yet.
-  number: number | null;
-  settings: Settings;
-  t: T;
-  selecting: boolean;
-  selected: boolean;
-  onOpen: () => void;
-  onToggle: () => void;
-}
-
-export function PhotoTile({ summary, number, settings, t, selecting, selected, onOpen, onToggle }: PhotoTileProps) {
-  const { batch, cards, needs, pending, total } = summary;
-  const src = batch.response ? (batch.response.thumb_url ?? batch.response.image_b64) : null;
-  let meta: string;
-  if (batch.status === 'scanning') meta = t('tab_status_scanning');
-  else if (batch.outOfCredits) meta = t('tab_status_no_credits');
-  else if (batch.status === 'error') meta = t('tab_status_error');
-  else meta = (cards === 1 ? t('tab_status_done_one') : t('tab_status_done', { n: cards }))
-    + (total > 0 ? ` · ${formatMyr(total, settings)}` : '');
-  return (
-    <button
-      type="button"
-      className={`scan-tile ${selected ? 'is-selected' : ''}`}
-      aria-pressed={selecting ? selected : undefined}
-      onClick={selecting ? onToggle : onOpen}
-    >
-      <span className={`scan-tile-img ${batch.status === 'scanning' ? 'is-scanning' : ''}`}>
-        {src ? <img src={src} alt="" loading="lazy" /> : <Icon name="photo" size={28} />}
-        {selecting ? (
-          <span className="scan-tile-check" aria-hidden="true">
-            {selected ? <Icon name="check" size={16} /> : null}
+        <span className="ui-row-meta">{meta}</span>
+        {waiting || needs ? (
+          <span className="chips">
+            {waiting ? (
+              <span className="ui-chip ui-chip--accent">
+                <Icon name="addList" size={13} />
+                {countText(t, live ? 'posts_not_added' : 'posts_not_finished', waiting)}
+              </span>
+            ) : null}
+            {needs ? <span className="ui-chip ui-chip--warn"><Icon name="warning" size={13} />{t('scans_to_fix', { n: needs })}</span> : null}
           </span>
         ) : null}
       </span>
-      <span className="scan-tile-body">
-        <span className="scan-tile-title">{number != null ? t('photo_n', { n: number }) : batch.filename}</span>
-        {number != null ? <span className="scan-tile-file">{batch.filename}</span> : null}
-        <span className="scan-tile-meta">{meta}</span>
-        <NeedsBadge n={needs} t={t} />
-        {batch.lockedAt ? (
-          <span className="locked-badge"><Icon name="lock" size={13} />{t('tile_locked')}</span>
-        ) : (
-          <PendingBadge text={pending > 0 ? t('scans_cards_not_added', { n: pending }) : null} />
-        )}
-      </span>
-    </button>
+    </Link>
   );
 }

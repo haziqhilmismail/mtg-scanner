@@ -1,59 +1,64 @@
 import type { AuthUser } from '../api/auth.ts';
-import type { Appearance, Lang } from '../types.ts';
-import { AppMenu } from './AppMenu.tsx';
-import type { T } from '../hooks/useLang.ts';
+import { useT } from '../hooks/useLang.ts';
+import { POSTS, routeFolder, type Route } from '../routes.ts';
+import { Avatar } from './Avatar.tsx';
+import { Icon } from './Icon.tsx';
+import { Link } from './Link.tsx';
 
 interface Props {
-  title: string;
+  route: Route;
   healthLabel: string;
   healthState: 'ok' | 'err' | null;
-  lang: Lang;
-  onLangChange: (l: Lang) => void;
-  appearance: Appearance;
-  onAppearanceChange: (a: Appearance) => void;
-  t: T;
-  // Only shown when Google auth is enabled on the backend. In solo mode both
-  // are undefined and the account rows stay hidden.
-  user?: AuthUser | null;
-  onSignOut?: () => void;
-  onRedeemVoucher?: () => void;
-  // Opens the default-pricing sheet.
-  onDefaultPricing?: () => void;
-  // Opens the payment-details sheet.
-  onPaymentDetails?: () => void;
-  // The app name goes home: the Scanner's list of posts.
-  onHome: () => void;
+  // null in solo mode, where nobody signs in.
+  user: AuthUser | null;
 }
 
-export function Header({
-  title, healthLabel, healthState,
-  lang, onLangChange, appearance, onAppearanceChange, t,
-  user, onSignOut, onRedeemVoucher, onDefaultPricing, onPaymentDetails, onHome,
-}: Props) {
+// The bar before sign-in: the mark and the name, with nothing to open yet.
+export function SignedOutHeader() {
+  const t = useT();
   return (
     <header className="app-bar">
       <div className="app-bar-inner">
-        <h1 className="app-bar-title"><button type="button" onClick={onHome}>{title}</button></h1>
+        <span className="brand brand--signed-out">
+          <span className="brand-mark" aria-hidden="true"><Icon name="scan" size={17} /></span>
+          <span className="brand-name">{t('app_title')}</span>
+        </span>
+      </div>
+    </header>
+  );
+}
+
+// The top bar of every page: the mark, the Scanner and Claims tabs, the
+// prices status on wide screens, and the avatar that opens Profile.
+export function Header({ route, healthLabel, healthState, user }: Props) {
+  const t = useT();
+  const onProfile = route.page === 'profile' || route.page === 'profile-pricing';
+  // A post, a photo and a post's pricing sit under Scanner; Profile has no tab.
+  const tab = route.page === 'claims' ? 'claims' : onProfile ? null : 'scanner';
+  const tabProps = (id: 'scanner' | 'claims') => ({
+    className: `nav-tab ${tab === id ? 'is-on' : ''}`,
+    'aria-current': tab === id ? ('page' as const) : undefined,
+  });
+  return (
+    <header className="app-bar">
+      <div className="app-bar-inner">
+        <Link className="brand" to={POSTS} aria-label={t('app_title')}>
+          <span className="brand-mark" aria-hidden="true"><Icon name="scan" size={17} /></span>
+          <span className="brand-name">{t('app_title')}</span>
+        </Link>
+        <nav className="nav-tabs" aria-label={t('nav_section')}>
+          <Link to={POSTS} {...tabProps('scanner')}>{t('nav_scanner')}</Link>
+          {/* Claims opens on the post the seller is looking at. */}
+          <Link to={{ page: 'claims', folder: routeFolder(route) }} {...tabProps('claims')}>{t('nav_claims')}</Link>
+        </nav>
         <div className="app-bar-actions">
-          {/* The dot alone would rely on colour, so the label sits beside it
-              on wide screens and in the menu on narrow ones. */}
-          <span className={`bar-status ${healthState ?? ''}`} title={healthLabel}>
+          <span className={`bar-status ${healthState ?? ''}`}>
             <span className={`status-dot ${healthState ?? ''}`} aria-hidden="true" />
-            <span className="bar-status-label">{healthLabel}</span>
+            {healthLabel}
           </span>
-          <AppMenu
-            lang={lang}
-            onLangChange={onLangChange}
-            appearance={appearance}
-            onAppearanceChange={onAppearanceChange}
-            t={t}
-            status={{ label: healthLabel, state: healthState }}
-            user={user}
-            onSignOut={onSignOut}
-            onRedeemVoucher={onRedeemVoucher}
-            onDefaultPricing={onDefaultPricing}
-            onPaymentDetails={onPaymentDetails}
-          />
+          <Link className="avatar-link" to={{ page: 'profile' }} aria-label={t('nav_profile')} aria-current={onProfile ? 'page' : undefined}>
+            <Avatar user={user} />
+          </Link>
         </div>
       </div>
     </header>

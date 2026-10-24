@@ -28,6 +28,7 @@ const PATHS = {
   refresh: 'M19 12a7 7 0 1 1-2.100-5M19 4v4h-4',
   chevronDown: 'M6 9l6 6 6-6',
   chevronUp: 'M6 15l6-6 6 6',
+  chevronUpDown: 'M8 9l4-4 4 4M8 15l4 4 4-4',
   warning: 'M12 4 2.500 20h19L12 4ZM12 10v4.500M12 17.500h.01',
   minus: 'M5 12h14',
   edit: 'M4 20h4l10.500-10.500a2.100 2.100 0 0 0-3-3L5 17v3ZM13.500 7.500l3 3',
@@ -37,12 +38,19 @@ const PATHS = {
   heart: 'M12 20s-7.500-4.500-7.500-10A4.500 4.500 0 0 1 12 7a4.500 4.500 0 0 1 7.500 3c0 5.500-7.500 10-7.500 10Z',
   chevronLeft: 'M15 5l-7 7 7 7',
   chevronRight: 'M9 5l7 7-7 7',
+  arrowRight: 'M5 12h14M13 6l6 6-6 6',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
   archive: 'M4 5h16v4H4V5ZM5.500 9v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9M10 13h4',
   expand: 'M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7',
   tag: 'M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9ZM7.500 7.500h.01',
   external: 'M7 17 17 7M9 7h8v8',
   swap: 'M7 4 4 7l3 3M4 7h13M17 20l3-3-3-3M20 17H7',
+  person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0',
+  help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.600 9.300a2.500 2.500 0 0 1 4.800 1c0 1.700-2.400 2.100-2.400 3.600M12 17h.01',
+  qr: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2.500v2.500H14zM17.500 17.500H20V20h-2.500zM14 18.500V20M20 14v1.500',
+  print: 'M7 9V4h10v5M7 17H5.500A1.500 1.500 0 0 1 4 15.500v-5A1.500 1.500 0 0 1 5.500 9h13a1.500 1.500 0 0 1 1.500 1.500v5a1.500 1.500 0 0 1-1.500 1.500H17M7 14h10v6H7z',
+  photos: 'M8 7h11a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1ZM4 15V5a1 1 0 0 1 1-1h10',
+  chat: 'M4 5h16v10H10l-4 4v-4H4V5ZM8 9h8M8 12h5',
 } as const;
 
 export type IconName = keyof typeof PATHS;

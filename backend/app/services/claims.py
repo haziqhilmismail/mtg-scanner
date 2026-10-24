@@ -216,6 +216,11 @@ class ClaimDraft(BaseModel):
     unclear: str      # "" or a note about the whole comment (e.g. "cancels an earlier claim")
 
 
+class ParseResult(BaseModel):
+    claims: list[ClaimDraft]
+    skipped: list[str]   # each buyer comment that claims nothing, as "Name: words", for the seller to check
+
+
 PROMPT = """You are helping a Malaysian Magic: The Gathering seller work out who claimed which cards from a Facebook comment thread.
 
 The thread text below was read from screenshots by OCR, so expect small misreadings (l/1/I, O/0, missing diacritics, stray symbols), and Facebook chrome mixed in ("Like", "Reply", "2h", "Top fan", "Author", "View more replies", "Write a comment", "All comments", a bare reaction count such as "1" or "👍1").
@@ -241,17 +246,17 @@ THE SELLER
 The seller's own name is "{seller}". Never treat the seller's comments or replies as claims: the post text, price notes ("NF - x2.5", "F - 2.8", "beledros witherbloom JP x2.2"), pickup details, and replies such as "ok", "noted", "sold", "pm" change nothing. A buyer's comment that merely tags the seller's name is still that buyer's claim.
 
 WHAT TO RETURN
-One entry per buyer comment that claims something, in the order the comments appear (earlier comments have first right to a card).
+`claims`: one entry per buyer comment that claims something, in the order the comments appear (earlier comments have first right to a card).
 - buyer: the commenter's name as written.
 - comment: their comment text, tidied of OCR junk but not reworded.
 - items: one per card claimed, with scan_id and card_id taken from the list above, qty (default 1), and `said` = the buyer's words for that card.
 - If you cannot tell which card or which photo is meant, still return the item with card_id -1 (and scan_id 0 if the photo is unknown) and put the reason in the item's `unclear`, phrased as a short question the seller can answer, e.g. "'Top left' fits a card in each photo — which photo?" or "No card called 'bolt' here — which card?". Never guess between two plausible cards.
 - A position only identifies a card within one photo. If the thread covers several photos and a comment gives only a position, it is unclear unless something else (a card name, a price) settles it.
-- Skip comments that are not claims: questions ("price?", "ada lagi?", "condition?"), "pm", "interested", tags of friends, emoji only.
+- Comments that are not claims go in `skipped` instead, each as "Name: words": questions ("price?", "ada lagi?", "condition?"), "pm", "interested", tags of friends, emoji only. Leave out the seller's own comments and Facebook's words.
 - If a comment cancels or changes an earlier claim ("cancel", "tak jadi", "tukar"), return it with no certain items and explain in the comment-level `unclear`.
 - If the same person claims in several comments, return each comment separately.
 
-Return an empty list if nobody claimed anything.
+Return an empty `claims` list if nobody claimed anything.
 
 THE THREAD
 {thread}
@@ -274,8 +279,9 @@ def _catalogue_text(photos: list[CataloguePhoto]) -> str:
     return "\n".join(out)
 
 
-def parse_claims(thread: str, photos: list[CataloguePhoto], seller: str) -> list[ClaimDraft]:
-    """Ask Gemini (text only) who claimed what. Synchronous — call it in a thread."""
+def parse_claims(thread: str, photos: list[CataloguePhoto], seller: str) -> ParseResult:
+    """Ask Gemini (text only) who claimed what, and which comments it read as
+    no claim. Synchronous — call it in a thread."""
     if len(photos) == 1:
         scope = f"All of these comments are about one photo: {photos[0].label}. Positions refer to it."
     else:
@@ -293,12 +299,13 @@ def parse_claims(thread: str, photos: list[CataloguePhoto], seller: str) -> list
         contents=[prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=list[ClaimDraft],
+            response_schema=ParseResult,
             temperature=0.0,
             thinking_config=types.ThinkingConfig(thinking_budget=settings.gemini_thinking_budget),
         ),
     )
-    drafts = response.parsed or []
+    result = response.parsed or ParseResult(claims=[], skipped=[])
+    drafts = result.claims
     # Never trust ids we did not offer: anything else becomes "unclear".
     valid = {(p.scan_id, c.card_id) for p in photos for c in p.cards}
     for d in drafts:
@@ -310,4 +317,9 @@ def parse_claims(thread: str, photos: list[CataloguePhoto], seller: str) -> list
                     continue
                 item.card_id = -1
                 item.unclear = item.unclear or "Which card is this?"
-    return [d for d in drafts if d.items or d.unclear]
+    # A draft that claims nothing and asks nothing is a comment skipped too.
+    empty = [d for d in drafts if not (d.items or d.unclear)]
+    return ParseResult(
+        claims=[d for d in drafts if d.items or d.unclear],
+        skipped=[*result.skipped, *(f"{d.buyer}: {d.comment}" for d in empty)],
+    )

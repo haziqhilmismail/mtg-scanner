@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { redeemVoucher } from '../api.ts';
 import type { Credits } from '../types.ts';
 import type { T } from '../hooks/useLang.ts';
-import { useBackClose } from '../hooks/useBackClose.ts';
+import { TextField } from './ui/Field.tsx';
+import { Dialog } from './ui/Dialog.tsx';
 
 interface Props {
   open: boolean;
@@ -12,38 +13,17 @@ interface Props {
   t: T;
 }
 
-type Status = 'idle' | 'sending' | 'done';
-
-// One field, one job: type a voucher code, get more scans.
+// One field, one job: type a voucher code, get more claim reads.
 export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
-  useBackClose(open, onClose);
+  const formId = useId();
   const [code, setCode] = useState('');
-  const [status, setStatus] = useState<Status>('idle');
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [granted, setGranted] = useState('');
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  // Start fresh each time the sheet opens. Kept apart from the key listener
-  // below: that one re-subscribes whenever the parent re-renders, and must
-  // not wipe the "redeemed" message when it does.
-  useEffect(() => {
-    if (!open) return;
-    setCode(''); setStatus('idle'); setError(''); setGranted('');
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
 
   const submit = async () => {
-    if (!code.trim() || status !== 'idle') return;
-    setStatus('sending'); setError('');
+    if (!code.trim() || sending) return;
+    setSending(true); setError('');
     try {
       const res = await redeemVoucher(code);
       setGranted(
@@ -55,60 +35,49 @@ export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
             : t('voucher_granted_unlimited'))
           : t('voucher_granted_credits', { n: res.granted.credits }),
       );
-      setStatus('done');
       onRedeemed(res.credits);
     } catch (e) {
       const reason = (e as Error & { code?: string }).code;
       setError(t(reason ? `voucher_err_${reason}` : 'voucher_err_network'));
-      setStatus('idle');
+    } finally {
+      setSending(false);
     }
   };
 
   return (
-    <div className="feedback-overlay" onClick={onClose}>
-      <div
-        className="feedback-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="voucher-title"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="feedback-head">
-          <h2 id="voucher-title">{t('voucher_title')}</h2>
-          <button type="button" className="feedback-close" onClick={onClose} aria-label={t('voucher_close')}>×</button>
-        </div>
-        {status === 'done' ? (
-          <>
-            <p className="voucher-success" role="status">{granted}</p>
-            <div className="feedback-foot">
-              <button type="button" className="accent" onClick={onClose}>{t('voucher_done')}</button>
-            </div>
-          </>
-        ) : (
-          <form onSubmit={e => { e.preventDefault(); submit(); }} className="voucher-form">
-            <p className="feedback-sub">{t('voucher_sub')}</p>
-            <input
-              ref={inputRef}
-              className="voucher-input"
-              type="text"
-              value={code}
-              onChange={e => { setCode(e.target.value.toUpperCase()); setError(''); }}
-              placeholder="MTG-XXXX-XXXX-XXXX"
-              aria-label={t('voucher_title')}
-              aria-invalid={!!error}
-              autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-              maxLength={32}
-              disabled={status === 'sending'}
-            />
-            {error ? <p className="feedback-error" role="alert">{error}</p> : null}
-            <div className="feedback-foot">
-              <button type="submit" className="accent" disabled={!code.trim() || status === 'sending'}>
-                {status === 'sending' ? t('voucher_sending') : t('voucher_redeem')}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      onExited={() => { setCode(''); setError(''); setGranted(''); }}
+      title={t('voucher_title')}
+      closeLabel={t('voucher_close')}
+      footer={granted ? (
+        <button type="button" className="ui-btn ui-btn--primary" onClick={onClose}>{t('voucher_close')}</button>
+      ) : (
+        <>
+          <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('cancel')}</button>
+          <button type="submit" form={formId} className="ui-btn ui-btn--primary" disabled={!code.trim() || sending}>
+            {t(sending ? 'voucher_sending' : 'voucher_redeem')}
+          </button>
+        </>
+      )}
+    >
+      {granted ? (
+        <p className="voucher-granted" role="status">{granted}</p>
+      ) : (
+        <form id={formId} onSubmit={e => { e.preventDefault(); submit(); }}>
+          <TextField
+            label={t('voucher_sub')}
+            error={error || undefined}
+            value={code}
+            onChange={e => { setCode(e.target.value.toUpperCase()); setError(''); }}
+            placeholder="MTG-XXXX-XXXX-XXXX"
+            autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+            maxLength={32}
+            data-autofocus=""
+          />
+        </form>
+      )}
+    </Dialog>
   );
 }

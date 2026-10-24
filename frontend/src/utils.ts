@@ -1,13 +1,13 @@
 import type { Batch, Candidate, CardRowData, Correction, Credits, DetectedCard, LockedPrice, PillOffset, ScanUiState, Settings } from './types.ts';
-import type { T } from './i18n.ts';
+import type { T } from './i18n/index.ts';
 import type { Payment } from './api.ts';
+
+// Amounts read the same in every browser, "1,240.50", whatever its locale.
+const AMOUNT = [0, 2].map(d => new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));
 
 export function fmt2(n: number | null | undefined): string {
   if (n == null || isNaN(n as number)) return '—';
-  return Number(n).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return AMOUNT[1].format(Number(n));
 }
 
 export function applyRounding(price: number, settings: Settings): number {
@@ -29,35 +29,43 @@ export function applyRounding(price: number, settings: Settings): number {
   return p;
 }
 
-// Format a numeric price as a display string.
-//
-// - `showCents: true`  → always 2 decimals ("RM21.00")
-// - `showCents: false` → smart decimals:
-//     - integer values render without decimals ("RM21")
-//     - values with actual cents preserve them ("RM20.97")
-//
-// The smart-decimals behaviour matters for *user overrides*: when the user
-// types `20.97`, they want to see `RM20.97`, not `RM21`. Auto-rounded prices
-// from `applyRounding` end up as integers under the default `up_1` rounding
-// so they still render cleanly without cents.
+// A price as the app writes it: "RM13", "RM1,240". Cents show when Show
+// cents is on, and always when the price has them (a price the seller typed,
+// or a rounding step under RM 1): hiding them would show a price nobody pays.
 export function formatMyr(price: number, settings: Settings): string {
   const n = Number(price);
   if (isNaN(n)) {
     return settings.showCurrency ? `${settings.currencyLabel} —` : '—';
   }
-  let decimals: number;
-  if (settings.showCents) {
-    decimals = 2;
-  } else {
-    // Round to the nearest cent to absorb tiny FP noise (e.g. 1.0000000001).
-    const rounded = Math.round(n * 100) / 100;
-    decimals = Number.isInteger(rounded) ? 0 : 2;
-  }
-  const formatted = n.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+  // To the cent first, so float noise (1.0000000001) is no cents.
+  const cents = !Number.isInteger(Math.round(n * 100) / 100);
+  const formatted = AMOUNT[settings.showCents || cents ? 1 : 0].format(n);
   return settings.showCurrency ? `${settings.currencyLabel}${formatted}` : formatted;
+}
+
+// A card's own price, as priceOverride stores it: RM as typed ("15.5"), or a
+// USD price the multiplier and rounding still apply to ("usd:4.5"). Versions
+// before USD prices read "usd:" as no price of the seller's own, and keep it.
+export interface PriceOverride { unit: 'rm' | 'usd'; amount: number }
+const USD_OVERRIDE = 'usd:';
+
+export function parseOverride(raw: string | null | undefined): PriceOverride | null {
+  const usd = !!raw?.startsWith(USD_OVERRIDE);
+  const amount = parseFloat((usd ? raw!.slice(USD_OVERRIDE.length) : raw) ?? '');
+  return Number.isNaN(amount) ? null : { unit: usd ? 'usd' : 'rm', amount };
+}
+
+export const overrideText = (o: PriceOverride | null): string | null =>
+  (o ? `${o.unit === 'usd' ? USD_OVERRIDE : ''}${o.amount}` : null);
+
+// A price box as typed: empty (no price of the seller's own), a price above
+// 0, or not a price. Commas and spaces are how people write 1,240.
+export function readPrice(text: string): number | null | 'invalid' {
+  const clean = text.replace(/[,\s]/g, '');
+  if (!clean) return null;
+  if (!/^(\d+\.?\d{0,2}|\.\d{1,2})$/.test(clean)) return 'invalid';
+  const n = Number(clean);
+  return n > 0 ? n : 'invalid';
 }
 
 // What is printed on a card's price pill: "RM58", "RM58 ×2". One function so
@@ -81,6 +89,9 @@ export function photoLabel(cd: CardRowData, settings: Settings): string {
   if (cd.needsPrice || !Number.isFinite(cd.unitPrice)) return '';
   return pillLabel(cd, settings);
 }
+
+// Whether a card's label on the photo is the gold foil pill, on screen and in the exported image alike.
+export const goldPill = (cd: { isFoil: boolean }, settings: Settings) => cd.isFoil && settings.foilStyle === 'gold';
 
 export function formatMyrWithFoil(price: number, isFoil: boolean, settings: Settings): string {
   const base = formatMyr(price, settings);
@@ -164,12 +175,6 @@ export type PhotoSort = keyof typeof PHOTO_SORTS;
 export const sortPhotos = <T extends { batch: Batch }>(items: T[], sort: PhotoSort) =>
   [...items].sort((a, b) => PHOTO_SORTS[sort](a.batch, b.batch));
 
-// Scryfall stores multiple sizes; for zoom we want the higher-res "large" variant
-export function upgradeScryfallImage(url: string): string {
-  if (!url) return url;
-  return url.replace('/normal/', '/large/').replace('/small/', '/large/');
-}
-
 // For thumbnails (the printings grid, a card's match image) prefer the small
 // variant — 146x204 JPEGs are ~12KB vs ~80KB for normal, which avoids stutter
 // when a card has 50+ printings.
@@ -185,7 +190,7 @@ export const matchThumbs = (batch: Batch): string[] =>
 // The images in a paste (Ctrl/⌘+V), named for when they were pasted.
 // Whether a popup is open over the page: a paste then belongs to it, not
 // to the page's drop area behind it.
-export const popupOpen = () => !!document.querySelector('.feedback-overlay, .modal-shade, .dlg-shade, .modal.open');
+export const popupOpen = () => !!document.querySelector('.feedback-overlay, .modal-shade, .dlg-shade, .modal.open, dialog[open], .ui-menu');
 
 export function pastedImages(e: ClipboardEvent): File[] {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -248,8 +253,8 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
     const mult = hasMultOverride ? (multRaw as number) : globalMult;
     const qty = Math.max(1, batch.quantity[origIdx] || 1);
     // A box holding only "." (or nothing) is no price yet, not RM0.
-    const override = parseFloat(batch.priceOverride[origIdx] ?? '');
-    const hasOverride = !isNaN(override);
+    const own = parseOverride(batch.priceOverride[origIdx]);
+    const hasOverride = own != null;
     // CK is the only price source. If the chosen side has no CK row we don't
     // auto-price — the user must enter manually. Skipping applyRounding here
     // is what bypasses the RM 1 floor and surfaces "needs price" so we never
@@ -259,7 +264,8 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
       : sel.price_source_normal === 'cardkingdom';
     const autoPrice = ckSourceMatched ? applyRounding(usd * mult, settings) : 0;
     const needsPrice = !hasOverride && (isManual || !ckSourceMatched);
-    const unitPrice = hasOverride ? override : needsPrice ? NaN : autoPrice;
+    const ownUsd = own?.unit === 'usd' ? own.amount : null;
+    const unitPrice = own ? (ownUsd != null ? applyRounding(ownUsd * mult, settings) : own.amount) : needsPrice ? NaN : autoPrice;
     const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
     // A finished photo keeps the prices buyers saw, whatever CK or the
     // multipliers do since.
@@ -269,7 +275,7 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
         card: c, sel, origIdx, removed, isFoil, isManual, needsPrice: false,
         usd: lock.usd, mult: lock.mult, globalMult, hasMultOverride,
         autoPrice: lock.manual ? autoPrice : lock.price, qty, unitPrice: lock.price,
-        hasOverride: lock.manual, lineTotal: lock.price * qty, source: (lock.manual ? 'manual' : 'cardkingdom') as CardRowData['source'],
+        hasOverride: lock.manual, ownUsd: null, lineTotal: lock.price * qty, source: (lock.manual ? 'manual' : 'cardkingdom') as CardRowData['source'],
         pillOffset: batch.pillOffset?.[origIdx] ?? null,
       };
     }
@@ -282,7 +288,7 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
       card: c, sel, origIdx, removed,
       isFoil, isManual, needsPrice,
       usd, mult, globalMult, hasMultOverride,
-      autoPrice, qty, unitPrice, hasOverride, lineTotal, source,
+      autoPrice, qty, unitPrice, hasOverride, ownUsd, lineTotal, source,
       pillOffset: batch.pillOffset?.[origIdx] ?? null,
     };
   });
@@ -359,24 +365,14 @@ export function nextFreeDate(credits: Credits | null, lang: string): string {
     : '';
 }
 
-// How a card's price was worked out, for the buyer: "$3.60 × 2.5 → RM9" (the
-// arrow because the result is rounded). null when the price charged is not
-// that formula's result (a hand-set price, or prices refreshed since the
-// claim), so a buyer never sees a sum that does not match what they pay.
-export function priceWorking(cd: CardRowData, charged: number, settings: Settings): string | null {
-  if (cd.hasOverride || !(cd.usd > 0) || Math.abs(cd.autoPrice - charged) > 0.005) return null;
-  return `$${cd.usd.toFixed(2)} × ${cd.mult} → ${formatMyr(cd.autoPrice, settings)}`;
-}
-
-// The seller's payment details as lines under a copied summary; none when
-// nothing is filled in.
+// The seller's payment details as lines under a buyer's message
+// (DESIGN.md section 8): "Payment: {bank} {number} ({name})", then the note.
+// Empty parts are left out; nothing filled in gives no lines.
 export function paymentLines(p: Payment | null, t: T): string[] {
   if (!p) return [];
-  const account = [p.bank_name, p.bank_account_number].filter(Boolean).join(' ');
-  const lines: string[] = [];
-  if (account) lines.push(t('pay_copy_account', { account }) + (p.bank_account_holder ? ` (${p.bank_account_holder})` : ''));
-  if (p.payment_note) lines.push(p.payment_note);
-  return lines;
+  const holder = p.bank_account_holder.trim();
+  const account = [p.bank_name.trim(), p.bank_account_number.trim(), holder && `(${holder})`].filter(Boolean).join(' ');
+  return [account && t('pay_copy_account', { account }), p.payment_note.trim()].filter(Boolean);
 }
 
 // Whether saving claims should end with the tip-jar popup: from the third
@@ -392,7 +388,7 @@ export function creditsLine(credits: Credits | null, t: T, lang: string): string
   if (!credits?.enforced) return '';
   if (credits.unlimited) return t('credits_unlimited');
   let line = t('credits_free_left', { n: Math.max(0, credits.limit - credits.used), limit: credits.limit });
-  if (credits.bonus > 0) line += ' ' + t('credits_plus_extra', { n: credits.bonus });
+  if (credits.bonus > 0) line += ' ' + t('credits_plus_extra', { n: credits.bonus.toLocaleString() });
   const nextBack = nextFreeDate(credits, lang);
   if (credits.used > 0 && nextBack) line += ' · ' + t('credits_next_back', { date: nextBack });
   return line;
@@ -420,4 +416,16 @@ export function sortScreenshots<P>(seen: Array<{ sure: P | null; guess: P | null
     if (guess != null) { last = guess; return { scanId: guess, by: 'guess' as const }; }
     return last != null ? { scanId: last, by: 'follows' as const } : { scanId: null, by: 'none' as const };
   });
+}
+
+// The letters that stand in for a missing avatar: the first letter of the
+// first and last words, as a person writes them, one letter for one word.
+// Segmenter keeps an emoji or an accented letter whole.
+export function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const first = (w: string) => ('Segmenter' in Intl
+    ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(w)][0]?.segment
+    : [...w][0]) ?? '';
+  const picks = words.length > 1 ? [words[0], words[words.length - 1]] : words;
+  return picks.map(w => first(w).toLocaleUpperCase()).join('');
 }

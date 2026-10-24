@@ -31,9 +31,14 @@ export const authToken = storedToken('mtg.auth.token');
 // the URL. It can load images and nothing else, unlike the session token.
 export const imageToken = storedToken('mtg.auth.image_token');
 
+// Set by the dev test-data harness (src/dev/harness.ts) to point image routes
+// at its own pictures. Never set in a production build.
+export const fixtureImages: { urlFor?: (path: string) => string } = {};
+
 // URL for an image route, with the image token (empty in solo mode) and any
 // non-empty params in the query string.
 export function imageUrl(path: string, params: Record<string, string | number | null | undefined> = {}): string {
+  if (fixtureImages.urlFor) return fixtureImages.urlFor(path);
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v != null && v !== '') q.set(k, String(v));
   const t = imageToken.get();

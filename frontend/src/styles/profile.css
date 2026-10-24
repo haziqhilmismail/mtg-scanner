@@ -1,0 +1,87 @@
+/* ---------- Profile ----------
+   A phone gets one column in the md's order. From 900px the account and the
+   payment form sit on the left, with pricing, preferences and help beside them. */
+.profile { display: flex; flex-direction: column; gap: 16px; max-width: 640px; }
+.profile-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@media (min-width: 900px) {
+  .profile { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 24px; align-items: start; max-width: none; }
+}
+
+.profile-who { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.profile-who .avatar { flex: none; }
+.profile-who-text { flex: 1 1 120px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.profile-who-name { font-size: 17px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.profile-who-sub { font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
+/* .ui-btn resets margins (ui.css loads later), hence the doubled class. */
+.ui-btn.profile-signout { flex: none; margin-left: auto; }
+.profile-facts { display: flex; flex-direction: column; gap: 4px; margin: 14px 0 0; padding: 12px 0 0; list-style: none; border-top: 1px solid var(--rule); }
+.profile-fact { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.profile-fact .status-dot { margin-top: 5px; }
+.profile-fact.err { color: var(--warn); }
+.profile-fact--wrap { flex-wrap: wrap; align-items: center; gap: 0 8px; }
+.ui-btn.profile-redeem { margin-left: -10px; }
+
+.profile-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.profile-head-text { min-width: 0; }
+.profile-head > .ui-btn { flex: none; }
+.profile-pricing { margin: 4px 0 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.profile-note { margin: 8px 0 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.profile-stack { display: flex; flex-direction: column; gap: 14px; }
+.profile-help { display: flex; flex-direction: column; gap: 8px; }
+
+/* ---------- Payment details ----------
+   Fields, then the QR and what buyers see. Two columns once the card is wide
+   enough for both. */
+.pay { container-type: inline-size; }
+.pay-sub { margin: 4px 0 0; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.ui-btn.pay-privacy-btn { margin: 2px 0 0 -10px; }
+.pay-privacy {
+  margin: 4px 0 0; padding: 12px 14px; border-radius: var(--radius);
+  background: var(--surface-2); color: var(--ink-soft);
+  font-size: 13px; line-height: 1.45;
+  animation: pay-fade 200ms var(--ease);
+}
+@keyframes pay-fade { from { opacity: 0; } }
+.pay-load { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 12px; }
+.pay-grid { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.pay-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@container (min-width: 600px) {
+  .pay-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+}
+.pay-qr { display: flex; align-items: center; gap: 14px; }
+.pay-qr-img {
+  flex: none; width: 88px; height: 88px; border-radius: var(--radius);
+  /* A QR needs a light ground to scan and to be seen, in both themes. */
+  object-fit: cover; object-position: top; background: #fff; border: 1px solid var(--rule);
+}
+.pay-qr-empty { display: flex; align-items: center; justify-content: center; border: 1.5px dashed var(--rule-strong); background: none; color: var(--ink-faint); }
+.pay-qr-actions { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.pay-qr-actions .ui-btn--plain { margin-left: -10px; }
+.pay .ui-textarea { field-sizing: content; min-height: calc(2lh + 24px); }
+/* Paste and drop need a keyboard and mouse. */
+@media (hover: none) { .pay-qr-paste { display: none; } }
+.pay-preview-label { font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--ink-soft); }
+.pay-preview {
+  margin: 6px 0 0; padding: 12px 14px; border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.pay-preview.is-empty { color: var(--ink-soft); }
+.pay-error { margin-top: 14px; }
+.pay-foot {
+  display: flex; flex-wrap: wrap-reverse; align-items: center; justify-content: space-between; gap: 8px 12px;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule);
+}
+.ui-btn.pay-delete { margin-left: -10px; }
+.ui-btn.pay-save { margin-left: auto; }
+
+/* ---------- Help dialogs ---------- */
+.support-body { margin: 0 0 16px; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
+.support-qr { display: block; width: min(200px, 100%); aspect-ratio: 1; margin: 0 auto; border-radius: var(--radius-xl); object-fit: contain; background: #fff; }
+.support-qr-empty {
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  border: 1.5px dashed var(--rule-strong); background: none;
+  color: var(--ink-soft); font-size: 15px; text-align: center;
+}
+.feedback-failed { margin-top: 8px; }
+.voucher-granted { margin: 0; font-size: 17px; line-height: 1.4; color: var(--green); }

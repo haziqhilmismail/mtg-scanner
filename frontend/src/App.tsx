@@ -1,32 +1,28 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { fetchCredits, fetchHealth, paymentApi, type Health, type Payment } from './api.ts';
+import { useCallback, useEffect, useState } from 'react';
+import { fetchCredits, fetchHealth, type Health } from './api.ts';
 import { formatRelativeTime } from './utils.ts';
 import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
 import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
-import { PricingSheet } from './components/PricingSheet.tsx';
-import { TopTabs } from './components/TopTabs.tsx';
-import { PaymentSheet } from './components/PaymentSheet.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
-import { useLang } from './hooks/useLang.ts';
-import { useNav } from './hooks/useNav.ts';
+import { TProvider, useLang } from './hooks/useLang.ts';
+import { NavProvider, useNav } from './hooks/useNav.ts';
+import { usePayment } from './hooks/usePayment.ts';
 import { usePricing } from './hooks/usePricing.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useTheme } from './hooks/useTheme.ts';
 import type { Appearance, Credits, Lang } from './types.ts';
 import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
-import { Scanner } from './views/Scanner.tsx';
+import { PricingPage } from './views/PricingPage.tsx';
+import { Profile } from './views/Profile.tsx';
+import { Scanner } from './views/scanner/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
 
-// The page Claims replaced. No link opens it any more, so its code is a
-// separate chunk that is only downloaded if it is ever shown.
-const Checklist = lazy(() => import('./views/Checklist.tsx').then(m => ({ default: m.Checklist })));
-
 export default function App() {
-  const { theme, appearance, setAppearance } = useTheme();
+  const { appearance, setAppearance } = useTheme();
   const { lang, setLang, t } = useLang();
   const auth = useAuth();
   const { signInWithCredential } = auth;
@@ -44,6 +40,7 @@ export default function App() {
   }
   if (auth.status === 'unauthenticated' && auth.config?.auth_enabled) {
     return (
+      <TProvider value={t}>
       <DialogProvider>
         <Login
           clientId={auth.config.google_client_id}
@@ -52,26 +49,28 @@ export default function App() {
           lang={lang}
           setLang={setLang}
           t={t}
-          theme={theme}
           appearance={appearance}
           setAppearance={setAppearance}
         />
       </DialogProvider>
+      </TProvider>
     );
   }
 
   // Keyed by user so signing in as someone else starts from a clean slate:
   // the scans are fetched again, with the new user's token, after sign-in.
   return (
-    <Workspace
-      key={auth.user?.id ?? 'none'}
-      auth={auth}
-      lang={lang}
-      setLang={setLang}
-      t={t}
-      appearance={appearance}
-      setAppearance={setAppearance}
-    />
+    <TProvider value={t}>
+      <Workspace
+        key={auth.user?.id ?? 'none'}
+        auth={auth}
+        lang={lang}
+        setLang={setLang}
+        t={t}
+        appearance={appearance}
+        setAppearance={setAppearance}
+      />
+    </TProvider>
   );
 }
 
@@ -89,8 +88,10 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   const scanner = useScanner(auth.user?.id ?? null, auth.signOut);
 
   const navStore = useNav();
-  const { nav, go, replace, up } = navStore;
-  const view = nav.view;
+  const { route, replace } = navStore;
+  const page = route.page;
+  // A post, a photo and a post's pricing sit under Scanner.
+  const onScanner = page === 'posts' || page === 'post' || page === 'photo' || page === 'pricing';
   const [health, setHealth] = useState<Health | null>(null);
   const [healthErr, setHealthErr] = useState(false);
 
@@ -106,12 +107,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   const [credits, setCredits] = useState<Credits | null>(null);
   const [voucherOpen, setVoucherOpen] = useState(false);
 
-  // How buyers pay this seller, added to every summary copied for a buyer.
-  const [payment, setPayment] = useState<Payment | null>(null);
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  useEffect(() => {
-    paymentApi.get().then(setPayment, () => { /* summaries just go without it */ });
-  }, []);
+  // How buyers pay this seller: on a failed load, buyer messages go without it.
+  const payments = usePayment();
   const scansDone = scanner.scanProgress?.done ?? -1;
   useEffect(() => {
     fetchCredits().then(setCredits, () => { /* balance line just stays hidden */ });
@@ -134,62 +131,59 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       (health?.cardkingdom_cards && !healthErr) ? 'ok' : healthErr ? 'err' : null;
 
   return (
+    <NavProvider value={navStore}>
     <DialogProvider>
     <ImageZoomProvider>
-    <Header
-        title={t('app_title')}
-        healthLabel={healthLabel}
-        healthState={healthState}
-        lang={lang}
-        onLangChange={setLang}
-        appearance={appearance}
-        onAppearanceChange={setAppearance}
-        t={t}
-        user={auth.config?.auth_enabled ? auth.user : null}
-        // Waiting edits go first: request() reads the token before it awaits.
-        onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
-        onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
-        onDefaultPricing={() => go({ sheet: 'pricing' })}
-        onPaymentDetails={() => setPaymentOpen(true)}
-        onHome={() => go({ view: 'scanner', folder: null, photo: null })}
-      />
-    <TopTabs
-      view={view === 'scanner' ? 'scanner' : 'claims'}
-      onChange={v => go({ view: v, photo: null })}
-      scannerLabel={t('nav_scanner')}
-      claimsLabel={t('nav_claims')}
-    />
+    <Header route={route} healthLabel={healthLabel} healthState={healthState} user={auth.config?.auth_enabled ? auth.user : null} />
     <main className="wrap">
       {/* Both tabs stay mounted, so switching shows them at once instead of
-          loading again; the hidden one ignores keys and paste. */}
-      <div hidden={view !== 'scanner'}>
-        <Scanner
-          active={view === 'scanner'}
-          scanner={scanner}
-          nav={navStore}
-          pricing={pricing}
-          health={health}
-          t={t}
-          lang={lang}
-        />
-      </div>
-      <div hidden={view !== 'claims'}>
-        <Claims
-          active={view === 'claims'}
-          scanner={scanner}
-          pricing={pricing}
-          t={t}
-          lang={lang}
-          folderKey={nav.folder}
-          onFolderChange={key => replace({ folder: key })}
+          loading again; the one not showing renders nothing. */}
+      <Scanner
+        active={onScanner}
+        scanner={scanner}
+        nav={navStore}
+        pricing={pricing}
+        health={health}
+        t={t}
+        lang={lang}
+      />
+      <Claims
+        active={page === 'claims'}
+        scanner={scanner}
+        pricing={pricing}
+        t={t}
+        lang={lang}
+        folderKey={page === 'claims' ? route.folder : null}
+        onFolderChange={key => replace({ page: 'claims', folder: key })}
+        credits={credits}
+        onCredits={setCredits}
+        payment={payments.payment}
+        onEnterVoucher={() => setVoucherOpen(true)}
+      />
+      {page === 'profile' ? (
+        <Profile
+          user={auth.config?.auth_enabled ? auth.user : null}
+          // Waiting edits go first: request() reads the token before it awaits.
+          onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
+          status={{ label: healthLabel, state: healthState }}
           credits={credits}
-          onCredits={setCredits}
-          payment={payment}
-          onEnterVoucher={() => setVoucherOpen(true)}
+          lang={lang}
+          setLang={setLang}
+          appearance={appearance}
+          setAppearance={setAppearance}
+          pricing={pricing}
+          payments={payments}
+          onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
         />
-      </div>
-      {view === 'checklist' ? (
-        <Suspense fallback={null}><Checklist createPost={pricing.createPost} t={t} /></Suspense>
+      ) : null}
+      {page === 'profile-pricing' ? (
+        <PricingPage
+          postId={null}
+          crumbs={[{ label: t('nav_profile'), to: { page: 'profile' } }, { label: t('menu_default_pricing') }]}
+          parent={{ page: 'profile' }}
+          pricing={pricing}
+          t={t}
+        />
       ) : null}
 
       <footer className="foot">
@@ -200,17 +194,15 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
     <Notice source={scanner} t={t} />
     <Notice source={pricing} t={t} />
     <FloatingBackToTop />
-    <PaymentSheet open={paymentOpen} onClose={() => setPaymentOpen(false)} payment={payment} onSaved={setPayment} t={t} />
     <VoucherSheet
       open={voucherOpen}
       onClose={() => setVoucherOpen(false)}
       onRedeemed={setCredits}
       t={t}
     />
-    {/* A history level (see useNav), so back closes it instead of changing the page under it. */}
-    <PricingSheet open={nav.sheet === 'pricing'} onClose={up} pricing={pricing} health={health} t={t} />
     </ImageZoomProvider>
     </DialogProvider>
+    </NavProvider>
   );
 }
 

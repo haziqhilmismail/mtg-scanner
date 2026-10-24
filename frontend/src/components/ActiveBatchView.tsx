@@ -1,12 +1,15 @@
-import { Icon } from './Icon.tsx';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import type { T } from '../hooks/useLang.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
 import { bboxKey, canRetry, computeCardData, formatMyr, notAdded } from '../utils.ts';
+import { AdjustPanel, type PriceEdit } from './AdjustPanel.tsx';
 import { BatchPreview } from './BatchPreview.tsx';
-import { InfoTip } from './InfoTip.tsx';
-import { CardRow } from './CardRow.tsx';
-import type { T } from '../hooks/useLang.ts';
+import { CardRow, CardViewer } from './CardRow.tsx';
+import { useDialog } from './DialogProvider.tsx';
+import { Icon } from './Icon.tsx';
+import { PhotoViewer } from './ui/PhotoViewer.tsx';
+import { useToast } from './ui/Toast.tsx';
 
 interface Props {
   batch: Batch;
@@ -17,295 +20,287 @@ interface Props {
   settings: Settings;
   scanner: ScannerStore;
   t: T;
-  onBrowsePrintings: (idx: number) => void;
+  // Dates in the app's language: "24 Oct".
+  dateLocale: string;
   // The post the photo is in (null when unfiled): its cards are added there.
   postTitle: string | null;
-  // Finishing lives in Scanner.tsx (the post view finishes many photos the
-  // same way); this component triggers it. A finished photo's image is then
-  // shared (phone) or downloaded (PC) when the seller asks.
-  sharePhone: boolean;
-  // A finish, download or share is being prepared for this photo.
+  // Finishing, adding all or rendering the image is under way.
   busy: boolean;
-  // How many rendered images wait for a tap to share (0: none).
-  shareReady: number;
   onFinish: () => void;
   onDeliver: () => void;
-  onShare: () => void;
   onEditPrices: () => void;
-  // Re-queries CK for this scan's cards. Disabled until the batch has a
-  // scanId (server-side save complete). The button manages its own busy
-  // state locally — Scanner.tsx doesn't need a global flag for it.
-  onRefreshPrices: () => Promise<void>;
-  // A card the scan missed: named, its version picked, its label dragged on.
-  onAddCard: () => void;
+  // True once the prices came back.
+  onRefreshPrices: () => Promise<boolean>;
+  onAddMissing: () => void;
+  onChangeCard: (idx: number) => void;
+  onLooksRight: (idx: number) => void;
+  onAddToPost: (cd: CardRowData) => Promise<void>;
+  onTakeOut: (cd: CardRowData) => Promise<'claimed' | 'taken out'>;
 }
 
+// Above this many cards the actions show again under the list, so a long
+// photo needn't scroll back up to act.
+const ACTIONS_AGAIN_AFTER = 4;
+
+// The photo's panel: the photo with its labels, what to do with it, and a
+// tile per card. The dialogs a tile opens (viewer, Edit price) live here, one
+// each, for whichever card asked.
 export function ActiveBatchView({
-  batch, photoNumber, live, settings, scanner, t, onBrowsePrintings,
-  postTitle, sharePhone, busy, shareReady, onFinish, onDeliver, onShare, onEditPrices, onRefreshPrices, onAddCard,
+  batch, photoNumber, live, settings, scanner, t, dateLocale, postTitle, busy,
+  onFinish, onDeliver, onEditPrices, onRefreshPrices, onAddMissing, onChangeCard, onLooksRight, onAddToPost, onTakeOut,
 }: Props) {
+  const dialog = useDialog();
+  const toast = useToast();
   const [refreshing, setRefreshing] = useState(false);
+  const [adding, setAdding] = useState<ReadonlySet<number>>(new Set());
+  // `n` counts openings, so each Edit price starts from the card as it is now.
+  const [edit, setEdit] = useState<{ idx: number; n: number; open: boolean } | null>(null);
+  // card null: the whole photo.
+  const [view, setView] = useState<{ card: number | null; side: 0 | 1; open: boolean } | null>(null);
+  const cardData = useMemo(() => computeCardData(batch, settings), [batch, settings]);
+  const cardsLabel = (n: number) => (n === 1 ? t('photo_card_one') : t('photo_cards', { n }));
 
-
-  // Compute per-card row data unconditionally. Hooks must not run conditionally.
-  // The actual computation lives in utils.ts so Scanner's bulk handlers can
-  // derive the same pricing/quantity rows for any batch they need to operate on.
-  const cardData = useMemo<CardRowData[]>(
-    () => computeCardData(batch, settings),
-    [batch, settings],
-  );
-
-  if (batch.status === 'scanning') {
-    return (
-      <div className="batch-image">
-        <div className="batch-image-head">
-          <span className="name">{batch.filename}</span>
-          <span className="meta loading">{t('scanning')}</span>
-        </div>
-      </div>
-    );
-  }
-  if (batch.status === 'error' || !batch.response) {
+  if (batch.status === 'scanning' || batch.status === 'error' || !batch.response) {
     const failed = scanner.batches.filter(canRetry);
     return (
-      <div className="batch-image">
-        <div className="batch-image-head">
-          <span className="name">{batch.filename}</span>
-          <span className="meta" style={{ color: 'var(--warn)' }}>
-            {batch.outOfCredits ? t('tab_status_no_credits') : t('error')}
-          </span>
-        </div>
-        <p className="status error">
-          {batch.outOfCredits ? t('scan_no_credits') : (batch.error || t('unknown_error'))}
-        </p>
-        {canRetry(batch) && (
-          <div className="finalize-action-row">
-            <button type="button" className="accent" onClick={() => scanner.retryBatches([batch.id])}>
-              <Icon name="refresh" size={18} />{t('scan_retry')}
-            </button>
-            {failed.length > 1 && (
-              <button type="button" onClick={() => scanner.retryBatches(failed.map(b => b.id))}>
-                {t('scan_retry_all', { n: failed.length })}
-              </button>
-            )}
-          </div>
+      <div className="photo-panel">
+        <header className="photo-panel-head">
+          <h2 className="photo-panel-title">{photoNumber != null ? t('photo_n', { n: photoNumber }) : batch.filename}</h2>
+          {photoNumber != null ? <p className="photo-panel-file">{batch.filename}</p> : null}
+        </header>
+        {batch.status === 'scanning' ? <p className="photo-panel-status" aria-live="polite">{t('photo_scanning')}</p> : (
+          <>
+            <p className="photo-panel-status is-error" role="alert">
+              {batch.outOfCredits ? t('scan_no_credits') : (batch.error || t('unknown_error'))}
+            </p>
+            {canRetry(batch) ? (
+              <div className="photo-actions-row">
+                <button type="button" className="ui-btn ui-btn--primary" onClick={() => scanner.retryBatches([batch.id])}>
+                  <Icon name="refresh" size={18} />{t('scan_retry')}
+                </button>
+                {failed.length > 1 ? (
+                  <button type="button" className="ui-btn" onClick={() => scanner.retryBatches(failed.map(b => b.id))}>{t('scan_retry_all', { n: failed.length })}</button>
+                ) : null}
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     );
   }
 
   const data = batch.response;
-  const visible = cardData.filter(cd => !cd.removed);
-  const removed = cardData.filter(cd => cd.removed);
-  const totalQty = visible.reduce((s, cd) => s + cd.qty, 0);
-  const visibleCount = visible.length;
-  const needsPriceCount = visible.filter(cd => cd.needsPrice).length;
-  // Priced value of this image. lineTotal already collapses unpriced cards to 0,
-  // so this is the sum of everything we can actually price — and it recomputes
-  // with the multiplier because computeCardData() reads settings.mult*.
-  const priceTotal = visible.reduce((s, cd) => s + (isFinite(cd.lineTotal) ? cd.lineTotal : 0), 0);
-
-  let totalLabel = `${t('total')} · ${totalQty} ${t('cards')}`;
-  if (totalQty !== visibleCount) {
-    totalLabel = `${t('total')} · ${totalQty} ${t('cards')} (${visibleCount} ${t('unique')})`;
-  }
-  if (needsPriceCount > 0) {
-    totalLabel += ` · ${needsPriceCount} ${t('need_price')}`;
-  }
-
-  const headerCount = visibleCount === data.cards.length
-    ? `${data.cards.length} ${t('cards')}`
-    : `${visibleCount} / ${data.cards.length} ${t('cards')}`;
-
-  const handleRefresh = async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    try { await onRefreshPrices(); }
-    finally { setRefreshing(false); }
-  };
-
-  const isAdded = (cd: CardRowData) => batch.listed.includes(bboxKey(cd.card.bbox));
-
-
-  // Single source of truth for the refresh button — rendered the same way
-  // at both top and bottom finalize blocks. Sized like the other action
-  // buttons (Add / Export), `ghost` styling so it reads as secondary.
-  const refreshButton = batch.scanId != null ? (
-    <button
-      type="button"
-      className="ghost"
-      disabled={refreshing}
-      onClick={handleRefresh}
-    ><Icon name="refresh" size={18} />{refreshing ? t('scan_refresh_prices_busy') : t('scan_refresh_prices')}</button>
-  ) : null;
-
-  // Shared finalize-block content, at the top of the card list and again at
-  // the bottom so a phone needn't scroll to act. Until the photo is finished
-  // the hint says what Finish does (prices lock, but can be edited); after,
-  // that its prices are locked and how to change them.
   const locked = !!batch.lockedAt;
-  const post = postTitle ?? t('scans_unfiled');
-  // A text with the post's name shown as a name: posts are usually called by
-  // the date and time they were made, which reads like part of the sentence.
+  const visible = cardData.filter(cd => !cd.removed);
+  const removedCount = cardData.length - visible.length;
+  const isAdded = (cd: CardRowData) => batch.listed.includes(bboxKey(cd.card.bbox));
+  const priced = (cd: CardRowData) => Number.isFinite(cd.unitPrice);
+  const pending = notAdded(batch, visible).length;
+  const unpricedOut = visible.filter(cd => !isAdded(cd) && !(cd.unitPrice > 0)).length;
+  const inPost = visible.filter(isAdded).length;
+  const totalQty = visible.reduce((n, cd) => n + cd.qty, 0);
+  const total = visible.reduce((sum, cd) => sum + (priced(cd) ? cd.lineTotal : 0), 0);
+  const unpriced = visible.filter(cd => !priced(cd)).length;
+  const approxTotal = live && visible.some(cd => !cd.hasOverride && priced(cd));
+  const photoName = photoNumber != null ? t('photo_n', { n: photoNumber }) : batch.filename;
+  const nameOf = (cd: CardRowData) => cd.sel.name || t('unknown_card');
+
+  // The post's name shown as a name: posts are often called by a date and
+  // time, which would read as part of the sentence.
   const withPost = (key: string, vars: Record<string, string> = {}) => {
     const [before, after = ''] = t(key, { ...vars, post: '\u0000' }).split('\u0000');
-    return <span>{before}<strong className="post-name">{post}</strong>{after}</span>;
+    return <>{before}<strong className="photo-post-name">{postTitle ?? t('scans_unfiled')}</strong>{after}</>;
   };
-  const pending = notAdded(batch, visible).length;
-  const imageButton = shareReady > 0 ? (
-    <button className="accent" onClick={onShare}><Icon name="share" size={18} />{t('share_photo')}</button>
-  ) : (
-    <button className={live && pending > 0 ? '' : 'accent'} disabled={busy} onClick={onDeliver}>
-      <Icon name={sharePhone ? 'share' : 'download'} size={18} />
-      {busy ? t('finish_busy') : t(sharePhone ? 'share_image' : 'download_image')}
-    </button>
-  );
-  const finalizeContent = live ? (
-    <>
-      <span className="scan-post-hint finish-hint"><Icon name="bolt" size={16} />{withPost('live_hint')}</span>
-      <div className="finalize-action-row">
-        {pending > 0 ? (
-          <button className="accent" disabled={busy} onClick={onFinish}><Icon name="addList" size={18} />{t('live_add_all')}</button>
-        ) : null}
-        {imageButton}
-        {refreshButton}
-      </div>
-    </>
-  ) : (
-    <>
-      <span className={`scan-post-hint ${locked ? 'is-locked' : 'finish-hint'}`}>
-        <Icon name="lock" size={16} />
-        {locked
-          ? withPost('locked_hint', { date: new Date(batch.lockedAt!).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) })
-          : withPost('finish_hint')}
-      </span>
-      <div className="finalize-action-row">
-        {shareReady > 0 || locked ? imageButton : (
-          <>
-            <button className="accent" disabled={busy} onClick={onFinish}>
-              <Icon name="lock" size={18} />
-              {busy ? t('finish_busy') : t('finish_btn')}
-            </button>
-            <InfoTip label={t('finish_explain_title')} text={t('finish_explain_msg')} />
-          </>
-        )}
-        {locked ? (
-          <button className="ghost" disabled={busy} onClick={onEditPrices}><Icon name="edit" size={18} />{t('edit_prices')}</button>
-        ) : refreshButton}
-      </div>
-    </>
-  );
 
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try { if (await onRefreshPrices()) toast(t('photo_refreshed')); } finally { setRefreshing(false); }
+  };
+
+  const listFailed = () => dialog.alert({ title: t('alert_error_title'), message: t('photo_list_failed'), okLabel: t('photo_ok') });
+  const toggleAdded = async (cd: CardRowData) => {
+    const name = nameOf(cd);
+    if (!isAdded(cd) && !(cd.unitPrice > 0)) { toast(t('photo_price_first', { name })); return; }
+    setAdding(s => new Set(s).add(cd.origIdx));
+    try {
+      if (!isAdded(cd)) await onAddToPost(cd);
+      else if (await onTakeOut(cd) === 'claimed') {
+        await dialog.alert({ title: t('photo_claimed_title'), message: t('photo_claimed_msg', { name }), okLabel: t('photo_ok') });
+      } else {
+        toast(t('photo_taken_out', { name }), { undoLabel: t('photo_undo'), onUndo: () => { onAddToPost(cd).catch(listFailed); } });
+      }
+    } catch {
+      await listFailed();
+    } finally {
+      setAdding(s => { const next = new Set(s); next.delete(cd.origIdx); return next; });
+    }
+  };
+
+  const remove = (cd: CardRowData) => {
+    scanner.setRemoved(batch.id, cd.origIdx, true);
+    toast(t('photo_removed_toast', { name: nameOf(cd) }), { undoLabel: t('photo_undo'), onUndo: () => scanner.setRemoved(batch.id, cd.origIdx, false) });
+  };
+
+  const savePrice = (idx: number, e: PriceEdit) => {
+    if (e.isFoil !== !!batch.isFoil[idx]) scanner.toggleFoil(batch.id, idx);
+    scanner.setMultOverride(batch.id, idx, e.multOverride);
+    scanner.setPriceOverride(batch.id, idx, e.priceOverride);
+    setEdit(s => (s ? { ...s, open: false } : s));
+  };
+
+  // Shown above the tiles, and again below a long list. Only the top one gets
+  // the filled button: one primary per page.
+  const actions = (top: boolean) => {
+    const button = (primary: boolean) => (top && primary ? 'ui-btn ui-btn--primary' : 'ui-btn');
+    const download = (primary: boolean) => (
+      <button type="button" className={button(primary)} disabled={busy} onClick={onDeliver}>
+        <Icon name="download" size={18} />{busy ? t('finish_busy') : t('download_image')}
+      </button>
+    );
+    const refreshButton = batch.scanId != null && !locked ? (
+      <button type="button" className="ui-btn ui-btn--plain" disabled={refreshing} onClick={refresh}>
+        <Icon name="refresh" size={18} />{refreshing ? t('photo_refreshing') : t('scan_refresh_prices')}
+      </button>
+    ) : null;
+    let hint: ReactNode;
+    let row: ReactNode;
+    if (live) {
+      hint = <><Icon name="bolt" size={16} /><span>{withPost('live_hint')}</span></>;
+      const add = pending > 0 ? (
+        <button type="button" className={button(true)} disabled={busy} onClick={onFinish}>
+          <Icon name="addList" size={18} />{busy ? t('finish_busy') : t('live_add_all')}
+        </button>
+      ) : visible.length === 0 ? null : unpricedOut > 0 ? (
+        <p className="photo-actions-note">{t(unpricedOut === 1 ? 'photo_unpriced_out_one' : 'photo_unpriced_out', { n: unpricedOut })}</p>
+      ) : (
+        <p className="photo-done" role={top ? 'status' : undefined}><Icon name="check" size={18} />{t(inPost === 1 ? 'photo_all_in_one' : 'photo_all_in', { n: inPost })}</p>
+      );
+      row = <>{add}{download(pending === 0)}{refreshButton}</>;
+    } else if (locked) {
+      const date = new Date(batch.lockedAt!).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' });
+      hint = <><Icon name="lock" size={16} /><span>{withPost('locked_hint', { date })}</span></>;
+      row = <>{download(true)}<button type="button" className="ui-btn" disabled={busy} onClick={onEditPrices}><Icon name="edit" size={18} />{t('edit_prices')}</button></>;
+    } else {
+      hint = <><Icon name="lock" size={16} /><span>{withPost('finish_hint')}</span></>;
+      row = (
+        <>
+          <button type="button" className={button(true)} disabled={busy} onClick={onFinish}>
+            <Icon name="lock" size={18} />{busy ? t('finish_busy') : t('finish_btn')}
+          </button>
+          {refreshButton}
+        </>
+      );
+    }
+    return (
+      <div className="photo-actions">
+        <p className={`photo-actions-hint${locked ? ' is-locked' : ''}`}>{hint}</p>
+        <div className="photo-actions-row">{row}</div>
+      </div>
+    );
+  };
+
+  const viewed = view?.card != null ? cardData[view.card] : null;
   return (
-    <div className="batch-image">
-      <div className="batch-image-head">
-        <span className="name">
-          {photoNumber != null ? <>{t('photo_n', { n: photoNumber })}<span className="name-file">{batch.filename}</span></> : batch.filename}
-        </span>
-        <span className="meta">{headerCount} · {data.width}×{data.height}</span>
-      </div>
-      <div className="batch-body">
-        <BatchPreview
-          imageB64={data.image_b64}
-          width={data.width}
-          height={data.height}
-          visibleCards={visible}
-          settings={settings}
-          t={t}
-        />
-        <div>
-          {/* Top finalize block — same content as the bottom one so mobile
-              users with long card lists can act without scrolling. */}
-          <div className="finalize-block finalize-block-top">
-            {finalizeContent}
+    <section className="photo-panel" aria-labelledby={`photo-title-${batch.id}`}>
+      <header className="photo-panel-head">
+        <h2 className="photo-panel-title" id={`photo-title-${batch.id}`}>{photoName}</h2>
+        {photoNumber != null ? <p className="photo-panel-file" title={batch.filename}>{batch.filename}</p> : null}
+        <p className="photo-panel-meta">
+          {cardsLabel(visible.length)}{removedCount ? ` · ${t('photo_n_removed', { n: removedCount })}` : ''} · {data.width}×{data.height}
+        </p>
+      </header>
+      <div className="photo-panel-body">
+        <div className="photo-panel-photo">
+          <div className="photo-frame" style={{ width: `min(100%, calc(70vh * ${data.width / data.height}))` }}>
+            <BatchPreview src={data.image_b64} width={data.width} height={data.height} cards={visible} settings={settings} label={t('photo_alt', { name: photoName })} />
+            <button type="button" className="photo-expand" aria-label={t('photo_expand', { name: photoName })} onClick={() => setView({ card: null, side: 0, open: true })}>
+              <Icon name="expand" size={16} />
+            </button>
           </div>
+        </div>
 
-          {locked ? null : <div className="bulk-bar">
-            <span className="bulk-label">{t('bulk_label')}</span>
-            <button
-              type="button"
-              className="gold"
-              onClick={() => scanner.setAllFoil(batch.id, true)}
-            >{t('bulk_all_foil')}</button>
-            <button
-              type="button"
-              onClick={() => scanner.setAllFoil(batch.id, false)}
-            >{t('bulk_all_nonfoil')}</button>
-          </div>}
-          <div className="card-list">
-            {visible.map(cd => (
-              <CardRow
-                key={cd.origIdx}
-                cd={cd}
-                photoNumber={photoNumber}
-                added={isAdded(cd)}
-                locked={locked}
-                live={live}
-                versionOk={batch.versionOk[cd.origIdx]}
-                settings={settings}
-                t={t}
-                onVersionOk={() => scanner.looksRight(batch.id, cd.origIdx)}
-                onRemove={() => scanner.setRemoved(batch.id, cd.origIdx, true)}
-                onQtyStep={(d) => scanner.stepQuantity(batch.id, cd.origIdx, d)}
-                onMultStep={(d) => scanner.stepMult(batch.id, cd.origIdx, d, cd.globalMult)}
-                onMultClear={() => scanner.setMultOverride(batch.id, cd.origIdx, null)}
-                onFoilToggle={() => scanner.toggleFoil(batch.id, cd.origIdx)}
-                onPriceChange={(v) => scanner.setPriceOverride(batch.id, cd.origIdx, v)}
-                onClearOverride={() => scanner.setPriceOverride(batch.id, cd.origIdx, null)}
-                onChangeCard={() => onBrowsePrintings(cd.origIdx)}
-              />
-            ))}
-          </div>
+        <div className="photo-panel-main">
+          {visible.length ? actions(true) : null}
+
+          {locked || visible.length === 0 ? null : (
+            <div className="photo-setall" role="group" aria-labelledby={`setall-${batch.id}`}>
+              <span className="photo-setall-label" id={`setall-${batch.id}`}>{t('bulk_label')}</span>
+              <button type="button" className="ui-btn photo-setall-foil" onClick={() => scanner.setAllFoil(batch.id, true)}>{t('bulk_all_foil')}</button>
+              <button type="button" className="ui-btn ui-btn--ink" onClick={() => scanner.setAllFoil(batch.id, false)}>{t('bulk_all_nonfoil')}</button>
+            </div>
+          )}
+
+          {cardData.length ? (
+            <div className="photo-tiles">
+              {cardData.map(cd => (
+                <CardRow
+                  key={cd.origIdx}
+                  cd={cd}
+                  added={isAdded(cd)}
+                  adding={adding.has(cd.origIdx) || batch.scanId == null}
+                  locked={locked}
+                  live={live}
+                  unsure={!locked && !cd.isManual && cd.card.version_source === 'embedding' && !batch.versionOk[cd.origIdx]}
+                  settings={settings}
+                  t={t}
+                  onView={side => setView({ card: cd.origIdx, side, open: true })}
+                  onLooksRight={() => onLooksRight(cd.origIdx)}
+                  onToggleAdded={() => toggleAdded(cd)}
+                  onEditPrice={() => setEdit(s => ({ idx: cd.origIdx, n: (s?.n ?? 0) + 1, open: true }))}
+                  onChangeCard={() => onChangeCard(cd.origIdx)}
+                  onQuantity={qty => scanner.setQuantity(batch.id, cd.origIdx, qty)}
+                  onRemove={() => remove(cd)}
+                  onRestore={() => scanner.setRemoved(batch.id, cd.origIdx, false)}
+                />
+              ))}
+            </div>
+          ) : <p className="photo-empty">{t('photo_no_cards')}</p>}
 
           {locked || batch.scanId == null ? null : (
-            <button type="button" className="ghost add-card-btn" onClick={onAddCard}>
+            <button type="button" className="ui-btn ui-btn--plain photo-add-missing" onClick={onAddMissing}>
               <Icon name="plus" size={18} />{t('add_card_title')}
             </button>
           )}
 
-          {removed.length > 0 && !locked ? (
-            <div className="removed-strip">
-              <span className="label">{t('removed_label')} · {removed.length}</span>
-              {removed.map(cd => (
-                <button
-                  key={cd.origIdx}
-                  type="button"
-                  className="restore-chip"
-                  title={cd.sel.name || ''}
-                  onClick={() => scanner.setRemoved(batch.id, cd.origIdx, false)}
-                >
-                  #{cd.origIdx + 1} ↶
-                </button>
-              ))}
-              <button
-                type="button"
-                className="restore-all"
-                onClick={() => scanner.restoreAll(batch.id)}
-              >
-                {t('restore_all')}
-              </button>
+          {visible.length ? (
+            <div className="photo-total">
+              <span className="photo-total-label">{t('total')} · {cardsLabel(totalQty)}</span>
+              <span className="photo-total-amount" aria-live="polite">{approxTotal ? <span className="photo-approx">≈</span> : null}{formatMyr(total, settings)}</span>
+              {unpriced ? <span className="photo-total-note">{t(unpriced === 1 ? 'photo_total_unpriced_one' : 'photo_total_unpriced', { n: unpriced })}</span> : null}
             </div>
           ) : null}
-
-          <div className="totals">
-            <span>{totalLabel}</span>
-            <span className="total-price">{formatMyr(priceTotal, settings)}</span>
-          </div>
-{locked ? null : (
-          <div className="export-warning">
-            <Icon name="warning" className="warn-icon" />
-            <span>{t('export_warning')}</span>
-          </div>
+          {locked || visible.length === 0 ? null : (
+            <p className="photo-check-note"><Icon name="warning" size={16} />{t('photo_check_note')}</p>
           )}
-
-          {/* Bottom finalize block — same content, same handlers, kept here
-              so users who've scrolled all the way down don't need to scroll
-              back up. */}
-          <div className="finalize-block">
-            {finalizeContent}
-          </div>
+          {visible.length > ACTIONS_AGAIN_AFTER ? actions(false) : null}
         </div>
       </div>
-    </div>
+
+      {view?.card === null ? (
+        <PhotoViewer
+          open={view.open} onClose={() => setView(v => (v ? { ...v, open: false } : v))}
+          label={t('photo_expand', { name: photoName })} closeLabel={t('voucher_close')}
+          media={<BatchPreview src={data.image_b64} width={data.width} height={data.height} cards={visible} settings={settings} label={t('photo_alt', { name: photoName })} className="is-full" />}
+        >
+          <p className="ui-viewer-caption photo-viewer-caption"><strong>{photoName}</strong>{photoNumber != null ? <span>{batch.filename}</span> : null}</p>
+        </PhotoViewer>
+      ) : null}
+      {view && viewed ? (
+        <CardViewer
+          key={`${view.card}-${view.side}`}
+          cd={viewed} open={view.open} start={view.side} locked={locked} t={t}
+          onClose={() => setView(v => (v ? { ...v, open: false } : v))}
+          onChangeCard={() => onChangeCard(viewed.origIdx)}
+        />
+      ) : null}
+      {edit ? (
+        <AdjustPanel
+          key={edit.n} open={edit.open} batch={batch} idx={edit.idx} live={live} settings={settings} t={t}
+          onClose={() => setEdit(s => (s ? { ...s, open: false } : s))}
+          onSave={e => savePrice(edit.idx, e)}
+        />
+      ) : null}
+    </section>
   );
 }

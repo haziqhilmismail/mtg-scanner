@@ -1,152 +1,157 @@
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import type { CardRowData, Settings } from '../types.ts';
-import { applyRounding, fmt2, formatMyrWithFoil } from '../utils.ts';
+import { useId, useState } from 'react';
 import type { T } from '../hooks/useLang.ts';
-import { useBackClose } from '../hooks/useBackClose.ts';
+import type { Batch, CardRowData, Settings } from '../types.ts';
+import { computeCardData, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../utils.ts';
+import { Dialog } from './ui/Dialog.tsx';
+import { TextField } from './ui/Field.tsx';
+import { Segmented } from './ui/Segmented.tsx';
+import { Stepper } from './ui/Stepper.tsx';
+
+// What Save price writes back to the card: its finish, its own multiplier
+// (null: the pricing's) and its own price (null: none, see PriceOverride).
+export interface PriceEdit { isFoil: boolean; multOverride: number | null; priceOverride: string | null }
+
+interface Draft { isFoil: boolean; multOverride: number | null; unit: PriceOverride['unit']; text: string }
 
 interface Props {
-  cd: CardRowData;
+  open: boolean;
+  batch: Batch;
+  idx: number;
   live: boolean;
   settings: Settings;
   t: T;
   onClose: () => void;
-  onFoilToggle: () => void;
-  onMultStep: (delta: number) => void;
-  onMultClear: () => void;
-  onPriceChange: (v: string | null) => void;
-  onClearOverride: () => void;
+  onSave: (edit: PriceEdit) => void;
 }
 
-// One card's price: its finish, its multiplier and an own price, with the
-// price and how it was worked out at the top.
-export function AdjustPanel({
-  cd, live, settings, t, onClose,
-  onFoilToggle, onMultStep, onMultClear, onPriceChange, onClearOverride,
-}: Props) {
-  useBackClose(true, onClose);
-  // The box holds what was typed; `priceMode` says which unit it is in. The
-  // stored override is always the final RM: 'usd' input is stored as
-  // applyRounding(usd × mult).
-  const [priceInput, setPriceInput] = useState(cd.hasOverride && isFinite(cd.unitPrice) ? String(cd.unitPrice) : '');
-  const [priceMode, setPriceMode] = useState<'rm' | 'usd'>('rm');
+const MULT_MIN = 1;
+const MULT_MAX = 5;
+const asTyped = (n: number) => n.toFixed(Number.isInteger(n) ? 0 : 2);
+const replaceAt = <V,>(arr: V[], i: number, v: V) => arr.map((x, j) => (j === i ? v : x));
 
-  // Cleared from outside (the card's override removed): empty the box too.
-  useEffect(() => { if (!cd.hasOverride) setPriceInput(''); }, [cd.hasOverride]);
+// How the price was worked out, in one sentence: "USD 4.99 × 2.5 = RM12.48, rounded up."
+function working(cd: CardRowData, usd: number, settings: Settings, t: T): string {
+  const raw = usd * cd.mult;
+  const sum = `USD ${fmt2(usd)} × ${cd.mult} = ${formatMyr(raw, { ...settings, showCents: true })}`;
+  if (raw < settings.minPrice && cd.unitPrice === settings.minPrice) return t('ep_min', { sum, min: formatMyr(settings.minPrice, settings) });
+  if (settings.roundDirection === 'none' || Math.abs(cd.unitPrice - raw) < 0.005) return t('ep_exact', { sum });
+  return t(`ep_round_${settings.roundDirection}`, { sum });
+}
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const commitPrice = (raw: string, mode: 'rm' | 'usd') => {
-    const trimmed = raw.trim();
-    if (trimmed === '') { onPriceChange(null); return; }
-    if (mode === 'usd') {
-      const usd = parseFloat(trimmed);
-      if (!isNaN(usd)) onPriceChange(String(applyRounding(usd * cd.mult, settings)));
-    } else {
-      onPriceChange(trimmed);
-    }
+// One card's price as a draft: its finish, its multiplier and a price of the
+// seller's own, in RM (kept as typed) or USD (still multiplied and rounded).
+// Nothing changes on the card until Save price.
+export function AdjustPanel({ open, batch, idx, live, settings, t, onClose, onSave }: Props) {
+  const ids = useId();
+  const [draft, setDraft] = useState<Draft>(() => {
+    const own = parseOverride(batch.priceOverride[idx]);
+    return { isFoil: !!batch.isFoil[idx], multOverride: batch.multOverride[idx] ?? null, unit: own?.unit ?? 'rm', text: own ? asTyped(own.amount) : '' };
+  });
+  const price = readPrice(draft.text);
+  const edit: PriceEdit = {
+    isFoil: draft.isFoil,
+    multOverride: draft.multOverride,
+    priceOverride: overrideText(typeof price === 'number' ? { unit: draft.unit, amount: price } : null),
   };
-  // A new unit starts empty, so nothing typed in the old unit carries over.
-  const switchMode = (mode: 'rm' | 'usd') => {
-    if (mode === priceMode) return;
-    setPriceMode(mode); setPriceInput(''); onPriceChange(null);
-  };
+  const cd = computeCardData({
+    ...batch,
+    isFoil: replaceAt(batch.isFoil, idx, edit.isFoil),
+    multOverride: replaceAt(batch.multOverride, idx, edit.multOverride),
+    priceOverride: replaceAt(batch.priceOverride, idx, edit.priceOverride),
+  }, settings)[idx];
+  if (!cd) return null;
 
+  const name = cd.sel.name || t('unknown_card');
   const set = [cd.sel.set?.toUpperCase(), cd.sel.collector_number ? `#${cd.sel.collector_number}` : '', cd.sel.set_name].filter(Boolean).join(' · ');
-  const working = cd.isManual ? t('manual_set_price')
-    : `USD ${fmt2(cd.usd)} × ${cd.mult} = RM ${fmt2(cd.usd * cd.mult)}${live ? `. ${t('tile_live_note')}` : ''}`;
-  const finishes = [
-    { foil: false, label: t('foil_off'), usd: cd.sel.usd },
-    { foil: true, label: t('foil_on'), usd: cd.sel.usd_foil },
-  ];
+  const defaultMult = draft.isFoil ? settings.multFoil : settings.multNormal;
+  // A multiplier equal to the finish's own is no multiplier of the card's.
+  const ownMult = (mult: number | null, foil = draft.isFoil) =>
+    (mult != null && Math.abs(mult - (foil ? settings.multFoil : settings.multNormal)) < 1e-9 ? null : mult);
+  const ckUsd = (foil: boolean) => (foil ? cd.sel.price_source_foil : cd.sel.price_source_normal) === 'cardkingdom' ? (foil ? cd.sel.usd_foil : cd.sel.usd) : 0;
+  const finishLabel = (foil: boolean) => (
+    <>
+      <span className={foil ? 'photo-foil' : undefined}>{t(foil ? 'foil_on' : 'foil_off')}</span>
+      <span className="ep-finish-usd">{ckUsd(foil) > 0 ? `USD ${fmt2(ckUsd(foil))}` : t('ep_no_price')}</span>
+    </>
+  );
 
-  return createPortal(
-    <div className="feedback-overlay" onClick={onClose}>
-      <div className="feedback-modal adjust-sheet" role="dialog" aria-modal="true" aria-labelledby={`adjust-title-${cd.origIdx}`} onClick={e => e.stopPropagation()}>
-        <div className="feedback-head">
-          <div>
-            <h2 id={`adjust-title-${cd.origIdx}`}>{cd.sel.name || t('unknown_card')}</h2>
-            {set ? <p className="adjust-set">{set}</p> : null}
-          </div>
-          <button type="button" className="feedback-close" onClick={onClose} aria-label={t('voucher_close')}>×</button>
-        </div>
+  let summary: string;
+  if (cd.needsPrice) summary = cd.isManual ? t('ep_manual') : t('ep_no_ck');
+  else if (cd.ownUsd != null) summary = `${t('ep_yours_usd')} ${working(cd, cd.ownUsd, settings, t)}`;
+  else if (cd.hasOverride) summary = cd.autoPrice > 0 ? t('ep_yours_rm', { auto: `${live ? '≈' : ''}${formatMyr(cd.autoPrice, settings)}` }) : t('ep_yours_rm_no_ck');
+  else summary = working(cd, cd.usd, settings, t) + (live ? ` ${t('ep_live')}` : '');
 
-        <div className="adjust-summary">
-          <span className={`tile-price ${cd.isFoil && settings.foilStyle === 'gold' ? 'foil' : ''}`}>
-            {cd.needsPrice ? t('price_required') : <>{live && !cd.hasOverride ? <span className="tile-approx">~</span> : null}{formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings)}</>}
+  const placeholder = draft.unit === 'usd'
+    ? (ckUsd(draft.isFoil) > 0 ? fmt2(ckUsd(draft.isFoil)) : '')
+    : (cd.autoPrice > 0 ? t('ep_auto_placeholder', { n: asTyped(cd.autoPrice) }) : '');
+
+  return (
+    <Dialog
+      open={open} onClose={onClose} closeLabel={t('voucher_close')}
+      title={name} subtitle={set || undefined}
+      className="edit-price"
+      footer={(
+        <>
+          <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('cancel')}</button>
+          <button type="button" className="ui-btn ui-btn--primary" disabled={price === 'invalid'} onClick={() => onSave(edit)}>{t('ep_save')}</button>
+        </>
+      )}
+    >
+      <div className="ep-summary" aria-live="polite">
+        {cd.needsPrice ? <span className="ep-price is-needed">{t('photo_set_price')}</span> : (
+          <span className={`ep-price${cd.isFoil ? ' is-foil' : ''}`}>
+            {live && !cd.hasOverride ? <span className="photo-approx">≈</span> : null}{formatMyr(cd.unitPrice, settings)}
           </span>
-          <span className="adjust-working">{working}</span>
-        </div>
-
-        {cd.isManual ? null : (
-          <div className="adjust-block">
-            <span className="adjust-label">{t('tile_finish')}</span>
-            <div className="segmented adjust-finish" role="group" aria-label={t('tile_finish')}>
-              {finishes.map(f => (
-                <button
-                  key={String(f.foil)} type="button" className={`${cd.isFoil === f.foil ? 'active' : ''} ${f.foil ? 'is-foil' : ''}`}
-                  aria-pressed={cd.isFoil === f.foil} onClick={() => { if (cd.isFoil !== f.foil) onFoilToggle(); }}
-                >
-                  <strong>{f.label}</strong>
-                  <span>{f.usd > 0 ? `USD ${fmt2(f.usd)}` : t('modal_no_normal')}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         )}
-
-        {cd.isManual ? null : (
-          <div className="adjust-block">
-            <span className="adjust-label">
-              {t('mult')}
-              {cd.hasMultOverride
-                ? <button type="button" className="link-btn" onClick={onMultClear}>{t('tile_mult_reset')}</button>
-                : <span className="adjust-label-note">{t('tile_mult_default')}</span>}
-            </span>
-            <div className="adjust-stepper">
-              <button type="button" aria-label={`${t('mult')} −`} onClick={() => onMultStep(-0.1)}>−</button>
-              <span>×{cd.mult}</span>
-              <button type="button" aria-label={`${t('mult')} +`} onClick={() => onMultStep(0.1)}>+</button>
-            </div>
-          </div>
-        )}
-
-        <div className="adjust-block">
-          <span className="adjust-label">{cd.needsPrice ? t('price_required') : t('price_override')}</span>
-          <div className="adjust-row">
-            <div className="segmented price-mode-toggle" role="group" aria-label={t('price_mode_label')}>
-              <button type="button" className={priceMode === 'rm' ? 'active' : ''} onClick={() => switchMode('rm')} title={t('price_mode_rm_title')}>RM</button>
-              <button type="button" className={priceMode === 'usd' ? 'active' : ''} onClick={() => switchMode('usd')} title={t('price_mode_usd_title')}>USD</button>
-            </div>
-            <label className={`price-input-wrap ${cd.needsPrice ? 'required' : cd.hasOverride ? 'set' : ''}`}>
-              <span className="prefix">{priceMode === 'usd' ? 'USD' : (settings.currencyLabel || 'RM')}</span>
-              <input
-                // Text, not number: a phone shows the number pad, and a scroll
-                // over the box can't change the price.
-                type="text" inputMode="decimal"
-                placeholder={priceMode === 'usd' ? t('enter_usd_price') : cd.isManual ? t('enter_your_price') : t('auto_price', { n: fmt2(cd.autoPrice) })}
-                value={priceInput}
-                autoFocus={cd.needsPrice}
-                onChange={e => {
-                  const cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-                  setPriceInput(cleaned);
-                  commitPrice(cleaned, priceMode);
-                }}
-              />
-            </label>
-            {cd.hasOverride ? <button type="button" className="clear-btn" onClick={onClearOverride} aria-label={t('clear')}>×</button> : null}
-          </div>
-        </div>
-
-        <div className="feedback-foot">
-          <button type="button" className="accent" onClick={onClose}>{t('voucher_done')}</button>
-        </div>
+        <p className="ep-working">{summary}</p>
       </div>
-    </div>,
-    document.body,
+
+      {cd.isManual ? null : (
+        <Segmented
+          label={t('tile_finish')} className="ep-finish"
+          value={draft.isFoil ? 'foil' : 'nonfoil'}
+          onChange={v => setDraft(d => ({ ...d, isFoil: v === 'foil', multOverride: ownMult(d.multOverride, v === 'foil') }))}
+          options={[{ value: 'nonfoil', label: finishLabel(false) }, { value: 'foil', label: finishLabel(true) }]}
+        />
+      )}
+
+      {cd.isManual ? null : (
+        <div className="ui-field ep-mult">
+          <div className="ep-label-row">
+            <span className="ui-label" id={`${ids}-mult`}>{t('mult')}</span>
+            {draft.multOverride != null ? (
+              <button type="button" className="ui-btn ui-btn--plain ep-reset" onClick={() => setDraft(d => ({ ...d, multOverride: null }))}>
+                {t('ep_mult_reset', { mult: defaultMult })}
+              </button>
+            ) : <span className="ep-label-note">{t('tile_mult_default')}</span>}
+          </div>
+          <Stepper
+            value={cd.mult} min={MULT_MIN} max={MULT_MAX} step={0.1} format={v => `×${v}`}
+            label={t('mult')} decrementLabel={t('ep_mult_down')} incrementLabel={t('ep_mult_up')}
+            onChange={v => setDraft(d => ({ ...d, multOverride: ownMult(v) }))}
+          />
+        </div>
+      )}
+
+      <div className="ui-field">
+        <span className="ui-label" id={`${ids}-own`}>{t('ep_own_label')}</span>
+        <div className="ep-own-row">
+          <Segmented
+            aria-label={t('ep_unit')} className="ep-unit"
+            value={draft.unit} onChange={unit => setDraft(d => ({ ...d, unit }))}
+            options={[{ value: 'rm', label: 'RM' }, { value: 'usd', label: 'USD' }]}
+          />
+          <TextField
+            aria-labelledby={`${ids}-own`} className="ep-own-field"
+            prefix={draft.unit === 'usd' ? 'USD' : settings.currencyLabel || 'RM'}
+            inputMode="decimal" autoComplete="off" placeholder={placeholder}
+            value={draft.text} onChange={e => setDraft(d => ({ ...d, text: e.target.value }))}
+            error={price === 'invalid' ? t('ep_price_error') : undefined}
+            {...(cd.needsPrice ? { 'data-autofocus': '' } : {})}
+          />
+        </div>
+        <p className="ui-hint">{t(draft.unit === 'usd' ? 'ep_own_hint_usd' : 'ep_own_hint_rm')}</p>
+      </div>
+    </Dialog>
   );
 }

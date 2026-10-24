@@ -1,0 +1,182 @@
+.demo-claims {
+  display: grid; grid-template-columns: minmax(0, 1.4fr) auto minmax(0, 1fr); gap: 12px; align-items: center;
+  margin: 0 0 16px;
+}
+.demo-claims-shot { margin: 0; }
+.demo-claims-shot img { display: block; width: 100%; height: auto; border-radius: var(--radius); }
+.demo-claims-shot figcaption, .demo-claims-label { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.demo-claims-arrow { color: var(--ink-faint); }
+.demo-claims-out { display: flex; flex-direction: column; gap: 8px; }
+.demo-claims-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px;
+  background: var(--fill); border-radius: var(--radius);
+}
+.demo-claims-row img { width: 44px; height: auto; border-radius: 4px; flex: none; }
+.demo-claims-text { display: flex; flex-direction: column; min-width: 0; font-size: 13px; color: var(--ink); }
+.demo-claims-said { color: var(--ink-soft); }
+.demo-claims-mobile-note { display: none; margin: 8px 0 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.demo-claims-skipped { margin: 0; padding: 0 8px; font-size: 13px; color: var(--ink-faint); }
+.demo-claims-total { margin: 0; font-size: 13px; font-weight: 600; color: var(--green); }
+@media (max-width: 640px) {
+  .demo-claims { grid-template-columns: 1fr; }
+  .demo-claims-arrow { justify-self: center; transform: rotate(90deg); }
+  .demo-claims-shot img { max-width: 340px; margin: 0 auto; }
+  .demo-claims-mobile-note { display: block; }
+}
+
+/* ---------- Sign-in ----------
+   A phone gets one column with the Google button on the first screen. From
+   1024px the pitch, the feature list and the second button sit left of the demo. */
+.brand--signed-out .brand-name { display: inline; }
+.signin { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 40px; max-width: 560px; margin: 0 auto; padding-top: 16px; }
+.signin-h2 { margin: 0 0 12px; font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -0.015em; }
+.signin-hero { display: flex; flex-direction: column; gap: 12px; }
+.signin-title { margin: 0; font-size: 34px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.signin-tagline { margin: 0; font-size: 17px; line-height: 1.45; color: var(--ink-soft); text-wrap: pretty; }
+.signin-cta { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.signin-hero .signin-cta { margin-top: 14px; }
+/* Google draws its button in an iframe with a light page. Inside a dark
+   page the browser would paint the iframe an opaque white box, so this
+   slot stays light. 40px tall, the one exception to the 44px rule. */
+.signin-google { width: 100%; max-width: 400px; min-height: 40px; display: flex; justify-content: center; color-scheme: light; }
+.signin-google iframe { color-scheme: light; }
+.signin-note { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); text-align: center; }
+.signin-try > .signin-note { margin-top: 12px; }
+.signin-error { align-self: stretch; margin: 0; padding: 10px 14px; border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.signin-feature { display: flex; align-items: flex-start; gap: 14px; padding: 16px; }
+.signin-feature-icon { flex: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); }
+.signin-feature-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.signin-feature-text strong { font-size: 17px; font-weight: 600; line-height: 1.3; }
+.signin-feature-text span { font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.signin-foot { display: flex; flex-direction: column; gap: 16px; padding-top: 20px; border-top: 1px solid var(--rule); }
+.signin-prefs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.signin-links { display: flex; flex-wrap: wrap; gap: 0 20px; }
+.signin-links a { display: inline-flex; align-items: center; min-height: var(--tap); font-size: 15px; color: var(--ink-soft); }
+.signin-links a:hover { color: var(--ink); }
+.signin-legal { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+@media (min-width: 640px) {
+  .signin-prefs { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 640px; }
+}
+@media (min-width: 1024px) {
+  .signin {
+    max-width: none; column-gap: 64px; padding-top: 40px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    grid-template-areas: "hero try" "what try" "again try" "foot foot";
+    grid-template-rows: auto auto 1fr auto;
+  }
+  .signin-hero { grid-area: hero; }
+  .signin-try { grid-area: try; }
+  .signin-what { grid-area: what; }
+  .signin-again { grid-area: again; align-self: start; }
+  .signin-foot { grid-area: foot; }
+  .signin-cta { align-items: flex-start; }
+  .signin-cta .signin-note { text-align: left; }
+}
+
+/* ---------- Demos ---------- */
+.demo { margin-top: 12px; }
+.demo:focus { outline: none; }
+@keyframes demo-fade { from { opacity: 0; } }
+@keyframes demo-pulse { 50% { opacity: 0.35; } }
+.demo-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-fill); animation: demo-pulse 0.9s ease-in-out infinite; }
+
+/* The scanner: the photo, its outlines and price labels, then the results. */
+.demo-photo { position: relative; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); line-height: 0; }
+.demo-photo > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.demo-photo > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.demo-outline {
+  fill: var(--accent-fill); fill-opacity: 0; stroke: var(--accent-fill); stroke-width: 10;
+  transition: stroke-dashoffset 700ms var(--ease), fill-opacity 400ms ease;
+}
+.demo-outline[data-on] { fill-opacity: 0.08; }
+/* The price label drawn on exported photos (DESIGN.md section 7). */
+.demo-pill {
+  position: absolute; padding: 5px 12px; border-radius: var(--radius-pill);
+  background: #141414; color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 4px 6px rgba(0, 0, 0, 0.35);
+  font-size: 17px; font-weight: 700; line-height: 1.2; white-space: nowrap; pointer-events: none;
+  opacity: 0; transform: translate(-50%, -20%) scale(0.9);
+  transition: opacity 350ms ease, transform 350ms var(--ease);
+}
+.demo-pill[data-on] { opacity: 1; transform: translate(-50%, -50%); }
+.demo-play {
+  position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 24px; border: 0; border-radius: 0;
+  /* Dims the photo so the white text reads on it, in both themes. */
+  background: rgba(0, 0, 0, 0.55); color: #fff;
+  line-height: 1.3; text-align: center;
+}
+.demo-play:hover { background: rgba(0, 0, 0, 0.45); }
+.demo-play:active { transform: none; }
+.demo-play-icon {
+  width: 64px; height: 64px; margin-bottom: 8px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-fill); color: var(--on-accent); box-shadow: var(--shadow-lg);
+  transition: transform 150ms var(--ease);
+}
+.demo-play-icon svg { margin-left: 3px; }
+@media (hover: hover) { .demo-play:hover .demo-play-icon { transform: scale(1.06); } }
+.demo-play:active .demo-play-icon { transform: scale(0.97); }
+.demo-play-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.demo-play-sub { font-size: 15px; opacity: 0.88; }
+.demo-status {
+  position: absolute; left: 12px; right: 12px; bottom: 12px;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
+  border-radius: 14px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg);
+  font-size: 15px; font-weight: 600; line-height: 1.3; pointer-events: none;
+}
+.demo-status:empty { opacity: 0; }
+.demo-status-text { display: flex; align-items: center; gap: 8px; }
+.demo-progress { display: block; height: 4px; border-radius: 2px; overflow: hidden; background: var(--fill-strong); }
+.demo-progress > span { display: block; height: 100%; background: var(--accent-fill); transform-origin: left; transition: transform 500ms var(--ease); }
+.demo-results { margin-top: 12px; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); animation: demo-fade 250ms ease-out; }
+.demo-results-head {
+  display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--rule);
+  font-size: 15px; color: var(--ink-soft);
+}
+.demo-results-head strong { font-size: 17px; font-weight: 600; color: var(--ink); }
+.demo-cards { margin: 0; padding: 0; list-style: none; }
+.demo-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; }
+.demo-card + .demo-card { border-top: 1px solid var(--rule); }
+.demo-card-num {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; margin-top: 1px; padding: 0 6px; border-radius: var(--radius-pill);
+  background: var(--fill); color: var(--ink-soft); font-size: 12px; font-weight: 600;
+}
+.demo-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.demo-card-name { font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.demo-card-formula { font-size: 13px; line-height: 1.3; color: var(--ink-soft); }
+.demo-card-price { flex: none; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+.demo-again { margin-top: 12px; }
+
+/* Claims: a screenshot of comments, the claims found, each buyer's message. */
+.demo-intro { margin: 0 4px 12px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.demo-shot { margin: 0; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); }
+.demo-shot-photo { display: block; width: 100%; height: 112px; object-fit: cover; object-position: center 30%; }
+.demo-comments { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 12px 12px 14px; list-style: none; }
+.demo-comment { display: flex; align-items: flex-start; gap: 8px; }
+.demo-comment .avatar { flex: none; width: 28px; height: 28px; font-size: 12px; }
+.demo-comment-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.demo-bubble { max-width: 100%; padding: 6px 10px; border-radius: 14px; background: var(--fill); font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }
+.demo-bubble strong { display: block; font-weight: 600; }
+.demo-comment-time { padding-left: 10px; font-size: 12px; color: var(--ink-soft); }
+.demo-comment .ui-chip { align-self: center; animation: demo-fade 250ms ease-out; }
+.demo-find { margin-top: 12px; }
+.demo-reading {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 48px; margin: 12px 0 0; border-radius: var(--radius-pill);
+  background: var(--fill); font-size: 15px; font-weight: 600;
+}
+.demo-found { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; animation: demo-fade 250ms ease-out; }
+.demo-found-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin: 0 4px; }
+.demo-found-head strong { font-size: 17px; font-weight: 600; }
+.demo-found-head span { font-size: 13px; color: var(--ink-soft); }
+.demo-message {
+  margin: 0; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow);
+  font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.ui-btn.demo-copied { color: var(--green); }
+.demo-note { margin: 0 4px; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.ui-btn.demo-reset { align-self: center; }
+@media (prefers-reduced-motion: reduce) { .demo-dot { animation: none; } }
