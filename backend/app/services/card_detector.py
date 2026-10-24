@@ -141,23 +141,3 @@ class CardDetector:
             rows = np.round(centres[:, 1] / max(row_h, 1.0))
             out = [out[i] for i in np.lexsort((centres[:, 0], rows))]
         return out
-
-
-def warp_quad(
-    img: Image.Image,
-    quad: np.ndarray | list[list[float]],
-    out_size: tuple[int, int] = (488, 680),
-) -> Image.Image:
-    """Flatten the quadrilateral `quad` (TL, TR, BR, BL) to an axis-aligned
-    card-shaped image, so the embedder and OCR see a head-on view of the card
-    regardless of how it was tilted in the photo. Pure PIL — no cv2."""
-    src = np.asarray(quad, dtype=float).reshape(4, 2)
-    W, H = out_size
-    dst = np.array([[0, 0], [W, 0], [W, H], [0, H]], dtype=float)
-    # PIL.Image.PERSPECTIVE wants the inverse mapping (dst → src).
-    rows: list[list[float]] = []
-    for (xd, yd), (xs, ys) in zip(dst, src):
-        rows.append([xd, yd, 1, 0, 0, 0, -xd * xs, -yd * xs])
-        rows.append([0, 0, 0, xd, yd, 1, -xd * ys, -yd * ys])
-    coeffs = np.linalg.solve(np.asarray(rows), src.reshape(8)).tolist()
-    return img.transform(out_size, Image.PERSPECTIVE, coeffs, Image.BICUBIC)

@@ -9,6 +9,7 @@ import tempfile
 # enforced when it is).
 os.environ.update(
     DATABASE_URL=f"sqlite+aiosqlite:///{tempfile.mkdtemp()}/test.db",
+    CORRECTIONS_DIR=tempfile.mkdtemp(),
     GOOGLE_CLIENT_ID="test-client-id",
     JWT_SECRET="test-secret",
     GEMINI_API_KEY="x",

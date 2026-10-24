@@ -29,7 +29,8 @@ import numpy as np
 from PIL import Image
 from pydantic import BaseModel
 
-from .card_detector import CardDetector, Detection, warp_quad
+from .card_crop import warp_quad
+from .card_detector import CardDetector, Detection
 from .card_embedder import CardIndex, Embedder, Printing, normalize_name
 from .collector_ocr import (
     STRIP_SIZE, TITLE_SIZE, CollectorLine, CollectorReader, strip_quad, title_quad,
