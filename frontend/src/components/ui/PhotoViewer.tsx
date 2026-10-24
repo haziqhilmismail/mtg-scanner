@@ -6,55 +6,55 @@ import { Segmented } from './Segmented.tsx';
 export interface ViewerImage {
   src: string;
   alt: string;
-  label?: string;  // with two images: the switch above them ("Your card", "Matched card")
 }
 
-interface PhotoViewerProps {
+// One side of a card tile's pair; `label` names it on the switch above ("Your card").
+export type ViewerSide = ViewerImage & { label: string };
+
+type Common = {
   open: boolean;
   onClose: () => void;
-  images: ViewerImage[];  // one photo, or the two a card tile compares
   label: string;  // names the viewer, e.g. "Photo 2, full screen"
   closeLabel: string;
-  flipLabel?: string;  // with two images, what a click on the image does
-  start?: number;
-  children?: ReactNode;  // a caption under the image
-}
+  children?: ReactNode;
+};
 
-// Full screen and always dark, the image in the middle, the round close
-// button at the bottom where a thumb reaches it. With two images, a click
-// on the image flips to the other one.
-export function PhotoViewer({ open, onClose, label, ...body }: PhotoViewerProps) {
+// One photo, or the pair a card tile compares: a click on the image flips it.
+export type PhotoViewerProps = Common & (
+  | { image: ViewerImage }
+  | { pair: [ViewerSide, ViewerSide]; flipLabel: string; start?: 0 | 1 }
+);
+
+export function PhotoViewer(props: PhotoViewerProps) {
   return (
-    <Modal open={open} onClose={onClose} className="ui-viewer" data-theme="dark" aria-label={label}>
-      <ViewerBody label={label} onClose={onClose} {...body} />
+    <Modal open={props.open} onClose={props.onClose} className="ui-viewer" data-theme="dark" aria-label={props.label}>
+      <ViewerBody {...props} />
     </Modal>
   );
 }
 
-// Mounted per opening, so each one starts at `start`.
-function ViewerBody({ images, label, closeLabel, flipLabel, start = 0, onClose, children }: Omit<PhotoViewerProps, 'open'>) {
-  const [at, setAt] = useState(start);
-  const image = images[at];
-  const two = images.length === 2;
+function ViewerBody(props: PhotoViewerProps) {
+  const [at, setAt] = useState<number>('pair' in props ? props.start ?? 0 : 0);
+  const media = 'pair' in props ? (
+    <>
+      <Segmented
+        aria-label={props.label}
+        value={String(at)}
+        onChange={v => setAt(Number(v))}
+        options={props.pair.map((side, i) => ({ value: String(i), label: side.label }))}
+      />
+      <button type="button" className="ui-viewer-media" aria-label={props.flipLabel} onClick={() => setAt(1 - at)}>
+        <img key={at} src={props.pair[at].src} alt={props.pair[at].alt} />
+      </button>
+    </>
+  ) : (
+    <div className="ui-viewer-media"><img src={props.image.src} alt={props.image.alt} /></div>
+  );
   return (
     <>
-      {two && images.every(i => i.label) ? (
-        <Segmented
-          aria-label={label}
-          value={String(at)}
-          onChange={v => setAt(Number(v))}
-          options={images.map((img, i) => ({ value: String(i), label: img.label }))}
-        />
-      ) : null}
-      {two ? (
-        <button type="button" className="ui-viewer-media" aria-label={flipLabel} onClick={() => setAt(1 - at)}>
-          <img key={at} src={image.src} alt={image.alt} />
-        </button>
-      ) : (
-        <div className="ui-viewer-media"><img src={image.src} alt={image.alt} /></div>
-      )}
-      {children}
-      <button type="button" className="ui-viewer-close" aria-label={closeLabel} onClick={onClose}>
+      {media}
+      {props.children}
+      <button type="button" className="ui-viewer-close" aria-label={props.closeLabel} onClick={props.onClose}>
         <Icon name="close" size={20} />
       </button>
     </>

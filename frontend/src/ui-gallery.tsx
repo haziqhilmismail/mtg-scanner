@@ -15,10 +15,6 @@ import { useToast } from './components/ui/Toast.tsx';
 import './styles.css';
 import './styles/ui.css';
 
-// Dev-only page that shows every primitive in its states, at
-// /ui-gallery.html. ?theme=dark|light and ?data=worst pick the theme and
-// the data; the switches at the top change them in place.
-
 const DEMO = {
   title: 'UI primitives',
   post: 'Friday Post',
@@ -380,7 +376,7 @@ function Overlays({ c }: { c: Copy }) {
         <p style={{ margin: 0 }}>{c.supportBody}</p>
       </Dialog>
 
-      <PhotoViewer open={open === 'photo'} onClose={close} label={c.viewerLabel} closeLabel={c.close} images={[{ src: '/demo/sample-scan.jpg', alt: c.viewerLabel }]}>
+      <PhotoViewer open={open === 'photo'} onClose={close} label={c.viewerLabel} closeLabel={c.close} image={{ src: '/demo/sample-scan.jpg', alt: c.viewerLabel }}>
         <div className="ui-viewer-caption"><div className="ui-row-title">Photo 2</div><div className="ui-row-meta">11 cards · 2000×1500</div></div>
       </PhotoViewer>
       <PhotoViewer
@@ -389,7 +385,7 @@ function Overlays({ c }: { c: Copy }) {
         label={c.card}
         closeLabel={c.close}
         flipLabel={c.flip}
-        images={[{ src: '/demo/claims-arkenstone.jpg', alt: c.yours, label: c.yours }, { src: '/demo/claims-delay.jpg', alt: c.matched, label: c.matched }]}
+        pair={[{ src: '/demo/claims-arkenstone.jpg', alt: c.yours, label: c.yours }, { src: '/demo/claims-delay.jpg', alt: c.matched, label: c.matched }]}
       >
         <div className="ui-viewer-caption"><div className="ui-row-title">{c.card}</div><div className="ui-row-meta">{c.setLine}</div></div>
       </PhotoViewer>

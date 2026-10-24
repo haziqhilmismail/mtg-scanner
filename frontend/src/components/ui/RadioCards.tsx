@@ -1,20 +1,19 @@
 import { useId, type HTMLAttributes, type ReactNode } from 'react';
+import type { GroupNamed, NativeName } from './named.ts';
 
 export interface RadioCardOption<V extends string> {
   value: V;
   title: ReactNode;
-  description?: ReactNode;  // what the choice does, in one line
+  description?: ReactNode;
 }
 
-export interface RadioCardsProps<V extends string> extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> {
+// Name the group with aria-labelledby (the section's h2) or aria-label.
+export type RadioCardsProps<V extends string> = GroupNamed & Omit<HTMLAttributes<HTMLDivElement>, 'onChange' | NativeName> & {
   value: V;
   onChange: (value: V) => void;
   options: RadioCardOption<V>[];
-  // Name the group with aria-labelledby (the section's h2) or aria-label.
-}
+};
 
-// A choice with consequences (Price on photo or Live price). Native radios
-// inside the cards give the radio semantics, Tab and the arrow keys.
 export function RadioCards<V extends string>({ value, onChange, options, className, ...group }: RadioCardsProps<V>) {
   const id = useId();
   return (
