@@ -15,6 +15,6 @@ test('whole steps for quantities', () => {
 
 test('the value stays within min and max', () => {
   assert.equal(stepValue(1, -1, 1, 1, 99), 1);
-  assert.equal(stepValue(4.95, 1, 0.1, 1, 5), 5);
-  assert.equal(stepValue(1.05, -1, 0.1, 1, 5), 1);
+  assert.equal(stepValue(4.96, 1, 0.1, 1, 5), 5);   // 5.06 rounds to 5.1
+  assert.equal(stepValue(1.04, -1, 0.1, 1, 5), 1);  // 0.94 rounds to 0.9
 });
