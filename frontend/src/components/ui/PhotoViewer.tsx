@@ -19,9 +19,11 @@ type Common = {
   children?: ReactNode;
 };
 
-// One photo, or the pair a card tile compares: a click on the image flips it.
+// One photo, the pair a card tile compares (a click on the image flips it),
+// or other media that fills the same space, such as a photo with its labels.
 export type PhotoViewerProps = Common & (
   | { image: ViewerImage }
+  | { media: ReactNode }
   | { pair: [ViewerSide, ViewerSide]; flipLabel: string; start?: 0 | 1 }
 );
 
@@ -48,7 +50,7 @@ function ViewerBody(props: PhotoViewerProps) {
       </button>
     </>
   ) : (
-    <div className="ui-viewer-media"><img src={props.image.src} alt={props.image.alt} /></div>
+    <div className="ui-viewer-media">{'media' in props ? props.media : <img src={props.image.src} alt={props.image.alt} />}</div>
   );
   return (
     <>

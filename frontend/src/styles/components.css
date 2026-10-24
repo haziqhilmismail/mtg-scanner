@@ -271,30 +271,6 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
   .modal-grid { padding: 14px 16px 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Zoom modal */
-.zoom-modal {
-  position: fixed; inset: 0; z-index: var(--z-dialog-top);
-  display: none; align-items: center; justify-content: center; padding: 24px;
-}
-.zoom-modal.open { display: flex; }
-.zoom-backdrop {
-  position: absolute; inset: 0; cursor: zoom-out;
-  background: rgba(0, 0, 0, 0.72);
-  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-}
-.zoom-image {
-  position: relative; z-index: 1;
-  max-width: min(900px, 96vw); max-height: 88vh; max-height: 88dvh;
-  border: 0; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
-  cursor: zoom-out; object-fit: contain; display: block;
-}
-.zoom-caption {
-  position: absolute; bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 2;
-  padding: 6px 14px; border-radius: var(--radius-pill);
-  background: rgba(60, 60, 67, 0.72); color: #fff;
-  font-size: 13px; font-weight: 500; pointer-events: none;
-}
-
 /* ---------- Alerts (confirm / prompt / alert) ----------
    Rare and direct: a title, one line of consequence, two clear choices.
    Buttons share the width so neither reads as the default by size alone. */
