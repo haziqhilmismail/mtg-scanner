@@ -1,0 +1,280 @@
+/* ---------- Photo page ----------
+   One photo: its panel (the photo with its labels, the actions), a tile per
+   card, and the Change card and Edit price dialogs. Phone first; from 1100px
+   the photo stays on the left while the tiles run two across on the right. */
+
+.photo-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 14px; }
+.photo-title-row .page-title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.photo-title-actions { flex: none; display: flex; margin-left: auto; }
+.photo-delete { color: var(--warn); }
+
+.photo-panel {
+  padding: 16px; border-radius: var(--radius-lg);
+  background: var(--paper); box-shadow: var(--shadow);
+}
+.photo-panel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin-bottom: 12px; }
+.photo-panel-title { flex: 1 1 auto; margin: 0; font-size: 20px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.photo-panel-file, .photo-panel-meta { margin: 0; font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
+.photo-panel-file { flex: 1 1 100%; order: 1; }
+.photo-panel-meta { order: 2; }
+.photo-panel-status { margin: 0; font-size: 15px; color: var(--ink-soft); }
+.photo-panel-status.is-error { margin-bottom: 12px; color: var(--warn); }
+.photo-panel-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.photo-panel-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* The photo keeps its own shape; its width (set inline) keeps it under 70% of the screen's height. */
+.photo-frame { position: relative; margin: 0 auto; border-radius: var(--radius); overflow: hidden; background: var(--fill); }
+.photo-svg { display: block; width: 100%; height: auto; }
+.photo-svg.is-loading { animation: photo-pulse 1.4s ease-in-out infinite; }
+.ui-viewer-media .photo-svg.is-full { width: 100%; height: 100%; animation: none; }
+/* Outlines and price labels, in the photo's own pixels. The colours copy
+   price_overlay.py, so the photo on screen matches the one downloaded. */
+.card-outline { fill: rgba(10, 132, 255, 0.08); stroke: #0a84ff; stroke-width: 6; stroke-linejoin: round; opacity: 0.95; }
+.card-outline.foil { stroke: #ffcc00; fill: rgba(255, 204, 0, 0.1); }
+.preview-pill rect { fill: #141414; stroke: rgba(255, 255, 255, 0.18); stroke-width: 2; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35)); }
+.preview-pill text { fill: #ffffff; font-weight: 700; pointer-events: none; user-select: none; }
+.preview-pill.foil rect { fill: #f0c332; stroke: rgba(255, 230, 130, 0.9); }
+.preview-pill.foil text { fill: #19140a; }
+
+/* Buttons over a photo sit on a dark disc, so they read on any picture. */
+.photo-expand {
+  position: absolute; top: 6px; right: 6px;
+  display: flex; align-items: center; justify-content: center;
+  width: var(--tap); height: var(--tap); min-height: 0; padding: 4px; border: 0; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6); background-clip: content-box; color: #fff;
+}
+.photo-expand:hover { background-color: rgba(0, 0, 0, 0.72); }
+
+/* What to do with the photo: shown above the tiles, and again below a long list. */
+.photo-actions { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.photo-actions-hint { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.photo-actions-hint .icon { margin-top: 2px; color: var(--accent); }
+.photo-actions-hint.is-locked { color: var(--ink); }
+.photo-post-name {
+  padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-weight: 600;
+  overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.photo-actions-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.photo-actions-row > .ui-btn { min-width: 0; }
+.photo-done, .photo-actions-note {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: var(--tap); margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; text-align: center;
+}
+.photo-done { color: var(--green); }
+.photo-actions-note { color: var(--warn); font-weight: 500; }
+
+.photo-setall { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 14px; border-radius: 14px; background: var(--surface-2); }
+.photo-setall-label { font-size: 13px; color: var(--ink-soft); }
+.photo-setall .ui-btn { min-height: 36px; padding: 0 14px; }
+.photo-setall .photo-setall-foil { --ui-bg: var(--gold-soft); --ui-bg-hover: var(--gold-soft); color: var(--gold); }
+
+/* ---------- Card tiles ---------- */
+.photo-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; align-items: start; }
+.photo-tile { display: flex; flex-direction: column; min-width: 0; padding: 12px; border-radius: var(--radius-lg); background: var(--surface-2); }
+.photo-tile.is-foil { box-shadow: inset 0 0 0 1.5px var(--gold); }
+
+.photo-tile-pair { display: flex; align-items: center; }
+.photo-tile-img {
+  position: relative; flex: 1 1 0; min-width: 0; min-height: 0; aspect-ratio: 63 / 88;
+  display: block; padding: 0; border: 0; border-radius: var(--radius-sm); overflow: hidden;
+  background: var(--fill); color: var(--ink-soft); cursor: zoom-in;
+}
+.photo-tile-img:hover { background: var(--fill); }
+.photo-tile-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.photo-tile-num {
+  position: absolute; top: 6px; left: 6px;
+  display: flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 12px; font-weight: 600; line-height: 1;
+}
+.photo-tile-zoom {
+  position: absolute; right: 6px; bottom: 6px;
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff;
+}
+.photo-tile-none {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  height: 100%; padding: 8px; font-size: 12px; font-weight: 600; text-align: center; overflow-wrap: anywhere;
+}
+.photo-tile-arrow { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; color: var(--ink-soft); }
+.photo-tile-arrow.is-unsure {
+  width: 22px; height: 22px; margin: 0 3px; border-radius: 50%;
+  background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 700;
+}
+
+.photo-tile-check {
+  display: flex; align-items: center; gap: 8px; min-height: var(--tap); margin-top: 10px; padding: 4px 4px 4px 10px;
+  border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 600; line-height: 1.25;
+}
+.photo-tile-check > span { flex: 1; min-width: 0; }
+.photo-tile-ok { flex: none; min-height: 36px; padding: 0 14px; background: var(--fill-strong); color: var(--ink); font-size: 13px; }
+.photo-tile-ok:hover { background: var(--fill-strong); }
+
+.photo-tile-title { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; }
+.photo-tile-name {
+  flex: 1; min-width: 0; margin: 0; padding-top: 3px;
+  font-family: var(--font); font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; overflow-wrap: anywhere;
+}
+.photo-tile-name a { color: inherit; text-decoration: none; }
+@media (hover: hover) { .photo-tile-name a:hover { color: var(--accent); } }
+.photo-tile-name .photo-tile-ext { display: inline-block; margin-left: 4px; vertical-align: -1px; color: var(--ink-soft); }
+.photo-tile-add {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: var(--tap); height: var(--tap); min-height: 0; margin: -7px -7px -7px 0; padding: 0;
+  border: 0; border-radius: 50%; background: transparent;
+}
+.photo-tile-add:hover { background: transparent; }
+.photo-tile-add > span {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; background: var(--fill); color: var(--accent);
+}
+.photo-tile-add.is-added > span { background: var(--green-soft); color: var(--green); }
+
+.photo-tile-version { gap: 4px 8px; margin-top: 6px; }
+.photo-tile-formula { margin: 4px 0 0; font-size: 13px; line-height: 1.3; color: var(--ink-soft); overflow-wrap: anywhere; }
+.photo-foil { color: var(--gold); font-weight: 600; }
+.photo-yours { color: var(--accent); font-weight: 600; }
+.photo-approx { margin-right: 3px; font-weight: 400; color: var(--ink-soft); }
+
+.photo-tile-price { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin-top: 2px; }
+.photo-tile-amount {
+  font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em;
+  color: var(--ink); white-space: nowrap;
+}
+.photo-tile.is-foil .photo-tile-amount { color: var(--gold); }
+.photo-tile-setprice { font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--warn); }
+.photo-tile-each { font-size: 13px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; }
+.photo-tile-edit { color: var(--accent); }
+.photo-tile-edit.is-set { --ui-bg: var(--accent-soft); --ui-bg-hover: var(--accent-soft); }
+.photo-tile-edit.is-needed { --ui-bg: var(--warn-soft); --ui-bg-hover: var(--warn-soft); color: var(--warn); }
+
+/* A narrow tile puts the stepper under Change card rather than squeeze it. */
+.photo-tile-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.photo-tile-change { flex: 1 1 auto; white-space: nowrap; }
+.photo-tile-actions .ui-stepper { flex: none; }
+
+.photo-tile.is-removed { flex-direction: row; align-items: center; gap: 10px; min-height: 56px; padding: 6px 6px 6px 12px; }
+.photo-tile.is-removed .photo-tile-num { position: static; flex: none; background: var(--fill-strong); color: var(--ink); }
+.photo-tile-removed { flex: 1; min-width: 0; margin: 0; font-size: 15px; line-height: 1.3; color: var(--ink-soft); overflow-wrap: anywhere; }
+.photo-tile-removed strong { color: var(--ink); font-weight: 600; }
+.photo-tile.is-removed .ui-btn { flex: none; }
+
+.photo-empty { margin: 0; padding: 20px 8px; font-size: 15px; line-height: 1.4; text-align: center; color: var(--ink-soft); }
+.photo-add-missing { align-self: flex-start; }
+
+.photo-total {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 12px;
+  margin-top: 4px; padding: 14px 4px 0; border-top: 1px solid var(--rule);
+}
+.photo-total-label { font-size: 15px; color: var(--ink-soft); }
+.photo-total-amount { font-family: var(--font-display); font-size: 30px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; white-space: nowrap; }
+.photo-total-note { grid-column: 1 / -1; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.photo-check-note {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 12px 14px;
+  border-radius: var(--radius); background: var(--surface-2);
+  font-size: 13px; line-height: 1.4; color: var(--ink-soft);
+}
+.photo-check-note .icon { margin-top: 1px; }
+
+/* Previous and next photo under the panel, so a long list needn't scroll back up. */
+.photo-steps { display: flex; justify-content: space-between; gap: 10px; margin: 18px 0 0; }
+.photo-step {
+  flex: 1 1 0; max-width: 260px; min-height: 56px; padding: 8px 14px; gap: 8px; justify-content: flex-start;
+  border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); color: var(--accent); text-align: left;
+}
+.photo-step:hover { background: var(--paper); }
+.photo-step.is-next { justify-content: flex-end; margin-left: auto; text-align: right; }
+.photo-step-text { display: flex; flex-direction: column; min-width: 0; }
+.photo-step-dir { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
+.photo-step strong { font-size: 17px; }
+
+.photo-viewer-caption { display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 560px; margin: 0; }
+.photo-viewer-caption strong { font-size: 17px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.photo-viewer-caption span { font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
+.photo-viewer-caption .ui-btn { margin-top: 8px; }
+/* A card fills the viewer's height (a crop can be smaller than the screen), keeping its rounded corners. */
+.ui-viewer:has(.photo-viewer-caption.is-card) .ui-viewer-media { container-type: size; }
+.ui-viewer:has(.photo-viewer-caption.is-card) .ui-viewer-media img {
+  width: min(100cqw, 100cqh * 63 / 88); height: auto; max-width: none; max-height: none; aspect-ratio: 63 / 88; object-fit: cover;
+}
+
+@media (min-width: 600px) {
+  .photo-actions-row { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+}
+@media (min-width: 768px) {
+  .photo-panel { padding: 20px; }
+}
+@media (min-width: 1100px) {
+  .photo-panel-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .photo-panel-file { grid-row: 2; }
+  .photo-panel-meta { grid-column: 2; grid-row: 1; }
+  .photo-panel-body { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 24px; align-items: start; }
+  .photo-panel-photo { position: sticky; top: calc(var(--bar-h) + 16px); }
+}
+
+/* ---------- Edit price ---------- */
+.edit-price .ui-dialog-body { display: flex; flex-direction: column; gap: 20px; }
+.ep-summary { padding: 14px 16px; border-radius: var(--radius); background: var(--surface-2); }
+.ep-price { display: block; font-family: var(--font-display); font-size: 30px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+.ep-price.is-foil { color: var(--gold); }
+.ep-price.is-needed { font-size: 20px; color: var(--warn); }
+.ep-working { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); overflow-wrap: anywhere; }
+.ep-finish .ui-seg-opt { min-height: 52px; gap: 1px; }
+.ep-finish-usd { font-size: 12px; font-weight: 400; color: var(--ink-soft); }
+.ep-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+.ep-label-note { font-size: 13px; line-height: 1.3; color: var(--ink-soft); text-align: right; }
+.ep-reset { min-height: 36px; margin-right: -10px; }
+.ep-mult .ui-stepper { display: flex; width: 100%; }
+.ep-own-row { display: flex; align-items: flex-start; gap: 8px; }
+.ep-unit { flex: none; }
+.ep-unit .ui-seg-opt { flex: 1 1 auto; min-height: 44px; padding: 4px 14px; white-space: nowrap; overflow-wrap: normal; }
+.ep-own-field { flex: 1; min-width: 0; }
+
+/* ---------- Change card ---------- */
+.cc-search { display: flex; align-items: flex-start; gap: 8px; }
+.cc-search-field { flex: 1; min-width: 0; }
+.cc-search > .ui-btn { flex: none; min-height: 48px; }
+.cc-msg { margin: 8px 0 0; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.cc-msg.is-ok { color: var(--green); }
+.cc-msg.is-err { color: var(--warn); }
+.cc-status { margin: 10px 0 12px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.cc-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr)); gap: 12px;
+  margin: 0; padding: 0; list-style: none;
+}
+.cc-printing {
+  position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0;
+  width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; border-radius: 14px; overflow: hidden;
+  background: var(--surface-2); color: var(--ink); font-weight: 400; text-align: left;
+}
+.cc-printing:hover { background: var(--surface-2); }
+@media (hover: hover) { .cc-printing:hover { box-shadow: 0 0 0 2px var(--rule-strong); } }
+.cc-printing.is-current, .cc-printing.is-current:hover { box-shadow: 0 0 0 2px var(--accent-fill); }
+.cc-printing-img { position: relative; display: block; aspect-ratio: 63 / 88; background: var(--fill); }
+.cc-printing-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cc-printing-none {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  height: 100%; padding: 8px; color: var(--ink-soft); font-size: 12px; font-weight: 600; text-align: center;
+}
+.cc-printing-check {
+  position: absolute; top: 8px; right: 8px;
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent);
+}
+.cc-printing-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 12px 12px; }
+.cc-printing-code { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.cc-printing-set {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 13px; line-height: 1.3; color: var(--ink-soft);
+}
+.cc-printing-price { font-size: 13px; line-height: 1.3; }
+.cc-printing-price.is-none { color: var(--ink-soft); }
+.cc-printing-price.is-foil { color: var(--gold); }
+.cc-printing-current { font-size: 12px; font-weight: 600; color: var(--accent); }
+.cc-more { margin-top: 12px; }
+.cc-asis {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 16px; padding: 8px 8px 8px 14px;
+  border-radius: 14px; background: var(--surface-2); font-size: 13px; line-height: 1.35; color: var(--ink-soft);
+}
+.cc-asis > span { flex: 1 1 180px; min-width: 0; }
+.cc-asis > .ui-btn { flex: none; }

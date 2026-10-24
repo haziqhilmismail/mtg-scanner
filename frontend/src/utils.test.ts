@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type CardRowData, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, dueForSupportAsk, initials, lockPrices, matchThumbs, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
+import { applyRounding, computeCardData, dueForSupportAsk, fmt2, formatMyr, initials, lockPrices, matchThumbs, overrideText, parseOverride, readPrice, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
 import type { T } from './i18n/index.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
@@ -211,4 +211,47 @@ test('initials for the avatar', () => {
   assert.equal(initials('éva kovács'), 'ÉK');
   assert.equal(initials('🙂 Ali'), '🙂A');
   assert.equal(initials(''), '');
+});
+
+test('money reads the same in every browser: commas for thousands, cents only when they count', () => {
+  const s = { ...DEFAULT_SETTINGS, showCurrency: true, currencyLabel: 'RM', showCents: false };
+  assert.equal(formatMyr(13, s), 'RM13');
+  assert.equal(formatMyr(12480, s), 'RM12,480');
+  assert.equal(formatMyr(15.5, s), 'RM15.50');                                   // a typed price keeps its cents
+  assert.equal(formatMyr(13, { ...s, showCents: true }), 'RM13.00');
+  assert.equal(formatMyr(12480, { ...s, showCents: true }), 'RM12,480.00');
+  assert.equal(fmt2(1299.99), '1,299.99');
+  assert.equal(fmt2(0.01), '0.01');
+});
+
+test("the seller's own price: RM is kept as typed, USD still gets the multiplier and rounding", () => {
+  assert.deepEqual(parseOverride('15.50'), { unit: 'rm', amount: 15.5 });
+  assert.deepEqual(parseOverride('usd:4.5'), { unit: 'usd', amount: 4.5 });
+  assert.equal(parseOverride('.'), null);
+  assert.equal(parseOverride('usd:'), null);
+  assert.equal(parseOverride(null), null);
+  assert.equal(overrideText({ unit: 'usd', amount: 4.5 }), 'usd:4.5');
+  assert.equal(overrideText({ unit: 'rm', amount: 15.5 }), '15.5');
+  assert.equal(overrideText(null), null);
+
+  const sel = { name: 'X', usd: 4.99, price_source_normal: 'cardkingdom' } as Candidate;
+  const card = (x: number) => ({ candidates: [sel], bbox: [x, 0, 5, 5] } as DetectedCard);
+  const batch: Batch = {
+    id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
+    response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [card(0), card(10), card(20)] },
+    isFoil: [false, false, false], priceOverride: ['usd:4.5', '15.50', null], quantity: [1, 2, 1], multOverride: [null, null, 3],
+    removed: [false, false, false], pillOffset: [null, null, null], versionOk: [false, false, false], picks: [null, null, null],
+    locked: [null, null, null], relookupBusy: [], relookupMsg: [],
+  };
+  const [usd, rm, auto] = computeCardData(batch, { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up', roundStep: 1, minPrice: 1 });
+  assert.deepEqual([usd.unitPrice, usd.hasOverride, usd.ownUsd, usd.autoPrice], [12, true, 4.5, 13]);   // 4.5 × 2.5 = 11.25, up to 12
+  assert.deepEqual([rm.unitPrice, rm.lineTotal, rm.ownUsd], [15.5, 31, null]);
+  assert.deepEqual([auto.unitPrice, auto.hasOverride, auto.ownUsd], [15, false, null]);                // 4.99 × 3 = 14.97, up to 15
+});
+
+test('a typed price is a number above 0 with at most two decimals, or nothing', () => {
+  assert.deepEqual(['15', '15.50', '1,240', ' 12 ', '.5', '15.'].map(readPrice), [15, 15.5, 1240, 12, 0.5, 15]);
+  assert.equal(readPrice(''), null);
+  assert.equal(readPrice('   '), null);
+  assert.deepEqual(['0', '0.00', 'abc', '15.555', '1.2.3', '-5', 'RM15'].map(readPrice), Array(7).fill('invalid'));
 });
