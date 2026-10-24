@@ -7,6 +7,7 @@ import { DemoFindClaims } from '../components/demo/DemoFindClaims.tsx';
 import { DemoScan } from '../components/demo/DemoScan.tsx';
 import { SignedOutHeader } from '../components/Header.tsx';
 import { Icon, type IconName } from '../components/Icon.tsx';
+import { Preferences } from '../components/Preferences.tsx';
 import { Segmented } from '../components/ui/Segmented.tsx';
 import type { T } from '../hooks/useLang.ts';
 import type { Appearance, Lang } from '../types.ts';
@@ -81,14 +82,7 @@ export function Login({ clientId, onCredential, error, busy, lang, setLang, t, a
 
           <footer className="signin-foot">
             <div className="signin-prefs">
-              <Segmented
-                label={t('menu_language')} value={lang} onChange={setLang}
-                options={[{ value: 'en', label: <span lang="en">English</span> }, { value: 'ms', label: <span lang="ms">Melayu</span> }]}
-              />
-              <Segmented
-                label={t('menu_appearance')} value={appearance} onChange={setAppearance}
-                options={(['auto', 'light', 'dark'] as const).map(a => ({ value: a, label: t(`appearance_${a}`) }))}
-              />
+              <Preferences lang={lang} setLang={setLang} appearance={appearance} setAppearance={setAppearance} />
             </div>
             <div className="signin-links">
               <a href="/privacy.html">{t('privacy_link')}</a>
