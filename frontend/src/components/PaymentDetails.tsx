@@ -243,7 +243,7 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
           <button type="button" className="ui-btn ui-btn--danger pay-delete" disabled={!hasDetails(saved) || saving} onClick={deleteAll}>
             {t('pay_delete_all')}
           </button>
-          <button type="submit" className="ui-btn ui-btn--primary" disabled={!changes || saving}>
+          <button type="submit" className="ui-btn ui-btn--primary pay-save" disabled={!changes || saving}>
             {t(saving ? 'pay_saving' : status === 'saved' && !changes ? 'pay_saved' : 'pay_save')}
           </button>
         </div>

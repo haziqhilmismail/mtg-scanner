@@ -62,10 +62,10 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
             <ul className="profile-facts">
               <li className={`profile-fact ${status.state ?? ''}`} aria-live="polite">
                 <span className={`status-dot ${status.state ?? ''}`} aria-hidden="true" />
-                {status.label}
+                <span>{status.label}</span>
               </li>
               {claimReads ? (
-                <li className="profile-fact">
+                <li className="profile-fact profile-fact--wrap">
                   <span>{claimReads}</span>
                   {onRedeemVoucher ? <button type="button" className="ui-btn ui-btn--plain profile-redeem" onClick={onRedeemVoucher}>{t('voucher_title')}</button> : null}
                 </li>

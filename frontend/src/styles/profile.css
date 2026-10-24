@@ -15,8 +15,10 @@
 /* .ui-btn resets margins (ui.css loads later), hence the doubled class. */
 .ui-btn.profile-signout { flex: none; margin-left: auto; }
 .profile-facts { display: flex; flex-direction: column; gap: 4px; margin: 14px 0 0; padding: 12px 0 0; list-style: none; border-top: 1px solid var(--rule); }
-.profile-fact { display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px; min-height: 22px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.profile-fact { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.profile-fact .status-dot { margin-top: 5px; }
 .profile-fact.err { color: var(--warn); }
+.profile-fact--wrap { flex-wrap: wrap; align-items: center; gap: 0 8px; }
 .ui-btn.profile-redeem { margin-left: -10px; }
 
 .profile-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -71,6 +73,7 @@
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule);
 }
 .ui-btn.pay-delete { margin-left: -10px; }
+.ui-btn.pay-save { margin-left: auto; }
 
 /* ---------- Help dialogs ---------- */
 .support-body { margin: 0 0 16px; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
