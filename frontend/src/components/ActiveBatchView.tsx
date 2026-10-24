@@ -221,7 +221,7 @@ export function ActiveBatchView({
         </div>
 
         <div className="photo-panel-main">
-          {actions(true)}
+          {visible.length ? actions(true) : null}
 
           {locked || visible.length === 0 ? null : (
             <div className="photo-setall" role="group" aria-labelledby={`setall-${batch.id}`}>
