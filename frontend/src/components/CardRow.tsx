@@ -10,7 +10,7 @@ interface Props {
   cd: CardRowData;
   // On the post's card list.
   added: boolean;
-  // Being added to the post or taken out of it.
+  // Being added to the post or taken out of it, or the photo is not saved yet: the toggle waits.
   adding: boolean;
   // The photo is finished: its prices are fixed, so only adding and taking out are left.
   locked: boolean;

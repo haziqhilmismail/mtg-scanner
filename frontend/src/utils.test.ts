@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type CardRowData, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, dueForSupportAsk, fmt2, formatMyr, initials, lockPrices, matchThumbs, overrideText, parseOverride, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
+import { applyRounding, computeCardData, dueForSupportAsk, fmt2, formatMyr, initials, lockPrices, matchThumbs, overrideText, parseOverride, readPrice, sortScreenshots, paymentLines, priceWorking, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
 import type { T } from './i18n/index.ts';
 
 const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
@@ -247,4 +247,11 @@ test("the seller's own price: RM is kept as typed, USD still gets the multiplier
   assert.deepEqual([usd.unitPrice, usd.hasOverride, usd.ownUsd, usd.autoPrice], [12, true, 4.5, 13]);   // 4.5 × 2.5 = 11.25, up to 12
   assert.deepEqual([rm.unitPrice, rm.lineTotal, rm.ownUsd], [15.5, 31, null]);
   assert.deepEqual([auto.unitPrice, auto.hasOverride, auto.ownUsd], [15, false, null]);                // 4.99 × 3 = 14.97, up to 15
+});
+
+test('a typed price is a number above 0 with at most two decimals, or nothing', () => {
+  assert.deepEqual(['15', '15.50', '1,240', ' 12 ', '.5', '15.'].map(readPrice), [15, 15.5, 1240, 12, 0.5, 15]);
+  assert.equal(readPrice(''), null);
+  assert.equal(readPrice('   '), null);
+  assert.deepEqual(['0', '0.00', 'abc', '15.555', '1.2.3', '-5', 'RM15'].map(readPrice), Array(7).fill('invalid'));
 });

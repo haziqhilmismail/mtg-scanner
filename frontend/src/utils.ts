@@ -58,6 +58,16 @@ export function parseOverride(raw: string | null | undefined): PriceOverride | n
 export const overrideText = (o: PriceOverride | null): string | null =>
   (o ? `${o.unit === 'usd' ? USD_OVERRIDE : ''}${o.amount}` : null);
 
+// A price box as typed: empty (no price of the seller's own), a price above
+// 0, or not a price. Commas and spaces are how people write 1,240.
+export function readPrice(text: string): number | null | 'invalid' {
+  const clean = text.replace(/[,\s]/g, '');
+  if (!clean) return null;
+  if (!/^(\d+\.?\d{0,2}|\.\d{1,2})$/.test(clean)) return 'invalid';
+  const n = Number(clean);
+  return n > 0 ? n : 'invalid';
+}
+
 // What is printed on a card's price pill: "RM58", "RM58 ×2". One function so
 // the on-screen preview and the exported image can't drift apart.
 export function pillLabel(
