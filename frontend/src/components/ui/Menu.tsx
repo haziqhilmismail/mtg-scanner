@@ -3,7 +3,7 @@ import { placeMenu } from './placeMenu.ts';
 
 export interface MenuItem {
   label: string;
-  hint?: string;  // a line under the label: what the item does
+  hint?: string;
   destructive?: boolean;
   onSelect: () => void;
 }
@@ -11,13 +11,10 @@ export interface MenuItem {
 interface MenuProps {
   label: string;  // the button's aria-label, also the menu's name ("Manage post")
   items: MenuItem[];
-  children: ReactNode;  // what the button shows, e.g. <Icon name="more" />
+  children: ReactNode;
   buttonClassName?: string;
 }
 
-// A small menu anchored to its button, on phones too (not an action sheet).
-// Arrow keys, Home and End move through the items; Esc closes it and gives
-// focus back to the button; a click anywhere else, or Tab, closes it.
 export function Menu({ label, items, children, buttonClassName = 'ui-icon-btn' }: MenuProps) {
   const [open, setOpen] = useState<false | 'first' | 'last'>(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -61,6 +58,7 @@ export function Menu({ label, items, children, buttonClassName = 'ui-icon-btn' }
   };
 
   const onMenuKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    e.stopPropagation();  // as in Modal: page shortcuts never see keys typed in a layer
     if (e.key === 'Tab') { setOpen(false); return; }
     const entries = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
     const at = entries.indexOf(document.activeElement as HTMLElement);
@@ -68,9 +66,7 @@ export function Menu({ label, items, children, buttonClassName = 'ui-icon-btn' }
     if (e.key === 'Escape') close();
     else if (to !== undefined) entries[(to + entries.length) % entries.length]?.focus();
     else return;
-    // Handled here: not the page's shortcuts, nor a dialog's Esc.
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault();  // no page scroll, and no Esc for a dialog around the menu
   };
 
   return (
@@ -97,7 +93,6 @@ export function Menu({ label, items, children, buttonClassName = 'ui-icon-btn' }
               role="menuitem"
               tabIndex={-1}
               className={item.destructive ? 'ui-menu-item ui-menu-item--danger' : 'ui-menu-item'}
-              // The hint is the description, not part of the item's name.
               aria-labelledby={item.hint ? `${id}-${i}` : undefined}
               aria-describedby={item.hint ? `${id}-${i}-hint` : undefined}
               onClick={() => { close(); item.onSelect(); }}

@@ -52,20 +52,21 @@ function ToastBar({ toast, onGone }: { toast: Shown; onGone: () => void }) {
 
   useLayoutEffect(() => showEl(ref.current!), []);
   useEffect(() => {
-    // About 2.2s for a plain toast, 3s for one with Undo; the clock stops
-    // while it is pointed at, holds focus, or the tab is hidden.
     const t = pausableTimer(toast.undo ? 3000 : 2200, () => leave.current());
     timer.current = t;
     const onVisibility = () => (document.hidden ? t.hold('hidden') : t.release('hidden'));
     onVisibility();
     document.addEventListener('visibilitychange', onVisibility);
     return () => { t.stop(); document.removeEventListener('visibilitychange', onVisibility); };
-  }, [toast.undo]);
+  }, []);
 
   return (
     <div
       ref={ref}
       className="ui-toast"
+      // A layer like Modal and Menu. In a dialog, React passes its keys to
+      // ToastProvider, not to the dialog, so it stops them itself.
+      onKeyDown={e => e.stopPropagation()}
       onPointerEnter={() => timer.current?.hold('pointer')}
       onPointerLeave={() => timer.current?.release('pointer')}
       onFocus={() => timer.current?.hold('focus')}
