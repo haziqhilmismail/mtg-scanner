@@ -1,5 +1,6 @@
 // Small pieces the Claims page and its dialogs share.
 
+import { Dialog } from '../../components/ui/Dialog.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { counted, rm, type BuyerGroup } from './model.ts';
 
@@ -37,5 +38,24 @@ export function ClaimSteps({ cards = false }: { cards?: boolean }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+// How claims work, any time after the first visit. `onAdd` is left out when
+// there is nothing to claim yet.
+export function HowDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd?: () => void }) {
+  const t = useT();
+  return (
+    <Dialog
+      open={open} onClose={onClose} className="claims-dialog" title={t('claims_how')} closeLabel={t('claims_close')}
+      footer={(
+        <>
+          <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('claims_close')}</button>
+          {onAdd ? <button type="button" className="ui-btn ui-btn--primary" onClick={onAdd}>{t('claims_add')}</button> : null}
+        </>
+      )}
+    >
+      <ClaimSteps />
+    </Dialog>
   );
 }

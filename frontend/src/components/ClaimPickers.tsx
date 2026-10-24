@@ -1,10 +1,9 @@
 // The pictures the Claims page points at: the post's photos and the cards in
-// them. The same tiles serve as the post's inventory and as the picker the
-// seller taps when the app could not tell which card a comment means.
+// them, and the picker the seller uses when a comment's card needs changing.
 
 import { useState } from 'react';
 import type { Batch, CardRowData } from '../types.ts';
-import type { T } from '../hooks/useLang.ts';
+import { useT } from '../hooks/useLang.ts';
 
 // One card that can be claimed: a scanned card in one of the post's photos.
 export interface CardRef {
@@ -30,29 +29,22 @@ interface TileProps {
   card: CardRef;
   price: string;
   status?: CardStatus;
-  selected?: boolean;
-  onClick?: () => void;
+  selected: boolean;
+  onPick: () => void;
 }
 
-export function CardTile({ card, price, status, selected, onClick }: TileProps) {
-  const body = (
-    <>
-      <span className="card-tile-img">
+function CardTile({ card, price, status, selected, onPick }: TileProps) {
+  return (
+    <button type="button" className="claims-pick-tile" aria-pressed={selected} onClick={onPick}>
+      <span className="claims-thumb">
         {card.cd.card.crop_b64 ? <img src={card.cd.card.crop_b64} alt="" loading="lazy" decoding="async" /> : null}
       </span>
-      <span className="card-tile-text">
-        <span className="card-tile-name">{card.cd.sel.name || '?'}</span>
-        <span className="card-tile-meta">{[price, card.cd.qty > 1 ? `×${card.cd.qty}` : ''].filter(Boolean).join(' · ')}</span>
-        {status ? <span className={`card-tile-status is-${status.kind}`}>{status.text}</span> : null}
+      <span className="claims-pick-text">
+        <span className="claims-pick-name">{card.cd.sel.name || '?'}</span>
+        <span className="claims-pick-meta">{[price, card.cd.qty > 1 ? `×${card.cd.qty}` : ''].filter(Boolean).join(' · ')}</span>
+        {status ? <span className={`claims-pick-status is-${status.kind}`}>{status.text}</span> : null}
       </span>
-    </>
-  );
-  return onClick ? (
-    <button type="button" className={`card-tile ${selected ? 'is-selected' : ''}`} aria-pressed={selected} onClick={onClick}>
-      {body}
     </button>
-  ) : (
-    <div className="card-tile">{body}</div>
   );
 }
 
@@ -62,35 +54,31 @@ interface CardPickerProps {
   value: string | null;
   priceOf: (c: CardRef) => string;
   statusOf: (c: CardRef) => CardStatus | undefined;
-  photoLabel: (p: Photo) => string;
   onPick: (key: string) => void;
-  t: T;
 }
 
 // Which card a comment means, picked by its picture. The photo the comment is
-// about comes first; the rest of the post is one tap away.
-export function CardPicker({ photos, hint, value, priceOf, statusOf, photoLabel, onPick, t }: CardPickerProps) {
+// about comes first; the rest of the post is one click away.
+export function CardPicker({ photos, hint, value, priceOf, statusOf, onPick }: CardPickerProps) {
+  const t = useT();
   const first = photos.find(p => p.batch.scanId === hint);
   const [all, setAll] = useState(!first);
   const shown = first && !all ? [first] : photos;
   return (
-    <div className="card-picker">
-      <p className="card-picker-hint">{t('claims_pick_card')}</p>
+    <div className="claims-picker">
+      <p className="claims-picker-hint">{t('claims_pick_card')}</p>
       {shown.map(p => (
-        <div key={p.batch.id}>
-          {photos.length > 1 ? <p className="card-picker-photo">{photoLabel(p)}</p> : null}
-          <div className="card-grid">
+        <div key={p.batch.id} className="claims-picker-photo">
+          {photos.length > 1 ? <p className="claims-label">{t('claims_photo', { n: p.index })}</p> : null}
+          <div className="claims-pick-grid">
             {p.cards.map(c => (
-              <CardTile
-                key={c.key} card={c} price={priceOf(c)} status={statusOf(c)}
-                selected={value === c.key} onClick={() => onPick(c.key)}
-              />
+              <CardTile key={c.key} card={c} price={priceOf(c)} status={statusOf(c)} selected={value === c.key} onPick={() => onPick(c.key)} />
             ))}
           </div>
         </div>
       ))}
       {first && !all && photos.length > 1 ? (
-        <button type="button" className="link-btn" onClick={() => setAll(true)}>{t('claims_other_photos')}</button>
+        <button type="button" className="ui-btn ui-btn--plain" onClick={() => setAll(true)}>{t('claims_other_photos')}</button>
       ) : null}
     </div>
   );
