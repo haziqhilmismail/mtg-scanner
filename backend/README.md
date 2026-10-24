@@ -43,6 +43,7 @@ everything belongs to user `SOLO_USER_ID`.
 | `scan_credit_events`, `vouchers`, `voucher_redemptions` | Scan credits, see `services/credits.py` |
 | `bug_events` | Backend 500s and frontend crash reports (also pushed to Telegram) |
 | `sale_records` | Each card line sent to a buyer, kept for price analysis; kept with no links after the account is deleted (`models/sale_record.py`) |
+| `card_corrections` | The printing a seller picked or confirmed for a scanned card, with its picture (a file in `data/corrections/`) and the scanner's guess, as training data for the local scanner; kept with no links after the account is deleted (`models/card_correction.py`) |
 
 ## Running
 

@@ -6,8 +6,11 @@ import base64
 import json
 from io import BytesIO
 from pathlib import Path
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import Path as PathParam
 from fastapi.responses import Response
 from PIL import Image
 from pydantic import BaseModel, Field
@@ -16,11 +19,24 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from ..deps import CurrentUserId, DbSession, ImageUserId, limiter
 from ..models import Listing, ListingStatus, Order, OrderItem, OrderStatus, Post, Scan
+from ..models.card_correction import CorrectionKind
+from ..services import corrections
 from ..services.listings import drop_listing, locked_prices
 from ..services.cardkingdom_prices import enrich as enrich_with_ck
 from ..services.cardkingdom_prices import get_index as get_ck_index
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
+
+# A scan id SQLite can hold. A bigger one names no scan, and the driver raises
+# OverflowError on it, which is a 500.
+ScanId = Annotated[int, PathParam(ge=1, le=2**63 - 1)]
+
+
+async def _own_scan(db: DbSession, scan_id: int, user_id: int) -> Scan:
+    scan_row = await db.get(Scan, scan_id)
+    if not scan_row or scan_row.user_id != user_id:
+        raise HTTPException(404, "Scan not found")
+    return scan_row
 
 
 @router.get("")
@@ -87,16 +103,14 @@ class ScanState(BaseModel):
 
 
 @router.patch("/{scan_id}/state", status_code=204)
-async def save_scan_state(scan_id: int, body: ScanState, db: DbSession, user_id: CurrentUserId):
+async def save_scan_state(scan_id: ScanId, body: ScanState, db: DbSession, user_id: CurrentUserId):
     """Store the seller's per-card edits for this scan. Last write wins, except
     a state whose integer rev is below the stored one is ignored (late arrival).
 
     `picks` (one entry per card, null or a candidate) are printings the seller
     chose for a card. They are not kept in ui_state: each one replaces the
     card's first candidate in the saved scan, so every later read sees it."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
+    scan_row = await _own_scan(db, scan_id, user_id)
     if len(json.dumps(body.state)) > 64 * 1024:
         raise HTTPException(413, "State too large (max 64 KB)")
     state = dict(body.state)
@@ -137,6 +151,29 @@ async def save_scan_state(scan_id: int, body: ScanState, db: DbSession, user_id:
     flag_modified(scan_row, "gemini_raw")
 
 
+class Answer(BaseModel):
+    scryfall_id: UUID
+    kind: CorrectionKind
+
+
+@router.put("/{scan_id}/cards/{card_id}/correction")
+@limiter.limit("120/minute")
+async def correct_card(
+    request: Request, scan_id: ScanId, card_id: int, body: Answer, db: DbSession, user_id: CurrentUserId,
+) -> dict:
+    """The seller says this card is the printing `scryfall_id`: they picked it
+    (`kind` "pick"), or tapped "Looks right" on the one it shows ("confirm").
+    The card's crop and the answer are kept as training data for the local
+    scanner. Sending the same answer again changes nothing; a different one
+    replaces it. `kept` is false when the card has no usable crop, for example
+    one the seller framed by hand."""
+    scan_row = await _own_scan(db, scan_id, user_id)
+    card = scan_row.card(card_id)
+    if card is None:
+        raise HTTPException(404, "Card not found")
+    return {"kept": await corrections.keep_answer(db, scan_row, card, str(body.scryfall_id), body.kind)}
+
+
 class MoveScans(BaseModel):
     scan_ids: list[int]
     post_id: int | None = None  # None = unfile
@@ -172,14 +209,6 @@ async def order_scans(body: ScanOrder, db: DbSession, user_id: CurrentUserId):
         )
 
 
-async def _scan_for_image(db: DbSession, scan_id: int, user_id: int) -> Scan:
-    """The scan behind an <img src>, 404 unless it is `user_id`'s."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
-    return scan_row
-
-
 def _data_url_jpeg(data_url: str, max_edge: int | None = None) -> Response:
     """A stored `data:image/jpeg;base64,...` string as an image response,
     optionally shrunk. A scan's pictures never change once saved, so the
@@ -202,38 +231,35 @@ def _data_url_jpeg(data_url: str, max_edge: int | None = None) -> Response:
 
 @router.get("/{scan_id}/preview")
 async def scan_preview(
-    scan_id: int,
+    scan_id: ScanId,
     db: DbSession,
     user_id: ImageUserId,
     w: int | None = Query(default=None, ge=32, le=1400),
 ):
     """The scan's photo preview. `w` caps the longest edge, for the small
     thumbnails in the scan strip."""
-    scan_row = await _scan_for_image(db, scan_id, user_id)
+    scan_row = await _own_scan(db, scan_id, user_id)
     # Resizing for ?w= is a decode + re-encode; a strip of thumbnails is many at once.
     return await asyncio.to_thread(_data_url_jpeg, (scan_row.gemini_raw or {}).get("image_b64", ""), w)
 
 
 @router.get("/{scan_id}/crops/{card_id}")
 async def scan_card_crop(
-    scan_id: int, card_id: int, db: DbSession, user_id: ImageUserId,
+    scan_id: ScanId, card_id: int, db: DbSession, user_id: ImageUserId,
 ):
     """One detected card's thumbnail, cut from the photo at scan time."""
-    scan_row = await _scan_for_image(db, scan_id, user_id)
-    for card in (scan_row.gemini_raw or {}).get("cards", []):
-        if card.get("id") == card_id:
-            return _data_url_jpeg(card.get("crop_b64", ""))
+    scan_row = await _own_scan(db, scan_id, user_id)
+    if card := scan_row.card(card_id):
+        return _data_url_jpeg(card.get("crop_b64", ""))
     raise HTTPException(404, "Card not found")
 
 
 @router.delete("/{scan_id}", status_code=204)
-async def delete_scan(scan_id: int, db: DbSession, user_id: CurrentUserId):
+async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
     """Drop a scan from the dashboard. Removes the DB row, the image bytes on
     disk, and the checklist cards added from it. A card in an open order
     stays (unlinked from the scan), so no buyer's claim is lost."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
+    scan_row = await _own_scan(db, scan_id, user_id)
     claimed = (
         select(OrderItem.listing_id)
         .join(Order, Order.id == OrderItem.order_id)
@@ -254,16 +280,14 @@ async def delete_scan(scan_id: int, db: DbSession, user_id: CurrentUserId):
 @router.post("/{scan_id}/relookup-prices")
 @limiter.limit("30/minute")
 async def relookup_scan_prices(
-    request: Request, scan_id: int, db: DbSession, user_id: CurrentUserId,
+    request: Request, scan_id: ScanId, db: DbSession, user_id: CurrentUserId,
 ):
     """Re-run CK price enrichment for every candidate in a saved scan. Cards
     themselves (names, sets, scryfall_ids, bboxes) are unchanged — only the
     pricing fields (usd/usd_foil/price_source_*/ck_*) are refreshed from
     the current ck_index.db. Cheap (local SQLite lookups, no network).
     Returns the same shape as GET /api/scans for in-place rehydration."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
+    scan_row = await _own_scan(db, scan_id, user_id)
 
     payload = scan_row.gemini_raw or {}
     cards = payload.get("cards", [])

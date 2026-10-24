@@ -5,10 +5,11 @@
 set -euo pipefail
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-mkdir -p "$T/bin" "$T/backend/deploy" "$T/backend/data/"{scans,posts,orders,payment_qr}
+mkdir -p "$T/bin" "$T/backend/deploy" "$T/backend/data/"{scans,posts,orders,payment_qr,corrections}
 cp "$(dirname "$(readlink -f "$0")")/backup.sh" "$T/backend/deploy/"
 sqlite3 "$T/backend/data/app.db" "CREATE TABLE alembic_version(v); CREATE TABLE users(email);"
 echo photo > "$T/backend/data/scans/1.bin"
+echo crop > "$T/backend/data/corrections/a1.jpg"
 printf 'BACKUP_NAS_DIR=%s\nTELEGRAM_BOT_TOKEN=t\nTELEGRAM_CHAT_ID=1\n' "$T/nas" > "$T/backend/.env"
 
 cat > "$T/bin/date" <<EOF
@@ -35,6 +36,7 @@ run 2026-01-01
 ok test -f "$T/local/app-2026-01-01.db.gz"
 ok test -f "$T/nas/db/app-2026-01-01.db.gz"
 ok test -f "$T/nas/files/scans/1.bin"
+ok test -f "$T/nas/files/corrections/a1.jpg"
 
 # A deleted photo is kept under the date of the last backup that had it.
 rm "$T/backend/data/scans/1.bin"

@@ -19,6 +19,7 @@ data/scans/
 data/posts/
 data/orders/
 data/payment_qr/
+data/corrections/
 
 # Auto-generated session-signing secret — MUST NOT be committed
 data/jwt_secret.txt
