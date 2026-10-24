@@ -3,7 +3,7 @@
    card, and the Change card and Edit price dialogs. Phone first; from 1100px
    the photo stays on the left while the tiles run two across on the right. */
 
-.photo-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 14px; }
+.photo-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 14px; }
 .photo-title-row .page-title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .photo-title-actions { flex: none; display: flex; margin-left: auto; }
 .photo-delete { color: var(--warn); }

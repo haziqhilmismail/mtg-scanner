@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { T } from '../hooks/useLang.ts';
 import type { CardRowData, Settings } from '../types.ts';
 import { ckSearchUrl, fmt2, formatMyr, rarityKey, smallScryfallImage } from '../utils.ts';
@@ -58,6 +58,12 @@ function formula(cd: CardRowData, live: boolean, settings: Settings, t: T): Reac
   return <>{foil}USD {fmt2(cd.usd)} × {cd.mult}</>;
 }
 
+// A card's picture, or the placeholder when there is none or it fails to load.
+function Picture({ src, fallback }: { src: string; fallback: ReactNode }) {
+  const [failed, setFailed] = useState('');
+  return src && failed !== src ? <img src={src} alt="" loading="lazy" onError={() => setFailed(src)} /> : <>{fallback}</>;
+}
+
 // One card of the photo: your crop next to the matched card, then its name,
 // printing, price and the controls a seller uses on every card. A removed
 // card stays in its place as one row, so it is easy to bring back.
@@ -88,7 +94,7 @@ export function CardRow({
     <article className={`photo-tile${cd.isFoil ? ' is-foil' : ''}`}>
       <div className="photo-tile-pair">
         <button type="button" className="photo-tile-img" aria-label={t('photo_view_yours', { name })} onClick={() => onView(0)}>
-          <img src={cd.card.crop_b64} alt="" loading="lazy" />
+          <Picture src={cd.card.crop_b64} fallback={<span className="photo-tile-none"><Icon name="photo" size={24} /></span>} />
           <span className="photo-tile-num">{num}</span>
           <span className="photo-tile-zoom"><Icon name="expand" size={12} /></span>
         </button>
@@ -96,9 +102,10 @@ export function CardRow({
           {unsure ? '?' : <Icon name="arrowRight" size={18} />}
         </span>
         <button type="button" className="photo-tile-img" aria-label={t('photo_view_match', { name })} onClick={() => onView(1)}>
-          {matchSrc ? <img key={matchSrc} src={smallScryfallImage(matchSrc)} alt="" loading="lazy" /> : (
-            <span className="photo-tile-none"><Icon name="photo" size={24} />{set ? `${set} · #${cd.sel.collector_number || '?'}` : t('photo_no_match')}</span>
-          )}
+          <Picture
+            src={matchSrc && smallScryfallImage(matchSrc)}
+            fallback={<span className="photo-tile-none"><Icon name="photo" size={24} />{set ? `${set} · #${cd.sel.collector_number || '?'}` : t('photo_no_match')}</span>}
+          />
           <span className="photo-tile-zoom"><Icon name="expand" size={12} /></span>
         </button>
       </div>
@@ -136,15 +143,15 @@ export function CardRow({
         {priced ? (
           <span className="photo-tile-amount">{approx}{formatMyr(cd.unitPrice, settings)}</span>
         ) : <span className="photo-tile-setprice">{t('photo_set_price')}</span>}
-        {priced && cd.qty > 1 ? (
-          <span className="photo-tile-each">{t('photo_times', { qty: cd.qty, total: `${approx ? '≈' : ''}${formatMyr(cd.lineTotal, settings)}` })}</span>
-        ) : null}
         {locked ? null : (
           <button
             type="button" className={`ui-icon-btn ui-icon-btn--sm photo-tile-edit${cd.hasOverride ? ' is-set' : ''}${priced ? '' : ' is-needed'}`}
             aria-label={t('photo_edit_price', { name })} title={t('tile_edit_price')} onClick={onEditPrice}
           ><Icon name="edit" size={16} /></button>
         )}
+        {priced && cd.qty > 1 ? (
+          <span className="photo-tile-each">{t('photo_times', { qty: cd.qty, total: `${approx ? '≈' : ''}${formatMyr(cd.lineTotal, settings)}` })}</span>
+        ) : null}
       </div>
 
       {locked ? null : (
