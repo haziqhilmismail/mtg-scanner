@@ -378,7 +378,7 @@ export function creditsLine(credits: Credits | null, t: T, lang: string): string
   if (!credits?.enforced) return '';
   if (credits.unlimited) return t('credits_unlimited');
   let line = t('credits_free_left', { n: Math.max(0, credits.limit - credits.used), limit: credits.limit });
-  if (credits.bonus > 0) line += ' ' + t('credits_plus_extra', { n: credits.bonus });
+  if (credits.bonus > 0) line += ' ' + t('credits_plus_extra', { n: credits.bonus.toLocaleString() });
   const nextBack = nextFreeDate(credits, lang);
   if (credits.used > 0 && nextBack) line += ' · ' + t('credits_next_back', { date: nextBack });
   return line;

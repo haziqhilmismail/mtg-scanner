@@ -169,13 +169,14 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           // Waiting edits go first: request() reads the token before it awaits.
           onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
           status={{ label: healthLabel, state: healthState }}
+          credits={credits}
           lang={lang}
           setLang={setLang}
           appearance={appearance}
           setAppearance={setAppearance}
           pricing={pricing}
           payment={payment}
-          onPaymentSaved={setPayment}
+          setPayment={setPayment}
           onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
         />
       ) : null}
