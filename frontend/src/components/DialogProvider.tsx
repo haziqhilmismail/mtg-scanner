@@ -1,27 +1,29 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useBackClose } from '../hooks/useBackClose.ts';
+import { createContext, useContext, useId, useMemo, useState, type ReactNode } from 'react';
+import { Dialog } from './ui/Dialog.tsx';
+import { TextField } from './ui/Field.tsx';
+import { ToastProvider } from './ui/Toast.tsx';
 
-// Promise-based replacement for window.confirm / prompt / alert. Single
-// dialog visible at a time. Components call useDialog() and `await` the
-// answer — no more native popups.
+// Promise-based replacement for window.alert / confirm / prompt. Components
+// call useDialog() and `await` the answer. It also mounts the toast region,
+// so useToast() works anywhere under it.
 
 interface AlertOpts {
-  title?: string;
+  title: string;
   message: string;
   okLabel?: string;
 }
 
 interface ConfirmOpts {
-  title?: string;
+  title: string;
   message: string;
   okLabel?: string;
   cancelLabel?: string;
-  destructive?: boolean;  // styles the OK button as a warning action
+  destructive?: boolean;
 }
 
 interface PromptOpts {
-  title?: string;
-  message?: string;
+  title: string;
+  message?: string;  // the text box's label
   defaultValue?: string;
   placeholder?: string;
   okLabel?: string;
@@ -36,36 +38,41 @@ interface DialogApi {
 
 const Ctx = createContext<DialogApi | null>(null);
 
-type Pending =
-  | { kind: 'alert'; opts: AlertOpts; resolve: () => void }
-  | { kind: 'confirm'; opts: ConfirmOpts; resolve: (ok: boolean) => void }
-  | { kind: 'prompt'; opts: PromptOpts; resolve: (value: string | null) => void };
+type Request = { id: number; settle: (ok: boolean, text: string) => void } & (
+  | { kind: 'alert'; opts: AlertOpts }
+  | { kind: 'confirm'; opts: ConfirmOpts }
+  | { kind: 'prompt'; opts: PromptOpts }
+);
 
+// One question at a time. A call made while another is showing waits its
+// turn: the answered one leaves the queue only once its dialog has gone, and
+// the next one opens in a dialog of its own.
 export function DialogProvider({ children }: { children: ReactNode }) {
-  const [pending, setPending] = useState<Pending | null>(null);
-
-  const alert = useCallback((opts: AlertOpts) =>
-    new Promise<void>(resolve => setPending({ kind: 'alert', opts, resolve })), []);
-  const confirm = useCallback((opts: ConfirmOpts) =>
-    new Promise<boolean>(resolve => setPending({ kind: 'confirm', opts, resolve })), []);
-  const prompt = useCallback((opts: PromptOpts) =>
-    new Promise<string | null>(resolve => setPending({ kind: 'prompt', opts, resolve })), []);
-
-  const api: DialogApi = { alert, confirm, prompt };
-
-  // Resolve + close. Wrapping ensures we always clear state.
-  const closeWith = useCallback((value: unknown) => {
-    if (!pending) return;
-    if (pending.kind === 'alert') (pending.resolve as () => void)();
-    else if (pending.kind === 'confirm') (pending.resolve as (b: boolean) => void)(value as boolean);
-    else (pending.resolve as (v: string | null) => void)(value as string | null);
-    setPending(null);
-  }, [pending]);
+  const [queue, setQueue] = useState<Request[]>([]);
+  const [answered, setAnswered] = useState(false);
+  const api = useMemo<DialogApi>(() => {
+    let id = 0;
+    const ask = (request: Request) => setQueue(q => [...q, request]);
+    return {
+      alert: opts => new Promise(resolve => ask({ id: ++id, kind: 'alert', opts, settle: () => resolve() })),
+      confirm: opts => new Promise(resolve => ask({ id: ++id, kind: 'confirm', opts, settle: ok => resolve(ok) })),
+      prompt: opts => new Promise(resolve => ask({ id: ++id, kind: 'prompt', opts, settle: (ok, text) => resolve(ok ? text : null) })),
+    };
+  }, []);
+  const head = queue[0];
 
   return (
     <Ctx.Provider value={api}>
-      {children}
-      {pending && <DialogShade pending={pending} onClose={closeWith} />}
+      <ToastProvider>{children}</ToastProvider>
+      {head ? (
+        <RequestDialog
+          key={head.id}
+          request={head}
+          open={!answered}
+          onAnswer={(ok, text = '') => { head.settle(ok, text); setAnswered(true); }}
+          onExited={() => { setQueue(q => q.slice(1)); setAnswered(false); }}
+        />
+      ) : null}
     </Ctx.Provider>
   );
 }
@@ -76,97 +83,64 @@ export function useDialog(): DialogApi {
   return ctx;
 }
 
-function DialogShade({ pending, onClose }: { pending: Pending; onClose: (value: unknown) => void }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const okBtnRef = useRef<HTMLButtonElement>(null);
-  const [promptValue, setPromptValue] = useState(
-    pending.kind === 'prompt' ? (pending.opts.defaultValue ?? '') : '',
-  );
-  // Back on a phone is Cancel (OK for an alert).
-  useBackClose(true, () => onClose(pending.kind === 'alert' ? undefined : pending.kind === 'confirm' ? false : null));
+interface RequestDialogProps {
+  request: Request;
+  open: boolean;
+  onAnswer: (ok: boolean, text?: string) => void;
+  onExited: () => void;
+}
 
-  // Lock body scroll + Escape to dismiss + initial focus on the right field.
-  useEffect(() => {
-    document.documentElement.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (pending.kind === 'alert') onClose(undefined);
-        else if (pending.kind === 'confirm') onClose(false);
-        else onClose(null);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    // Defer focus so the modal mounts first
-    setTimeout(() => {
-      if (pending.kind === 'prompt') inputRef.current?.select();
-      else okBtnRef.current?.focus();
-    }, 0);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.documentElement.style.overflow = '';
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+function RequestDialog({ request, open, onAnswer, onExited }: RequestDialogProps) {
+  const formId = useId();
+  const okLabel = request.opts.okLabel ?? 'OK';
+  const cancelLabel = (request.kind !== 'alert' && request.opts.cancelLabel) || 'Cancel';
+  const cancel = <button type="button" className="ui-btn ui-btn--ink" onClick={() => onAnswer(false)}>{cancelLabel}</button>;
 
-  const okLabel = pending.opts.okLabel ?? 'OK';
-  const cancelLabel = (pending.kind !== 'alert' && pending.opts.cancelLabel) || 'Cancel';
-  const destructive = pending.kind === 'confirm' && pending.opts.destructive;
-
-  const submit = () => {
-    if (pending.kind === 'alert') onClose(undefined);
-    else if (pending.kind === 'confirm') onClose(true);
-    else onClose(promptValue);
-  };
-
+  if (request.kind === 'prompt') {
+    return (
+      <Dialog
+        open={open}
+        onClose={() => onAnswer(false)}
+        onExited={onExited}
+        title={request.opts.title}
+        closeLabel={cancelLabel}
+        footer={<>{cancel}<button type="submit" form={formId} className="ui-btn ui-btn--primary">{okLabel}</button></>}
+      >
+        <PromptForm id={formId} opts={request.opts} onSubmit={text => onAnswer(true, text)} />
+      </Dialog>
+    );
+  }
+  const destructive = request.kind === 'confirm' && request.opts.destructive;
   return (
-    <div
-      className="dlg-shade"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          if (pending.kind === 'alert') onClose(undefined);
-          else if (pending.kind === 'confirm') onClose(false);
-          else onClose(null);
-        }
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={pending.opts.title ? 'dlg-title' : undefined}
+    <Dialog
+      variant="alert"
+      open={open}
+      onClose={() => onAnswer(false)}
+      onExited={onExited}
+      title={request.opts.title}
+      footer={(
+        <>
+          {request.kind === 'confirm' ? cancel : null}
+          <button type="button" className={`ui-btn ${destructive ? 'ui-btn--danger-fill' : 'ui-btn--primary'}`} onClick={() => onAnswer(true)}>{okLabel}</button>
+        </>
+      )}
     >
-      <div className="dlg-card" onClick={e => e.stopPropagation()}>
-        {pending.opts.title ? <h3 id="dlg-title" className="dlg-title">{pending.opts.title}</h3> : null}
+      {request.opts.message}
+    </Dialog>
+  );
+}
 
-        {pending.kind === 'prompt' ? (
-          <>
-            {pending.opts.message ? <p className="dlg-msg">{pending.opts.message}</p> : null}
-            <input
-              ref={inputRef}
-              className="dlg-input"
-              value={promptValue}
-              onChange={e => setPromptValue(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); submit(); }
-              }}
-              placeholder={pending.opts.placeholder}
-            />
-          </>
-        ) : (
-          <p className="dlg-msg">{pending.opts.message}</p>
-        )}
-
-        <div className="dlg-actions">
-          {pending.kind !== 'alert' && (
-            <button
-              className="ghost"
-              onClick={() => onClose(pending.kind === 'confirm' ? false : null)}
-            >{cancelLabel}</button>
-          )}
-          <button
-            ref={okBtnRef}
-            className={destructive ? 'warn' : 'accent'}
-            onClick={submit}
-          >{okLabel}</button>
-        </div>
-      </div>
-    </div>
+function PromptForm({ id, opts, onSubmit }: { id: string; opts: PromptOpts; onSubmit: (text: string) => void }) {
+  const [text, setText] = useState(opts.defaultValue ?? '');
+  return (
+    <form id={id} onSubmit={e => { e.preventDefault(); onSubmit(text); }}>
+      <TextField
+        {...(opts.message ? { label: opts.message } : { 'aria-label': opts.title })}
+        placeholder={opts.placeholder}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        data-autofocus=""
+      />
+    </form>
   );
 }
