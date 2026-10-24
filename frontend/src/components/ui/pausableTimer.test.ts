@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { pausableTimer } from './pausableTimer.ts';
 
-// A clock the test moves by hand; `fired` records the time of each firing.
 function harness(ms: number) {
   let t = 0;
   let next = 1;

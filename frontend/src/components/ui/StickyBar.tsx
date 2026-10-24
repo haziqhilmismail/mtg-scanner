@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
-// The bar docked to the bottom edge for a page form (status, Cancel, Save)
-// or a mode (Select: Download, Delete). Render it only while it applies.
+// One at a time, rendered only while it applies.
 // It publishes its height as --sticky-bar-h: the spacer it leaves where it
 // is rendered keeps the page's end clear of it, and the toast sits above it.
 export function StickyBar({ children, className }: { children: ReactNode; className?: string }) {
