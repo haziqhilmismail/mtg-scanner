@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { Payment } from '../api.ts';
 import type { AuthUser } from '../api/auth.ts';
 import { Avatar } from '../components/Avatar.tsx';
 import { FeedbackModal } from '../components/FeedbackModal.tsx';
@@ -9,6 +8,7 @@ import { PaymentDetails } from '../components/PaymentDetails.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
 import { Segmented } from '../components/ui/Segmented.tsx';
 import { useT } from '../hooks/useLang.ts';
+import type { PaymentStore } from '../hooks/usePayment.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import { pricingSummary } from '../lib/pricingSummary.ts';
 import type { Appearance, Credits, Lang } from '../types.ts';
@@ -25,11 +25,10 @@ interface Props {
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;
   pricing: PricingStore;
-  payment: Payment | null;
-  setPayment: (payment: Payment) => void;
+  payments: PaymentStore;
 }
 
-export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lang, setLang, appearance, setAppearance, pricing, payment, setPayment }: Props) {
+export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lang, setLang, appearance, setAppearance, pricing, payments }: Props) {
   const t = useT();
   const [supportOpen, setSupportOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -72,7 +71,7 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
             </ul>
           </section>
 
-          <PaymentDetails payment={payment} setPayment={setPayment} />
+          <PaymentDetails store={payments} />
         </div>
 
         <div className="profile-col">

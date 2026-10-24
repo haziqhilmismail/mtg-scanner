@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { paymentApi, type Payment } from '../api.ts';
 import { useT } from '../hooks/useLang.ts';
+import type { PaymentStore } from '../hooks/usePayment.ts';
 import { changesOf, draftOf, hasDetails, NO_PAYMENT, previewOf, type PaymentDraft, type PaymentFields } from '../lib/paymentDraft.ts';
 import { paymentLines, pastedImages, popupOpen } from '../utils.ts';
 import { useDialog } from './DialogProvider.tsx';
@@ -13,25 +14,9 @@ const MAX_QR_BYTES = 8 * 1024 * 1024;  // the server's limit
 const qrBlob = (version: string) =>
   fetch(paymentApi.qrUrl(version)).then(r => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`))));
 
-interface Props {
-  payment: Payment | null;  // null until loaded
-  // App's copy, which the messages on Claims use.
-  setPayment: (payment: Payment) => void;
-}
-
-export function PaymentDetails({ payment, setPayment }: Props) {
+export function PaymentDetails({ store }: { store: PaymentStore }) {
   const t = useT();
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const loaded = payment != null;
-  useEffect(() => {
-    if (loaded) return;
-    let live = true;
-    setFailed(false);
-    paymentApi.get().then(p => { if (live) setPayment(p); }, () => { if (live) setFailed(true); });
-    return () => { live = false; };
-  }, [loaded, attempt, setPayment]);
-
+  const { payment, failed, retry, setPayment } = store;
   if (payment) return <PaymentForm saved={payment} setPayment={setPayment} />;
   return (
     <section className="ui-card pay" aria-label={t('pay_title')} aria-busy={!failed}>
@@ -39,7 +24,7 @@ export function PaymentDetails({ payment, setPayment }: Props) {
       {failed ? (
         <div className="pay-load">
           <p className="ui-error" role="alert">{t('pay_load_failed')}</p>
-          <button type="button" className="ui-btn" onClick={() => setAttempt(a => a + 1)}>{t('pay_retry')}</button>
+          <button type="button" className="ui-btn" onClick={retry}>{t('pay_retry')}</button>
         </div>
       ) : <p className="pay-sub">{t('pay_loading')}</p>}
     </section>
