@@ -45,6 +45,7 @@ const PATHS = {
   external: 'M7 17 17 7M9 7h8v8',
   swap: 'M7 4 4 7l3 3M4 7h13M17 20l3-3-3-3M20 17H7',
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0',
+  print: 'M7 9V4h10v5M7 17H5.500A1.500 1.500 0 0 1 4 15.500v-5A1.500 1.500 0 0 1 5.500 9h13a1.500 1.500 0 0 1 1.500 1.500v5a1.500 1.500 0 0 1-1.500 1.500H17M7 14h10v6H7z',
 } as const;
 
 export type IconName = keyof typeof PATHS;

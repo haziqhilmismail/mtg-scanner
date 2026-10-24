@@ -1,4 +1,4 @@
-// Demo scan data used by the landing-page <DemoScan> walkthrough.
+// The sample photo and its four cards, for the sign-in page's demos.
 //
 // Captured from a real /api/scan response. To re-capture with a different
 // photo:
@@ -7,7 +7,7 @@
 //      orientation (run it through ImageOps.exif_transpose if needed).
 //   3. POST it to /api/scan and copy the response into DEMO_CARDS below
 //      (bbox is [x, y, w, h] in pixels of the normalised image).
-//   4. Update DEMO_IMAGE_W / DEMO_IMAGE_H to match.
+//   4. Update DEMO_IMAGE_W / DEMO_IMAGE_H and DEMO_CROP to match.
 
 export interface DemoCard {
   id: number;
@@ -20,15 +20,16 @@ export interface DemoCard {
   ckRetailUsd: number;
   multiplier: number;
   rmPrice: number;
-  foil: boolean;
-  /** Hex accent used as a tint behind the placeholder face — ignored when a real photo is shown. */
-  accent: string;
 }
 
 export const DEMO_IMAGE_W = 1729;
 export const DEMO_IMAGE_H = 1729;
 
 export const DEMO_IMAGE_URL = '/demo/sample-scan.jpg';
+
+// The part of the photo the demo shows: the four cards, cut to a portrait
+// that fills a phone's column (the photo's centre, full height).
+export const DEMO_CROP = { x: 150, w: 1429, h: 1729 };
 
 export const DEMO_CARDS: DemoCard[] = [
   {
@@ -42,8 +43,6 @@ export const DEMO_CARDS: DemoCard[] = [
     ckRetailUsd: 1.79,
     multiplier: 2.8,
     rmPrice: 6,
-    foil: false,
-    accent: '#3a6791',
   },
   {
     id: 2,
@@ -56,8 +55,6 @@ export const DEMO_CARDS: DemoCard[] = [
     ckRetailUsd: 19.99,
     multiplier: 2.8,
     rmPrice: 56,
-    foil: false,
-    accent: '#3a2c3f',
   },
   {
     id: 3,
@@ -70,8 +67,6 @@ export const DEMO_CARDS: DemoCard[] = [
     ckRetailUsd: 0.35,
     multiplier: 2.8,
     rmPrice: 1,
-    foil: false,
-    accent: '#3d5d2e',
   },
   {
     id: 4,
@@ -84,7 +79,5 @@ export const DEMO_CARDS: DemoCard[] = [
     ckRetailUsd: 1.49,
     multiplier: 2.8,
     rmPrice: 5,
-    foil: false,
-    accent: '#8a2e1c',
   },
 ];
