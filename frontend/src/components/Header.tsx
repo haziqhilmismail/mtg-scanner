@@ -13,6 +13,21 @@ interface Props {
   user: AuthUser | null;
 }
 
+// The bar before sign-in: the mark and the name, with nothing to open yet.
+export function SignedOutHeader() {
+  const t = useT();
+  return (
+    <header className="app-bar">
+      <div className="app-bar-inner">
+        <span className="brand brand--signed-out">
+          <span className="brand-mark" aria-hidden="true"><Icon name="scan" size={17} /></span>
+          <span className="brand-name">{t('app_title')}</span>
+        </span>
+      </div>
+    </header>
+  );
+}
+
 // The top bar of every page: the mark, the Scanner and Claims tabs, the
 // prices status on wide screens, and the avatar that opens Profile.
 export function Header({ route, healthLabel, healthState, user }: Props) {

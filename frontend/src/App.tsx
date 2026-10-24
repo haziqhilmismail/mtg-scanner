@@ -21,7 +21,7 @@ import { Scanner } from './views/scanner/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
 
 export default function App() {
-  const { theme, appearance, setAppearance } = useTheme();
+  const { appearance, setAppearance } = useTheme();
   const { lang, setLang, t } = useLang();
   const auth = useAuth();
   const { signInWithCredential } = auth;
@@ -48,7 +48,6 @@ export default function App() {
           lang={lang}
           setLang={setLang}
           t={t}
-          theme={theme}
           appearance={appearance}
           setAppearance={setAppearance}
         />
