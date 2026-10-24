@@ -55,6 +55,9 @@
   --z-dialog: 60;           /* dialogs */
   --z-dialog-top: 65;       /* a dialog over a dialog: a confirm, the photo viewer */
   --z-toast: 70;
+  --toast-bg: #3a3a3c;      /* the toast is dark in both themes */
+  --toast-ink: #ffffff;
+  --toast-accent: #6cb4ff;  /* Undo: 5.2:1 on the toast */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --seg-thumb: #ffffff;     /* selected segment */
   --seg-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
