@@ -7,7 +7,7 @@ Routes:
   POST /api/relookup      -> Scryfall fuzzy + search fallback, CK-enriched
   POST /api/printings     -> all printings of a name, CK-enriched
   POST /api/refresh-ck    -> force-refresh the CK pricelist
-  POST /api/export        -> render the priced overlay PNG
+  POST /api/export        -> render the priced overlay JPEG
   POST /api/export-all    -> render every batch's overlay, stream as one zip
 
 DB tables (users, scans, listings, buyers, orders, order_items, payments)
@@ -776,7 +776,7 @@ async def _resolve_export_image(db: DbSession, user_id: int, image_id: str) -> b
 
 
 def _render_export(data: dict, raw: bytes) -> bytes:
-    """Render one priced-overlay PNG from an export payload dict + source bytes."""
+    """Render one priced-overlay JPEG from an export payload dict + source bytes."""
     cards = []
     for c in data.get("cards", []):
         bbox = c.get("bbox")
@@ -819,13 +819,14 @@ def _render_export(data: dict, raw: bytes) -> bytes:
 
 
 def _zip_entry_name(filename: str | None, used: set[str]) -> str:
-    """Turn a client filename into a safe, unique `<base>_priced.png` zip entry."""
-    base = re.sub(r"\.[^.]+$", "", filename or "card")
-    base = re.sub(r"[^\w.\- ]", "_", base).strip() or "card"
-    name = f"{base}_priced.png"
+    """The client's name for a photo ("Friday Post - Photo 01.jpg") as a safe,
+    unique `.jpg` zip entry: only the characters no file system takes go."""
+    base = re.sub(r"\.[^.]+$", "", filename or "")
+    base = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", base).strip(" .") or "photo"
+    name = f"{base}.jpg"
     i = 2
     while name in used:
-        name = f"{base}_priced_{i}.png"
+        name = f"{base} ({i}).jpg"
         i += 1
     used.add(name)
     return name
@@ -841,11 +842,11 @@ async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId
         raise HTTPException(400, "Missing image_id")
 
     raw = await _resolve_export_image(db, user_id, image_id)
-    png = await asyncio.to_thread(_render_export, data, raw)
+    jpeg = await asyncio.to_thread(_render_export, data, raw)
     return Response(
-        content=png,
-        media_type="image/png",
-        headers={"Content-Disposition": "attachment; filename=mtg_prices.png"},
+        content=jpeg,
+        media_type="image/jpeg",
+        headers={"Content-Disposition": "attachment; filename=mtg_prices.jpg"},
     )
 
 
@@ -869,7 +870,7 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
 
     buf = BytesIO()
     used: set[str] = set()
-    # ZIP_STORED: the entries are already-compressed PNGs, so deflate would burn
+    # ZIP_STORED: the entries are already-compressed JPEGs, so deflate would burn
     # CPU on the 512 MB VM for no size win.
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
         for item in images:
@@ -882,8 +883,8 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
                 raw = await _resolve_export_image(db, user_id, image_id)
             except HTTPException:
                 continue  # one stale id shouldn't sink the whole export
-            png = await asyncio.to_thread(_render_export, item, raw)
-            zf.writestr(_zip_entry_name(item.get("filename"), used), png)
+            jpeg = await asyncio.to_thread(_render_export, item, raw)
+            zf.writestr(_zip_entry_name(item.get("filename"), used), jpeg)
 
     if not used:
         raise HTTPException(404, "No exportable images (re-upload and try again)")
