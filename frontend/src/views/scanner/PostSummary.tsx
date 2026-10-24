@@ -1,5 +1,5 @@
 import { Icon } from '../../components/Icon.tsx';
-import { countText, Money } from '../../components/ScanGallery.tsx';
+import { countText, Money, waits } from '../../components/ScanGallery.tsx';
 import type { Area, Folder } from './area.tsx';
 import type { ExportJob } from './exportFiles.ts';
 import type { usePostExport } from './usePostExport.ts';
@@ -26,15 +26,13 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
   const unpriced = items.reduce((n, s) => n + (s.batch.response ? s.needs : 0), 0);
   // Cards with no price can't go in the post until they get one.
   const priced = cards - unpriced;
-  const notAdded = saved.reduce((n, s) => n + s.pending, 0);
-  const unfinished = saved.filter(s => !s.batch.lockedAt);
+  const waiting = items.filter(s => waits(s, live));
+  const notAdded = waiting.reduce((n, s) => n + s.pending, 0);
   const busy = finishing === folder.key;
 
   const finish = async () => {
-    if (live) await runFinishAll(folder.key, saved.filter(s => s.pending > 0).map(s => s.batch), folder.postId);
-    else if (await explainFinish()) await runFinishAll(folder.key, unfinished.map(s => s.batch), folder.postId);
+    if (live || await explainFinish()) await runFinishAll(folder.key, waiting.map(s => s.batch), folder.postId);
   };
-  const waiting = live ? notAdded > 0 : unfinished.length > 0;
   const n = (key: string, count: number) => countText(t, key, count);
   const shareLine = !jobs.length ? (!live && saved.length ? t('post_share_none') : '')
     : !live && jobs.length < saved.length ? t('post_share_line_some', { n: jobs.length })
@@ -51,10 +49,10 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
         {live ? <span className="post-summary-meta">{t('post_live_note')}</span> : null}
         {saved.length ? (
           <div className="post-summary-status">
-            {waiting ? (
+            {waiting.length ? (
               <>
                 <span className="post-summary-line"><span className="dot" aria-hidden="true" />
-                  {live ? n('post_not_added', notAdded) : n('post_unfinished', unfinished.length)}
+                  {live ? n('post_not_added', notAdded) : n('post_unfinished', waiting.length)}
                 </span>
                 <button type="button" className={`ui-btn ui-btn--block ui-btn--lg${quiet ? '' : ' ui-btn--primary'}`} disabled={finishing != null} onClick={finish}>
                   <Icon name={live ? 'addList' : 'lock'} size={18} />{busy ? t('post_busy') : t(live ? 'post_add_all' : 'post_finish')}

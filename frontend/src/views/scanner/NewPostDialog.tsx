@@ -3,7 +3,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { RadioCards } from '../../components/ui/RadioCards.tsx';
 import type { T } from '../../hooks/useLang.ts';
-import { photosOf } from '../../hooks/usePhotoDrop.ts';
+import { photosOf } from '../../lib/photoFiles.ts';
 import type { PriceMode } from '../../types.ts';
 
 // A phone opens its camera for Take photo; a computer would only open the

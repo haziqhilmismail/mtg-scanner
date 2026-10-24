@@ -11,7 +11,7 @@ import { canRetry } from '../../utils.ts';
 export type PhotoListMode =
   | { kind: 'normal'; query: string; showFile: boolean; onOpen: () => void; onRetry: (id: string) => void }
   | { kind: 'select'; selected: Set<string>; onToggle: (id: string) => void }
-  | { kind: 'reorder'; onMove: (index: number, by: -1 | 1, dir: 'up' | 'down') => void };
+  | { kind: 'reorder'; onMove: (index: number, by: -1 | 1) => void };
 
 interface Props {
   items: BatchSummary[];
@@ -38,6 +38,10 @@ function FileName({ name }: { name: string }) {
 
 // A post's photos as rows: the picture, "Photo N", its cards and total, and
 // what still waits (not added, to fix, prices locked).
+// At the top or bottom a move button turns off; keep the keyboard on the row.
+const keepFocus = (btn: HTMLButtonElement) =>
+  requestAnimationFrame(() => { if (btn.disabled) btn.parentElement?.querySelector<HTMLButtonElement>('button:enabled')?.focus(); });
+
 export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute, t }: Props) {
   return (
     <ul className="ui-list photolist">
@@ -90,10 +94,10 @@ export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute, 
             <li key={b.id} className="ui-row photorow">
               {body}
               <span className="photorow-moves">
-                <button type="button" className="ui-icon-btn" data-move={`${b.id} up`} disabled={i === 0} aria-label={t('reorder_up', { photo: title })} onClick={() => mode.onMove(i, -1, 'up')}>
+                <button type="button" className="ui-icon-btn" disabled={i === 0} aria-label={t('reorder_up', { photo: title })} onClick={e => { mode.onMove(i, -1); keepFocus(e.currentTarget); }}>
                   <Icon name="up" size={18} />
                 </button>
-                <button type="button" className="ui-icon-btn" data-move={`${b.id} down`} disabled={i === items.length - 1} aria-label={t('reorder_down', { photo: title })} onClick={() => mode.onMove(i, 1, 'down')}>
+                <button type="button" className="ui-icon-btn" disabled={i === items.length - 1} aria-label={t('reorder_down', { photo: title })} onClick={e => { mode.onMove(i, 1); keepFocus(e.currentTarget); }}>
                   <Icon name="up" size={18} className="flip" />
                 </button>
               </span>

@@ -31,9 +31,9 @@ export function usePostExport(jobs: ExportJob[], title: string, t: T) {
     const timer = setTimeout(async () => {
       for (const job of jobs) {
         if (stopped) return;
-        if (renderedFile(job)) continue;
+        const had = renderedFile(job);
         try { await renderFile(job); } catch { if (!stopped) setFailed(true); return; }
-        if (!stopped) rendered();
+        if (!had && !stopped) rendered();
       }
     }, 1500);
     return () => { stopped = true; clearTimeout(timer); };

@@ -33,6 +33,11 @@ export function summarise(batch: Batch, settings: Settings): BatchSummary {
   };
 }
 
+// A saved photo that still waits on the seller: on a live post, cards not in
+// the post yet; on a price-on-photo post, prices not locked by Finish.
+export const waits = (s: BatchSummary, live: boolean) =>
+  !!s.batch.response && s.batch.scanId != null && (live ? s.pending > 0 : !s.batch.lockedAt);
+
 // The small picture of a photo, once it has one.
 export const thumbOf = (b: Batch) => (b.response ? b.response.thumb_url ?? b.response.image_b64 : null);
 
@@ -83,7 +88,7 @@ interface PostRowProps {
 export function PostRow({ title, items, total, settings, t, to }: PostRowProps) {
   const live = settings.priceMode === 'live';
   const scanning = items.filter(s => s.batch.status === 'scanning').length;
-  const waiting = items.filter(s => (live ? s.pending > 0 : s.batch.response && !s.batch.lockedAt)).length;
+  const waiting = items.filter(s => waits(s, live)).length;
   const needs = items.reduce((n, s) => n + s.needs, 0);
   const meta = [live ? t('kind_live') : '', items.length ? countText(t, 'post_photos_count', items.length) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']
     .filter(Boolean).join(' · ');

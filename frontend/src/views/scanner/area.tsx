@@ -244,10 +244,9 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     if (ok) { scanner.unlockBatch(batch.id); setReady(null); }
   }, [dialog, t, scanner.unlockBatch]);
 
-  // Finish (or, on a live post, add) all of a post's photos. True when every
-  // one went through.
+  // Finish (or, on a live post, add) all of a post's photos.
   const runFinishAll = useCallback(async (key: string, targets: Batch[], postId: number | null) => {
-    if (finishing || targets.length === 0) return false;
+    if (finishing || targets.length === 0) return;
     setFinishing(key); setReady(null);
     try {
       let failed = 0;
@@ -259,8 +258,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
       }
       await alertFailed(failed);
       if (skipped) await dialog.alert({ title: t('finish_needs_price_title'), message: t('finish_all_skipped', { n: skipped }) });
-      return !failed && !skipped;
-    } catch (e) { await failedAlert(e); return false; } finally { setFinishing(null); }
+    } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
   }, [finishing, finishCore, alertFailed, dialog, t, failedAlert]);
 
   // Re-fetch CK prices for an already-saved scan. Cheap on the backend

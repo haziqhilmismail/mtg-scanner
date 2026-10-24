@@ -14,20 +14,15 @@ const rendered = new Map<string, File>();
 export const KEEP = 30;
 export const jobKey = (job: ExportJob) => `${job.name}\n${JSON.stringify(job.payload)}`;
 
-export function renderedFile(job: ExportJob): File | null {
-  const key = jobKey(job);
-  const hit = rendered.get(key);
-  if (!hit) return null;
-  rendered.delete(key);
-  rendered.set(key, hit);
-  return hit;
-}
+export const renderedFile = (job: ExportJob): File | null => rendered.get(jobKey(job)) ?? null;
 
 export async function renderFile(job: ExportJob): Promise<File> {
-  const hit = renderedFile(job);
-  if (hit) return hit;
-  const file = new File([await exportImage(job.payload)], job.name, { type: 'image/jpeg' });
-  rendered.set(jobKey(job), file);
+  const key = jobKey(job);
+  const hit = rendered.get(key);
+  // Moved to the end: the most recently used.
+  rendered.delete(key);
+  const file = hit ?? new File([await exportImage(job.payload)], job.name, { type: 'image/jpeg' });
+  rendered.set(key, file);
   if (rendered.size > KEEP) rendered.delete(rendered.keys().next().value!);
   return file;
 }

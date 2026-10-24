@@ -2,13 +2,14 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
+import { PhotoDrop } from '../../components/PhotoDrop.tsx';
 import { PricingRow } from '../../components/SettingsPanel.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { Select, TextField } from '../../components/ui/Field.tsx';
 import { Menu } from '../../components/ui/Menu.tsx';
 import { StickyBar } from '../../components/ui/StickyBar.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
-import { photosOf, usePhotoDrop } from '../../hooks/usePhotoDrop.ts';
+import { photosOf } from '../../lib/photoFiles.ts';
 import { POSTS, UNFILED } from '../../routes.ts';
 import type { Batch } from '../../types.ts';
 import { byPostOrder, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
@@ -41,6 +42,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const renameForm = useId();
   const headId = useId();
+  const searchId = useId();
   const addInput = useRef<HTMLInputElement>(null);
 
   const settings = pricingFor(folder.postId);
@@ -64,7 +66,6 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   const dirty = draft.join() !== saved.map(b => b.id).join();
 
   const addPhotos = (photos: File[]) => (photos.length ? scanner.addFiles(photos, folder.postId) : toast(t('drop_no_photos')));
-  const dragging = usePhotoDrop(addPhotos);
 
   const endMode = () => setMode(NORMAL);
   const startSelect = () => { setQuery(''); setMode({ kind: 'select', selected: new Set() }); };
@@ -75,16 +76,10 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
     setMode({ kind: 'select', selected: next });
   };
 
-  const move = (i: number, by: -1 | 1, dir: 'up' | 'down') => {
+  const move = (i: number, by: -1 | 1) => {
     const next = [...draft];
     [next[i], next[i + by]] = [next[i + by], next[i]];
     setMode({ kind: 'reorder', draft: next });
-    // At the top or bottom its button turns off; keep the keyboard on the row.
-    const id = draft[i];
-    requestAnimationFrame(() => {
-      const btn = document.querySelector<HTMLButtonElement>(`[data-move="${id} ${dir}"]`);
-      if (btn?.disabled) document.querySelector<HTMLButtonElement>(`[data-move="${id} ${dir === 'up' ? 'down' : 'up'}"]`)?.focus();
-    });
   };
 
   const saveOrder = async () => {
@@ -111,7 +106,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
     const onKey = (e: KeyboardEvent) => {
       if (keyTaken(e)) return;
       if (e.key === '/' && mode.kind === 'normal') {
-        const search = document.querySelector<HTMLInputElement>('.photo-search input');
+        const search = document.getElementById(searchId);
         if (search) { e.preventDefault(); search.focus(); }
       } else if (e.key === 'Escape') {
         if (mode.kind === 'normal') go(POSTS);
@@ -120,7 +115,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mode.kind, go]);
+  }, [mode.kind, go, searchId]);
 
   const count = folder.items.length;
   const allSelected = count > 0 && selected.size === count;
@@ -202,7 +197,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
             <>
               <div className="photo-tools">
                 <TextField
-                  type="search" className="photo-search" aria-label={t('post_search')} placeholder={t('post_search')}
+                  id={searchId} type="search" className="photo-search" aria-label={t('post_search')} placeholder={t('post_search')}
                   prefix={<Icon name="search" size={18} />} value={query} onChange={e => setQuery(e.target.value)}
                 />
                 <Select className="photo-sort" aria-label={t('post_sort')} value={sort} onChange={e => setSort(e.target.value as PhotoSort)}>
@@ -272,7 +267,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
         </StickyBar>
       ) : null}
 
-      {dragging ? <div className="drop-hint" aria-hidden="true"><span><Icon name="photo" size={28} />{t('post_drop')}</span></div> : null}
+      <PhotoDrop label={t('post_drop')} onPhotos={addPhotos} t={t} />
 
       <Dialog
         open={renaming != null}

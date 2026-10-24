@@ -1,5 +1,8 @@
 import type { T } from '../i18n/index.ts';
 
+// The photos among some files (HEIC from an iPhone often has no type).
+export const photosOf = (files: FileList | File[]) => Array.from(files).filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+
 // A post's name made safe for a file name: no characters a file system
 // refuses, one line, at most 80 code points (so no emoji is cut in half).
 export function fileSafe(name: string): string {

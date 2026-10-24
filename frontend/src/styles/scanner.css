@@ -110,9 +110,6 @@
   display: flex; flex-direction: column; gap: 10px;
 }
 .finalize-block-top { margin-top: 0; margin-bottom: 16px; }
-.finalize-picker-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
-.scan-post-label { font-size: 15px; font-weight: 600; color: var(--ink); }
-.scan-post-select { flex: 1 1 240px; min-width: 0; font-size: 15px; background-color: var(--paper); }
 .scan-post-hint { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; color: var(--green); }
 .scan-post-hint svg { flex: none; margin-top: 1px; }
 .scan-post-hint.finish-hint { color: var(--ink-soft); line-height: 1.4; }
