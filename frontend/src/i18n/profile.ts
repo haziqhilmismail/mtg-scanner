@@ -4,7 +4,6 @@
 
 export const en = {
   profile_account: 'Account',
-  profile_google_as: 'Signed in with Google · {email}',
   profile_solo_title: 'Your account',
   profile_solo_sub: 'Sign-in is off on this server.',
   profile_pricing_note: 'New posts start with this. A post with its own pricing keeps it.',
@@ -38,7 +37,6 @@ export const en = {
 
 export const ms = {
   profile_account: 'Akaun',
-  profile_google_as: 'Log masuk dengan Google · {email}',
   profile_solo_title: 'Akaun anda',
   profile_solo_sub: 'Log masuk dimatikan pada pelayan ini.',
   profile_pricing_note: 'Post baharu bermula dengan ini. Post yang ada harga sendiri kekal dengannya.',
