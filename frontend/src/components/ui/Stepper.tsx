@@ -10,8 +10,8 @@ interface Common {
   incrementLabel: string;
   min?: number;
   max?: number;
-  step?: number;  // 1 for quantities, 0.1 for the multiplier
-  format?: (value: number) => ReactNode;  // what the middle shows, e.g. v => `×${v.toFixed(1)}`
+  step?: number;
+  format?: (value: number) => ReactNode;
 }
 
 // At `min`, the minus turns into a red trash button that calls onRemove.

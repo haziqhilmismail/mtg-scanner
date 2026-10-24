@@ -1,6 +1,3 @@
-// A countdown that stops while anything holds it (a pointer over it, focus
-// inside it, a hidden tab) and goes on with the time it had left once
-// nothing does. It fires at most once.
 export interface Clock {
   now(): number;
   setTimeout(fn: () => void, ms: number): unknown;
@@ -16,7 +13,7 @@ const browserClock: Clock = {
 export function pausableTimer(ms: number, onDone: () => void, clock: Clock = browserClock) {
   let left = ms;
   let since = 0;
-  let id: unknown = null;  // null while held or over
+  let id: unknown = null;
   let over = false;
   const holds = new Set<string>();
   const run = () => {
