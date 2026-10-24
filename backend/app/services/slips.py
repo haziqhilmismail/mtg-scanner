@@ -8,7 +8,7 @@ name or number is a line to write on too. Sizes are the board's CSS pixels
 scaled to print. Drawn with Pillow at 300 dpi in black on white and saved as
 a PDF, so it prints to size and reads in grayscale."""
 
-from functools import cache
+from functools import cache, lru_cache
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
@@ -38,22 +38,22 @@ FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 LABELS = ("Buyer's name:", "Buyer's number:", "Seller's name:")
 
 
+@cache
 def _font(size: float, bold: bool = False) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(FONT_BOLD if bold else FONT, round(size))
 
 
-@cache
-def _drawable(ch: str) -> bool:
-    """Whether DejaVu has a glyph for `ch`; a missing one prints as an empty box."""
-    return ch.isspace() or _ink(ch) != _ink("\U0010FFFD")
-
-
-@cache
 def _ink(ch: str) -> bytes:
     font = _font(VALUE_SIZES[0], bold=True)
     img = Image.new("L", (font.size * 2, font.size * 2))
     ImageDraw.Draw(img).text((0, 0), ch, font=font, fill=255)
     return img.tobytes()
+
+
+@lru_cache(maxsize=4096)
+def _drawable(ch: str) -> bool:
+    """Whether DejaVu has a glyph for `ch`; a missing one prints as an empty box."""
+    return ch.isspace() or _ink(ch) != _ink("\U0010FFFD")
 
 
 def printable(value: str) -> str:
