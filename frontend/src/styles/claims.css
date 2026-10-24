@@ -130,6 +130,11 @@ button.claims-buyer-open:hover, button.claims-buyer-open:active { background: no
 .claims-foot-note { margin: 10px 4px 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); overflow-wrap: anywhere; }
 .claims-foot-note a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .claims-foot-note a:hover { text-decoration: underline; }
+@media (pointer: coarse) {
+  /* Touch: the inline link answers to a 44px area, as small buttons do (buttons.css). */
+  .claims-foot-note a { position: relative; }
+  .claims-foot-note a::after { content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, var(--tap)); height: var(--tap); transform: translate(-50%, -50%); }
+}
 button.claims-text-btn { display: inline; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; }
 button.claims-text-btn:hover, button.claims-text-btn:active { background: none; transform: none; text-decoration: underline; }
 .claims-note { display: flex; align-items: flex-start; gap: 8px; margin: 10px 2px 0; font-size: 13px; line-height: 1.35; color: var(--warn); overflow-wrap: anywhere; }
