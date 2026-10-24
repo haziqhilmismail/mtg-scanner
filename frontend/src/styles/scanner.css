@@ -1,103 +1,8 @@
-/* ---------- Scan progress ----------
-   Determinate: one step per photo finished, shown only while a run is going. */
-.scan-progress { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.scan-progress-track { flex: 1; height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
-.scan-progress-fill {
-  height: 100%; min-width: 6px; border-radius: 3px; background: var(--accent-fill);
-  transition: width 0.4s var(--ease);
-}
-.scan-progress-label { flex: none; font-size: 13px; color: var(--ink-soft); }
-
-/* ---------- Scans gallery ----------
-   Posts, then the photos inside one, as tiles big enough to recognise by
-   their picture. Two across on a phone, more as the window widens. */
+/* The dev gallery (ui-gallery.html) lays its samples out on this grid. */
 .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 @media (min-width: 768px) { .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; } }
-.scan-tile {
-  display: flex; flex-direction: column; align-items: stretch; gap: 0;
-  min-height: 0; padding: 0; overflow: hidden; text-align: left;
-  background: var(--paper); color: var(--ink);
-  border: 0; border-radius: var(--radius-lg); box-shadow: var(--shadow);
-  font-weight: 400; line-height: 1.2; text-decoration: none;
-  transition: box-shadow 0.2s var(--ease), transform 0.15s var(--ease);
-}
-.scan-tile:hover { background: var(--paper); box-shadow: 0 0 0 1px var(--rule-strong); }
-.scan-tile.is-selected { box-shadow: 0 0 0 2.5px var(--accent-fill); }
-.scan-tile-img {
-  position: relative; display: flex; align-items: center; justify-content: center;
-  aspect-ratio: 4 / 3; background: var(--fill); color: var(--ink-faint);
-}
-.scan-tile-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.scan-tile-img.is-scanning { animation: photo-pulse 1.4s ease-in-out infinite; }
-.archived-note {
-  display: flex; align-items: flex-start; gap: 8px; margin: 0 0 16px; padding: 10px 12px;
-  border-radius: var(--radius); background: var(--fill); font-size: 15px; color: var(--ink-soft);
-}
-.archived-note .icon { flex: none; margin-top: 2px; }
-.archived-toggle { margin-top: 20px; gap: 6px; color: var(--ink-soft); }
-.post-cover { display: grid; place-items: stretch; gap: 2px; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-.post-cover.n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-.post-cover.n2 { grid-template-rows: 1fr; }
-.post-cover.n3 .post-cover-cell:first-child { grid-row: span 2; }
-.post-cover-cell { position: relative; overflow: hidden; background: var(--fill); }
-.post-cover-more {
-  position: absolute; inset: 0; display: grid; place-items: center;
-  background: rgba(0, 0, 0, 0.45); color: #fff; font-size: 20px; font-weight: 600;
-}
-/* Selection mark: an empty ring, or a filled one with a tick. Shape and tick
-   carry it, not colour alone. */
-.scan-tile-check {
-  position: absolute; top: 8px; right: 8px;
-  width: 26px; height: 26px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(0, 0, 0, 0.28); border: 2px solid #fff; color: #fff;
-}
-.scan-tile.is-selected .scan-tile-check { background: var(--accent-fill); }
-.scan-tile-body { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px 12px; min-width: 0; }
-/* Names wrap rather than being cut off with an ellipsis: a post's name is
-   how you tell one from another. */
-.scan-tile-file { display: block; font-size: 12px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .name-file { display: block; font-size: 12px; font-weight: 400; color: var(--ink-faint); }
-
-.reorder-list { display: flex; flex-direction: column; gap: 8px; }
-.reorder-row { display: flex; align-items: center; gap: 10px; padding: 8px; background: var(--surface-2); border-radius: var(--radius); }
-.reorder-num { flex: none; width: 28px; text-align: center; font-size: 17px; font-weight: 700; color: var(--ink-soft); }
-.reorder-row img { flex: none; width: 96px; height: 72px; object-fit: cover; border-radius: 6px; background: var(--paper); }
-.reorder-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.reorder-name span { font-size: 12px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scan-tile-title {
-  max-width: 100%; font-size: 15px; font-weight: 600; line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-.scan-tile-meta { max-width: 100%; font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.locked-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--accent); }
-.needs-badge {
-  display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 2px 8px;
-  background: var(--warn-soft); color: var(--warn);
-  border-radius: 6px; font-size: 12px; font-weight: 600;
-}
-.pending-badge { background: var(--accent-soft); color: var(--accent); }
 .gallery-empty { margin: 32px 0; text-align: center; font-size: 15px; color: var(--ink-soft); }
-.gallery-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 14px; }
-.gallery-bar-count { font-size: 15px; font-weight: 600; margin-right: auto; }
-.gallery-move { flex: 1 1 200px; min-width: 0; font-size: 15px; background-color: var(--paper); }
-.gallery-sort { flex: none; font-size: 15px; background-color: var(--paper); }
-.scan-search {
-  flex: 1 1 200px; min-width: 0; max-width: 360px;
-  display: flex; align-items: center; gap: 6px; padding: 0 10px;
-  background: var(--fill); border: 1px solid transparent; border-radius: 10px;
-  color: var(--ink-soft);
-}
-.scan-search:focus-within { border-color: var(--accent-fill); box-shadow: 0 0 0 3px var(--accent-soft); }
-.scan-search input {
-  flex: 1; min-width: 0; min-height: 36px; padding: 0;
-  background: transparent; border: 0; box-shadow: none; font-size: 17px; color: var(--ink);
-}
-.scan-search input:focus { box-shadow: none; }
-@media (max-width: 767px) {
-  .scan-search { max-width: none; flex-basis: 100%; order: 3; }
-  .review-head > .scan-search { order: 0; }
-}
 
 /* ---------- Batch view ---------- */
 .batch-image {
@@ -368,16 +273,3 @@
    and scrolls on a short screen. */
 .adjust-sheet { max-height: 92dvh; overflow-y: auto; }
 .add-card-btn { margin: 10px 0 4px; }
-.pricing-button {
-  display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; margin-bottom: 14px; padding: 12px 14px;
-  border-radius: var(--radius); background: var(--surface); color: var(--ink); text-align: left; box-shadow: inset 0 0 0 1px var(--rule);
-  line-height: 1.2; text-decoration: none;
-}
-.pricing-button .icon { color: var(--accent); }
-.pricing-button-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pricing-button-text strong { font-size: 15px; }
-.pricing-button-text span { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
-.pricing-button-edit { font-size: 15px; color: var(--accent); }
-.pricing-sheet { max-width: 640px; max-height: 92dvh; overflow-y: auto; }
-.pricing-sheet .status { margin-top: 0; }
-.pricing-default-row { display: flex; justify-content: flex-end; margin-top: 14px; }

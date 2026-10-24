@@ -9,13 +9,7 @@
 .page-title { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink); }
 .page-title .meta { font-weight: 500; color: var(--ink-soft); }
 .review-head .meta { font-size: 15px; color: var(--ink-soft); }
-.review-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button.destructive, button.ghost.destructive { color: var(--warn); }
-@media (max-width: 767px) {
-  /* Title and running total share the first row; actions take the next. */
-  .review-actions { width: 100%; }
-  .review-actions button { flex: 1 1 auto; }
-}
 
 /* (i) explanations: hover with a mouse, tap on a phone. */
 .info-tip { position: relative; display: inline-flex; align-items: center; }
@@ -43,38 +37,16 @@ button.destructive, button.ghost.destructive { color: var(--warn); }
 .photo-step > span { display: flex; flex-direction: column; }
 .photo-step-dir { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
 /* Posts / post / photo: the pages above are links, the last is this page. */
-.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; min-height: var(--tap); font-size: 15px; }
-.crumbs-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
-.crumbs-sep { padding: 0 2px; color: var(--ink-faint); }
-.crumbs-link { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 4px; color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+/* One line: a long post name shortens with "…" (the page title below has it whole). */
+.crumbs { display: flex; align-items: center; gap: 2px; min-width: 0; min-height: var(--tap); font-size: 15px; }
+.crumbs-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
+.crumbs-item:first-child { flex-shrink: 0; }
+.crumbs-sep { flex: none; padding: 0 2px; color: var(--ink-faint); }
+.crumbs-link { display: block; min-width: 0; padding: 0 4px; line-height: var(--tap); color: var(--accent); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crumbs-link:hover { text-decoration: underline; }
-.crumbs-current { padding: 0 4px; color: var(--ink-soft); overflow-wrap: anywhere; }
-.level-label { margin: 18px 0 8px; font-size: 17px; font-weight: 700; }
-.level-label .meta { font-weight: 500; color: var(--ink-soft); }
-/* A post's name doubles as its rename control: click it and type. */
-.title-btn {
-  min-height: 0; max-width: 100%; padding: 2px 8px; margin: -2px -8px; gap: 8px;
-  background: transparent; color: inherit; border-radius: 8px;
-  font: inherit; letter-spacing: inherit; text-align: left; cursor: text;
-}
-.title-btn span { overflow-wrap: anywhere; }
-.title-btn .icon { color: var(--ink-faint); }
-.title-btn:hover { background: var(--fill); }
-.title-btn:hover .icon { color: var(--accent); }
-/* A post's name is long free text, so while it's being edited the title takes
-   the whole row (the total and actions wrap below) and the field fills it. */
-.review-title.is-editing { flex: 1 1 100%; }
-.title-edit {
-  width: calc(100% + 18px); min-height: 0; padding: 2px 8px; margin: -3px -9px;
-  font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.01em;
-  background: var(--paper); border-radius: 8px;
-}
+.crumbs-current { min-width: 0; padding: 0 4px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .review-title { min-width: 0; }
 .review-title h1, .review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-/* A post's own page: its name gets the whole row and wraps only between words. */
-.review-title.post-title { flex: 1 1 100%; }
-.review-title.post-title h1 { flex: 1 1 auto; min-width: 0; overflow-wrap: normal; word-break: normal; }
-.review-title.post-title .title-btn span { overflow-wrap: normal; }
 .round-btn {
   width: 36px; height: 36px; min-height: 0; padding: 0; flex: none;
   background: var(--fill); color: var(--accent); border: 0; border-radius: 50%;

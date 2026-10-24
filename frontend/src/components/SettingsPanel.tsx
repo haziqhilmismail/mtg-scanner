@@ -1,161 +1,11 @@
-import type { Health } from '../api.ts';
+import { useEffect, useState } from 'react';
+import type { T } from '../hooks/useLang.ts';
+import { pricingSummary } from '../lib/pricing.ts';
 import type { Route } from '../routes.ts';
-import type { LabelPosition, FoilStyle, RoundDirection, RoundStep, Settings } from '../types.ts';
-import { useDecimalInput } from '../hooks/useDecimalInput.ts';
+import type { Settings } from '../types.ts';
+import { applyRounding, formatMyr, pillLabel } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { Link } from './Link.tsx';
-import type { T } from '../hooks/useLang.ts';
-
-interface FieldsProps {
-  settings: Settings;
-  update: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-  t: T;
-  health: Health | null;
-}
-
-// The fields of one pricing: a post's, or the user's default (see usePricing).
-export function PricingFields({ settings, update, t, health }: FieldsProps) {
-  // Decimal inputs need local string state so typing "2." doesn't get
-  // round-tripped through Number and lose the trailing dot. Empty box → 0.
-  const multNormal = useDecimalInput(settings.multNormal, v => update('multNormal', v ?? 0));
-  const multFoil = useDecimalInput(settings.multFoil, v => update('multFoil', v ?? 0));
-  const minPrice = useDecimalInput(settings.minPrice, v => update('minPrice', v ?? 0));
-  // Only a CK problem shows here; prices that loaded fine need no note.
-  const healthBadge = !health || health.cardkingdom_cards ? null
-    : health.cardkingdom_error ? <span className="health-badge warn">{t('ck_error')}</span>
-    : <span className="health-badge">{t('ck_not_loaded')}</span>;
-
-  return (
-    <>
-      <div className="settings">
-        <label>
-          <span>{t('mult_normal')}</span>
-          <input
-            type="text" inputMode="decimal"
-            value={multNormal.text}
-            placeholder={multNormal.placeholder}
-            onChange={e => multNormal.onChange(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>{t('mult_foil')}</span>
-          <input
-            type="text" inputMode="decimal"
-            value={multFoil.text}
-            placeholder={multFoil.placeholder}
-            onChange={e => multFoil.onChange(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>{t('currency_label')}</span>
-          <input
-            type="text"
-            value={settings.currencyLabel}
-            onChange={e => update('currencyLabel', e.target.value)}
-          />
-        </label>
-        <label>
-          <span>{t('label_position')}</span>
-          <select
-            value={settings.labelPosition}
-            onChange={e => update('labelPosition', e.target.value as LabelPosition)}
-          >
-            <option value="bottom">{t('pos_bottom')}</option>
-            <option value="top">{t('pos_top')}</option>
-            <option value="center">{t('pos_center')}</option>
-          </select>
-        </label>
-        <label>
-          <span>{t('foil_style')}</span>
-          <select
-            value={settings.foilStyle}
-            onChange={e => update('foilStyle', e.target.value as FoilStyle)}
-          >
-            <option value="gold">{t('foil_style_gold')}</option>
-            <option value="suffix">{t('foil_style_suffix')}</option>
-          </select>
-        </label>
-        <label>
-          <span>{t('round_prices')}</span>
-          <div className="round-controls">
-            <select
-              value={settings.roundDirection}
-              onChange={e => update('roundDirection', e.target.value as RoundDirection)}
-            >
-              <option value="none">{t('round_none')}</option>
-              <option value="up">{t('round_dir_up')}</option>
-              <option value="down">{t('round_dir_down')}</option>
-              <option value="nearest">{t('round_dir_nearest')}</option>
-            </select>
-            {settings.roundDirection !== 'none' ? (
-              <>
-                <span className="round-controls-to">{t('round_to')}</span>
-                <select
-                  value={settings.roundStep}
-                  onChange={e => update('roundStep', parseFloat(e.target.value) as RoundStep)}
-                >
-                  <option value="0.1">{t('round_step_10c')}</option>
-                  <option value="0.5">{t('round_step_50c')}</option>
-                  <option value="1">{t('round_step_1')}</option>
-                </select>
-              </>
-            ) : null}
-          </div>
-        </label>
-        <label>
-          <span>{t('min_price')}</span>
-          <input
-            type="text" inputMode="decimal"
-            value={minPrice.text}
-            placeholder={minPrice.placeholder}
-            onChange={e => minPrice.onChange(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>{t('label_font_size')}</span>
-          <select
-            value={settings.labelFontScale}
-            onChange={e => update('labelFontScale', parseFloat(e.target.value))}
-          >
-            <option value="0.85">{t('font_scale_small')}</option>
-            <option value="1">{t('font_scale_default')}</option>
-            <option value="1.25">{t('font_scale_large')}</option>
-            <option value="1.5">{t('font_scale_xlarge')}</option>
-          </select>
-        </label>
-      </div>
-      <div className="checkbox-group">
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={settings.showCurrency}
-            onChange={e => update('showCurrency', e.target.checked)}
-          />
-          <span>{t('show_currency')}</span>
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={settings.showCents}
-            onChange={e => update('showCents', e.target.checked)}
-          />
-          <span>{t('show_cents')}</span>
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={settings.showOutlines}
-            onChange={e => update('showOutlines', e.target.checked)}
-          />
-          <span>{t('show_outlines')}</span>
-        </label>
-      </div>
-      <p className="status">
-        {t('formula_hint')} {healthBadge}
-      </p>
-    </>
-  );
-}
 
 interface RowProps {
   title: string;
@@ -168,18 +18,97 @@ interface RowProps {
 
 // A pricing in one line, linking to its page: set once per market night.
 export function PricingRow({ title, settings, t, to }: RowProps) {
-  const roundSummary = settings.roundDirection === 'none'
-    ? t('round_none')
-    : `${t(`round_dir_${settings.roundDirection}`)} ${t('round_to')} ${settings.currencyLabel} ${settings.roundStep}`;
-  const summary = `×${settings.multNormal} · ${t('foil_on')} ×${settings.multFoil} · ${roundSummary}`;
   return (
-    <Link className="pricing-button" to={to}>
+    <Link className="pricing-row" to={to}>
       <Icon name="tag" size={18} />
-      <span className="pricing-button-text">
-        <strong>{title}</strong>
-        <span>{summary}</span>
+      <span className="pricing-row-text">
+        <span className="pricing-row-title">{title}</span>
+        <span className="pricing-row-summary">{pricingSummary(settings, t)}</span>
       </span>
-      <span className="pricing-button-edit">{t('pricing_edit')}</span>
+      <span className="pricing-row-change">{t('pricing_edit')}</span>
     </Link>
+  );
+}
+
+// The example card, at fixed Card Kingdom prices so it shows only what the
+// settings change.
+const SAMPLE = { name: 'Lord Skitter, Sewer King', usd: 4.99, usdFoil: 4.49 };
+
+// One card priced with these settings: the labels printed on a price-on-photo
+// post, or for a live post the rate, today's price and when it gets set.
+export function PricingExample({ settings, t }: { settings: Settings; t: T }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1800);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  const cur = settings.currencyLabel.trim() || 'RM';
+  const rows = [
+    { foil: false, usd: SAMPLE.usd, mult: settings.multNormal },
+    { foil: true, usd: SAMPLE.usdFoil, mult: settings.multFoil },
+  ].map(r => ({ ...r, price: applyRounding(r.usd * r.mult, settings), label: r.foil ? t('foil_on') : t('pricing_nonfoil') }));
+  const caption = t('pricing_caption_text', { m: settings.multNormal, f: settings.multFoil });
+
+  if (settings.priceMode === 'photo') {
+    return (
+      <div className="pricing-example">
+        <p className="pricing-example-title">{t('pricing_example', { card: SAMPLE.name })}</p>
+        {rows.map(r => (
+          <div className="pricing-example-row" key={r.label}>
+            <span className="pricing-example-text">
+              <span className={r.foil ? 'pricing-example-kind is-foil' : 'pricing-example-kind'}>{r.label}</span>
+              <span>USD {r.usd.toFixed(2)} × {r.mult} = {cur} {(r.usd * r.mult).toFixed(2)}</span>
+            </span>
+            <span className={r.foil ? 'price-pill is-foil' : 'price-pill'} style={{ fontSize: `${15 * settings.labelFontScale}px` }}>
+              {pillLabel({ unitPrice: r.price, isFoil: r.foil, qty: 1 }, settings)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const today = (r: typeof rows[number]) => {
+    const [before, after] = t('pricing_live_today', { price: '\u0000', usd: r.usd.toFixed(2) }).split('\u0000');
+    return <>{before}<strong>≈{formatMyr(r.price, settings)}</strong>{after}</>;
+  };
+  const steps: Array<[string, string]> = [['pricing_step_post', 'pricing_step_post_sub'], ['pricing_step_claim', 'pricing_step_claim_sub'], ['pricing_step_send', 'pricing_step_send_sub']];
+  return (
+    <>
+      <div className="pricing-example">
+        <p className="pricing-example-title">{t('pricing_example', { card: SAMPLE.name })}</p>
+        {rows.map((r, i) => (
+          <div className="pricing-example-live" key={r.label}>
+            <div className="pricing-example-row">
+              <span className={r.foil ? 'pricing-example-kind is-foil' : 'pricing-example-kind'}>{r.label}</span>
+              <span className={r.foil ? 'pricing-example-rate is-foil' : 'pricing-example-rate'}><span className="ui-chip">CK</span> × {r.mult}</span>
+            </div>
+            <p className="pricing-example-note">{today(r)}{i === 0 ? ` ${t('pricing_live_change')}` : ''}</p>
+          </div>
+        ))}
+        <ol className="pricing-steps">
+          {steps.map(([title, sub], i) => (
+            <li key={title} className={i === steps.length - 1 ? 'is-set' : undefined}>
+              <span className="pricing-step-dot" aria-hidden="true">{i === steps.length - 1 ? <Icon name="lock" size={12} /> : null}</span>
+              <span className="pricing-step-title">{t(title)}</span>
+              <span className="pricing-step-sub">{t(sub)}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div className="pricing-caption">
+        <span className="pricing-caption-text">
+          <span>{t('pricing_caption')}</span>
+          <strong>“{caption}”</strong>
+        </span>
+        <button
+          type="button" className={copied ? 'ui-btn is-copied' : 'ui-btn'} aria-live="polite"
+          onClick={() => navigator.clipboard?.writeText(caption).then(() => setCopied(true), () => { /* stays Copy */ })}
+        >
+          {copied ? <><Icon name="check" size={16} />{t('pricing_copied')}</> : <><Icon name="copy" size={16} />{t('pricing_copy')}</>}
+        </button>
+      </div>
+    </>
   );
 }

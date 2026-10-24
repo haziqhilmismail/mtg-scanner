@@ -1,24 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { exportAllImages, exportImage, relookupScanPrices, type ExportAllImage, type ExportPayload, type Health } from '../../api.ts';
+import { relookupScanPrices, type ExportPayload, type Health } from '../../api.ts';
 import { listingsApi, postsApi, type Post } from '../../api/checklist.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
+import { useToast } from '../../components/ui/Toast.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
 import { readStored, writeStored } from '../../hooks/usePersistedState.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { migrateAdded } from '../../lib/addedMarkers.ts';
+import { photoFileName } from '../../lib/photoFiles.ts';
 import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
 import type { Batch, PriceMode, Settings } from '../../types.ts';
-import { byPostOrder, computeCardData, downloadBlob, listingFields, lockPrices, notAdded, photoLabel, photoNumbers, popupOpen, type PhotoSort } from '../../utils.ts';
+import { computeCardData, downloadBlob, listingFields, lockPrices, notAdded, photoLabel, photoNumbers, popupOpen, type PhotoSort } from '../../utils.ts';
+import { renderFile, type ExportJob } from './exportFiles.ts';
 
-// One post's worth of scans in the gallery. `postId` null is the Unfiled group.
+// One post's worth of scans. `postId` null is the Unfiled photos.
 export interface Folder {
   key: string;
   postId: number | null;
   title: string;
-  archived: boolean;    // hidden from the posts list (shown under Archived) and from Claims
+  archived: boolean;    // hidden from the posts list (shown under Archived)
   items: BatchSummary[];
   needs: number;
   total: number;
@@ -37,31 +40,25 @@ export interface ScannerProps {
   lang: string;
 }
 
-// Build the /api/export payload for one batch (shared by single-batch export and
-// the bulk "Export all" zip). Returns null for batches that haven't finished
-// scanning yet (no response).
+// What the exported photo of a batch shows, or null for a batch that hasn't
+// finished scanning. Foil prices are always on a gold pill (DESIGN.md §7),
+// outlines follow the setting on every post, and a live post's photo carries
+// only the labels CK won't decide (see photoLabel).
 function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | null {
   if (!batch.response) return null;
-  const cardData = computeCardData(batch, settings);
-  // A live-price post's photo carries only the labels CK won't decide (see photoLabel).
-  const live = settings.priceMode === 'live';
   // A card added by hand has no spot on the photo, so it gets no label there.
-  const visible = cardData.filter(cd => !cd.removed && cd.card.bbox_source !== 'user' && (!live || photoLabel(cd, settings)));
-  const data = batch.response;
+  const visible = computeCardData(batch, settings).filter(cd => !cd.removed && cd.card.bbox_source !== 'user');
   return {
-    image_id: data.image_id,
-    show_outlines: settings.showOutlines && !live,
+    image_id: batch.response.image_id,
+    show_outlines: settings.showOutlines,
     label_position: settings.labelPosition,
     font_scale: settings.labelFontScale,
-    cards: visible.map(cd => {
-      const label = photoLabel(cd, settings);
-      return {
-        bbox: cd.card.bbox,
-        corners: cd.card.corners,
-        is_foil: cd.isFoil && settings.foilStyle === 'gold',
-        label_override: label,
-      };
-    }),
+    cards: visible.map(cd => ({
+      bbox: cd.card.bbox,
+      corners: cd.card.corners,
+      is_foil: cd.isFoil,
+      label_override: photoLabel(cd, settings),
+    })),
   };
 }
 
@@ -71,22 +68,6 @@ export function keyTaken(e: KeyboardEvent): boolean {
   const el = e.target as HTMLElement | null;
   if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return true;
   return popupOpen();
-}
-
-// Arrow keys move the focus between the tiles of a grid (Enter opens one).
-export function moveTileFocus(e: KeyboardEvent) {
-  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-  const tiles = Array.from(document.querySelectorAll<HTMLElement>('.gallery-grid .scan-tile'));
-  if (!tiles.length) return;
-  const at = tiles.indexOf(document.activeElement as HTMLElement);
-  // Tiles sharing the first one's top edge make up a row.
-  const cols = tiles.filter(tile => tile.offsetTop === tiles[0].offsetTop).length || 1;
-  const delta = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key] ?? 0;
-  const next = at < 0 ? 0 : at + delta;
-  if (next < 0 || next >= tiles.length) return;
-  e.preventDefault();
-  tiles[next].focus();
-  tiles[next].scrollIntoView({ block: 'nearest' });
 }
 
 // One step per photo finished, shown only while a run is going.
@@ -110,14 +91,13 @@ export function ScanProgress({ progress, t }: { progress: ScannerStore['scanProg
 }
 
 // What the Scanner pages share: the posts as folders, the open post and
-// photo, and finishing, sharing, moving and deleting photos and posts.
+// photo, and finishing, exporting, moving and deleting photos and posts.
 export function useScannerArea({ scanner, nav: { route, go, replace, current }, pricing, health, t, lang }: ScannerProps) {
   const dialog = useDialog();
+  const toast = useToast();
   const { pricingFor, listPosts, createPost } = pricing;
 
-  // Posts double as the gallery's folders: every scan is filed under one (or
-  // is unfiled), and that same post is where its cards go on the checklist.
-  // Archived posts are loaded too so their photos don't fall into Unfiled.
+  // Every post, archived ones too, so their photos don't fall into Unfiled.
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoaded, setPostsLoaded] = useState(false);
 
@@ -176,20 +156,28 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   const sharePhone = typeof navigator !== 'undefined' && typeof navigator.canShare === 'function'
     && matchMedia('(pointer: coarse)').matches;
   // Images rendered and waiting for a tap: a phone only shares straight after
-  // a tap, not after the wait to render them. key: the photo's or post's id.
+  // a tap, not after the wait to render them. key: the photo's id.
   const [ready, setReady] = useState<{ key: string; files: File[] } | null>(null);
   const [finishing, setFinishing] = useState<string | null>(null);
 
   // "Photo N" for every saved photo: its place in its post's order.
   const numbers = useMemo(() => photoNumbers(scanner.batches), [scanner.batches]);
-  const numbered = (b: Batch, n = numbers.get(b.id)) => (n != null ? `${String(n).padStart(2, '0')}_${b.filename}` : b.filename);
+  const postsById = useMemo(() => new Map(posts.map(p => [p.id, p])), [posts]);
+  const postTitle = useCallback((p: Post) => p.title || `#${p.id}`, []);
+  const folderTitle = useCallback((postId: number | null) => {
+    const post = postId != null ? postsById.get(postId) : undefined;
+    return post ? postTitle(post) : t('posts_unfiled');
+  }, [postsById, postTitle, t]);
 
-  const renderImage = useCallback(async (batch: Batch): Promise<File | null> => {
+  // A saved photo's labelled image as a file to share or download: "Friday
+  // Post - Photo 07.jpg". null while it is still scanning.
+  const exportJob = useCallback((batch: Batch): ExportJob | null => {
+    const n = numbers.get(batch.id);
     const payload = buildExportPayload(batch, pricingFor(batch.postId));
-    if (!payload) return null;
-    const name = numbered(batch).replace(/\.[^.]+$/, '') + '_priced.png';
-    return new File([await exportImage(payload)], name, { type: 'image/png' });
-  }, [pricingFor]);
+    if (n == null || !payload) return null;
+    const count = scanner.batches.filter(b => b.postId === batch.postId && numbers.has(b.id)).length;
+    return { payload, name: photoFileName(folderTitle(batch.postId), n, count, t) };
+  }, [numbers, pricingFor, scanner.batches, folderTitle, t]);
 
   const deliver = useCallback((key: string, files: File[]) => {
     if (sharePhone && navigator.canShare({ files })) setReady({ key, files });
@@ -204,7 +192,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   // What Finish does, said once before the first time.
   const explainFinish = useCallback(async () => {
     if (readStored('mtg.finish.explained', false)) return true;
-    const ok = await dialog.confirm({ title: t('finish_explain_title'), message: t('finish_explain_msg'), okLabel: t('finish_explain_ok') });
+    const ok = await dialog.confirm({ title: t('finish_explain_title'), message: t('finish_explain_msg'), okLabel: t('finish_explain_ok'), cancelLabel: t('cancel') });
     if (ok) writeStored('mtg.finish.explained', true);
     return ok;
   }, [dialog, t]);
@@ -243,58 +231,37 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   // A finished photo's priced image, downloaded or shared whenever the seller
   // likes (now, later, again for a re-post): its prices stay locked.
   const deliverPhoto = useCallback(async (batch: Batch) => {
-    if (finishing) return;
+    const job = exportJob(batch);
+    if (finishing || !job) return;
     setFinishing(batch.id); setReady(null);
     try {
-      const file = await renderImage(batch);
-      if (file) deliver(batch.id, [file]);
+      deliver(batch.id, [await renderFile(job)]);
     } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
-  }, [finishing, renderImage, deliver, failedAlert]);
+  }, [finishing, exportJob, deliver, failedAlert]);
 
   const editPrices = useCallback(async (batch: Batch) => {
-    const ok = await dialog.confirm({ title: t('edit_prices_title'), message: t('edit_prices_msg'), okLabel: t('edit_prices_ok') });
+    const ok = await dialog.confirm({ title: t('edit_prices_title'), message: t('edit_prices_msg'), okLabel: t('edit_prices_ok'), cancelLabel: t('cancel') });
     if (ok) { scanner.unlockBatch(batch.id); setReady(null); }
   }, [dialog, t, scanner.unlockBatch]);
 
-  // Finish all of a post's photos (the post page asks first).
+  // Finish (or, on a live post, add) all of a post's photos. True when every
+  // one went through.
   const runFinishAll = useCallback(async (key: string, targets: Batch[], postId: number | null) => {
-    if (finishing || targets.length === 0) return;
+    if (finishing || targets.length === 0) return false;
     setFinishing(key); setReady(null);
     try {
       let failed = 0;
-      const done: Batch[] = [];
+      let skipped = 0;
       for (const b of targets) {
         const result = await finishCore(b, postId);
-        if (result !== 'unpriced') { failed += result; done.push(b); }
+        if (result === 'unpriced') skipped += 1;
+        else failed += result;
       }
       await alertFailed(failed);
-      if (done.length < targets.length) {
-        await dialog.alert({ title: t('finish_needs_price_title'), message: t('finish_all_skipped', { n: targets.length - done.length }) });
-      }
-    } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
+      if (skipped) await dialog.alert({ title: t('finish_needs_price_title'), message: t('finish_all_skipped', { n: skipped }) });
+      return !failed && !skipped;
+    } catch (e) { await failedAlert(e); return false; } finally { setFinishing(null); }
   }, [finishing, finishCore, alertFailed, dialog, t, failedAlert]);
-
-  // The priced images of a post's finished photos: one zip on a PC, one share
-  // on a phone.
-  const deliverFolder = useCallback(async (key: string, batches: Batch[]) => {
-    // In post order, so Facebook gets them (and the zip lists them) as Photo 1, 2, 3.
-    // A photo-priced post sends only finished (locked) photos; a live one, all.
-    const done = batches.filter(b => (b.lockedAt || pricingFor(b.postId).priceMode === 'live') && b.response).sort(byPostOrder);
-    if (finishing || !done.length) return;
-    setFinishing(key); setReady(null);
-    try {
-      if (sharePhone) {
-        const files: File[] = [];
-        for (const b of done) { const f = await renderImage(b); if (f) files.push(f); }
-        deliver(key, files);
-      } else {
-        const images = done
-          .map(b => { const p = buildExportPayload(b, pricingFor(b.postId)); return p ? { ...p, filename: numbered(b) } as ExportAllImage : null; })
-          .filter((x): x is ExportAllImage => x !== null);
-        downloadBlob(await exportAllImages(images), 'mtg_prices.zip');
-      }
-    } catch (e) { await failedAlert(e); } finally { setFinishing(null); }
-  }, [finishing, sharePhone, renderImage, deliver, pricingFor, failedAlert]);
 
   // Re-fetch CK prices for an already-saved scan. Cheap on the backend
   // (local SQLite lookups, no Gemini, no network out). Returns the updated
@@ -327,47 +294,32 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   // The photo order of the post page; kept from one post to the next.
   const [sort, setSort] = useState<PhotoSort>('post');
 
-  const postsById = useMemo(() => new Map(posts.map(p => [p.id, p])), [posts]);
   const pickerPosts = useMemo(() => posts.filter(p => p.status !== 'archived'), [posts]);
-  const postTitle = useCallback(
-    (p: Post) => p.title || `#${p.id}`,
-    [],
-  );
 
+  // Every post, newest first as the server lists them, each with its photos
+  // (a post may have none yet), then the photos in no post (or in a post
+  // this page doesn't know), as the Unfiled folder.
   const folders = useMemo<Folder[]>(() => {
-    const byKey = new Map<string, Folder>();
+    const byKey = new Map<string, Folder>(posts.map(p => [folderOf(p.id), {
+      key: folderOf(p.id), postId: p.id, title: postTitle(p), archived: p.status === 'archived', items: [], needs: 0, total: 0,
+    }]));
+    const unfiled: Folder = { key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, items: [], needs: 0, total: 0 };
     for (const b of scanner.batches) {
-      const post = b.postId != null ? postsById.get(b.postId) : undefined;
-      const key = folderOf(post?.id ?? null);
-      let f = byKey.get(key);
-      if (!f) {
-        f = {
-          key, postId: post?.id ?? null, title: post ? postTitle(post) : t('scans_unfiled'),
-          archived: post?.status === 'archived', items: [], needs: 0, total: 0,
-        };
-        byKey.set(key, f);
-      }
-      const sum = summarise(b, pricingFor(b.postId));
+      const f = byKey.get(folderOf(b.postId)) ?? unfiled;
+      const sum = summarise(b, pricingFor(f.postId));
       f.items.push(sum);
       f.needs += sum.needs;
       f.total += sum.total;
     }
-    // Newest activity first; a post that is still scanning counts as newest.
-    const newest = (f: Folder) => Math.max(...f.items.map(i => i.batch.scanId ?? Infinity));
-    return [...byKey.values()].sort((a, b) => newest(b) - newest(a));
-  }, [scanner.batches, postsById, postTitle, pricingFor, t]);
+    return unfiled.items.length ? [...byKey.values(), unfiled] : [...byKey.values()];
+  }, [scanner.batches, posts, postTitle, pricingFor, t]);
 
   // The open post. It may have no photos yet (just created, or all deleted).
   const openFolder = useMemo<Folder | null>(() => {
     if (folderKey == null) return null;
-    const found = folders.find(f => f.key === folderKey);
-    if (found) return found;
-    if (folderKey === UNFILED) return { key: UNFILED, postId: null, title: t('scans_unfiled'), archived: false, items: [], needs: 0, total: 0 };
-    const post = postsById.get(Number(folderKey.slice(1)));
-    return post
-      ? { key: folderKey, postId: post.id, title: postTitle(post), archived: post.status === 'archived', items: [], needs: 0, total: 0 }
-      : null;
-  }, [folderKey, folders, postsById, postTitle, t]);
+    return folders.find(f => f.key === folderKey)
+      ?? (folderKey === UNFILED ? { key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, items: [], needs: 0, total: 0 } : null);
+  }, [folderKey, folders, t]);
 
   // A post that no longer exists (deleted elsewhere): back to the list
   // rather than an empty screen.
@@ -378,9 +330,10 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   }, [folderKey, postsLoaded, scanner.loadingSaved, openFolder, photoId, replace]);
 
   // The posts list leaves archived posts out; they wait in their own section.
-  const liveFolders = useMemo(() => folders.filter(f => !f.archived), [folders]);
+  const liveFolders = useMemo(() => folders.filter(f => f.postId != null && !f.archived), [folders]);
   const archivedFolders = useMemo(() => folders.filter(f => f.archived), [folders]);
-  const loading = (scanner.loadingSaved || !postsLoaded) && scanner.batches.length === 0;
+  const unfiledFolder = folders.find(f => f.postId == null) ?? null;
+  const loading = !postsLoaded || (scanner.loadingSaved && scanner.batches.length === 0);
 
   // The tile is a link to the photo; this keeps the order it was opened in.
   const openPhoto = useCallback((ids: string[]) => {
@@ -421,21 +374,27 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     go({ page: 'post', folder: folderOf(postId) });
   }, [scanner, lang, refreshPosts, go, createPost]);
 
+  // True once the photos are in the other post.
   const moveTo = useCallback(async (ids: string[], postId: number | null) => {
     try {
       await scanner.moveBatches(ids, postId);
     } catch {
       await dialog.alert({ title: t('alert_error_title'), message: t('scans_move_failed') });
+      return false;
     }
-  }, [scanner, dialog, t]);
+    toast(t('photos_moved_toast', { post: folderTitle(postId) }));
+    return true;
+  }, [scanner, dialog, toast, folderTitle, t]);
 
   // Asks first; true once the photos are gone.
   const deletePhotos = useCallback(async (ids: string[]) => {
     if (!ids.length) return false;
+    const one = ids.length === 1;
     const ok = await dialog.confirm({
-      title: ids.length === 1 ? t('scans_delete_title_one') : t('scans_delete_title', { n: ids.length }),
+      title: one ? t('photos_delete_title_one') : t('photos_delete_title', { n: ids.length }),
       message: t('scans_delete_msg'),
-      okLabel: t('scans_delete'),
+      okLabel: one ? t('photos_delete_ok_one') : t('photos_delete_ok', { n: ids.length }),
+      cancelLabel: t('cancel'),
       destructive: true,
     });
     if (!ok) return false;
@@ -461,32 +420,40 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     }
   }, [dialog, refreshPosts, t]);
 
-  // Archiving hides a post without losing anything; unarchiving brings it back.
-  const setArchived = useCallback(async (folder: Folder, archived: boolean) => {
+  // Archiving hides a post without losing anything; restoring brings it back.
+  // Either one says so with an Undo, unless it is the undo itself.
+  const setArchived = useCallback(async (folder: Folder, archived: boolean, undoable = true) => {
     if (folder.postId == null) return;
     const status = archived ? 'archived' : 'active';
     setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, status } : p)));
     try {
       await postsApi.update(folder.postId, { status });
-      // Still on the post: the user may have left it meanwhile.
-      if (archived && routeFolder(current()) === folder.key) go(POSTS);
     } catch (e) {
       await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
+      return;
     }
-  }, [dialog, refreshPosts, current, go, t]);
+    // Still on the post: the user may have left it meanwhile.
+    if (archived && routeFolder(current()) === folder.key) go(POSTS);
+    const message = t(archived ? 'post_archived_toast' : 'post_restored_toast');
+    toast(message, undoable ? { undoLabel: t('posts_undo'), onUndo: () => setArchived(folder, !archived, false) } : undefined);
+  }, [dialog, toast, refreshPosts, current, go, t]);
 
   // Deleting a post takes its photos with it. The server refuses while any
-  // of its cards are still claimed, so no buyer's claim is lost silently.
+  // of its cards are still claimed, so no buyer's claim is lost silently:
+  // then archiving is offered instead.
   const deletePost = useCallback(async (folder: Folder) => {
     if (folder.postId == null) return;
+    const photos = folder.items.length;
+    const cards = folder.items.reduce((n, s) => n + s.cards, 0);
     const ok = await dialog.confirm({
-      title: t('scans_delete_post'),
-      message: t('scans_delete_post_msg', {
-        name: folder.title,
-        photos: folder.items.length === 1 ? t('scans_photo_one') : t('scans_photos', { n: folder.items.length }),
-      }),
-      okLabel: t('scans_delete'),
+      title: t('delete_post_title', { name: folder.title }),
+      message: photos ? t('delete_post_body', {
+        photos: photos === 1 ? t('scans_photo_one') : t('scans_photos', { n: photos }),
+        cards: cards === 1 ? t('post_cards_one') : t('post_cards', { n: cards }),
+      }) : t('delete_post_body_empty'),
+      okLabel: t('delete_post'),
+      cancelLabel: t('cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -494,22 +461,29 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
       await postsApi.remove(folder.postId);
     } catch (e) {
       const err = e as Error & { status?: number };
-      await dialog.alert({ title: t('alert_error_title'), message: err.status === 409 ? t('scans_delete_post_claimed') : err.message });
+      if (err.status !== 409) {
+        await dialog.alert({ title: t('alert_error_title'), message: err.message });
+      } else if (await dialog.confirm({
+        title: t('delete_post_claimed_title', { name: folder.title }),
+        message: t('delete_post_claimed_body'),
+        okLabel: t('archive_post'),
+        cancelLabel: t('cancel'),
+      })) {
+        await setArchived(folder, true);
+      }
       return;
     }
     for (const s of folder.items) await scanner.removeBatch(s.batch.id);
     if (routeFolder(current()) === folder.key) replace(POSTS);
     await refreshPosts();
-  }, [dialog, scanner, current, replace, refreshPosts, t]);
-
-  // A post's pricing is its own; unfiled photos use the default.
-  const pricingTitle = (folder: Folder) => (folder.postId == null ? t('menu_default_pricing') : t('settings_title'));
+    toast(t('post_deleted_toast'));
+  }, [dialog, toast, scanner, current, replace, refreshPosts, setArchived, t]);
 
   return {
     scanner, pricing, pricingFor, health, t, lang, route, go, replace,
     loading, postsById, pickerPosts, postTitle,
-    liveFolders, archivedFolders, openFolder, activeBatch, numbers, pricingTitle,
-    sharePhone, ready, finishing, share, finishPhoto, deliverPhoto, editPrices, explainFinish, runFinishAll, deliverFolder,
+    liveFolders, archivedFolders, unfiledFolder, openFolder, activeBatch, numbers,
+    sharePhone, ready, finishing, share, finishPhoto, deliverPhoto, editPrices, explainFinish, runFinishAll, exportJob,
     refreshScanPrices, deletePhotos, renamePost, setArchived, deletePost, moveTo, startPost,
     sort, setSort, openPhoto, liveNavIds, navIndex, step,
   };

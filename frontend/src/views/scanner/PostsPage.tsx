@@ -1,92 +1,89 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
-import { PostTile } from '../../components/ScanGallery.tsx';
+import { Link } from '../../components/Link.tsx';
+import { Mosaic, PostRow, thumbOf } from '../../components/ScanGallery.tsx';
 import { Spinner } from '../../components/Spinner.tsx';
-import { UploadZone } from '../../components/UploadZone.tsx';
-import type { PriceMode } from '../../types.ts';
-import { keyTaken, moveTileFocus, ScanProgress, type Area, type Folder } from './area.tsx';
+import { useToast } from '../../components/ui/Toast.tsx';
+import { usePhotoDrop } from '../../hooks/usePhotoDrop.ts';
+import { ScanProgress, type Area, type Folder } from './area.tsx';
+import { NewPostDialog } from './NewPostDialog.tsx';
 
-// Posts: every post as a tile, the archived ones behind a toggle, and the
-// drop area that starts a new post.
+// Posts: every post as a row with + New post above, the photos in no post,
+// and the archived posts behind their own heading.
 export function PostsPage({ area }: { area: Area }) {
-  const { t, scanner, pricingFor, loading, liveFolders, archivedFolders, startPost } = area;
+  const { t, scanner, pricingFor, loading, liveFolders, archivedFolders, unfiledFolder, startPost, setArchived } = area;
+  const toast = useToast();
+  const [newOpen, setNewOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  // A new post is of the kind picked above the drop area: the default
-  // pricing's kind unless the seller picks the other.
-  const defaultType = pricingFor(null).priceMode;
-  const [pickedType, setPickedType] = useState<PriceMode | null>(null);
-  const newType = pickedType ?? defaultType;
+  const defaultKind = pricingFor(null).priceMode;
+  // On a computer, photos dropped or pasted on the page start a post of the default kind.
+  const dragging = usePhotoDrop(photos => (photos.length ? startPost(photos, defaultKind) : toast(t('drop_no_photos'))));
 
-  // Arrows move between the tiles (Enter opens one).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (!keyTaken(e)) moveTileFocus(e); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  const grid = (list: Folder[]) => (
-    <div className="gallery-grid">
-      {list.map(f => (
-        <PostTile
-          key={f.key}
-          title={f.title}
-          covers={f.items.flatMap(i => (i.batch.response ? [i.batch.response.thumb_url ?? i.batch.response.image_b64] : []))}
-          photos={f.items.length}
-          needs={f.items.filter(i => i.needs > 0).length}
-          pending={f.items.filter(i => i.pending > 0).length}
-          total={f.total}
-          settings={pricingFor(f.postId)}
-          t={t}
-          to={{ page: 'post', folder: f.key }}
-        />
-      ))}
-    </div>
+  const row = (f: Folder) => (
+    <li key={f.key}>
+      <PostRow title={f.title} items={f.items} total={f.total} settings={pricingFor(f.postId)} t={t} to={{ page: 'post', folder: f.key }} />
+    </li>
   );
 
   return (
     <>
-      <div className="review-head">
-        <div className="review-title">
-          <h1 className="page-title">
-            {t('scans_title')}{liveFolders.length ? <span className="meta"> · {liveFolders.length}</span> : null}
-          </h1>
-        </div>
+      <div className="posts-head">
+        <h1 className="page-title">
+          {t('scans_title')}{liveFolders.length ? <span className="ui-count"> · {liveFolders.length}</span> : null}
+        </h1>
+        <button type="button" className="ui-btn ui-btn--primary" aria-haspopup="dialog" onClick={() => setNewOpen(true)}>
+          <Icon name="plus" size={18} />{t('new_post')}
+        </button>
       </div>
-      <UploadZone active onFiles={files => startPost(files, newType)} t={t}>
-        <div className="post-type-row new-post-type">
-          <span className="post-type-label">{t('post_type_title')}</span>
-          <div className="segmented" role="group" aria-label={t('post_type_title')}>
-            {(['photo', 'live'] as const).map(mode => (
-              <button key={mode} type="button" className={newType === mode ? 'active' : ''} aria-pressed={newType === mode} onClick={() => setPickedType(mode)}>
-                {t(`post_type_${mode}`)}
-                {mode === defaultType ? <span className="post-type-default">{t('post_type_default')}</span> : null}
-              </button>
-            ))}
-          </div>
-          <p>{t(`post_type_${newType}_desc`)}</p>
-        </div>
-      </UploadZone>
       <ScanProgress progress={scanner.scanProgress} t={t} />
       {loading ? (
         <Spinner label={t('scanner_loading_saved')} />
       ) : (
         <>
-          {liveFolders.length ? grid(liveFolders) : <p className="gallery-empty">{t('scans_empty')}</p>}
+          {liveFolders.length ? <ul className="ui-list postlist">{liveFolders.map(row)}</ul> : (
+            <div className="posts-empty">
+              <Icon name="photo" size={32} />
+              <h2>{t('posts_empty_title')}</h2>
+              <p>{t('posts_empty_body')}</p>
+            </div>
+          )}
+          {unfiledFolder ? (
+            <ul className="ui-list postlist">
+              <li>
+                <Link className="ui-row postrow" to={{ page: 'post', folder: unfiledFolder.key }}>
+                  <Mosaic srcs={unfiledFolder.items.flatMap(s => thumbOf(s.batch) ?? [])} photos={unfiledFolder.items.length} />
+                  <span className="ui-row-main">
+                    <span className="ui-row-title">{t('posts_unfiled')}</span>
+                    <span className="ui-row-meta">
+                      {unfiledFolder.items.length === 1 ? t('scans_photo_one') : t('scans_photos', { n: unfiledFolder.items.length })} · {t('posts_unfiled_meta')}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            </ul>
+          ) : null}
           {archivedFolders.length ? (
-            <>
-              <button
-                type="button" className="ghost archived-toggle"
-                aria-expanded={showArchived} onClick={() => setShowArchived(v => !v)}
-              >
+            <section className="posts-archived">
+              <button type="button" className="ui-btn ui-btn--plain posts-archived-toggle" aria-expanded={showArchived} onClick={() => setShowArchived(v => !v)}>
                 <Icon name="archive" size={18} />
-                {t('scans_archived')} · {archivedFolders.length}
-                <Icon name={showArchived ? 'chevronDown' : 'chevronRight'} size={16} />
+                {t('posts_archived')} <span className="ui-count">· {archivedFolders.length}</span>
               </button>
-              {showArchived ? grid(archivedFolders) : null}
-            </>
+              {showArchived ? (
+                <ul className="ui-list postlist">
+                  {archivedFolders.map(f => (
+                    <li key={f.key} className="postrow-archived">
+                      <PostRow title={f.title} items={f.items} total={f.total} settings={pricingFor(f.postId)} t={t} to={{ page: 'post', folder: f.key }} />
+                      <button type="button" className="ui-btn" onClick={() => setArchived(f, false)}>{t('posts_restore')}</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
           ) : null}
         </>
       )}
+      {dragging ? <div className="drop-hint" aria-hidden="true"><span><Icon name="photo" size={28} />{t('new_post_drop')}</span></div> : null}
+      <NewPostDialog open={newOpen} onClose={() => setNewOpen(false)} defaultKind={defaultKind} onStart={startPost} t={t} />
     </>
   );
 }
