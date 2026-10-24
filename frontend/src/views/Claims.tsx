@@ -27,7 +27,7 @@ import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { T } from '../hooks/useLang.ts';
 import { UNFILED } from '../routes.ts';
 import type { Batch, CardRowData, Credits } from '../types.ts';
-import { byPostOrder, computeCardData, dueForSupportAsk, photoNumbers, popupOpen } from '../utils.ts';
+import { byPostOrder, computeCardData, dueForSupportAsk, paymentLines, photoNumbers, popupOpen } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
 import { BuyerDialog } from './claims/BuyerDialog.tsx';
@@ -279,6 +279,10 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
     }
   };
 
+  // A price write's answer: only its own fields, so a status change made
+  // while it was on the way stays on screen.
+  const applyPrices = (saved: Order) => setOrders(prev => prev.map(x => (x.id === saved.id ? { ...x, items: saved.items, prices_sent_at: saved.prices_sent_at } : x)));
+
   // Copied for a live post: the buyer has their prices now, and they stay.
   const markSent = async (g: BuyerGroup) => {
     if (!live) return true;
@@ -288,7 +292,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
       const items = g.lines.filter(l => o.items.some(i => i.id === l.id)).map(l => ({ id: l.id, unit_price_myr: l.each.toFixed(2) }));
       try {
         const saved = await ordersApi.setPrices(o.id, items, true);
-        setOrders(prev => prev.map(x => (x.id === saved.id ? saved : x)));
+        applyPrices(saved);
       } catch { all = false; /* stays an estimate: copying again sends it */ }
     }
     return all;
@@ -319,7 +323,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
       for (const o of g.orders) {
         if (!o.prices_sent_at) continue;
         const saved = await ordersApi.unsendPrices(o.id);
-        setOrders(prev => prev.map(x => (x.id === saved.id ? saved : x)));
+        applyPrices(saved);
       }
     } catch {
       toast(t('claims_save_failed'));
@@ -372,7 +376,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
         });
         if (!items.length) continue;
         const saved = await ordersApi.setPrices(o.id, items);
-        setOrders(prev => prev.map(x => (x.id === saved.id ? saved : x)));
+        applyPrices(saved);
       }
     } catch {
       toast(t('claims_save_failed'));
@@ -527,7 +531,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
       <BuyerDialog
         open={buyerId != null} onClose={() => setBuyerId(null)} group={buyer}
         message={buyer ? messageOf(buyer) : ''} cents={cents} live={live} sentOn={buyer ? sentOn(buyer) : null}
-        hasPayment={!!payment && !!(payment.bank_name || payment.bank_account_number || payment.bank_account_holder || payment.payment_note)}
+        hasPayment={paymentLines(payment, t).length > 0}
         qrLabel={qrAction ? t(qrAction === 'share' ? 'claims_share_qr' : 'claims_copy_qr') : null}
         onCopy={() => buyer && copy(buyer)} onQr={sendQr} onStatus={to => buyer && move(buyer, to)}
         onSavePhone={phone => (buyer ? savePhone(buyer, phone) : Promise.resolve(false))}

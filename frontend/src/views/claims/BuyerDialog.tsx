@@ -56,7 +56,7 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, hasPaymen
             </p>
           ) : null}
           <Segmented
-            className="claims-dialog-status" label={t('claims_status')} value={g.state} onChange={onStatus}
+            label={t('claims_status')} value={g.state} onChange={onStatus}
             options={PAY_STATES.map(s => ({ value: s, label: t(`claims_state_${s}`) }))}
           />
           <PhoneField key={g.buyerId} saved={g.phone} onSave={onSavePhone} />
