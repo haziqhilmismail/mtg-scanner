@@ -15,25 +15,26 @@
    written `.ui-btn.x`, because ui.css loads after this file. */
 
 .claims-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 8px 0 16px; }
-.claims-head .ui-btn { flex: none; padding: 0 14px 0 12px; }
+.claims-head .ui-btn { flex: 0 1 auto; min-width: 0; padding: 0 14px 0 12px; }
 .claims-load-error { margin: 0 0 16px; padding: 10px 12px; border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 13px; overflow-wrap: anywhere; }
 .claims-approx { font-weight: 400; color: var(--ink-soft); }
 
 /* Phone: post and totals, then the buyers. Wide: the totals stay in a side column. */
 .claims-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.claims-main { min-width: 0; }
+.claims-main { min-width: 0; container-type: inline-size; }
 @media (min-width: 1024px) {
   .claims-layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px; align-items: start; }
   .claims-side { position: sticky; top: calc(var(--bar-h) + 16px); }
   .claims-main > .ui-section-title:first-child, .claims-main > .ui-section-head:first-child { margin-top: 0; }
 }
 
-.claims-totals-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.claims-totals-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 12px; }
 .claims-total { margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.claims-total.is-paid { align-items: flex-end; text-align: right; }
+.claims-total.is-paid { align-items: flex-end; margin-left: auto; text-align: right; }
 .claims-total-label { font-size: 13px; color: var(--ink-soft); }
-.claims-big { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
-.claims-paid { font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--green); overflow-wrap: anywhere; }
+/* An amount never breaks across lines; the two move apart instead. */
+.claims-big { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; white-space: nowrap; }
+.claims-paid { font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--green); white-space: nowrap; }
 .claims-bar { height: 6px; margin: 12px 0 8px; border-radius: 3px; background: var(--fill); overflow: hidden; }
 .claims-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--green); }
 .claims-totals-meta { margin: 0; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
@@ -66,6 +67,11 @@
 .claims-filter { margin-bottom: 12px; }
 .claims-filter .ui-seg-opt { flex-direction: row; flex-wrap: wrap; gap: 0 4px; }
 .claims-filter-n { color: var(--ink-soft); font-weight: 500; }
+/* Zoomed in, the four choices go two by two instead of breaking words. */
+@container (max-width: 260px) {
+  .claims-filter { flex-wrap: wrap; }
+  .claims-filter .ui-seg-opt { flex: 1 1 40%; }
+}
 .claims-none { margin: 0; padding: 24px 16px; text-align: center; font-size: 15px; color: var(--ink-soft); }
 
 .claims-buyers { display: grid; gap: 12px; align-items: start; }
@@ -73,9 +79,10 @@
   .claims-buyers { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 }
 .claims-buyer { container-type: inline-size; min-width: 0; padding: 14px 16px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); }
-.claims-buyer-head { display: flex; align-items: flex-start; gap: 10px; }
+/* The total moves under the name when both don't fit (big text, zoom). */
+.claims-buyer-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 10px; }
 button.claims-buyer-open {
-  flex: 1; min-width: 0; min-height: var(--tap);
+  flex: 1 1 140px; min-width: 0; min-height: var(--tap);
   display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 3px;
   margin: -4px; padding: 4px; border: 0; border-radius: 10px;
   background: none; color: inherit; font: inherit; text-align: left;
@@ -91,7 +98,7 @@ button.claims-buyer-open:hover, button.claims-buyer-open:active { background: no
 .claims-dot.is-unpaid { background: var(--warn); }
 .claims-dot.is-paid { background: var(--green); }
 .claims-dot.is-done { background: var(--ink-faint); }
-.claims-buyer-total { flex: none; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+.claims-buyer-total { flex: none; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; white-space: nowrap; }
 .claims-buyer.is-done :is(.claims-buyer-name, .claims-buyer-total) { color: var(--ink-soft); }
 
 .claims-lines { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--rule); }
@@ -99,7 +106,7 @@ button.claims-buyer-open:hover, button.claims-buyer-open:active { background: no
 .claims-line-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .claims-line-name { font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
 .claims-line-working { font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
-.claims-line-total { flex: none; font-size: 15px; font-weight: 600; }
+.claims-line-total { flex: none; font-size: 15px; font-weight: 600; white-space: nowrap; }
 
 .claims-buyer-actions { display: flex; gap: 8px; margin-top: 14px; }
 .claims-buyer-actions .ui-btn { padding: 0 16px; }
@@ -111,9 +118,9 @@ button.claims-buyer-open:hover, button.claims-buyer-open:active { background: no
   .claims-buyer-actions { flex-wrap: wrap; }
   .claims-buyer-actions > :last-child { flex: 1 1 100%; }
 }
-.claims-buyer-done { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+.claims-buyer-done { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
 .claims-buyer-done-text { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
-.claims-buyer-done .ui-btn { flex: none; margin-right: -10px; }
+.claims-buyer-done .ui-btn { flex: none; margin: 0 -10px 0 auto; }
 
 /* ---------- Dialogs ---------- */
 @media (max-width: 767px) {
@@ -154,7 +161,7 @@ button.claims-text-btn:hover, button.claims-text-btn:active { background: none; 
   margin-bottom: 12px; padding: 12px; border-radius: 14px; background: var(--surface-2);
 }
 .claims-shot-head { grid-area: head; min-width: 0; display: flex; align-items: flex-start; gap: 12px; }
-.claims-shot-rest { grid-area: rest; min-width: 0; }
+.claims-shot-rest { grid-area: rest; min-width: 0; container-type: inline-size; }
 button.claims-shot-thumb { grid-area: thumb; width: 72px; height: 128px; min-height: 0; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--fill); cursor: zoom-in; }
 button.claims-shot-thumb:hover { background: var(--fill); }
 .claims-shot-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
@@ -169,6 +176,10 @@ button.claims-shot-thumb:hover { background: var(--fill); }
 .claims-for { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 6px; }
 .claims-for .ui-btn { flex: none; margin-right: -10px; }
 .claims-photo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+/* Four across until the cells would be smaller than a finger (zoomed in). */
+@container (max-width: 250px) {
+  .claims-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .claims-photo-cell { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 4px; color: var(--ink-soft); cursor: pointer; }
 .claims-photo-cell > input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
 .claims-photo-thumb { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 4 / 3; border-radius: var(--radius-sm); overflow: hidden; background: var(--fill); color: var(--ink-soft); transition: box-shadow 150ms ease; }

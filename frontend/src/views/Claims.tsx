@@ -206,11 +206,14 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
   }
 
   const startAdd = useCallback((files?: File[]) => {
+    // The URL names the post from here on, so a scan finishing on a newer
+    // post can't swap the post under the open dialog.
+    if (activeKey && activeKey !== folderKey) onFolderChange(activeKey);
     setHowOpen(false);
     setSession(s => s + 1);
     setIncoming(files?.length ? { id: Date.now(), files } : null);
     setAddOpen(true);
-  }, []);
+  }, [activeKey, folderKey, onFolderChange]);
   const pageDragging = useScreenshotDrop(active, () => photos.length > 0 && !popupOpen(), startAdd);
 
   const closeAdd = (hadWork: boolean) => {
