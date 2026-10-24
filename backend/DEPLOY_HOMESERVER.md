@@ -55,9 +55,10 @@ nano .env
 ## 3. Data
 
 Everything the app keeps lives in `./data`: `app.db` (all orders/listings),
-the uploaded files (`scans/`, `posts/`, `orders/`, `payment_qr/`),
-`ck_index.db` (CardKingdom prices), the local scanner's `models/` and
-`card_index.npz`, and `jwt_secret.txt`. Moving to a new box means copying that
+the uploaded files (`scans/`, `posts/`, `orders/`, `payment_qr/`), the card
+pictures kept with card corrections (`corrections/`), `ck_index.db`
+(CardKingdom prices), the local scanner's `models/` and `card_index.npz`, and
+`jwt_secret.txt`. Moving to a new box means copying that
 directory (stop the container first for a consistent SQLite copy). Keeping
 `jwt_secret.txt` keeps existing logins valid; drop it and everyone just signs
 in again.
@@ -167,7 +168,8 @@ timer holds it, and logs "held", until someone reviews it and runs
 user timer (no root). It makes a consistent copy of `data/app.db`, checks it,
 and keeps it gzipped in `~/backups/mtg-scanner`. If `.env` sets
 `BACKUP_NAS_DIR`, it also copies the database backups there and mirrors the
-uploaded files (`scans/`, `posts/`, `orders/`, `payment_qr/`). Each backup is
+uploaded files (`scans/`, `posts/`, `orders/`, `payment_qr/`) and the card
+pictures (`corrections/`). Each backup is
 deleted after 30 days, as PRIVACY.md promises. A failure goes to the Telegram
 bot in `.env`.
 

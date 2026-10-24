@@ -16,6 +16,9 @@ data/app.db
 data/app.db-*
 data/scans/
 data/posts/
+data/orders/
+data/payment_qr/
+data/corrections/
 data/ck_pricelist.json
 data/jwt_secret.txt
 data/models/

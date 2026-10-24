@@ -13,6 +13,7 @@ Pasar Malam MTG is run by one person, Muhammad Haziq bin Hilmi, in Malaysia. If 
 - **Your buyers.** The names, Facebook names and phone numbers you enter for your buyers. Only you can see them.
 - **Your payment details.** The bank, account number, account name, note and DuitNow QR you enter. They are added to the summaries you copy for buyers. Only you can see them, and you can delete them at any time.
 - **Sales records.** When you copy or share a buyer's summary, the app records the price of each card in it: the card (name, set, collector number, rarity, finish), the quantity, the final price, how you priced it (the Card Kingdom price and multiplier your app used, or a price you typed), the kind of post (price on photo or live price), Card Kingdom's price that day, and the time. This shows real selling prices at the night market. While your account exists, a record is linked to your account, post and order. A record never includes the buyer's name, phone number or notes.
+- **Card corrections.** When you pick another printing for a card, or tap "Looks right", the app keeps a picture of that card cut from your photo. With it, the app keeps the printing you chose, which of the two you did, and the time. It also keeps what the scanner had guessed: the card's name, set and number, how the scanner found them, and how sure it was. They are used to train and test the app's card scanner. A picture is cut around one card, not the whole photo. For some older photos, the picture is the box around the card, so it can show a little of what is next to the card. While your account exists, a correction is linked to your account and your photo. A correction never includes a price or anything about your buyers.
 - **Credits.** When you use a credit, and the vouchers you redeem.
 - **Error reports and feedback.** When something breaks, or you send feedback: the message, the page, your browser type and your user number (not your email).
 - **Your browser.** Your language, theme and some settings stay in your browser's local storage. There are no ads, no tracking cookies and no analytics.
@@ -28,13 +29,15 @@ Comment screenshots you add on the Claims page are read on the server to get the
 
 Your data is not sold. Sales records can be used to work out figures across many sellers, such as the average price of a card. Any figure that is shared never shows who sold the card or who bought it.
 
+Card corrections are used to improve the card scanner that every seller uses. A card picture is not shared outside the app.
+
 ## Your buyers' data
 
 You enter your buyers' details, so you are responsible for having a reason to keep them, for example to arrange payment and drop-off. Delete a buyer's details when you no longer need them.
 
 ## How long data is kept
 
-Your data stays until you delete it in the app, or until your account is deleted. To delete your account, email the address above; it is done within 30 days. When an account is deleted, its photos, posts, buyers, orders and payment details are deleted. Sales records are kept with no link to your account, posts or orders; only whether each order was paid or cancelled is kept with them.
+Your data stays until you delete it in the app, or until your account is deleted. To delete your account, email the address above; it is done within 30 days. When an account is deleted, its photos, posts, buyers, orders and payment details are deleted. Sales records and card corrections are kept with no link to your account, posts, orders or photos; only whether each order was paid or cancelled is kept with sales records. Deleting a photo does not delete the card pictures kept from it.
 
 Every night the server makes a backup of the data, and it deletes each backup after 30 days. So data that you delete, or the data of a deleted account, stays in a backup for up to 30 days.
 

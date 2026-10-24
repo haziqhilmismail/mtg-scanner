@@ -66,7 +66,7 @@ mkdir -p "$NAS_DIR/db"
 rsync -t "$BACKUP_DIR"/app-*.db.gz "$NAS_DIR/db/"
 # -rt, not -a: an SMB share can't take Linux owners and modes. The folder takes
 # the date of the last backup that still had the files, so they also go after 30 days.
-# shortcut: the upload folders are listed by name; add a new one here too.
+# The upload folders are listed by name; tests/test_data_folders.py fails when one is missing.
 rsync -rt --modify-window=2 --delete --backup --backup-dir="$NAS_DIR/files-changed/$(date -d yesterday +%F)" \
-  data/scans data/posts data/orders data/payment_qr "$NAS_DIR/files/"
+  data/scans data/posts data/orders data/payment_qr data/corrections "$NAS_DIR/files/"
 echo "[backup] done for $day"
