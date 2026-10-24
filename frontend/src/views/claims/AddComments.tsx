@@ -218,7 +218,6 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
               {busy === 'reading' ? <span className="claims-spin" aria-hidden="true" /> : <Icon name="plus" size={18} />}
               {busy === 'reading' ? t('claims_reading') : t(shots.length ? 'claims_choose_more' : 'claims_choose')}
             </button>
-            <p className="claims-paste-hint">{t('claims_paste_hint')}</p>
             {balance ? (
               <p className="claims-foot-note">
                 {balance}
