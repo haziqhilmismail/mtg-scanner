@@ -9,7 +9,7 @@ import { readStored, writeStored } from '../../hooks/usePersistedState.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { migrateAdded } from '../../lib/addedMarkers.ts';
-import { POSTS, routeFolder, UNFILED } from '../../routes.ts';
+import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
 import type { Batch, PriceMode, Settings } from '../../types.ts';
 import { byPostOrder, computeCardData, downloadBlob, listingFields, lockPrices, notAdded, photoLabel, photoNumbers, popupOpen, type PhotoSort } from '../../utils.ts';
 
@@ -40,7 +40,7 @@ export interface ScannerProps {
 // Build the /api/export payload for one batch (shared by single-batch export and
 // the bulk "Export all" zip). Returns null for batches that haven't finished
 // scanning yet (no response).
-export function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | null {
+function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | null {
   if (!batch.response) return null;
   const cardData = computeCardData(batch, settings);
   // A live-price post's photo carries only the labels CK won't decide (see photoLabel).
@@ -338,7 +338,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     const byKey = new Map<string, Folder>();
     for (const b of scanner.batches) {
       const post = b.postId != null ? postsById.get(b.postId) : undefined;
-      const key = post ? `p${post.id}` : UNFILED;
+      const key = folderOf(post?.id ?? null);
       let f = byKey.get(key);
       if (!f) {
         f = {
@@ -418,7 +418,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
       await refreshPosts();
     } catch { /* couldn't create the post: the photos are still scanned, unfiled */ }
     scanner.addFiles(files, postId);
-    go({ page: 'post', folder: postId != null ? `p${postId}` : UNFILED });
+    go({ page: 'post', folder: folderOf(postId) });
   }, [scanner, lang, refreshPosts, go, createPost]);
 
   const moveTo = useCallback(async (ids: string[], postId: number | null) => {
