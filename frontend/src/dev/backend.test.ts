@@ -117,3 +117,13 @@ test('saving claims finds or makes the buyer and the listing, and makes the orde
 test('a route with no test data answers 404', async () => {
   assert.equal((await api('worst').send('GET', '/api/posts/1/image')).status, 404);
 });
+
+test('a post with an open claim is not deleted, as on the server; once the claim is cancelled it is', async () => {
+  const { send, get } = api('one');
+  const [post] = await get<Post[]>('/api/posts');
+  const [order] = await get<Order[]>('/api/orders');
+  assert.equal((await send('DELETE', `/api/posts/${post.id}`)).status, 409);
+  await send('POST', `/api/orders/${order.id}/cancel`);
+  assert.equal((await send('DELETE', `/api/posts/${post.id}`)).status, 204);
+  assert.deepEqual(await get<Post[]>('/api/posts'), []);
+});

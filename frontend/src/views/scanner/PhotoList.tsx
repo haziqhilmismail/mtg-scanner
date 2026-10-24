@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
-import { hideBroken, Money, thumbOf, type BatchSummary } from '../../components/ScanGallery.tsx';
+import { countText, hideBroken, Money, thumbOf, type BatchSummary } from '../../components/ScanGallery.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import type { Route } from '../../routes.ts';
 import type { Settings } from '../../types.ts';
@@ -15,6 +15,8 @@ export type PhotoListMode =
 
 interface Props {
   items: BatchSummary[];
+  // Photos in a post; the unfiled ones have no post to add their cards to.
+  inPost: boolean;
   // "Photo N" for each saved photo; in reorder mode the place in the draft.
   numbers: Map<string, number>;
   settings: Settings;
@@ -23,9 +25,20 @@ interface Props {
   t: T;
 }
 
+// A file name in one line, shortened in the middle so its end shows.
+function FileName({ name }: { name: string }) {
+  const chars = Array.from(name);
+  return (
+    <span className="photo-file" title={name}>
+      <span>{chars.slice(0, -10).join('')}</span>
+      <span>{chars.slice(-10).join('')}</span>
+    </span>
+  );
+}
+
 // A post's photos as rows: the picture, "Photo N", its cards and total, and
 // what still waits (not added, to fix, prices locked).
-export function PhotoList({ items, numbers, settings, mode, photoRoute, t }: Props) {
+export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute, t }: Props) {
   return (
     <ul className="ui-list photolist">
       {items.map((s, i) => {
@@ -38,7 +51,7 @@ export function PhotoList({ items, numbers, settings, mode, photoRoute, t }: Pro
         if (b.status === 'scanning') meta = t('photo_scanning');
         else if (b.outOfCredits) meta = t('photo_no_credits');
         else if (b.status === 'error') meta = t('photo_failed');
-        else meta = <>{s.cards === 1 ? t('post_cards_one') : t('post_cards', { n: s.cards })}{s.total > 0 ? <> · <Money amount={s.total} settings={settings} /></> : null}</>;
+        else meta = <>{countText(t, 'post_cards', s.cards)}{s.total > 0 ? <> · <Money amount={s.total} settings={settings} /></> : null}</>;
         const src = thumbOf(b);
         const body = (
           <>
@@ -47,7 +60,7 @@ export function PhotoList({ items, numbers, settings, mode, photoRoute, t }: Pro
             </span>
             <span className="ui-row-main">
               <span className="ui-row-title">{title}</span>
-              {n != null && (mode.kind === 'reorder' || (mode.kind === 'normal' && mode.showFile)) ? <span className="photo-file">{b.filename}</span> : null}
+              {n != null && (mode.kind === 'reorder' || (mode.kind === 'normal' && mode.showFile)) ? <FileName name={b.filename} /> : null}
               <span className="ui-row-meta">{meta}</span>
               {matched.length ? (
                 <span className="photo-match">{matched.length > 1 ? t('photo_more_matches', { name: matched[0], n: matched.length - 1 }) : matched[0]}</span>
@@ -55,7 +68,7 @@ export function PhotoList({ items, numbers, settings, mode, photoRoute, t }: Pro
               {mode.kind !== 'reorder' && b.response ? (
                 <span className="chips">
                   {b.lockedAt ? <span className="ui-chip"><Icon name="lock" size={13} />{t('tile_locked')}</span>
-                    : s.pending ? <span className="ui-chip ui-chip--accent"><Icon name="addList" size={13} />{t('scans_cards_not_added', { n: s.pending })}</span> : null}
+                    : s.pending && inPost ? <span className="ui-chip ui-chip--accent"><Icon name="addList" size={13} />{t('scans_cards_not_added', { n: s.pending })}</span> : null}
                   {s.needs ? <span className="ui-chip ui-chip--warn"><Icon name="warning" size={13} />{t('scans_to_fix', { n: s.needs })}</span> : null}
                 </span>
               ) : null}

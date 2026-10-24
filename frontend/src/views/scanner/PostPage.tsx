@@ -10,13 +10,20 @@ import { StickyBar } from '../../components/ui/StickyBar.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import { photosOf, usePhotoDrop } from '../../hooks/usePhotoDrop.ts';
 import { POSTS, UNFILED } from '../../routes.ts';
+import type { Batch } from '../../types.ts';
 import { byPostOrder, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
 import { keyTaken, ScanProgress, type Area, type Folder } from './area.tsx';
 import { PhotoList } from './PhotoList.tsx';
 import { PostSummary } from './PostSummary.tsx';
 import { usePostExport } from './usePostExport.ts';
 
-type Mode = 'normal' | 'select' | 'reorder';
+// What the photo list is doing: showing the photos, ticking some, or
+// moving them into a new order that is saved in one go.
+type Mode =
+  | { kind: 'normal' }
+  | { kind: 'select'; selected: Set<string> }
+  | { kind: 'reorder'; draft: string[] };
+const NORMAL: Mode = { kind: 'normal' };
 
 // One post: its name with Rename and Manage post, its total and actions,
 // then its photos to search, sort, select and reorder.
@@ -28,9 +35,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   const dialog = useDialog();
   const toast = useToast();
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<Mode>('normal');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [draft, setDraft] = useState<string[]>([]);
+  const [mode, setMode] = useState<Mode>(NORMAL);
   const [saving, setSaving] = useState(false);
   // The name being typed in Rename; null while the dialog is closed.
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -44,34 +49,36 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   const q = query.trim().toLowerCase();
   // The saved photos in post order: what reorder moves and what exports.
   const saved = useMemo(() => folder.items.map(s => s.batch).filter(b => b.response && b.scanId != null).sort(byPostOrder), [folder]);
-  // Its labelled photos to share: a live post's every photo, a
+  // The labelled photos of some of them: a live post's every photo, a
   // price-on-photo post's finished ones (their prices are the ones claims use).
-  const shareJobs = useMemo(
-    () => (isPost ? saved.filter(b => live || b.lockedAt).flatMap(b => exportJob(b) ?? []) : []),
-    [isPost, saved, live, exportJob],
-  );
+  const jobsOf = (batches: Batch[]) => batches.filter(b => live || b.lockedAt).flatMap(b => exportJob(b) ?? []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const shareJobs = useMemo(() => (isPost ? jobsOf(saved) : []), [isPost, saved, live, exportJob]);
   const exp = usePostExport(shareJobs, folder.title, t);
   const visible = useMemo(
     () => sortPhotos(folder.items.filter(s => !q || s.names.some(n => n.toLowerCase().includes(q))), sort),
     [folder, q, sort],
   );
-  const byId = new Map(folder.items.map(s => [s.batch.id, s]));
-  const drafted = draft.flatMap(id => byId.get(id) ?? []);
+  const selected = mode.kind === 'select' ? mode.selected : new Set<string>();
+  const draft = mode.kind === 'reorder' ? mode.draft : [];
   const dirty = draft.join() !== saved.map(b => b.id).join();
-  const chosen = saved.filter(b => selected.has(b.id));
-  const chosenJobs = chosen.filter(b => live || b.lockedAt).flatMap(b => exportJob(b) ?? []);
 
   const addPhotos = (photos: File[]) => (photos.length ? scanner.addFiles(photos, folder.postId) : toast(t('drop_no_photos')));
   const dragging = usePhotoDrop(addPhotos);
 
-  const endMode = () => { setMode('normal'); setSelected(new Set()); };
-  const startSelect = () => { setQuery(''); setSelected(new Set()); setMode('select'); };
-  const startReorder = () => { setDraft(saved.map(b => b.id)); setMode('reorder'); };
+  const endMode = () => setMode(NORMAL);
+  const startSelect = () => { setQuery(''); setMode({ kind: 'select', selected: new Set() }); };
+  const startReorder = () => setMode({ kind: 'reorder', draft: saved.map(b => b.id) });
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (!next.delete(id)) next.add(id);
+    setMode({ kind: 'select', selected: next });
+  };
 
   const move = (i: number, by: -1 | 1, dir: 'up' | 'down') => {
     const next = [...draft];
     [next[i], next[i + by]] = [next[i + by], next[i]];
-    setDraft(next);
+    setMode({ kind: 'reorder', draft: next });
     // At the top or bottom its button turns off; keep the keyboard on the row.
     const id = draft[i];
     requestAnimationFrame(() => {
@@ -103,20 +110,21 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (keyTaken(e)) return;
-      if (e.key === '/' && mode === 'normal') {
+      if (e.key === '/' && mode.kind === 'normal') {
         const search = document.querySelector<HTMLInputElement>('.photo-search input');
         if (search) { e.preventDefault(); search.focus(); }
       } else if (e.key === 'Escape') {
-        if (mode === 'normal') go(POSTS);
-        else { setMode('normal'); setSelected(new Set()); }
+        if (mode.kind === 'normal') go(POSTS);
+        else setMode(NORMAL);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mode, go]);
+  }, [mode.kind, go]);
 
   const count = folder.items.length;
   const allSelected = count > 0 && selected.size === count;
+  const chosenJobs = jobsOf(saved.filter(b => selected.has(b.id)));
   const moveTargets = pickerPosts.filter(p => p.id !== folder.postId);
 
   return (
@@ -154,27 +162,27 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
 
       <div className="post-layout">
         <div className="post-side">
-          {isPost && count ? <PostSummary area={area} folder={folder} quiet={mode === 'reorder'} jobs={shareJobs} exp={exp} /> : null}
-          {pricingKnownRow(area, folder)}
+          {isPost && count ? <PostSummary area={area} folder={folder} quiet={mode.kind === 'reorder'} jobs={shareJobs} exp={exp} /> : null}
+          <PostPricingRow area={area} folder={folder} />
         </div>
 
         <section className="post-main" aria-labelledby={headId}>
           <ScanProgress progress={scanner.scanProgress} t={t} />
           <div className="ui-section-head">
-            <h2 className="ui-section-title" id={headId} aria-live={mode === 'select' ? 'polite' : undefined}>
-              {mode === 'select' ? (selected.size ? t('photos_selected', { n: selected.size }) : t('photos_select_title'))
-                : mode === 'reorder' ? t('reorder_title')
+            <h2 className="ui-section-title" id={headId} aria-live={mode.kind === 'select' ? 'polite' : undefined}>
+              {mode.kind === 'select' ? (selected.size ? t('photos_selected', { n: selected.size }) : t('photos_select_title'))
+                : mode.kind === 'reorder' ? t('reorder_title')
                 : <>{t('post_photos')}{count ? <span className="ui-count"> · {count}</span> : null}</>}
             </h2>
             <div className="ui-section-actions">
-              {mode === 'select' ? (
+              {mode.kind === 'select' ? (
                 <>
-                  <button type="button" className="ui-btn ui-btn--plain" onClick={() => setSelected(allSelected ? new Set() : new Set(folder.items.map(s => s.batch.id)))}>
+                  <button type="button" className="ui-btn ui-btn--plain" onClick={() => setMode({ kind: 'select', selected: new Set(allSelected ? [] : folder.items.map(s => s.batch.id)) })}>
                     {t(allSelected ? 'photos_select_none' : 'photos_select_all')}
                   </button>
                   <button type="button" className="ui-btn ui-btn--ink" onClick={endMode}>{t('cancel')}</button>
                 </>
-              ) : mode === 'normal' ? (
+              ) : mode.kind === 'normal' ? (
                 <>
                   {count ? <button type="button" className="ui-btn ui-btn--plain" onClick={startSelect}>{t('post_select')}</button> : null}
                   <button type="button" className="ui-btn" onClick={() => addInput.current?.click()}>
@@ -189,8 +197,8 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
             </div>
           </div>
 
-          {mode === 'reorder' ? <p className="photo-hint">{t('reorder_hint')}</p> : null}
-          {mode === 'normal' && count ? (
+          {mode.kind === 'reorder' ? <p className="photo-hint">{t('reorder_hint')}</p> : null}
+          {mode.kind === 'normal' && count ? (
             <>
               <div className="photo-tools">
                 <TextField
@@ -201,7 +209,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
                   {(Object.keys(PHOTO_SORTS) as PhotoSort[]).map(k => <option key={k} value={k}>{t(`scans_sort_${k}`)}</option>)}
                 </Select>
               </div>
-              {sort === 'post' && !q && saved.length > 1 ? (
+              {isPost && sort === 'post' && !q && saved.length > 1 ? (
                 <div className="photo-hint">
                   <span>{t('post_order_hint')}</span>
                   <button type="button" className="ui-btn ui-btn--plain" onClick={startReorder}>{t('post_reorder')}</button>
@@ -212,19 +220,18 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
 
           {!count ? (
             <p className="photos-empty">{t('post_no_photos')}</p>
-          ) : mode === 'normal' && !visible.length ? (
+          ) : mode.kind === 'normal' && !visible.length ? (
             <p className="photos-empty">{t('post_no_match', { q: query.trim() })}</p>
           ) : (
             <PhotoList
-              items={mode === 'reorder' ? drafted : visible}
-              numbers={mode === 'reorder' ? new Map(draft.map((id, i) => [id, i + 1])) : numbers}
+              items={mode.kind === 'reorder' ? draft.flatMap(id => folder.items.find(s => s.batch.id === id) ?? []) : visible}
+              inPost={isPost}
+              numbers={mode.kind === 'reorder' ? new Map(draft.map((id, i) => [id, i + 1])) : numbers}
               settings={settings}
               t={t}
               photoRoute={scanId => ({ page: 'photo', folder: folder.key, scanId })}
-              mode={mode === 'select' ? {
-                kind: 'select', selected,
-                onToggle: id => setSelected(prev => { const next = new Set(prev); if (!next.delete(id)) next.add(id); return next; }),
-              } : mode === 'reorder' ? { kind: 'reorder', onMove: move } : {
+              mode={mode.kind === 'select' ? { kind: 'select', selected, onToggle: toggle }
+                : mode.kind === 'reorder' ? { kind: 'reorder', onMove: move } : {
                 kind: 'normal', query, showFile: sort === 'name',
                 onOpen: () => openPhoto(visible.map(s => s.batch.id)),
                 onRetry: id => scanner.retryBatches([id]),
@@ -234,7 +241,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
         </section>
       </div>
 
-      {mode === 'select' ? (
+      {mode.kind === 'select' ? (
         <StickyBar className="select-bar">
           <button type="button" className="ui-btn" disabled={!chosenJobs.length || exp.busy} onClick={() => exp.download(chosenJobs)}>
             <Icon name="download" size={18} />{t('photos_download')}
@@ -257,7 +264,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
             <Icon name="trash" size={18} />{t('photos_delete')}
           </button>
         </StickyBar>
-      ) : mode === 'reorder' ? (
+      ) : mode.kind === 'reorder' ? (
         <StickyBar>
           <span className="ui-sticky-status" aria-live="polite">{dirty ? t('reorder_unsaved') : ''}</span>
           <button type="button" className="ui-btn ui-btn--ink" onClick={endMode}>{t('cancel')}</button>
@@ -291,7 +298,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
 }
 
 // The post's pricing, or for the unfiled photos the default, once it is known.
-function pricingKnownRow(area: Area, folder: Folder) {
+function PostPricingRow({ area, folder }: { area: Area; folder: Folder }) {
   const { t, pricing, pricingFor } = area;
   if (!pricing.pricingKnown(folder.postId)) return null;
   return folder.postId == null
