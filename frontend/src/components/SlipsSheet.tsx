@@ -57,7 +57,7 @@ export function SlipsSheet({ open, onClose, buyers, postTitle }: Props) {
 
   return (
     <Dialog
-      open={open} onClose={onClose} title={t('slips_title')} subtitle={postTitle} closeLabel={t('claims_close')}
+      open={open} onClose={onClose} className="claims-dialog" title={t('slips_title')} subtitle={postTitle} closeLabel={t('claims_close')}
       footer={(
         <>
           <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('claims_cancel')}</button>
@@ -71,7 +71,7 @@ export function SlipsSheet({ open, onClose, buyers, postTitle }: Props) {
       {buyers.length ? (
         <>
           <div className="claims-list-head">
-            <span id={listId} className="claims-label">{t('slips_buyers')}</span>
+            <span id={listId} className="ui-label">{t('slips_buyers')}</span>
             <button type="button" className="ui-btn ui-btn--plain" onClick={() => setPicked(new Set(allOn ? [] : buyers.map(b => b.id)))}>
               {allOn ? t('slips_select_none') : t('slips_select_all')}
             </button>

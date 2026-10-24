@@ -293,11 +293,13 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       const { photos }: { photos: CataloguePhoto[] } = await req.json();
       const cards = photos.flatMap(p => p.cards.map(c => ({ scan_id: p.scan_id, card_id: c.card_id, said: c.name })));
       // Each comment claims the next card; a comment with no text claims nothing it can name.
+      // The second buyer spells their card another way, and one question is read as no claim.
       const claims = cards.length ? f.comments.map((c, i) => ({
         buyer: c.buyer, comment: c.text, unclear: c.text ? '' : 'The comment has no text: say which card, or remove it',
-        items: c.text ? [{ ...cards[i % cards.length], qty: i === 0 ? 2 : 1, unclear: '' }] : [],
+        items: c.text ? [{ ...cards[i % cards.length], said: i === 1 ? cards[i % cards.length].said.slice(0, -1) : cards[i % cards.length].said, qty: i === 0 ? 2 : 1, unclear: '' }] : [],
       })) : [];
-      return json({ claims, credits: f.credits });
+      const skipped = claims.length ? [`${f.comments[0].buyer.trim()}: Ada lagi boss?`] : [];
+      return json({ claims, skipped, credits: f.credits });
     }],
     ['POST', route('/api/claims/confirm'), async ({ req }) => {
       const { post_id, claims }: { post_id: number | null; claims: ConfirmClaim[] } = await req.json();
