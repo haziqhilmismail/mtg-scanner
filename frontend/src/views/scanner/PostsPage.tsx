@@ -47,6 +47,7 @@ export function PostsPage({ area }: { area: Area }) {
               <p>{t('posts_empty_body')}</p>
             </div>
           )}
+          {liveFolders.some(f => pricingFor(f.postId).priceMode === 'live') ? <p className="posts-note">{t('posts_live_note')}</p> : null}
           {unfiledFolder ? (
             <ul className="ui-list postlist">
               <li>
