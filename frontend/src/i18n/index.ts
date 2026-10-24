@@ -4,6 +4,7 @@
 import type { Lang } from '../types.ts';
 import * as claims from './claims.ts';
 import * as login from './login.ts';
+import * as posts from './posts.ts';
 import * as scanner from './scanner.ts';
 import * as settings from './settings.ts';
 import * as shell from './shell.ts';
@@ -14,8 +15,8 @@ type Vars = Record<string, string | number>;
 export type T = (k: string, vars?: Vars) => string;
 
 const STRINGS: Record<Lang, Record<string, string>> = {
-  en: { ...shell.en, ...scanner.en, ...claims.en, ...settings.en, ...login.en },
-  ms: { ...shell.ms, ...scanner.ms, ...claims.ms, ...settings.ms, ...login.ms },
+  en: { ...shell.en, ...scanner.en, ...posts.en, ...claims.en, ...settings.en, ...login.en },
+  ms: { ...shell.ms, ...scanner.ms, ...posts.ms, ...claims.ms, ...settings.ms, ...login.ms },
 };
 
 export function translate(lang: Lang, key: string, vars?: Vars): string {

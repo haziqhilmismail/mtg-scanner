@@ -1,0 +1,236 @@
+/* ---------- Posts, a post, and Pricing settings ---------- */
+
+/* Scan progress: one step per photo finished, shown only while a run is going. */
+.scan-progress { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+.scan-progress-track { flex: 1; height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.scan-progress-fill {
+  height: 100%; min-width: 6px; border-radius: 3px; background: var(--accent-fill);
+  transition: width 0.4s var(--ease);
+}
+.scan-progress-label { flex: none; font-size: 13px; color: var(--ink-soft); }
+
+.posts-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 16px; }
+.posts-head .page-title { min-width: 0; overflow-wrap: anywhere; }
+.posts-head .ui-btn { flex: none; }
+
+/* In a list or a card, an amount carries "≈" when it is a live price. */
+.approx { margin-right: 2px; font-weight: 400; color: var(--ink-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+/* A post's first photos in a 76px square; the fourth cell says how many more. */
+.mosaic {
+  flex: none; display: grid; grid-template: 1fr 1fr / 1fr 1fr; gap: 2px;
+  width: 76px; height: 76px; border-radius: var(--radius); overflow: hidden;
+  background: var(--fill); color: var(--ink-soft);
+}
+.mosaic.n0 { place-items: center; grid-template: 1fr / 1fr; }
+.mosaic.n1 { grid-template: 1fr / 1fr; }
+.mosaic.n2 { grid-template-rows: 1fr; }
+.mosaic.n3 .mosaic-cell:first-child { grid-row: span 2; }
+.mosaic-cell { position: relative; min-width: 0; min-height: 0; background: var(--fill); }
+.mosaic-cell img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mosaic-more {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(0, 0, 0, 0.45); color: var(--on-accent); font-size: 15px; font-weight: 600;
+}
+
+.postlist + .postlist, .postlist + .posts-archived, .posts-empty + .postlist { margin-top: 16px; }
+.ui-row.postrow { align-items: flex-start; }
+.postrow-head { display: flex; align-items: baseline; gap: 12px; }
+.postrow-head .ui-row-title { flex: 1; min-width: 0; }
+.postrow-total { flex: none; font-size: 17px; font-weight: 700; white-space: nowrap; }
+.postrow-archived { display: flex; align-items: center; }
+.postrow-archived > .ui-row { flex: 1; min-width: 0; }
+.postrow-archived > .ui-btn { flex: none; margin-right: 12px; }
+@media (min-width: 1024px) {
+  /* A wide row reads as a table: name and kind, what waits, then the total. */
+  .ui-row.postrow { align-items: center; }
+  .postrow .ui-row-main {
+    display: grid; align-items: center; gap: 2px 24px;
+    grid-template-columns: minmax(0, 1fr) 300px 180px;
+    grid-template-areas: "title chips total" "meta chips total";
+  }
+  .postrow-head { display: contents; }
+  .postrow .ui-row-title { grid-area: title; }
+  .postrow .ui-row-meta { grid-area: meta; }
+  .postrow .chips { grid-area: chips; margin: 0; }
+  .postrow-total { grid-area: total; justify-self: end; font-size: 20px; }
+}
+.posts-archived { margin-top: 28px; }
+.posts-archived-toggle { margin: 0 0 10px -10px; }
+.posts-archived-toggle .ui-count { margin-left: -2px; }
+.posts-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 36px 20px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow);
+  text-align: center; color: var(--ink-soft);
+}
+.posts-empty h2 { margin: 4px 0 0; font-size: 18px; font-weight: 700; color: var(--ink); }
+.posts-empty p { max-width: 40ch; margin: 0; font-size: 15px; line-height: 1.4; }
+
+/* Photos dragged over the page: where they will go. Nothing shows otherwise. */
+.drop-hint {
+  position: fixed; inset: 0; z-index: var(--z-dialog);
+  display: grid; place-items: center; padding: 24px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  pointer-events: none;
+  animation: drop-hint-in 150ms var(--ease);
+}
+.drop-hint span {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  max-width: 320px; padding: 20px 24px; border-radius: var(--radius-xl);
+  background: var(--paper); box-shadow: var(--shadow-lg);
+  color: var(--accent); font-size: 17px; font-weight: 600; text-align: center;
+}
+@keyframes drop-hint-in { from { opacity: 0; } }
+
+/* Radio cards sit on a white card in light mode, where --surface is white too. */
+[data-theme="light"] :is(.new-post, .pricing-kind) .ui-radio-card:not(:has(:checked)) { box-shadow: inset 0 0 0 1px var(--rule); }
+.ui-radio-card-title .ui-chip { margin-left: 6px; vertical-align: 2px; }
+.new-post-body { display: flex; flex-direction: column; gap: 10px; }
+.new-post-body .ui-label { margin: 0; }
+.new-post-tip { display: flex; align-items: flex-start; gap: 8px; margin: 6px 2px 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.new-post-tip .icon { flex: none; margin-top: 1px; color: var(--accent); }
+
+/* ---------- One post ---------- */
+.post-head { display: flex; align-items: flex-start; gap: 4px; margin: 0 0 14px; }
+.post-head .page-title { flex: 0 1 auto; min-width: 0; padding-top: 7px; overflow-wrap: anywhere; }
+.post-head-actions { flex: none; display: flex; }
+.post-note {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 10px 12px 10px 14px;
+  border-radius: 14px; background: var(--paper); box-shadow: var(--shadow);
+  font-size: 15px; line-height: 1.35; color: var(--ink-soft);
+}
+.post-note > span { flex: 1; min-width: 0; }
+.post-note .icon { flex: none; }
+.post-note .ui-btn { flex: none; }
+
+.post-layout { display: flex; flex-direction: column; gap: 28px; }
+.post-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.post-main { min-width: 0; }
+.post-main .ui-section-head { margin-top: 0; }
+@media (min-width: 1024px) {
+  /* The total and its actions stay in view beside a long list of photos. */
+  .post-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-areas: "main side"; gap: 24px; align-items: start; }
+  .post-side { grid-area: side; position: sticky; top: calc(var(--bar-h) + 16px); }
+  .post-main { grid-area: main; }
+}
+
+.post-summary { display: flex; flex-direction: column; gap: 2px; }
+.post-summary-label, .post-summary-meta { font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.post-total { font-family: var(--font-display); font-size: 30px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.post-summary-status { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+.post-summary-line { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.post-summary-line .icon { flex: none; margin-top: 1px; }
+.post-summary-line .dot { flex: none; width: 8px; height: 8px; margin: 5px 0 0 2px; border-radius: 50%; background: var(--accent-fill); }
+.post-summary-line.is-done { color: var(--green); }
+.post-summary-line.is-warn { color: var(--warn); }
+.post-share { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.post-share .ui-btn { min-height: 48px; padding: 6px 12px; }
+.post-share-line { margin: 0 4px; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+
+/* A pricing in one line, linking to its page. */
+.pricing-row {
+  display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 12px 14px;
+  border-radius: 14px; background: var(--paper); box-shadow: var(--shadow);
+  color: var(--ink); text-decoration: none;
+  transition: background-color 150ms ease;
+}
+@media (hover: hover) { .pricing-row:hover { background: color-mix(in srgb, var(--paper), var(--ink) 4%); } }
+.pricing-row:active { background: color-mix(in srgb, var(--paper), var(--ink) 8%); }
+.pricing-row > .icon { color: var(--accent); }
+.pricing-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pricing-row-title { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.pricing-row-summary { font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
+.pricing-row-change { flex: none; font-size: 15px; font-weight: 600; color: var(--accent); }
+
+.photo-tools { display: flex; gap: 8px; margin-bottom: 8px; }
+.photo-search { flex: 1 1 auto; }
+.photo-search .ui-input { padding: 0 12px; gap: 6px; }
+.photo-sort { flex: none; }
+.photo-sort select { padding: 0 32px 0 12px; }
+.photo-hint { display: flex; align-items: center; gap: 8px; margin: 0 0 10px 4px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+.photo-hint > span { flex: 1; min-width: 0; }
+.photo-hint .ui-btn { flex: none; }
+.ui-row.photorow { align-items: flex-start; }
+.photo-thumb {
+  flex: none; display: grid; place-items: center; position: relative;
+  width: 104px; aspect-ratio: 4 / 3; border-radius: var(--radius); overflow: hidden;
+  background: var(--fill); color: var(--ink-soft);
+}
+.photo-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.photo-thumb.is-scanning { animation: photo-pulse 1.4s ease-in-out infinite; }
+@media (min-width: 1024px) { .photo-thumb { width: 136px; } }
+.photo-file { font-size: 13px; line-height: 1.35; color: var(--ink-soft); overflow-wrap: anywhere; }
+.photo-match { font-size: 13px; font-weight: 600; color: var(--accent); overflow-wrap: anywhere; }
+.photorow > .ui-btn { flex: none; align-self: center; }
+label.photorow { cursor: pointer; }
+.photorow.is-selected { background-color: var(--accent-soft); }
+.photorow-check { flex: none; align-self: center; width: 22px; height: 22px; margin: 0; accent-color: var(--accent-fill); cursor: pointer; }
+.photorow-check:focus { box-shadow: none; }
+.photorow-moves { flex: none; display: flex; align-self: center; }
+.icon.flip { transform: rotate(180deg); }
+.photos-empty {
+  margin: 0; padding: 24px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow);
+  font-size: 15px; line-height: 1.4; text-align: center; color: var(--ink-soft); overflow-wrap: anywhere;
+}
+
+/* Select mode: Download, Move to and Delete share the bar evenly. */
+.select-bar > * { flex: 1 1 0; min-width: 0; }
+.select-bar .ui-btn { padding: 6px 8px; }
+.select-bar .danger-text { color: var(--warn); }
+.move-select > select {
+  min-height: var(--tap); padding: 0 32px 0 12px; border-radius: var(--radius-pill);
+  color: var(--accent); font-size: 15px; font-weight: 600; text-align: center; text-align-last: center;
+}
+
+/* ---------- Pricing settings ---------- */
+.pricing-sub { margin: 4px 0 16px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); overflow-wrap: anywhere; }
+.pricing-layout { display: flex; flex-direction: column; gap: 16px; }
+.pricing-fields { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pricing-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pricing-card > .ui-check { padding-block: 8px; }
+@media (min-width: 1024px) {
+  /* The example stays beside the fields it answers to. */
+  .pricing-layout { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .pricing-kind { position: sticky; top: calc(var(--bar-h) + 16px); }
+}
+.pricing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; align-items: start; }
+@media (max-width: 359px) { .pricing-grid { grid-template-columns: minmax(0, 1fr); } }
+.pricing-formula, .pricing-note { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.pricing-default.is-same { display: flex; align-items: center; gap: 8px; margin: 0 4px; font-size: 15px; color: var(--ink-soft); }
+.pricing-default.is-same .icon { flex: none; color: var(--green); }
+.pricing-default.ui-card { padding-block: 6px; }
+.ui-sticky-status.is-warn { color: var(--warn); }
+
+.pricing-example { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.pricing-example-title { margin: 0; font-size: 13px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.pricing-example-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pricing-example-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.pricing-example-kind { font-size: 15px; font-weight: 600; color: var(--ink); }
+.pricing-example-kind.is-foil, .pricing-example-rate.is-foil { color: var(--gold); }
+.pricing-example-live + .pricing-example-live { padding-top: 8px; border-top: 1px solid var(--rule); }
+.pricing-example-rate { display: inline-flex; align-items: center; gap: 6px; font-size: 20px; font-weight: 700; white-space: nowrap; }
+.pricing-example-note { margin: 2px 0 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.pricing-example-note strong { color: var(--ink); }
+/* The labels exactly as the downloaded photo prints them (DESIGN.md §7). */
+.price-pill {
+  flex: none; padding: 0.33em 0.8em; border-radius: var(--radius-pill);
+  background: #141414; color: #ffffff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  font-weight: 700; line-height: 1.2; white-space: nowrap;
+}
+.price-pill.is-foil { background: #f0c332; color: #19140a; box-shadow: inset 0 0 0 1px rgba(255, 230, 130, 0.9); }
+.pricing-steps { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin: 6px 0 0; padding: 10px 0 0; border-top: 1px solid var(--rule); list-style: none; }
+.pricing-steps li { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
+.pricing-step-dot {
+  display: grid; place-items: center; width: 22px; height: 22px; margin-bottom: 4px;
+  border: 2px solid var(--ink-faint); border-radius: 50%; background: var(--surface-2);
+}
+.pricing-steps .is-set .pricing-step-dot { border-color: var(--accent-fill); background: var(--accent-fill); color: var(--on-accent); }
+.pricing-step-title { font-size: 12px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.pricing-step-sub { font-size: 12px; line-height: 1.3; color: var(--ink-soft); overflow-wrap: anywhere; }
+.pricing-steps .is-set .pricing-step-sub { color: var(--accent); font-weight: 600; }
+.pricing-caption { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); }
+.pricing-caption-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-soft); }
+.pricing-caption-text strong { font-size: 15px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.pricing-caption .ui-btn { flex: none; }
+.pricing-caption .ui-btn.is-copied { color: var(--green); }

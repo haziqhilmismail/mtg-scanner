@@ -2,13 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMe, saveDefaultPricing } from '../api/auth.ts';
 import { postsApi, type PostCreatePayload } from '../api/checklist.ts';
 import {
-  defaultToUpload, editPricing, LEGACY_KEY, LEGACY_VERSION_KEY, legacyPricing, pricingKnown, resolvePricing, type PricingState,
+  defaultToUpload, LEGACY_KEY, LEGACY_VERSION_KEY, legacyPricing, pricingKnown, resolvePricing, savePricing, type PricingState,
 } from '../lib/pricing.ts';
 import { DEFAULT_SETTINGS, type PriceMode, type Settings } from '../types.ts';
 import { useSaveQueue } from './useSaveQueue.ts';
-
-// Edits are saved this long after the last change.
-const SAVE_DELAY_MS = 600;
 
 // What gets saved: a post's pricing, or the user's default.
 type Target = number | 'default';
@@ -21,8 +18,8 @@ function forgetLegacy() {
   try { localStorage.removeItem(LEGACY_KEY); localStorage.removeItem(LEGACY_VERSION_KEY); } catch { /* ignore */ }
 }
 
-// Pricing per post plus the user's default, kept on the server. Edits show at
-// once and are saved shortly after; leaving the page sends them straight away.
+// Pricing per post plus the user's default, kept on the server. A saved
+// pricing shows at once and goes to the server straight after.
 export function usePricing() {
   // Until /me answers, the browser's old pricing (if any) stands in for the default.
   const [state, setState] = useState<PricingState>(() => ({ userDefault: readLegacy(), defaultKnown: false, posts: {} }));
@@ -50,10 +47,10 @@ export function usePricing() {
     { ordered: true },
   );
 
-  const save = useCallback((target: Target, pricing: Settings, delay = SAVE_DELAY_MS) => {
+  const send = useCallback((target: Target, pricing: Settings) => {
     settledAt.current.set(target, Infinity);
     saves.queue.save(target, pricing);
-    saves.later(delay);
+    saves.later(0);
   }, [saves]);
 
   // The default from the server. If it has none, the browser's old pricing
@@ -67,7 +64,7 @@ export function usePricing() {
       if (!fresh('default', askedAt)) { set({ ...stateRef.current, defaultKnown: true }); return true; }
       const upload = defaultToUpload(me.pricing, readLegacy());
       set({ ...stateRef.current, userDefault: upload ?? me.pricing, defaultKnown: true });
-      if (upload) save('default', upload, 0);
+      if (upload) send('default', upload);
       else if (me.pricing != null) forgetLegacy();
       return true;
     }, () => false /* offline: the stand-in default stays */);
@@ -109,39 +106,26 @@ export function usePricing() {
     };
   }, [state]);
 
-  // Whether a post is priced the same as the default (its type aside).
-  const isDefault = useCallback(
-    (postId: number) => JSON.stringify({ ...pricingFor(postId), priceMode: 'photo' }) === JSON.stringify({ ...pricingFor(null), priceMode: 'photo' }),
-    [pricingFor],
-  );
-
   // Whether a post's (or, for null, the default's) pricing can be edited yet.
   const isKnown = useCallback((postId: number | null) => pricingKnown(state, postId), [state]);
 
-  // Change one setting of a post's pricing, or (null) of the default. Ignored
-  // until that pricing is known.
-  const update = useCallback(<K extends keyof Settings>(postId: number | null, key: K, value: Settings[K]) => {
-    const edit = editPricing(stateRef.current, postId, key, value);
-    if (!edit) return;
-    set(edit.state);
-    save(postId ?? 'default', edit.pricing);
-  }, [set, save]);
-
-  // A post's pricing becomes the default, saved straight away.
-  const makeDefault = useCallback((postId: number) => {
-    const cur = stateRef.current;
-    if (!pricingKnown(cur, postId)) return;
-    const pricing = resolvePricing(cur.posts[postId], cur.userDefault);
-    set({ ...cur, userDefault: pricing });
-    save('default', pricing, 0);
-  }, [set, save]);
+  // Save a post's (or, for null, the default's) whole pricing, one request;
+  // with alsoDefault it becomes the default for new posts too. Ignored until
+  // that pricing is known.
+  const save = useCallback((postId: number | null, pricing: Settings, alsoDefault = false) => {
+    const next = savePricing(stateRef.current, postId, pricing, alsoDefault);
+    if (!next) return;
+    set(next);
+    send(postId ?? 'default', pricing);
+    if (alsoDefault && postId != null) send('default', pricing);
+  }, [set, send]);
 
   const clearNotice = useCallback(() => setNotice(null), []);
 
   // Send waiting edits now (signing out: before the token goes).
   const flush = useCallback(() => saves.flush(true), [saves]);
 
-  return { pricingFor, pricingKnown: isKnown, isDefault, update, makeDefault, listPosts, createPost, flush, notice, clearNotice };
+  return { pricingFor, pricingKnown: isKnown, save, listPosts, createPost, flush, notice, clearNotice };
 }
 
 export type PricingStore = ReturnType<typeof usePricing>;
