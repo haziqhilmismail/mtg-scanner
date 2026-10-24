@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchCredits, fetchHealth, paymentApi, type Health, type Payment } from './api.ts';
+import { fetchCredits, fetchHealth, type Health } from './api.ts';
 import { formatRelativeTime } from './utils.ts';
 import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
@@ -9,6 +9,7 @@ import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { TProvider, useLang } from './hooks/useLang.ts';
 import { NavProvider, useNav } from './hooks/useNav.ts';
+import { usePayment } from './hooks/usePayment.ts';
 import { usePricing } from './hooks/usePricing.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useTheme } from './hooks/useTheme.ts';
@@ -21,7 +22,7 @@ import { Scanner } from './views/scanner/Scanner.tsx';
 import type { T } from './hooks/useLang.ts';
 
 export default function App() {
-  const { theme, appearance, setAppearance } = useTheme();
+  const { appearance, setAppearance } = useTheme();
   const { lang, setLang, t } = useLang();
   const auth = useAuth();
   const { signInWithCredential } = auth;
@@ -48,7 +49,6 @@ export default function App() {
           lang={lang}
           setLang={setLang}
           t={t}
-          theme={theme}
           appearance={appearance}
           setAppearance={setAppearance}
         />
@@ -107,11 +107,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   const [credits, setCredits] = useState<Credits | null>(null);
   const [voucherOpen, setVoucherOpen] = useState(false);
 
-  // How buyers pay this seller, added to every summary copied for a buyer.
-  const [payment, setPayment] = useState<Payment | null>(null);
-  useEffect(() => {
-    paymentApi.get().then(setPayment, () => { /* summaries just go without it */ });
-  }, []);
+  // How buyers pay this seller: on a failed load, buyer messages go without it.
+  const payments = usePayment();
   const scansDone = scanner.scanProgress?.done ?? -1;
   useEffect(() => {
     fetchCredits().then(setCredits, () => { /* balance line just stays hidden */ });
@@ -160,7 +157,7 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         onFolderChange={key => replace({ page: 'claims', folder: key })}
         credits={credits}
         onCredits={setCredits}
-        payment={payment}
+        payment={payments.payment}
         onEnterVoucher={() => setVoucherOpen(true)}
       />
       {page === 'profile' ? (
@@ -169,13 +166,13 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           // Waiting edits go first: request() reads the token before it awaits.
           onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
           status={{ label: healthLabel, state: healthState }}
+          credits={credits}
           lang={lang}
           setLang={setLang}
           appearance={appearance}
           setAppearance={setAppearance}
           pricing={pricing}
-          payment={payment}
-          onPaymentSaved={setPayment}
+          payments={payments}
           onRedeemVoucher={credits?.enforced ? () => setVoucherOpen(true) : undefined}
         />
       ) : null}

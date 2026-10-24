@@ -1,41 +1,38 @@
 import { useState } from 'react';
-import type { Payment } from '../api.ts';
 import type { AuthUser } from '../api/auth.ts';
 import { Avatar } from '../components/Avatar.tsx';
 import { FeedbackModal } from '../components/FeedbackModal.tsx';
-import { PaymentSheet } from '../components/PaymentSheet.tsx';
-import { PricingRow } from '../components/SettingsPanel.tsx';
+import { Icon } from '../components/Icon.tsx';
+import { Link } from '../components/Link.tsx';
+import { PaymentDetails } from '../components/PaymentDetails.tsx';
+import { Preferences } from '../components/Preferences.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
 import { useT } from '../hooks/useLang.ts';
+import type { PaymentStore } from '../hooks/usePayment.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
-import type { Appearance, Lang } from '../types.ts';
+import { pricingSummary } from '../lib/pricingSummary.ts';
+import type { Appearance, Credits, Lang } from '../types.ts';
+import { creditsLine } from '../utils.ts';
 
 interface Props {
-  // null in solo mode, where nobody signs in.
-  user: AuthUser | null;
+  user: AuthUser | null;  // null in solo mode, where nobody signs in
   onSignOut?: () => void;
   status: { label: string; state: 'ok' | 'err' | null };
+  credits: Credits | null;
+  onRedeemVoucher?: () => void;  // set when claim reads are counted
   lang: Lang;
   setLang: (l: Lang) => void;
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;
   pricing: PricingStore;
-  payment: Payment | null;
-  onPaymentSaved: (payment: Payment) => void;
-  // Set when claim reads are counted for this account.
-  onRedeemVoucher?: () => void;
+  payments: PaymentStore;
 }
 
-const LANGS: Lang[] = ['en', 'ms'];
-const APPEARANCES: Appearance[] = ['auto', 'light', 'dark'];
-
-// The account and its settings: what the bar's menu used to hold, as plain
-// sections.
-export function Profile({ user, onSignOut, status, lang, setLang, appearance, setAppearance, pricing, payment, onPaymentSaved, onRedeemVoucher }: Props) {
+export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lang, setLang, appearance, setAppearance, pricing, payments }: Props) {
   const t = useT();
-  const [paymentOpen, setPaymentOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const claimReads = creditsLine(credits, t, lang);
 
   return (
     <>
@@ -43,79 +40,67 @@ export function Profile({ user, onSignOut, status, lang, setLang, appearance, se
         <div className="review-title"><h1 className="page-title">{t('nav_profile')}</h1></div>
       </div>
 
-      {user ? (
-        <section className="panel profile-account">
-          <Avatar user={user} className="lg" />
-          <div className="profile-account-text">
-            <strong>{user.name || user.email}</strong>
-            {user.name ? <span>{user.email}</span> : null}
-            <span>{t('profile_google')}</span>
-          </div>
-          {onSignOut ? <button type="button" className="profile-signout" onClick={onSignOut}>{t('menu_sign_out')}</button> : null}
-        </section>
-      ) : null}
+      <div className="profile">
+        <div className="profile-col">
+          <section className="ui-card" aria-label={t('profile_account')}>
+            <div className="profile-who">
+              <Avatar user={user} className="lg" />
+              <div className="profile-who-text">
+                <strong className="profile-who-name">{user ? user.name || user.email : t('profile_solo_title')}</strong>
+                <span className="profile-who-sub">
+                  {t(user ? 'profile_google' : 'profile_solo_sub')}
+                </span>
+              </div>
+              {user && onSignOut ? (
+                <button type="button" className="ui-btn ui-btn--ink profile-signout" onClick={onSignOut}>
+                  {t('menu_sign_out')}
+                </button>
+              ) : null}
+            </div>
+            <ul className="profile-facts">
+              <li className={`profile-fact ${status.state ?? ''}`} aria-live="polite">
+                <span className={`status-dot ${status.state ?? ''}`} aria-hidden="true" />
+                <span>{status.label}</span>
+              </li>
+              {claimReads ? (
+                <li className="profile-fact profile-fact--wrap">
+                  <span>{claimReads}</span>
+                  {onRedeemVoucher ? <button type="button" className="ui-btn ui-btn--plain profile-redeem" onClick={onRedeemVoucher}>{t('voucher_title')}</button> : null}
+                </li>
+              ) : null}
+            </ul>
+          </section>
 
-      <section className="panel">
-        <h2>{t('profile_prices')}</h2>
-        <p className={`profile-status ${status.state ?? ''}`}>
-          <span className={`status-dot ${status.state ?? ''}`} aria-hidden="true" />
-          {status.label}
-        </p>
-      </section>
-
-      <section className="panel">
-        <h2>{t('pay_title')}</h2>
-        <p className="profile-note">{t('pay_sub')}</p>
-        <button type="button" onClick={() => setPaymentOpen(true)}>{t('profile_payment_edit')}</button>
-      </section>
-
-      {pricing.pricingKnown(null) ? (
-        <section className="panel">
-          <PricingRow title={t('menu_default_pricing')} settings={pricing.pricingFor(null)} t={t} to={{ page: 'profile-pricing' }} />
-          <p className="profile-note">{t('pricing_default_sub')}</p>
-        </section>
-      ) : null}
-
-      <section className="panel">
-        <h2>{t('profile_prefs')}</h2>
-        <div className="profile-pref">
-          <span id="profile-lang">{t('menu_language')}</span>
-          <div className="segmented" role="group" aria-labelledby="profile-lang">
-            {LANGS.map(l => (
-              <button key={l} type="button" className={lang === l ? 'active' : ''} aria-pressed={lang === l} onClick={() => setLang(l)}>
-                {l === 'en' ? 'English' : 'Melayu'}
-              </button>
-            ))}
-          </div>
+          <PaymentDetails store={payments} />
         </div>
-        <div className="profile-pref">
-          <span id="profile-appearance">{t('menu_appearance')}</span>
-          <div className="segmented" role="group" aria-labelledby="profile-appearance">
-            {APPEARANCES.map(a => (
-              <button key={a} type="button" className={appearance === a ? 'active' : ''} aria-pressed={appearance === a} onClick={() => setAppearance(a)}>
-                {t(`appearance_${a}`)}
-              </button>
-            ))}
-          </div>
+
+        <div className="profile-col">
+          <section className="ui-card" aria-labelledby="profile-pricing-title">
+            <div className="profile-head">
+              <div className="profile-head-text">
+                <h2 id="profile-pricing-title" className="ui-card-title">{t('menu_default_pricing')}</h2>
+                <p className="profile-pricing">{pricing.pricingKnown(null) ? pricingSummary(pricing.pricingFor(null), t) : t('profile_loading')}</p>
+              </div>
+              <Link className="ui-btn" to={{ page: 'profile-pricing' }}>{t('profile_pricing_edit')}</Link>
+            </div>
+            <p className="profile-note">{t('profile_pricing_note')}</p>
+          </section>
+
+          <section className="ui-card profile-stack" aria-labelledby="profile-prefs-title">
+            <h2 id="profile-prefs-title" className="ui-card-title">{t('profile_prefs')}</h2>
+            <Preferences lang={lang} setLang={setLang} appearance={appearance} setAppearance={setAppearance} />
+          </section>
+
+          <section className="ui-card profile-stack" aria-labelledby="profile-help-title">
+            <h2 id="profile-help-title" className="ui-card-title">{t('profile_help')}</h2>
+            <div className="profile-help">
+              <button type="button" className="ui-btn ui-btn--block" onClick={() => setSupportOpen(true)}><Icon name="heart" size={17} />{t('support_open')}</button>
+              <button type="button" className="ui-btn ui-btn--block" onClick={() => setFeedbackOpen(true)}><Icon name="feedback" size={17} />{t('feedback_open')}</button>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
 
-      {onRedeemVoucher ? (
-        <section className="panel">
-          <h2>{t('profile_credits')}</h2>
-          <button type="button" onClick={onRedeemVoucher}>{t('voucher_title')}</button>
-        </section>
-      ) : null}
-
-      <section className="panel">
-        <h2>{t('profile_help')}</h2>
-        <div className="profile-actions">
-          <button type="button" onClick={() => setSupportOpen(true)}>{t('support_open')}</button>
-          <button type="button" onClick={() => setFeedbackOpen(true)}>{t('feedback_open')}</button>
-        </div>
-      </section>
-
-      <PaymentSheet open={paymentOpen} onClose={() => setPaymentOpen(false)} payment={payment} onSaved={onPaymentSaved} t={t} />
       <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} t={t} />
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
     </>

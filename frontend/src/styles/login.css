@@ -24,637 +24,159 @@
   .demo-claims-mobile-note { display: block; }
 }
 
-/* ==========================================================================
-   Landing / login page
-   Two-column hero with a static pitch on the left and an interactive demo
-   frame on the right. Stacks on mobile. The Google button slot is always
-   visible — the demo is decorative.
-   ========================================================================== */
-.landing {
-  position: relative;
-  min-height: 100vh;
-  background: var(--bg);
-  padding: clamp(10px, 1.6vw, 18px) clamp(16px, 5vw, 80px) clamp(20px, 4vw, 56px);
-  display: flex; flex-direction: column; align-items: center;
+/* ---------- Sign-in ----------
+   A phone gets one column with the Google button on the first screen. From
+   1024px the pitch, the feature list and the second button sit left of the demo. */
+.brand--signed-out .brand-name { display: inline; }
+.signin { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 40px; max-width: 560px; margin: 0 auto; padding-top: 16px; }
+.signin-h2 { margin: 0 0 12px; font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -0.015em; }
+.signin-hero { display: flex; flex-direction: column; gap: 12px; }
+.signin-title { margin: 0; font-size: 34px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.signin-tagline { margin: 0; font-size: 17px; line-height: 1.45; color: var(--ink-soft); text-wrap: pretty; }
+.signin-cta { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.signin-hero .signin-cta { margin-top: 14px; }
+/* Google draws its button in an iframe with a light page. Inside a dark
+   page the browser would paint the iframe an opaque white box, so this
+   slot stays light. 40px tall, the one exception to the 44px rule. */
+.signin-google { width: 100%; max-width: 400px; min-height: 40px; display: flex; justify-content: center; color-scheme: light; }
+.signin-google iframe { color-scheme: light; }
+.signin-note { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); text-align: center; }
+.signin-try > .signin-note { margin-top: 12px; }
+.signin-error { align-self: stretch; margin: 0; padding: 10px 14px; border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.signin-feature { display: flex; align-items: flex-start; gap: 14px; padding: 16px; }
+.signin-feature-icon { flex: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); }
+.signin-feature-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.signin-feature-text strong { font-size: 17px; font-weight: 600; line-height: 1.3; }
+.signin-feature-text span { font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.signin-foot { display: flex; flex-direction: column; gap: 16px; padding-top: 20px; border-top: 1px solid var(--rule); }
+.signin-prefs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.signin-links { display: flex; flex-wrap: wrap; gap: 0 20px; }
+.signin-links a { display: inline-flex; align-items: center; min-height: var(--tap); font-size: 15px; color: var(--ink-soft); }
+.signin-links a:hover { color: var(--ink); }
+.signin-legal { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+@media (min-width: 640px) {
+  .signin-prefs { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 640px; }
+}
+@media (min-width: 1024px) {
+  .signin {
+    max-width: none; column-gap: 64px; padding-top: 40px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    grid-template-areas: "hero try" "what try" "again try" "foot foot";
+    grid-template-rows: auto auto 1fr auto;
+  }
+  .signin-hero { grid-area: hero; }
+  .signin-try { grid-area: try; }
+  .signin-what { grid-area: what; }
+  .signin-again { grid-area: again; align-self: start; }
+  .signin-foot { grid-area: foot; }
+  .signin-cta { align-items: flex-start; }
+  .signin-cta .signin-note { text-align: left; }
 }
 
-.landing-menu { position: absolute; top: 8px; right: 12px; z-index: 5; }
-.landing-footer {
-  width: 100%; max-width: 1240px;
-  margin-top: clamp(24px, 4vw, 48px);
-  padding-top: clamp(16px, 2vw, 24px);
-  border-top: 1px solid var(--rule);
-  display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 20px;
-}
-.landing-footer-link {
-  display: inline-flex; align-items: center; gap: 8px;
-  color: var(--ink-soft);
-  font-size: 13px;
-  text-decoration: none;
-  padding: 6px 14px; border-radius: var(--radius-pill);
-  border: 1px solid var(--rule);
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-}
-.landing-footer-link:hover {
-  color: var(--ink); border-color: var(--ink-soft); background: var(--surface);
-}
-.landing-footer-icon { width: 16px; height: 16px; fill: currentColor; }
-.landing-grid {
-  width: 100%; max-width: 1240px;
-  margin: auto 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-  gap: clamp(28px, 5vw, 64px);
-  align-items: start;
-}
-@media (max-width: 960px) {
-  /* `1fr` alone defaults to minmax(auto, 1fr) — auto = content min-size,
-     which means a wide child (long word, oversized SVG) can blow the
-     column past viewport width. minmax(0, 1fr) lets the column shrink. */
-  .landing-grid { grid-template-columns: minmax(0, 1fr); }
-}
+/* ---------- Demos ---------- */
+.demo { margin-top: 12px; }
+.demo:focus { outline: none; }
+@keyframes demo-fade { from { opacity: 0; } }
+@keyframes demo-pulse { 50% { opacity: 0.35; } }
+.demo-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-fill); animation: demo-pulse 0.9s ease-in-out infinite; }
 
-.landing-pitch {
-  display: flex; flex-direction: column;
-  gap: 22px;
-  max-width: 540px;
-  min-width: 0;
+/* The scanner: the photo, its outlines and price labels, then the results. */
+.demo-photo { position: relative; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); line-height: 0; }
+.demo-photo > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.demo-photo > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.demo-outline {
+  fill: var(--accent-fill); fill-opacity: 0; stroke: var(--accent-fill); stroke-width: 10;
+  transition: stroke-dashoffset 700ms var(--ease), fill-opacity 400ms ease;
 }
-.landing-mark {
-  width: 64px; height: 64px;
+.demo-outline[data-on] { fill-opacity: 0.08; }
+/* The price label drawn on exported photos (DESIGN.md section 7). */
+.demo-pill {
+  position: absolute; padding: 5px 12px; border-radius: var(--radius-pill);
+  background: #141414; color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 4px 6px rgba(0, 0, 0, 0.35);
+  font-size: 17px; font-weight: 700; line-height: 1.2; white-space: nowrap; pointer-events: none;
+  opacity: 0; transform: translate(-50%, -20%) scale(0.9);
+  transition: opacity 350ms ease, transform 350ms var(--ease);
+}
+.demo-pill[data-on] { opacity: 1; transform: translate(-50%, -50%); }
+.demo-play {
+  position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 24px; border: 0; border-radius: 0;
+  /* Dims the photo so the white text reads on it, in both themes. */
+  background: rgba(0, 0, 0, 0.55); color: #fff;
+  line-height: 1.3; text-align: center;
+}
+.demo-play:hover { background: rgba(0, 0, 0, 0.45); }
+.demo-play:active { transform: none; }
+.demo-play-icon {
+  width: 64px; height: 64px; margin-bottom: 8px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--accent-fill); color: #fff;
-  border-radius: 15px; box-shadow: var(--shadow);
+  background: var(--accent-fill); color: var(--on-accent); box-shadow: var(--shadow-lg);
+  transition: transform 150ms var(--ease);
 }
-.landing-title {
-  font-weight: 700;
-  font-size: clamp(28px, 7vw, 46px);
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-  margin: 0;
-  color: var(--ink);
-  overflow-wrap: break-word;
-}
-.landing-tagline {
-  font-size: clamp(15px, 1.6vw, 18px);
-  line-height: 1.55;
-  color: var(--ink-soft);
-  margin: 0;
-}
-.landing-tagline em {
-  color: var(--accent);
-}
-
-.landing-features {
-  list-style: none; padding: 0; margin: 4px 0 0;
-  display: flex; flex-direction: column; gap: 14px;
-}
-.landing-features li {
-  display: flex; gap: 14px; align-items: flex-start;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
-}
-.landing-feature-glyph {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; flex: 0 0 36px;
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 17px;
-}
-.landing-features li > div {
-  display: flex; flex-direction: column; gap: 3px;
-  font-size: 13px;
-  color: var(--ink-soft);
-  line-height: 1.5;
-}
-.landing-features li strong {
-  font-size: 16px; font-weight: 600;
-  color: var(--ink);
-  letter-spacing: 0;
-}
-
-.landing-cta {
-  margin-top: 6px;
-  display: flex; flex-direction: column; align-items: flex-start;
-  gap: 10px;
-}
-.landing-google {
-  min-height: 44px;
-  display: flex; justify-content: flex-start;
-  /* Google draws its button in an iframe whose page is light-scheme. When the
-     element embedding it is dark-scheme (our dark appearance), browsers give
-     the iframe an opaque white backdrop instead of a transparent one, which
-     shows as a white box behind the pill. Keeping this box light-scheme keeps
-     the iframe transparent; the button's own dark styling is unaffected. */
-  color-scheme: light;
-}
-.landing-google iframe { color-scheme: light; }
-.landing-cta-foot {
-  font-size: 12px;
-
-  color: var(--ink-soft);
-  margin: 0;
-}
-.landing-error {
-  align-self: stretch;
-  padding: 8px 12px;
-  background: var(--accent-soft);
-  border-radius: var(--radius);
-  border-left: 3px solid var(--accent);
-  font-size: 13px;
-  color: var(--accent);
-}
-
-/* ----- Right column: demo frame ----- */
-.landing-demo {
-  display: flex; flex-direction: column; gap: 10px;
-  align-self: stretch;
-  min-width: 0;
-}
-.landing-demo-frame {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-xl);
-  box-shadow: 0 40px 80px -50px rgba(0,0,0,0.45), 0 8px 20px -16px rgba(0,0,0,0.25);
-  overflow: hidden;
-  display: flex; flex-direction: column;
-  min-height: 0;
-}
-.landing-demo-bar {
-  display: flex; align-items: center; gap: 14px;
-  padding: 10px 14px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--rule);
-}
-.landing-demo-bar-dots {
-  display: flex; gap: 6px;
-}
-.landing-demo-bar-dots span {
-  width: 11px; height: 11px; border-radius: 50%;
-  background: var(--rule);
-}
-.landing-demo-bar-dots span:nth-child(1) { background: #e07555; }
-.landing-demo-bar-dots span:nth-child(2) { background: var(--gold-fill); }
-.landing-demo-bar-dots span:nth-child(3) { background: var(--green); }
-.landing-demo-bar-tabs {
-  display: flex; gap: 4px;
-  flex: 1;
-}
-.landing-demo-tab {
-  background: transparent;
-  border: 1px solid transparent;
-  font-size: 13px;
-
-  color: var(--ink-soft);
-  padding: 6px 12px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.landing-demo-tab:hover { color: var(--ink); }
-.landing-demo-tab.is-active {
-  background: var(--paper);
-  border-color: var(--rule);
-  color: var(--ink);
-}
-.landing-demo-badge {
-  font-size: 12px;
-
-  background: var(--fill);
-  color: var(--ink-soft);
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-}
-.landing-demo-body {
-  padding: 18px;
-  background: var(--surface);
-  min-height: 460px;
-}
-@media (max-width: 480px) {
-  .landing-demo-body { padding: 12px; min-height: 380px; }
-  .landing-demo-bar { gap: 8px; padding: 8px 10px; }
-  .landing-demo-tab { padding: 5px 9px; font-size: 12px; }
-  .landing-demo-badge { font-size: 11px; padding: 3px 7px;}
-}
-.landing-demo-foot {
-  font-size: 12px;
-
-  color: var(--ink-soft);
-  text-align: center;
-  margin: 0;
-}
-
-/* ==========================================================================
-   Demo · Scanner playback
-   ========================================================================== */
-.demo-scan {
-  display: flex; flex-direction: column; gap: 14px;
-}
-.demo-stage {
-  display: flex; flex-direction: column; gap: 12px;
-}
-.demo-imgwrap {
-  position: relative;
-  width: 100%;
-  max-width: 340px;
-  margin: 0 auto;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: #1d1610;
-  box-shadow: 0 16px 40px -28px rgba(0,0,0,0.5);
-}
-.demo-img {
-  display: block; width: 100%; height: 100%; object-fit: cover;
-}
-.demo-overlay {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-}
-
-/* Bounding boxes */
-.demo-bbox-rect {
-  fill: transparent;
-  stroke: #ffffff;
-  stroke-width: 19;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.55));
-  transition: stroke-dashoffset 0.7s ease-out;
-}
-.demo-bbox-price {
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 0.4s ease, transform 0.4s ease;
-  filter: drop-shadow(0 8px 12px rgba(0,0,0,0.45));
-}
-.demo-bbox.is-priced .demo-bbox-price {
-  opacity: 1;
-  transform: translateY(0);
-}
-/* Default (non-foil) pill matches price_overlay.py: near-black bg, white text. */
-.demo-bbox-price rect {
-  fill: rgb(20, 20, 20);
-  stroke: none;
-}
-.demo-bbox-price text {
-  fill: #ffffff;
-  font-size: 90px;
-  font-weight: 700;
-}
-/* Foil pill: gold bg, dark text, gold highlight stroke. */
-.demo-bbox.is-foil .demo-bbox-price rect {
-  fill: rgb(240, 195, 50);
-  stroke: rgb(255, 230, 130);
-  stroke-width: 4;
-}
-.demo-bbox.is-foil .demo-bbox-price text {
-  fill: rgb(25, 20, 10);
-}
-
-/* Idle-state CTA: huge play overlay */
-.demo-cta {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 0; border-radius: 0;
-  cursor: pointer;
-  color: #fff;
-  transition: background 0.2s;
-}
-.demo-cta:hover { background: rgba(0, 0, 0, 0.45); }
-.demo-cta-icon {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 76px; height: 76px;
-  border-radius: 50%;
-  background: var(--accent-fill);
-  color: #fff;
-  font-size: 28px;
-  box-shadow: 0 0 0 8px rgba(0, 113, 227,0.22), 0 0 0 16px rgba(0, 113, 227,0.10);
-  animation: demoPulseRing 2.4s ease-in-out infinite;
-  margin-bottom: 6px;
-}
-.demo-cta-text {
-  font-size: 22px; font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.demo-cta-sub {
-  font-size: 13px;
-  opacity: 0.85;
-}
-@keyframes demoPulseRing {
-  0%, 100% { box-shadow: 0 0 0 8px rgba(0, 113, 227,0.22), 0 0 0 16px rgba(0, 113, 227,0.10); }
-  50%      { box-shadow: 0 0 0 12px rgba(0, 113, 227,0.30), 0 0 0 24px rgba(0, 113, 227,0.0); }
-}
-
-/* Status overlay (during scan phases) */
+.demo-play-icon svg { margin-left: 3px; }
+@media (hover: hover) { .demo-play:hover .demo-play-icon { transform: scale(1.06); } }
+.demo-play:active .demo-play-icon { transform: scale(0.97); }
+.demo-play-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.demo-play-sub { font-size: 15px; opacity: 0.88; }
 .demo-status {
-  position: absolute;
-  left: 14px; right: 14px; bottom: 14px;
-  padding: 10px 14px;
-  background: rgba(20,18,14,0.85);
-  backdrop-filter: blur(6px);
-  border-radius: var(--radius);
-  color: #f6ecd2;
-  font-size: 13px;
-
-  display: flex; flex-direction: column; gap: 8px;
+  position: absolute; left: 12px; right: 12px; bottom: 12px;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
+  border-radius: 14px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-lg);
+  font-size: 15px; font-weight: 600; line-height: 1.3; pointer-events: none;
 }
-.demo-status-row { display: flex; align-items: center; gap: 8px; }
-.demo-status-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--gold-fill);
-  animation: demoPulseDot 0.8s ease-in-out infinite;
-}
-@keyframes demoPulseDot {
-  0%, 100% { opacity: 0.35; transform: scale(0.85); }
-  50%      { opacity: 1;    transform: scale(1.15); }
-}
-.demo-progress {
-  height: 4px; width: 100%;
-  background: rgba(246,236,210,0.18);
-  border-radius: 2px; overflow: hidden;
-}
-.demo-progress-fill {
-  height: 100%;
-  background: var(--gold-fill);
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Results panel (slides in after the demo finishes) */
-.demo-results {
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-height 0.5s ease, opacity 0.35s ease;
-}
-.demo-results.is-open {
-  max-height: 600px;
-  opacity: 1;
-}
+.demo-status:empty { opacity: 0; }
+.demo-status-text { display: flex; align-items: center; gap: 8px; }
+.demo-progress { display: block; height: 4px; border-radius: 2px; overflow: hidden; background: var(--fill-strong); }
+.demo-progress > span { display: block; height: 100%; background: var(--accent-fill); transform-origin: left; transition: transform 500ms var(--ease); }
+.demo-results { margin-top: 12px; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); animation: demo-fade 250ms ease-out; }
 .demo-results-head {
-  display: flex; justify-content: space-between; align-items: baseline;
-  margin-bottom: 10px;
+  display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--rule);
+  font-size: 15px; color: var(--ink-soft);
 }
-.demo-results-pill {
-  font-size: 12px;
-  color: var(--ink-soft);
-}
-.demo-results-total {
-  font-size: 17px; font-weight: 700;
-  color: var(--accent);
-}
-.demo-card-list {
-  list-style: none; padding: 0; margin: 0;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.demo-card-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  opacity: 0;
-  transform: translateY(8px);
-  animation: demoFadeUp 0.4s ease forwards;
-}
-.demo-card-row.is-foil {
-  background: linear-gradient(135deg, var(--gold-soft) 0%, var(--paper) 70%);
-}
-@keyframes demoFadeUp {
-  to { opacity: 1; transform: translateY(0); }
-}
+.demo-results-head strong { font-size: 17px; font-weight: 600; color: var(--ink); }
+.demo-cards { margin: 0; padding: 0; list-style: none; }
+.demo-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; }
+.demo-card + .demo-card { border-top: 1px solid var(--rule); }
 .demo-card-num {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  background: var(--fill);
-  color: var(--ink-soft);
-  font-size: 13px; font-weight: 600;
-  flex: 0 0 26px;
+  flex: none; display: flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; margin-top: 1px; padding: 0 6px; border-radius: var(--radius-pill);
+  background: var(--fill); color: var(--ink-soft); font-size: 12px; font-weight: 600;
 }
-.demo-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.demo-card-name {
-  font-size: 16px; font-weight: 600;
-  color: var(--ink);
-  display: flex; align-items: center; gap: 8px;
-}
-.demo-card-foil {
-  font-size: 11px; font-weight: 600;
-  background: var(--gold-fill);
-  color: var(--ink);
-  padding: 2px 7px;
-  border-radius: var(--radius-pill);
-}
-/* Keep set-badge + set-name on one row; truncate the name when it's long. */
-.demo-version-line { flex-wrap: nowrap; min-width: 0; }
-.demo-set-name {
-  flex: 1 1 auto; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.demo-card-price { text-align: right; }
-.demo-card-rm {
-  font-size: 17px; font-weight: 700;
-  color: var(--accent);
-}
-.demo-card-ck {
-  font-size: 11px;
-  color: var(--ink-soft);
-}
+.demo-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.demo-card-name { font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.demo-card-formula { font-size: 13px; line-height: 1.3; color: var(--ink-soft); }
+.demo-card-price { flex: none; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+.demo-again { margin-top: 12px; }
 
-.demo-actions {
-  display: flex; justify-content: center; align-items: center;
-  min-height: 28px;
+/* Claims: a screenshot of comments, the claims found, each buyer's message. */
+.demo-intro { margin: 0 4px 12px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.demo-shot { margin: 0; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); }
+.demo-shot-photo { display: block; width: 100%; height: 112px; object-fit: cover; object-position: center 30%; }
+.demo-comments { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 12px 12px 14px; list-style: none; }
+.demo-comment { display: flex; align-items: flex-start; gap: 8px; }
+.demo-comment .avatar { flex: none; width: 28px; height: 28px; font-size: 12px; }
+.demo-comment-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.demo-bubble { max-width: 100%; padding: 6px 10px; border-radius: 14px; background: var(--fill); font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }
+.demo-bubble strong { display: block; font-weight: 600; }
+.demo-comment-time { padding-left: 10px; font-size: 12px; color: var(--ink-soft); }
+.demo-comment .ui-chip { align-self: center; animation: demo-fade 250ms ease-out; }
+.demo-find { margin-top: 12px; }
+.demo-reading {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 48px; margin: 12px 0 0; border-radius: var(--radius-pill);
+  background: var(--fill); font-size: 15px; font-weight: 600;
 }
-.demo-hint {
-  font-size: 13px;
-  color: var(--ink-soft);
+.demo-found { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; animation: demo-fade 250ms ease-out; }
+.demo-found-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin: 0 4px; }
+.demo-found-head strong { font-size: 17px; font-weight: 600; }
+.demo-found-head span { font-size: 13px; color: var(--ink-soft); }
+.demo-message {
+  margin: 0; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow);
+  font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.demo-reset {
-  font-size: 13px;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-pill);
-  color: var(--ink);
-  padding: 6px 16px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.demo-reset:hover { background: var(--paper); border-color: var(--ink); }
-
-/* ==========================================================================
-   Demo · Order tracker (mini kanban)
-   ========================================================================== */
-.demo-kanban {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-@media (max-width: 480px) {
-  .demo-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-.demo-col {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  padding: 8px;
-  min-height: 200px;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.demo-col-head {
-  display: flex; justify-content: space-between; align-items: baseline;
-  padding: 2px 4px 6px;
-  border-bottom: 1px solid var(--rule);
-}
-.demo-col-label {
-  font-size: 12px; font-weight: 600;
-
-  color: var(--ink-soft);
-}
-.demo-col-paid    .demo-col-label { color: var(--green); }
-.demo-col-credit  .demo-col-label { color: var(--gold); }
-.demo-col-done    .demo-col-label { color: var(--ink); }
-.demo-col-count {
-  font-size: 12px;
-  color: var(--ink-soft);
-}
-.demo-col-list {
-  list-style: none; padding: 0; margin: 0;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.demo-order {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  display: flex; flex-direction: column; gap: 4px;
-  cursor: default;
-}
-.demo-order.is-frozen {
-  opacity: 0.78;
-}
-.demo-order.is-live {
-  border-color: var(--gold-fill);
-  background: linear-gradient(135deg, var(--gold-soft) 0%, var(--surface) 70%);
-  box-shadow: 0 8px 20px -12px rgba(0, 113, 227,0.30), 0 0 0 3px rgba(255, 204, 0,0.15);
-  animation: demoOrderIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-@keyframes demoOrderIn {
-  0%   { opacity: 0; transform: translateY(-14px) scale(0.96); }
-  60%  { opacity: 1; transform: translateY(2px)  scale(1.01);  }
-  100% { opacity: 1; transform: translateY(0)    scale(1);     }
-}
-.demo-order-badge {
-  position: absolute;
-  top: -8px; right: 8px;
-  font-size: 11px; font-weight: 600;
-
-  background: var(--gold-fill);
-  color: var(--ink);
-  padding: 3px 9px;
-  border-radius: var(--radius-pill);
-  box-shadow: 0 2px 6px -1px rgba(0,0,0,0.2);
-  animation: demoBadgePulse 1.8s ease-in-out infinite;
-}
-@keyframes demoBadgePulse {
-  0%, 100% { transform: translateY(0);    box-shadow: 0 2px 6px -1px rgba(0,0,0,0.2); }
-  50%      { box-shadow: 0 4px 10px -1px rgba(0,0,0,0.28); }
-}
-.demo-order-buyer {
-  font-size: 15px; font-weight: 600;
-  color: var(--ink);
-}
-.demo-order-meta {
-  display: flex; justify-content: space-between;
-  font-size: 12px;
-  color: var(--ink-soft);
-}
-.demo-order-btn {
-  margin-top: 4px;
-  align-self: flex-start;
-  font-size: 11px; font-weight: 600;
-
-  background: var(--accent-fill);
-  color: #fff;
-  border: 0;
-  border-radius: var(--radius-pill);
-  padding: 3px 9px;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-}
-.demo-order-btn:hover { background: var(--fill-strong); }
-.demo-order-btn:active { transform: scale(0.97); }
-
-.demo-tracker { display: flex; flex-direction: column; gap: 12px; }
-.demo-tracker-hint {
-  margin: 0;
-  font-size: 12px;
-
-  color: var(--ink-soft);
-  text-align: center;
-}
-
-/* ---------- The sign-in page's menu ----------
-   Language, appearance, support and feedback behind one button, until the
-   sign-in page gets the top bar. */
-.bar-btn {
-  width: var(--tap); height: var(--tap); padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 0; border-radius: 50%;
-  color: var(--ink); cursor: pointer;
-  transition: background 0.15s ease;
-}
-.bar-btn:hover, .bar-btn[aria-expanded="true"] { background: var(--fill); }
-.user-avatar {
-  width: 24px; height: 24px; border-radius: 50%;
-  object-fit: cover; background: var(--fill);
-}
-.user-avatar.placeholder {
-  display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 600; font-size: 13px; color: var(--ink-soft);
-}
-.app-menu { position: relative; }
-.menu-popover {
-  position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--z-dialog);
-  width: min(320px, calc(100vw - 24px));
-  padding: 6px;
-  /* Sits inside the app bar, whose own backdrop filter stops a nested one
-     from seeing the page, so the menu is a solid surface instead. */
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  transform-origin: top right;
-  animation: menu-in 0.22s var(--ease);
-}
-@keyframes menu-in { from { opacity: 0; transform: scale(0.94); } }
-.menu-account {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px 12px;
-}
-.menu-account .user-avatar { width: 40px; height: 40px; font-size: 17px; }
-.menu-account-text { display: flex; flex-direction: column; min-width: 0; }
-.menu-account-text strong { font-size: 15px; font-weight: 600; }
-.menu-account-text span { font-size: 13px; color: var(--ink-soft); }
-.menu-account-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-status {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px 10px; font-size: 13px; color: var(--ink-soft);
-}
-.menu-group { padding: 6px 0; border-top: 1px solid var(--rule); }
-.menu-popover > :first-child { border-top: 0; }
-.menu-row { padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
-.menu-row-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
-.menu-item {
-  width: 100%; min-height: var(--tap); padding: 0 12px;
-  display: flex; align-items: center; justify-content: flex-start; gap: 12px;
-  background: transparent; border: 0; border-radius: var(--radius-sm);
-  font-size: 17px; font-weight: 400; color: var(--ink); text-align: left; cursor: pointer;
-}
-.menu-item:hover { background: var(--fill); }
-.menu-item.destructive { color: var(--warn); }
-
+.ui-btn.demo-copied { color: var(--green); }
+.demo-note { margin: 0 4px; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.ui-btn.demo-reset { align-self: center; }
+@media (prefers-reduced-motion: reduce) { .demo-dot { animation: none; } }

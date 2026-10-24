@@ -45,6 +45,8 @@ function ToastBar({ toast, onGone }: { toast: Shown; onGone: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof pausableTimer> | null>(null);
   const leave = useRef(() => {});
+  // The toast still takes clicks while it fades out: Undo runs once.
+  const undone = useRef(false);
   leave.current = () => {
     timer.current?.stop();
     hideEl(ref.current!).then(onGone, onGone);
@@ -74,7 +76,7 @@ function ToastBar({ toast, onGone }: { toast: Shown; onGone: () => void }) {
     >
       <span className="ui-toast-text">{toast.message}</span>
       {toast.undo ? (
-        <button type="button" className="ui-btn ui-btn--plain" onClick={() => { toast.undo?.onUndo(); leave.current(); }}>
+        <button type="button" className="ui-btn ui-btn--plain" onClick={() => { if (undone.current) return; undone.current = true; toast.undo?.onUndo(); leave.current(); }}>
           {toast.undo.undoLabel}
         </button>
       ) : null}
