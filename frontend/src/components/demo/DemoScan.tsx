@@ -6,20 +6,20 @@ import { DEMO_CARDS, DEMO_CROP, DEMO_IMAGE_URL, type DemoCard } from '../../data
 import { useT } from '../../hooks/useLang.ts';
 import { Icon } from '../Icon.tsx';
 
-// When each step starts after play, its status line, and the progress bar.
+// When each step starts after play, its status line, the progress bar, and
+// what the photo shows: the outlines, then the price labels (the top row
+// while pricing, every card when all are priced).
 const STEPS = [
-  { at: 0, status: 'lp_scan_reading', progress: 0.18 },
-  { at: 700, status: 'lp_scan_found', progress: 0.4 },
-  { at: 1300, status: 'lp_scan_matching', progress: 0.62 },
-  { at: 1900, status: 'lp_scan_pricing', progress: 0.82 },
-  { at: 2500, status: 'lp_scan_priced', progress: 1 },
-];
+  { at: 0, status: 'lp_scan_reading', progress: 0.18, outlines: false, pills: 'none' },
+  { at: 700, status: 'lp_scan_found', progress: 0.4, outlines: true, pills: 'none' },
+  { at: 1300, status: 'lp_scan_matching', progress: 0.62, outlines: true, pills: 'none' },
+  { at: 1900, status: 'lp_scan_pricing', progress: 0.82, outlines: true, pills: 'top' },
+  { at: 2500, status: 'lp_scan_priced', progress: 1, outlines: true, pills: 'all' },
+] as const;
 const DONE_AT = 3100;
 const IDLE = -1;
 const DONE = STEPS.length;
-const OUTLINED = 1;  // "Found 4 cards": the outlines draw
-// The price pills follow: the top row while pricing, the bottom row when all are priced.
-const pricedAt = (c: DemoCard) => (c.bbox.y < DEMO_CROP.h / 2 ? 3 : 4);
+const NOTHING = { outlines: false, pills: 'none' } as const;
 const at = (x: number, from: number, size: number) => `${((x - from) / size) * 100}%`;
 
 export function DemoScan() {
@@ -43,6 +43,8 @@ export function DemoScan() {
 
   const n = DEMO_CARDS.length;
   const running = step > IDLE && step < DONE;
+  const shown = step === IDLE ? NOTHING : STEPS[Math.min(step, DONE - 1)];
+  const priced = (c: DemoCard) => shown.pills === 'all' || (shown.pills === 'top' && c.bbox.y < DEMO_CROP.h / 2);
   const total = DEMO_CARDS.reduce((sum, c) => sum + c.rmPrice, 0);
 
   return (
@@ -55,16 +57,16 @@ export function DemoScan() {
             const edge = 2 * (bbox.w + bbox.h);
             return (
               <rect
-                key={id} className="demo-outline" data-on={step >= OUTLINED || undefined}
+                key={id} className="demo-outline" data-on={shown.outlines || undefined}
                 x={bbox.x} y={bbox.y} width={bbox.w} height={bbox.h} rx="18"
-                style={{ strokeDasharray: edge, strokeDashoffset: step >= OUTLINED ? 0 : edge }}
+                style={{ strokeDasharray: edge, strokeDashoffset: shown.outlines ? 0 : edge }}
               />
             );
           })}
         </svg>
         {DEMO_CARDS.map(c => (
           <span
-            key={c.id} className="demo-pill" aria-hidden="true" data-on={step >= pricedAt(c) || undefined}
+            key={c.id} className="demo-pill" aria-hidden="true" data-on={priced(c) || undefined}
             style={{ left: at(c.bbox.x + c.bbox.w / 2, DEMO_CROP.x, DEMO_CROP.w), top: at(c.bbox.y + c.bbox.h / 2, 0, DEMO_CROP.h) }}
           >RM{c.rmPrice}</span>
         ))}
