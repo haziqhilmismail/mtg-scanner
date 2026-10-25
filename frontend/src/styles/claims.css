@@ -150,10 +150,7 @@ button.claims-text-btn:hover, button.claims-text-btn:active { background: none; 
 .claims-bubble { margin: 6px 0 0; padding: 14px 16px; border-radius: 16px; background: var(--surface-2); font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
 .claims-buyer-dialog .ui-field { margin-top: 22px; }
 .ui-dialog-sub .claims-status { display: inline-flex; }
-.claims-phone { display: flex; flex-direction: column; gap: 6px; margin-top: 22px; }
-.claims-phone-row { display: flex; gap: 8px; }
-.claims-buyer-dialog .claims-phone-row .ui-field { flex: 1; margin-top: 0; }
-.claims-phone-row > .ui-btn { flex: none; min-height: 48px; }
+.claims-buyer-dialog .save-field { margin-top: 22px; }
 @media (max-width: 767px) {
   .claims-buyer-dialog .ui-dialog-foot > * { flex: 1 1 auto; }
 }

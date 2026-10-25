@@ -3,8 +3,8 @@ for the seller to cut out and leave with each buyer's cards at the drop-off
 point (frontend/DESIGN.md section 8 and its "Drop-off slips · A4 PDF" board).
 
 A slip holds three rows and nothing else: the buyer's name, the buyer's
-number, and the seller's name, which is always a line to write on. A missing
-name or number is a line to write on too. Sizes are the board's CSS pixels
+number, and the seller's name from Profile. Anything missing is a line to
+write on. Sizes are the board's CSS pixels
 scaled to print. Drawn with Pillow at 300 dpi in black on white and saved as
 a PDF, so it prints to size and reads in grayscale."""
 
@@ -28,6 +28,7 @@ LINE_HEIGHT = 1.3
 BASELINES = (53 * PX, 87 * PX, SLIP_H - 36 * PX)  # the three rows; the seller's sits at the bottom
 # A long name wraps down to where the number row still clears the seller's.
 NAME_LINES = 1 + int((BASELINES[2] - 2 * (BASELINES[1] - BASELINES[0]) - BASELINES[0]) // (VALUE_SIZES[-1] * LINE_HEIGHT))
+MAX_LINES = (NAME_LINES, 2, 1)                    # the seller's row is the last thing on the slip
 WRITE_IN = (200 * PX, 190 * PX, 200 * PX)
 RULE = round(PX)                                  # 1px lines and cut lines
 DASH, DASH_GAP = round(4 * PX), round(3 * PX)
@@ -101,10 +102,10 @@ def fit_value(value: str, width: float, max_lines: int) -> tuple[ImageFont.FreeT
     return font, lines
 
 
-def _slip(draw: ImageDraw.ImageDraw, left: float, top: float, buyer: str, phone: str) -> None:
+def _slip(draw: ImageDraw.ImageDraw, left: float, top: float, buyer: str, phone: str, seller: str) -> None:
     label_font = _font(LABEL_SIZE)
     shift = 0.0                                   # how much a wrapped name pushes the number down
-    for row, (label, value) in enumerate(zip(LABELS, (printable(buyer), printable(phone), ""))):
+    for row, (label, value) in enumerate(zip(LABELS, (printable(buyer), printable(phone), printable(seller)))):
         baseline = top + BASELINES[row] + (shift if row == 1 else 0)
         draw.text((left + PAD_X, baseline), label, font=label_font, fill=LABEL_INK, anchor="ls")
         x = left + PAD_X + draw.textlength(label, font=label_font) + GAP
@@ -112,7 +113,7 @@ def _slip(draw: ImageDraw.ImageDraw, left: float, top: float, buyer: str, phone:
             draw.rectangle((x, baseline - RULE / 2, x + WRITE_IN[row], baseline + RULE / 2), fill=LINE_INK)
             continue
         width = left + SLIP_W - PAD_X - x
-        font, lines = fit_value(value, width, NAME_LINES if row == 0 else 2)
+        font, lines = fit_value(value, width, MAX_LINES[row])
         step = font.size * LINE_HEIGHT
         for i, text in enumerate(lines):
             draw.text((x, baseline + i * step), text, font=font, fill=INK, anchor="ls")
@@ -131,25 +132,25 @@ def _dashed(draw: ImageDraw.ImageDraw, x0: float, y0: float, x1: float, y1: floa
             draw.rectangle((x0 - RULE / 2, y0 + start, x0 + RULE / 2, y0 + end), fill=LINE_INK)
 
 
-def page(slips: list[tuple[str, str]]) -> Image.Image:
+def page(slips: list[tuple[str, str]], seller: str = "") -> Image.Image:
     """One A4 page of up to ten (buyer, phone) slips, with cut lines between
     the slips only: the page's own edges are the outer cuts."""
     img = Image.new("L", (PAGE_W, PAGE_H), 255)
     draw = ImageDraw.Draw(img)
     for n, (buyer, phone) in enumerate(slips):
-        _slip(draw, (n % COLS) * SLIP_W, (n // COLS) * SLIP_H, buyer, phone)
+        _slip(draw, (n % COLS) * SLIP_W, (n // COLS) * SLIP_H, buyer, phone, seller)
     for r in range(1, ROWS):
         _dashed(draw, 0, r * SLIP_H, PAGE_W, r * SLIP_H)
     _dashed(draw, SLIP_W, 0, SLIP_W, PAGE_H)
     return img
 
 
-def render(slips: list[tuple[str, str]]) -> bytes:
+def render(slips: list[tuple[str, str]], seller: str = "") -> bytes:
     """A PDF of the slips in the order given, ten to a page. The rest of the
-    last page is blank slips."""
+    last page is blank slips, with only the seller's name."""
     slips = slips or [("", "")]
     slips = [*slips, *[("", "")] * (-len(slips) % PER_PAGE)]
-    pages = [page(slips[i:i + PER_PAGE]) for i in range(0, len(slips), PER_PAGE)]
+    pages = [page(slips[i:i + PER_PAGE], seller) for i in range(0, len(slips), PER_PAGE)]
     out = BytesIO()
     pages[0].save(out, format="PDF", resolution=DPI, save_all=True, append_images=pages[1:])
     return out.getvalue()

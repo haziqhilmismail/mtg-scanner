@@ -212,6 +212,12 @@ dialog .ui-toasts { bottom: calc(24px + env(safe-area-inset-bottom)); }
 .ui-label { font-size: 15px; line-height: 1.3; color: var(--ink-soft); }
 .ui-hint, .ui-error { margin: 0; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
 .ui-hint { color: var(--ink-soft); }
+
+/* SaveField: a field with its own Save button beside it. */
+.save-field { display: flex; flex-direction: column; gap: 6px; }
+.save-field-row { display: flex; align-items: flex-start; gap: 8px; }
+.save-field-row .ui-field { flex: 1; margin-top: 0; }
+.save-field-row > .ui-btn { flex: none; min-height: 48px; }
 .ui-error { color: var(--warn); }
 
 .ui-input {

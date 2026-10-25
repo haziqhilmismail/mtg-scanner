@@ -4,7 +4,8 @@ import re
 
 from conftest import _dispose_then, new_user, run
 
-from app.db import engine
+from app.db import async_session_factory, engine
+from app.models import User
 from app.services import slips
 from app.services.auth_service import issue_session_token
 
@@ -70,3 +71,44 @@ def test_characters_the_font_lacks_are_left_out_not_printed_as_boxes():
     assert slips.printable("Aina 🌸") == "Aina"
     assert slips.printable("Zoë  Ñúñez") == "Zoë Ñúñez"
     assert slips.printable("王小明") == ""                                            # nothing printable: a write-in line
+
+
+async def _google_user(name: str) -> int:
+    async with async_session_factory() as s:
+        u = User(email=f"{name.replace(' ', '.')}@example.com", name=name)
+        s.add(u)
+        await s.commit()
+        return u.id
+
+
+def test_the_seller_name_set_on_profile_prints_on_the_slips(client, monkeypatch):
+    uid = run(_dispose_then(_google_user("Aiman Google")))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    seller = lambda: client.get("/api/auth/me", headers=me).json()["seller_name"]
+    set_seller = lambda name: client.put("/api/auth/me/seller-name", headers=me, json={"seller_name": name})
+
+    assert seller() == "Aiman Google"                                                # until set: the Google name
+    assert set_seller("  Kedai Kad Aiman ").json() == {"seller_name": "Kedai Kad Aiman"}
+    assert seller() == "Kedai Kad Aiman"
+    assert set_seller("").json() == {"seller_name": "Aiman Google"}                  # cleared: the Google name again
+    assert set_seller("x" * 256).status_code == 422
+    assert client.put("/api/auth/me/seller-name", json={"seller_name": "x"}).status_code == 401
+
+    set_seller("Kedai Kad Aiman")
+    printed = []
+    monkeypatch.setattr(slips, "render", lambda rows, seller: printed.append(seller) or b"%PDF")
+    client.post("/api/slips", headers=me, json={"slips": [{"buyer": "Farah"}]})
+    assert printed == ["Kedai Kad Aiman"]
+
+
+def test_every_slip_on_the_page_carries_the_seller_name():
+    def seller_row_ink(img, n):
+        left, top = (n % slips.COLS) * slips.SLIP_W, (n // slips.COLS) * slips.SLIP_H
+        label_end = left + slips.PAD_X + 120 * slips.PX                              # past "Seller's name:"
+        baseline = top + slips.BASELINES[2]
+        return img.crop((round(label_end), round(baseline - 20 * slips.PX), round(left + slips.SLIP_W - slips.PAD_X), round(baseline + 2))).getextrema()[0]
+
+    named = slips.page([("Tan Wei Jie", "0123456789"), ("", "")], seller="Kedai Kad Aiman")
+    assert seller_row_ink(named, 0) == slips.INK and seller_row_ink(named, 1) == slips.INK   # a blank spare slip too
+    assert seller_row_ink(slips.page([("Tan Wei Jie", "0123456789")]), 0) == slips.LINE_INK  # no name: a line to write on

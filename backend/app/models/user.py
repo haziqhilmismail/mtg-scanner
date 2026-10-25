@@ -32,6 +32,7 @@ class User(Base, TimestampMixin):
     name: Mapped[str | None] = mapped_column(String(255))
     avatar_url: Mapped[str | None] = mapped_column(String(512))
 
+    # The seller name the seller set on Profile; null means their Google name.
     fb_name: Mapped[str | None] = mapped_column(String(255))
 
     # How buyers pay this seller, added to the summaries copied for buyers.
@@ -56,6 +57,12 @@ class User(Base, TimestampMixin):
     # means forever).
     bonus_scan_credits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     unlimited_scans_until: Mapped[datetime | None] = mapped_column(DateTime)
+
+    @property
+    def seller_name(self) -> str:
+        """Printed on drop-off slips; Claims uses it to tell the seller's own
+        comments from buyers'."""
+        return self.fb_name or self.name or ""
 
     # Relationships — back-populates so we can navigate from any side
     scans: Mapped[list["Scan"]] = relationship(back_populates="user", cascade="all, delete-orphan")

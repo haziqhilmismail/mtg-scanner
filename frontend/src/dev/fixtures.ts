@@ -115,7 +115,7 @@ function worst(): Fixture {
     me: {
       id: SELLER_ID, email: 'wan.muhammad.amirul.asyraf.wan.ismail@example.com',
       name: 'Wan Muhammad Amirul Asyraf bin Wan Ismail', avatar_url: missing('avatar.jpg'),
-      image_token: '', pricing: DEFAULT_PRICING,
+      image_token: '', pricing: DEFAULT_PRICING, seller_name: 'Wan Muhammad Amirul Asyraf bin Wan Ismail',
     },
     health: { ok: false, model: MODEL, cardkingdom_error: 'Card Kingdom price list download failed: HTTP 503 Service Unavailable' },
     credits: { enforced: true, unlimited: false, limit: 50, used: 50, bonus: 1284, remaining: 1284, next_free_at: inDays(12) },
@@ -197,7 +197,7 @@ function worst(): Fixture {
 function one(): Fixture {
   const f = newFixture({
     config: CONFIG,
-    me: { id: SELLER_ID, email: 'nurul.huda@example.com', name: 'Nurul Huda', avatar_url: AVATAR_PICTURE, image_token: '', pricing: DEFAULT_PRICING },
+    me: { id: SELLER_ID, email: 'nurul.huda@example.com', name: 'Nurul Huda', avatar_url: AVATAR_PICTURE, image_token: '', pricing: DEFAULT_PRICING, seller_name: 'Nurul Huda' },
     health: { ok: true, model: MODEL, cardkingdom_cards: 1, cardkingdom_refreshed_at: refreshedHoursAgo(1) },
     credits: { enforced: true, unlimited: false, limit: 50, used: 49, bonus: 0, remaining: 1, next_free_at: inDays(1) },
     payment: { bank_name: 'CIMB', bank_account_number: '1234567890', bank_account_holder: 'NURUL HUDA', payment_note: 'Send the receipt here after paying', qr_version: '1793000000000000001' },
@@ -222,7 +222,7 @@ const autoTitle = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3600e3)
 function many(): Fixture {
   const f = newFixture({
     config: CONFIG,
-    me: { id: SELLER_ID, email: 'lim.wei.ming@example.com', name: 'Lim Wei Ming', avatar_url: AVATAR_PICTURE, image_token: '', pricing: DEFAULT_PRICING },
+    me: { id: SELLER_ID, email: 'lim.wei.ming@example.com', name: 'Lim Wei Ming', avatar_url: AVATAR_PICTURE, image_token: '', pricing: DEFAULT_PRICING, seller_name: 'Lim Wei Ming' },
     health: { ok: true, model: MODEL, cardkingdom_cards: 99334, cardkingdom_refreshed_at: refreshedHoursAgo(72) },
     credits: { enforced: true, unlimited: true, limit: 50, used: 12, bonus: 0, remaining: null, next_free_at: inDays(20) },
     // Bank details but no DuitNow QR.
@@ -268,7 +268,7 @@ function many(): Fixture {
 
 const empty = (): Fixture => newFixture({
   config: CONFIG,
-  me: { id: SELLER_ID, email: 'farah@example.com', name: 'Farah', avatar_url: null, image_token: '', pricing: null },
+  me: { id: SELLER_ID, email: 'farah@example.com', name: 'Farah', avatar_url: null, image_token: '', pricing: null, seller_name: 'Farah' },
   health: { ok: true, model: MODEL },
   credits: { enforced: true, unlimited: false, limit: 50, used: 0, bonus: 0, remaining: 50, next_free_at: null },
   payment: NO_PAYMENT,

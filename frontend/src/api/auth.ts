@@ -10,9 +10,9 @@ export interface AuthUser {
   avatar_url: string | null;
 }
 
-// /me also hands out a fresh image token ("" in solo mode) and the user's
-// default pricing (null until one is set).
-export type MeResponse = AuthUser & { image_token: string; pricing: Settings | null };
+// /me also hands out a fresh image token ("" in solo mode), the user's
+// default pricing (null until one is set) and their seller name.
+export type MeResponse = AuthUser & { image_token: string; pricing: Settings | null; seller_name: string };
 
 export interface AuthResponse {
   token: string;
@@ -49,4 +49,14 @@ export async function saveDefaultPricing(pricing: Settings, keepalive = false): 
     body: JSON.stringify({ pricing }),
     keepalive,
   });
+}
+
+// Sets the seller name; "" goes back to the Google name. Answers with the name in use.
+export async function saveSellerName(seller_name: string): Promise<string> {
+  const res = await request('/api/auth/me/seller-name', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ seller_name }),
+  });
+  return (await res.json()).seller_name;
 }

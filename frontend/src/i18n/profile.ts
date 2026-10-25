@@ -4,6 +4,10 @@
 
 export const en = {
   profile_account: 'Account',
+  profile_seller_name: 'Seller name',
+  profile_seller_name_save: 'Save name',
+  profile_seller_name_hint: 'Prints on your drop-off slips. Claims also uses it to know which comments are yours.',
+  profile_seller_name_failed: 'Couldn’t save your seller name. Check your connection and try again.',
   profile_solo_title: 'Your account',
   profile_solo_sub: 'Sign-in is off on this server.',
   profile_pricing_note: 'New posts start with this. A post with its own pricing keeps it.',
@@ -34,6 +38,10 @@ export const en = {
 
 export const ms = {
   profile_account: 'Akaun',
+  profile_seller_name: 'Nama penjual',
+  profile_seller_name_save: 'Simpan nama',
+  profile_seller_name_hint: 'Dicetak pada slip hantaran anda. Tuntutan juga menggunakannya untuk mengenal komen anda.',
+  profile_seller_name_failed: 'Nama penjual anda tidak dapat disimpan. Semak sambungan anda dan cuba lagi.',
   profile_solo_title: 'Akaun anda',
   profile_solo_sub: 'Log masuk dimatikan pada pelayan ini.',
   profile_pricing_note: 'Post baharu bermula dengan ini. Post yang ada harga sendiri kekal dengannya.',

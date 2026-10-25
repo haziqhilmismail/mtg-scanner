@@ -1,8 +1,7 @@
-import { useId, useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
-import { TextField } from '../../components/ui/Field.tsx';
+import { SaveField } from '../../components/ui/SaveField.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { PAY_STATES, type BuyerGroup, type PayState } from './model.ts';
@@ -72,52 +71,5 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, hasPaymen
         </>
       ) : null}
     </Dialog>
-  );
-}
-
-interface SaveFieldProps {
-  saved: string;
-  onSave: (value: string) => Promise<boolean>;
-  label: string;
-  saveLabel: string;
-  placeholder?: string;
-  required?: boolean;
-  inputMode?: 'tel';
-  maxLength: number;
-  autoComplete: string;
-}
-
-// One buyer detail, saved with its own button: nothing saves as you type.
-function SaveField({ saved, onSave, label, saveLabel, placeholder, required, inputMode, maxLength, autoComplete }: SaveFieldProps) {
-  const t = useT();
-  const id = useId();
-  const [value, setValue] = useState(saved);
-  const [busy, setBusy] = useState(false);
-  const [justSaved, setJustSaved] = useState(false);
-  const changed = value.trim() !== saved && !(required && !value.trim());
-  return (
-    <form
-      className="claims-phone"
-      onSubmit={async e => {
-        e.preventDefault();
-        if (!changed || busy) return;
-        setBusy(true);
-        const ok = await onSave(value.trim());
-        setBusy(false);
-        setJustSaved(ok);
-      }}
-    >
-      <label id={`${id}-label`} htmlFor={`${id}-input`} className="ui-label">{label}</label>
-      <div className="claims-phone-row">
-        <TextField
-          id={`${id}-input`} aria-labelledby={`${id}-label`} inputMode={inputMode} autoComplete={autoComplete} maxLength={maxLength}
-          placeholder={placeholder} value={value}
-          onChange={e => { setValue(e.target.value); setJustSaved(false); }}
-        />
-        <button type="submit" className="ui-btn" disabled={!changed || busy}>
-          {justSaved && value.trim() === saved ? t('claims_phone_saved') : saveLabel}
-        </button>
-      </div>
-    </form>
   );
 }
