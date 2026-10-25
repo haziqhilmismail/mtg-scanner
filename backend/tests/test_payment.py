@@ -5,6 +5,7 @@ from io import BytesIO
 from conftest import _dispose_then, new_user, run
 from PIL import Image
 
+import app.main as main
 from app.db import engine
 from app.services.auth_service import issue_image_token, issue_session_token
 
@@ -73,3 +74,11 @@ def test_stored_qr_uploaded_again_is_the_same_picture(client):
     a, b = Image.open(BytesIO(first)), Image.open(BytesIO(client.get(url).content))
     assert a.size == b.size == (30, 30) and a.mode == b.mode
     assert a.tobytes() == b.tobytes()
+
+
+def test_the_support_qr_is_served_only_when_the_server_has_one(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "SUPPORT_QR", tmp_path / "support_qr.png")
+    assert client.get("/api/support-qr").status_code == 404
+    (tmp_path / "support_qr.png").write_bytes(b"\x89PNG qr")
+    r = client.get("/api/support-qr")                   # no sign-in: it is on a public sheet
+    assert r.status_code == 200 and r.content == b"\x89PNG qr" and r.headers["content-type"] == "image/png"

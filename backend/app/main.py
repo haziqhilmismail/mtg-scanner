@@ -31,7 +31,7 @@ from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 from slowapi import _rate_limit_exceeded_handler
@@ -146,6 +146,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# The QR on Profile's "Support this app". It lives on the server only, as the
+# repo is public; without it the sheet says the QR is coming soon.
+SUPPORT_QR = DATA_DIR / "support_qr.png"
+
+
+@app.get("/api/support-qr")
+async def support_qr():
+    if not SUPPORT_QR.exists():
+        raise HTTPException(404, "No support QR on this server")
+    return FileResponse(SUPPORT_QR, media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/api/health")
