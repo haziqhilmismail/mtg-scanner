@@ -17,6 +17,7 @@
 .profile-facts { display: flex; flex-direction: column; gap: 4px; margin: 14px 0 0; padding: 12px 0 0; list-style: none; border-top: 1px solid var(--rule); }
 .profile-fact { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
 .profile-fact .status-dot { margin-top: 5px; }
+.profile-seller { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule); }
 .profile-fact.err { color: var(--warn); }
 .profile-fact--wrap { flex-wrap: wrap; align-items: center; gap: 0 8px; }
 .ui-btn.profile-redeem { margin-left: -10px; }

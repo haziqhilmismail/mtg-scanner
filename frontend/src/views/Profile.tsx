@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { AuthUser } from '../api/auth.ts';
+import { useEffect, useState } from 'react';
+import { fetchMe, saveSellerName, type AuthUser } from '../api/auth.ts';
 import { Avatar } from '../components/Avatar.tsx';
 import { FeedbackModal } from '../components/FeedbackModal.tsx';
 import { Icon } from '../components/Icon.tsx';
@@ -7,6 +7,8 @@ import { Link } from '../components/Link.tsx';
 import { PaymentDetails } from '../components/PaymentDetails.tsx';
 import { Preferences } from '../components/Preferences.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
+import { SaveField } from '../components/ui/SaveField.tsx';
+import { useToast } from '../components/ui/Toast.tsx';
 import { useT } from '../hooks/useLang.ts';
 import type { PaymentStore } from '../hooks/usePayment.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
@@ -69,6 +71,7 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
                 </li>
               ) : null}
             </ul>
+            <SellerName />
           </section>
 
           <PaymentDetails store={payments} />
@@ -104,5 +107,25 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
       <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} t={t} />
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
     </>
+  );
+}
+
+// The name printed on drop-off slips. Loaded here, as only Profile shows it.
+function SellerName() {
+  const t = useT();
+  const toast = useToast();
+  const [saved, setSaved] = useState<string | null>(null);
+  useEffect(() => { fetchMe().then(me => setSaved(me.seller_name), () => {}); }, []);
+  if (saved === null) return null;
+  return (
+    <div className="profile-seller">
+      <SaveField
+        saved={saved} required maxLength={255} autoComplete="name"
+        label={t('profile_seller_name')} saveLabel={t('profile_seller_name_save')} hint={t('profile_seller_name_hint')}
+        onSave={async name => {
+          try { setSaved(await saveSellerName(name)); return true; } catch { toast(t('profile_seller_name_failed')); return false; }
+        }}
+      />
+    </div>
   );
 }

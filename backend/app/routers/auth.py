@@ -3,6 +3,7 @@
 POST /api/auth/google  — exchange a Google ID token for one of our session JWTs.
 GET  /api/auth/me      — return the current user (or 401 if not signed in).
 PUT  /api/auth/me/pricing — set the user's default pricing settings.
+PUT  /api/auth/me/seller-name — set the seller name; empty means the Google name.
 Both also hand out an image-only token for <img src> URLs ("" in solo mode).
 GET  /api/auth/config  — exposes auth_enabled so the frontend can render the
                          login page vs. solo mode without a separate env var.
@@ -11,7 +12,7 @@ GET  /api/auth/config  — exposes auth_enabled so the frontend can render the
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from ..config import settings
@@ -41,6 +42,11 @@ class AuthUser(BaseModel):
 class Me(AuthUser):
     image_token: str
     pricing: dict | None = None
+    seller_name: str = ""
+
+
+class SellerName(BaseModel):
+    seller_name: str = Field("", max_length=255)
 
 
 class PricingBody(BaseModel):
@@ -114,7 +120,6 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
             google_sub=sub,
             name=name,
             avatar_url=picture,
-            fb_name=name,
         )
         db.add(user)
 
@@ -135,7 +140,7 @@ async def me(db: DbSession, user_id: CurrentUserId):
         raise HTTPException(401, "User no longer exists")
     return Me(
         id=user.id, email=user.email, name=user.name, avatar_url=user.avatar_url,
-        image_token=_image_token(user.id), pricing=user.pricing,
+        image_token=_image_token(user.id), pricing=user.pricing, seller_name=user.seller_name,
     )
 
 
@@ -146,3 +151,12 @@ async def set_default_pricing(body: PricingBody, db: DbSession, user_id: Current
     if user is None:
         raise HTTPException(401, "User no longer exists")
     user.pricing = body.pricing
+
+
+@router.put("/me/seller-name", response_model=SellerName)
+async def set_seller_name(body: SellerName, db: DbSession, user_id: CurrentUserId) -> SellerName:
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(401, "User no longer exists")
+    user.fb_name = body.seller_name.strip() or None
+    return SellerName(seller_name=user.seller_name)

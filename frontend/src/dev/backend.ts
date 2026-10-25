@@ -85,6 +85,11 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       f.me.pricing = pricing;
       return noContent();
     }],
+    ['PUT', route('/api/auth/me/seller-name'), async ({ req }) => {
+      const { seller_name }: { seller_name: string } = await req.json();
+      f.me.seller_name = seller_name.trim() || f.me.name || '';
+      return json({ seller_name: f.me.seller_name });
+    }],
     ['GET', route('/api/health'), () => json(f.health)],
     ['GET', route('/api/credits'), () => json(f.credits)],
     ['POST', route('/api/vouchers/redeem'), () => {
