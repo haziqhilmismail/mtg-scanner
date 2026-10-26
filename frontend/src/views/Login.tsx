@@ -1,12 +1,12 @@
 // The sign-in page: the pitch with Google's button on the first screen, a
-// demo to try, what the app does, and the button again. Language and
+// sample post to try (its Photos, then its Claims, as in the app), the four
+// steps of a post, and the button again. Language and
 // appearance come from App, so a choice made here carries on after sign-in.
 
 import { useEffect, useRef, useState } from 'react';
 import { DemoFindClaims } from '../components/demo/DemoFindClaims.tsx';
 import { DemoScan } from '../components/demo/DemoScan.tsx';
 import { SignedOutHeader } from '../components/Header.tsx';
-import { Icon, type IconName } from '../components/Icon.tsx';
 import { Preferences } from '../components/Preferences.tsx';
 import { Segmented } from '../components/ui/Segmented.tsx';
 import type { T } from '../hooks/useLang.ts';
@@ -27,13 +27,14 @@ type Gis = 'loading' | 'ready' | 'failed';
 // How long Google's script gets before the page says it didn't load.
 const GIS_WAIT_MS = 10000;
 
-const FEATURES: Array<[IconName, string]> = [
-  ['bolt', 'scan'], ['share', 'export'], ['feedback', 'claims'], ['print', 'slips'],
-];
+// A post's life, and the part of the post each step happens on.
+const STEPS = [['photos', 'post_photos'], ['share', 'post_photos'], ['claims', 'nav_claims'], ['collect', 'nav_claims']] as const;
 
 export function Login({ clientId, onCredential, error, lang, setLang, t, appearance, setAppearance }: Props) {
-  const [demo, setDemo] = useState<'scan' | 'claims'>('scan');
+  const [demo, setDemo] = useState<'photos' | 'claims'>('photos');
   const gis = useGis(clientId, onCredential);
+  // The scan's results run long on a phone: the Claims demo starts at its top.
+  const toClaims = () => { setDemo('claims'); document.getElementById('signin-try-title')?.scrollIntoView(); };
   const cta = <><GoogleButton gis={gis} /><p className="signin-note">{t('lp_cta_foot')}</p></>;
 
   return (
@@ -53,26 +54,27 @@ export function Login({ clientId, onCredential, error, lang, setLang, t, appeara
           <section className="signin-try" aria-labelledby="signin-try-title">
             <h2 id="signin-try-title" className="signin-h2">{t('lp_try')}</h2>
             <Segmented
-              aria-label={t('lp_demo_switch')} value={demo} onChange={setDemo}
-              options={[{ value: 'scan', label: t('lp_demo_tab_scan') }, { value: 'claims', label: t('lp_demo_tab_claims') }]}
+              aria-label={t('post_parts')} value={demo} onChange={setDemo}
+              options={[{ value: 'photos', label: `1 · ${t('post_photos')}` }, { value: 'claims', label: `2 · ${t('nav_claims')}` }]}
             />
-            {demo === 'scan' ? <DemoScan /> : <DemoFindClaims />}
+            {demo === 'photos' ? <DemoScan onNext={toClaims} /> : <DemoFindClaims />}
             <p className="signin-note">{t('lp_demo_foot')}</p>
           </section>
 
           <section className="signin-what" aria-labelledby="signin-what-title">
-            <h2 id="signin-what-title" className="signin-h2">{t('lp_what')}</h2>
-            <ul className="ui-list">
-              {FEATURES.map(([icon, key]) => (
-                <li key={key} className="signin-feature">
-                  <span className="signin-feature-icon" aria-hidden="true"><Icon name={icon} size={18} /></span>
-                  <span className="signin-feature-text">
-                    <strong>{t(`lp_feat_${key}_head`)}</strong>
-                    <span>{t(`lp_feat_${key}_body`)}</span>
+            <h2 id="signin-what-title" className="signin-h2">{t('lp_how')}</h2>
+            <ol className="ui-list signin-steps">
+              {STEPS.map(([key, part], i) => (
+                <li key={key} className="signin-step">
+                  <span className="signin-step-n" aria-hidden="true">{i + 1}</span>
+                  <span className="signin-step-text">
+                    <strong>{t(`lp_step_${key}_head`)}</strong>
+                    <span>{t(`lp_step_${key}_body`)}</span>
+                    <span className="ui-chip">{t('lp_step_on', { part: t(part) })}</span>
                   </span>
                 </li>
               ))}
-            </ul>
+            </ol>
           </section>
 
           {gis === 'failed' ? null : <div className="signin-cta signin-again">{cta}</div>}

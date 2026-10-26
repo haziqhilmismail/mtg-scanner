@@ -113,6 +113,11 @@ export const en = {
   rename_save: 'Save',
   post_archived_note: 'This post is archived. It is hidden from Posts, and its claims stay.',
   unfiled_note: "These photos aren't in a post. Select them to move them to one.",
+  post_parts: 'Post sections',
+  posts_buyers_unpaid_one: '1 buyer to pay',
+  posts_buyers_unpaid: '{n} buyers to pay',
+  posts_buyers_paid_one: '1 buyer, paid',
+  posts_buyers_paid: 'All {n} buyers paid',
 };
 
 export const ms = {
@@ -227,4 +232,9 @@ export const ms = {
   rename_save: 'Simpan',
   post_archived_note: 'Post ini diarkibkan. Ia tersembunyi daripada Post, dan tuntutannya kekal.',
   unfiled_note: 'Foto ini tiada dalam post. Pilih foto untuk memindahkannya ke satu post.',
+  post_parts: 'Bahagian post',
+  posts_buyers_unpaid_one: '1 pembeli belum bayar',
+  posts_buyers_unpaid: '{n} pembeli belum bayar',
+  posts_buyers_paid_one: '1 pembeli, sudah bayar',
+  posts_buyers_paid: 'Semua {n} pembeli sudah bayar',
 };

@@ -78,8 +78,37 @@ async def _stats_by_post(db, post_ids: list[int]) -> dict:
     return {r[0]: r[1:] for r in rows}
 
 
-def _read_with_stats(post: Post, stats: dict) -> PostReadWithStats:
+async def _buyers_by_post(db, post_ids: list[int]) -> dict[int, tuple[int, int]]:
+    """{post_id: (buyers, buyers still to pay)} over the orders Claims shows:
+    not cancelled, not archived. A card is in a post when it is linked to it
+    or was scanned in one of its photos, the same rule as the Claims page."""
+    live = (Order.status != OrderStatus.cancelled, Order.archived_at.is_(None))
+    unpaid = Order.paid_at.is_(None)
+    linked = (
+        select(listing_post_links.c.post_id, Order.buyer_id, unpaid)
+        .join(OrderItem, OrderItem.order_id == Order.id)
+        .join(listing_post_links, listing_post_links.c.listing_id == OrderItem.listing_id)
+        .where(listing_post_links.c.post_id.in_(post_ids), *live)
+    )
+    scanned = (
+        select(Scan.post_id, Order.buyer_id, unpaid)
+        .join(OrderItem, OrderItem.order_id == Order.id)
+        .join(Listing, Listing.id == OrderItem.listing_id)
+        .join(Scan, Scan.id == Listing.scan_id)
+        .where(Scan.post_id.in_(post_ids), *live)
+    )
+    buyers: dict[int, set[int]] = {}
+    owing: dict[int, set[int]] = {}
+    for post_id, buyer_id, is_unpaid in (await db.execute(linked.union(scanned))).all():
+        buyers.setdefault(post_id, set()).add(buyer_id)
+        if is_unpaid:
+            owing.setdefault(post_id, set()).add(buyer_id)
+    return {p: (len(b), len(owing.get(p, ()))) for p, b in buyers.items()}
+
+
+def _read_with_stats(post: Post, stats: dict, buyers: dict[int, tuple[int, int]]) -> PostReadWithStats:
     listing_count, active_count, total_qty, total_value = stats.get(post.id, (0, 0, 0, 0))
+    buyer_count, unpaid_buyer_count = buyers.get(post.id, (0, 0))
     return PostReadWithStats.model_validate({
         **{c.name: getattr(post, c.name) for c in Post.__table__.columns},
         "listing_count": int(listing_count or 0),
@@ -87,12 +116,14 @@ def _read_with_stats(post: Post, stats: dict) -> PostReadWithStats:
         "total_qty": int(total_qty or 0),
         "total_value_myr": f"{Decimal(total_value or 0):.2f}",
         "has_image": bool(post.image_path) and _post_image_path(post.id).exists(),
+        "buyer_count": buyer_count,
+        "unpaid_buyer_count": unpaid_buyer_count,
     })
 
 
 async def _build_read_with_stats(db, post: Post) -> PostReadWithStats:
     """Build the read schema with computed stats (listing counts, total qty, value)."""
-    return _read_with_stats(post, await _stats_by_post(db, [post.id]))
+    return _read_with_stats(post, await _stats_by_post(db, [post.id]), await _buyers_by_post(db, [post.id]))
 
 
 @router.get("", response_model=list[PostReadWithStats])
@@ -112,8 +143,9 @@ async def list_posts(
         from ..models import PostStatus as _PS
         q = q.where(Post.status != _PS.archived)
     rows = (await db.execute(q)).scalars().all()
-    stats = await _stats_by_post(db, [p.id for p in rows])
-    return [_read_with_stats(p, stats) for p in rows]
+    ids = [p.id for p in rows]
+    stats, buyers = await _stats_by_post(db, ids), await _buyers_by_post(db, ids)
+    return [_read_with_stats(p, stats, buyers) for p in rows]
 
 
 @router.post("", response_model=PostReadWithStats, status_code=201)

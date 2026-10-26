@@ -93,6 +93,9 @@ export interface Post {
   total_qty: number;
   total_value_myr: string;
   has_image: boolean;
+  // Buyers with claims on the post, and how many still have to pay.
+  buyer_count: number;
+  unpaid_buyer_count: number;
   // The post's own pricing; null = it follows the user's default.
   pricing: Settings | null;
 }

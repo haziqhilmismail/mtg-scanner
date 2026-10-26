@@ -22,7 +22,8 @@ const DONE = STEPS.length;
 const NOTHING = { outlines: false, pills: 'none' } as const;
 const at = (x: number, from: number, size: number) => `${((x - from) / size) * 100}%`;
 
-export function DemoScan() {
+// onNext: the button after a run that moves on to the Claims demo.
+export function DemoScan({ onNext }: { onNext: () => void }) {
   const t = useT();
   const [step, setStep] = useState(IDLE);
   const timers = useRef<number[]>([]);
@@ -114,9 +115,14 @@ export function DemoScan() {
               ))}
             </ul>
           </div>
-          <button type="button" className="ui-btn ui-btn--block demo-again" onClick={again}>
-            <Icon name="refresh" size={16} />{t('lp_scan_again')}
-          </button>
+          <div className="demo-next">
+            <button type="button" className="ui-btn" onClick={again}>
+              <Icon name="refresh" size={16} />{t('lp_scan_again')}
+            </button>
+            <button type="button" className="ui-btn" onClick={onNext}>
+              {t('lp_scan_next')}<Icon name="chevronRight" size={16} />
+            </button>
+          </div>
         </>
       ) : null}
     </div>

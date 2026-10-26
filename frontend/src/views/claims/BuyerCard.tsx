@@ -1,7 +1,11 @@
 import { Icon } from '../../components/Icon.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import { formulaText, type BuyerGroup, type Line, type StatusMove } from './model.ts';
-import { Money, StatusLine } from './parts.tsx';
+import { counted, type BuyerGroup, type StatusMove } from './model.ts';
+import { ClaimLines, Money, StatusLine } from './parts.tsx';
+
+// Cards shown on a buyer card; the rest open with the buyer, so no buyer card
+// grows past two rows.
+const SHOWN = 2;
 
 interface Props {
   group: BuyerGroup;
@@ -16,17 +20,11 @@ interface Props {
   onMove: (move: StatusMove) => void;
 }
 
-// One buyer: what they claimed with how each price was made, then Copy
-// message, the QR and the next status. A Done buyer folds to one line.
+// One buyer: their first cards with how each price was made, then Copy
+// message, the QR and the next status. A Done buyer has Not done instead.
 export function BuyerCard({ group: g, isNew, copied, cents, showPhotos, qrLabel, onOpen, onCopy, onQr, onMove }: Props) {
   const t = useT();
-  // "$4.49 × 2.5", or for several copies "$4.99 × 2.5 → RM13 each".
-  const working = (l: Line) => (l.formula || l.qty > 1 ? (
-    <span className="claims-line-working">
-      {l.formula ? formulaText(l.formula) : null}
-      {l.qty > 1 ? <>{l.formula ? ' → ' : ''}<Money value={l.each} live={l.live} cents={cents} /> {t('claims_copy_each')}</> : null}
-    </span>
-  ) : null);
+  const more = g.lines.length - SHOWN;
   return (
     <article className={`claims-buyer is-${g.state}`}>
       <div className="claims-buyer-head">
@@ -39,40 +37,29 @@ export function BuyerCard({ group: g, isNew, copied, cents, showPhotos, qrLabel,
         </button>
         <span className="claims-buyer-total"><Money value={g.total} live={g.live} cents={cents} /></span>
       </div>
+      <ClaimLines lines={g.lines.slice(0, SHOWN)} cents={cents} showPhotos={showPhotos} />
+      {more > 0 ? (
+        <button type="button" className="ui-btn ui-btn--plain claims-buyer-more" aria-haspopup="dialog" onClick={onOpen}>{counted(t, 'claims_see_more', more)}</button>
+      ) : null}
       {g.state === 'done' ? (
-        <div className="claims-buyer-done">
+        <div className="claims-buyer-actions claims-buyer-done">
           <span className="claims-buyer-done-text"><Icon name="check" size={16} />{t('claims_done_line')}</span>
           <button type="button" className="ui-btn ui-btn--plain" onClick={() => onMove('paid')}>{t('claims_not_done')}</button>
         </div>
       ) : (
-        <>
-          <ul className="claims-lines">
-            {g.lines.map(l => (
-              <li key={l.id} className="claims-line">
-                <span className="claims-line-text">
-                  <span className="claims-line-name">
-                    {showPhotos && l.photo ? `${t('claims_photo', { n: l.photo })} · ` : ''}{l.name}{l.qty > 1 ? ` ×${l.qty}` : ''}
-                  </span>
-                  {working(l)}
-                </span>
-                <span className="claims-line-total"><Money value={l.each * l.qty} live={l.live} cents={cents} /></span>
-              </li>
-            ))}
-          </ul>
-          <div className="claims-buyer-actions">
-            <button type="button" className={copied ? 'ui-btn claims-copy is-copied' : 'ui-btn claims-copy'} onClick={onCopy}>
-              <Icon name={copied ? 'check' : 'copy'} size={17} />{copied ? t('claims_copied') : t('claims_copy')}
-            </button>
-            {qrLabel ? (
-              <button type="button" className="ui-icon-btn claims-qr" aria-label={qrLabel} onClick={onQr}><Icon name="qr" size={19} /></button>
-            ) : null}
-            {g.state === 'unpaid' ? (
-              <button type="button" className="ui-btn claims-mark-paid" onClick={() => onMove('markPaid')}>{t('claims_mark_paid')}</button>
-            ) : (
-              <button type="button" className="ui-btn" onClick={() => onMove('done')}>{t('claims_mark_done')}</button>
-            )}
-          </div>
-        </>
+        <div className="claims-buyer-actions">
+          <button type="button" className={copied ? 'ui-btn claims-copy is-copied' : 'ui-btn claims-copy'} onClick={onCopy}>
+            <Icon name={copied ? 'check' : 'copy'} size={17} />{copied ? t('claims_copied') : t('claims_copy')}
+          </button>
+          {qrLabel ? (
+            <button type="button" className="ui-icon-btn claims-qr" aria-label={qrLabel} onClick={onQr}><Icon name="qr" size={19} /></button>
+          ) : null}
+          {g.state === 'unpaid' ? (
+            <button type="button" className="ui-btn claims-mark-paid" onClick={() => onMove('markPaid')}>{t('claims_mark_paid')}</button>
+          ) : (
+            <button type="button" className="ui-btn" onClick={() => onMove('done')}>{t('claims_mark_done')}</button>
+          )}
+        </div>
       )}
     </article>
   );

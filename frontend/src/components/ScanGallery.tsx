@@ -78,14 +78,17 @@ interface PostRowProps {
   items: BatchSummary[];
   total: number;
   settings: Settings;
+  // Buyers with claims on the post, and how many still have to pay.
+  buyers: number;
+  unpaid: number;
   t: T;
   to: Route;
 }
 
 // One post in the list: its photos, name, total, kind and what still waits.
 // For a live post that is photos with cards not in the post yet; for a
-// price-on-photo post, photos not finished.
-export function PostRow({ title, items, total, settings, t, to }: PostRowProps) {
+// price-on-photo post, photos not finished. Then who still has to pay.
+export function PostRow({ title, items, total, settings, buyers, unpaid, t, to }: PostRowProps) {
   const live = settings.priceMode === 'live';
   const scanning = items.filter(s => s.batch.status === 'scanning').length;
   const waiting = items.filter(s => waits(s, live)).length;
@@ -101,7 +104,7 @@ export function PostRow({ title, items, total, settings, t, to }: PostRowProps) 
           {items.length ? <span className="postrow-total"><Money amount={total} settings={settings} /></span> : null}
         </span>
         <span className="ui-row-meta">{meta}</span>
-        {waiting || needs ? (
+        {waiting || needs || buyers ? (
           <span className="chips">
             {waiting ? (
               <span className="ui-chip ui-chip--accent">
@@ -110,6 +113,8 @@ export function PostRow({ title, items, total, settings, t, to }: PostRowProps) 
               </span>
             ) : null}
             {needs ? <span className="ui-chip ui-chip--warn"><Icon name="warning" size={13} />{t('scans_to_fix', { n: needs })}</span> : null}
+            {unpaid ? <span className="ui-chip ui-chip--warn"><Icon name="chat" size={13} />{countText(t, 'posts_buyers_unpaid', unpaid)}</span>
+              : buyers ? <span className="ui-chip ui-chip--green"><Icon name="check" size={13} />{countText(t, 'posts_buyers_paid', buyers)}</span> : null}
           </span>
         ) : null}
       </span>

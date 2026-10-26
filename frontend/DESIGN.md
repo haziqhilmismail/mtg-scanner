@@ -3,8 +3,8 @@
 Read this before changing any UI. It describes how the web app should look and behave, and why.
 
 - **It's a web app, not a native app.** Use standard web patterns:
-  - a top bar with tabs
-  - breadcrumbs
+  - a top bar
+  - breadcrumbs, and underlined tabs for the parts of a post
   - dialogs with a close button and footer buttons
   - native form controls (text boxes, dropdowns, checkboxes)
   - an explicit Save
@@ -159,18 +159,25 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
 ### Top bar (every page, every width)
 
 - **Bar:** 56px, sticky, solid `--bg` with a 1px `--rule` bottom border, plus `env(safe-area-inset-top)`.
-- **Left:** the 28px app mark (radius 7, on `--accent-fill`), which links to Posts. From 768px up, the name "Pasar Malam MTG" follows the mark.
-- **Tabs:** **Scanner** and **Claims**, right after the mark. These are text links with an underline indicator:
-  - Each tab is the full bar height with 12px side padding, and 4px apart.
-  - Inactive: 15/500 in `--ink-soft`. On hover, `--ink`.
-  - Active: 15/600 in `--ink`, with a 2px `--accent-fill` line on the bottom edge (`box-shadow: inset 0 -2px 0 var(--accent-fill)`).
-  - The tabs show on every page, inner pages included. A post, a photo and Pricing settings sit under **Scanner**, so Scanner stays active there.
+- **Left:** the 28px app mark (radius 7, on `--accent-fill`) and the name "Pasar Malam MTG", at every width. Both link to Posts.
+- **No tabs in the bar.** Every claim belongs to one post, so Photos and Claims are tabs on the post page (see Post tabs below), not sections of the app.
 - **Right:**
   - Your avatar: a 32px circle with the Google photo, or initials on `--surface`, inside a 44px link to Profile.
-  - On Profile, the avatar gets a ring (`0 0 0 2px var(--bg), 0 0 0 4px var(--accent-fill)`) and neither tab is active.
+  - On Profile, the avatar gets a ring (`0 0 0 2px var(--bg), 0 0 0 4px var(--accent-fill)`).
   - On wide screens, the prices status line ("● Prices ready · 99,334 cards · 8h ago") sits left of the avatar.
 - **Not in the bar:** no ⋯ menu, no segmented control, no back link. Page actions live on the page.
-- **Semantics:** `<nav aria-label="Section">` around the tabs, with `aria-current="page"` on the active tab, or on the avatar link when you're on Profile.
+- **Semantics:** `aria-current="page"` on the avatar link when you're on Profile.
+
+### Post tabs
+
+- A post has two parts, each with its own URL: **Photos** (`/posts/5`) and **Claims** (`/posts/5/claims`). The old `/claims?post=5` opens the post's Claims.
+- The tabs sit under the title row, over a full-width 1px `--rule`, 24px apart, each at least 44px tall:
+  - Inactive: 15/500 in `--ink-soft`. On hover, `--ink`.
+  - Active: 15/600 in `--ink`, with a 2px `--accent-fill` line on the bottom edge (`box-shadow: inset 0 -2px 0 var(--accent-fill)`).
+  - Each shows its count: `Photos · 12`, `Claims · 5` (buyers). A zero shows no count.
+- A tab replaces the history entry instead of adding one, so Back leaves the post.
+- The photos in no post (Unfiled) are not a post: they get no tabs and no Claims.
+- Semantics: `<nav aria-label="Post sections">` around the tabs, with `aria-current="page"` on the active one.
 
 ### Breadcrumbs (inner pages)
 
@@ -179,7 +186,7 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
 - **Separator:** `/` in `--ink-faint`.
 - **Current page:** `--ink-soft`, with `aria-current="page"`.
 - Wrap them in `<nav aria-label="Breadcrumb">`.
-- Root pages (Posts, Claims, Profile) have no breadcrumbs.
+- Root pages (Posts, Profile) have no breadcrumbs. Both parts of a post read `Posts / Friday Post`.
 
 ### Page anatomy (compact)
 
@@ -191,7 +198,6 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
    - previous and next photo
    - delete photo
    - the page's main button (Posts → **+ New post**)
-   - a helper button (Claims → **How claims work**)
 4. **Summary card:** the key number and the page's one primary action.
 5. **Secondary actions:** gray buttons, two to a row.
 6. **Sections:** an `h2` with `· count`, then a list, tiles or a form.
@@ -277,7 +283,7 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
 - **Dropdown:**
   - A native `<select>`, styled like a text box with `appearance: none`.
   - It has a 14px up/down chevron icon 13px from the right, with `pointer-events: none`.
-  - Use it for sort orders, the post picker on Claims, rounding, and label position and size.
+  - Use it for sort orders, rounding, and label position and size.
 - **Checkbox:**
   - Native, 22px, with `accent-color: var(--accent-fill)`.
   - The whole row is the `<label>`: the box, then the text at 17px, with an optional 13px helper line in `--ink-soft`. The row is at least 44px tall.
@@ -295,6 +301,7 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
     - RM | USD
     - Language
     - Appearance
+    - the sign-in demo (1 · Photos | 2 · Claims)
   - Never for navigation, and never for a choice with consequences (use radio cards).
   - Track: `--fill` with 2px padding and radius 11. Selected segment: `--seg-thumb` with `--seg-shadow`, weight 600.
 - **Stepper:**
@@ -321,18 +328,21 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
 
 ## 5. Pages
 
-### Posts (Scanner home)
+### Posts (home)
 
 - **Title row:** "Posts · 2", with a primary **+ New post** on the right. It opens the **New post** dialog:
   - radio cards for Price on photo (default) and Live price
   - a tip: "avoid glare, lay cards flat on a clean, light background"
   - a footer with **Choose photos** (gray) and **Take photo** (primary)
-- **List:** one box of rows. Each row has the mosaic, the name, the total (`≈RM402` for live), meta (`Live price · 2 photos`) and a status chip.
+- **List:** one box of rows. Each row has the mosaic, the name, the total (`≈RM402` for live), meta (`Live price · 2 photos`) and its status chips.
+  - Claims chip: "3 buyers to pay" (`--warn-soft`), or "All 5 buyers paid" (`--green-soft`) once everyone has paid.
+  - A row with buyers opens the post on **Claims**, since collecting is what is left to do. A row with none opens **Photos**.
 - **Archived posts:** listed under an "Archived · N" link at the end, each with **Restore**. This isn't drawn on the canvas yet.
 
 ### Post
 
 - **Breadcrumbs:** `Posts / Friday Post`. The title has a pencil button that opens the **Rename** dialog.
+- **Tabs:** Photos | Claims, under the title (section 3, Post tabs). The rest of this section is the Photos part; section 8 is the Claims part.
 - **Summary card:**
   - the total (`≈RM402`) and meta (`Live price · 2 photos · 19 cards`)
   - "19 cards aren't in the post yet"
@@ -358,7 +368,7 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
 
 - **Breadcrumbs:** `Posts / Friday Post / Photo 2`.
 - **Title:** "Photo 2 of 2", with previous, next and delete icon buttons.
-- **Above the photo:** the Pricing settings row.
+- **No pricing settings here.** Pricing belongs to the post: its row is on the post's Photos part, not on each photo.
 - **Below the photo:** **Add all to post**, **Download image**, **Refresh prices**, then the card tiles (section 6).
 - **Change card** is a full-height dialog. Its title is "Change card", with "All printings of {name}" as the subtitle. It has a search box with **Find**, and a two-column grid of printings with Card Kingdom prices.
 - **Edit price** is a dialog:
@@ -447,39 +457,42 @@ Tile: `--surface` on the photo's `--paper` section, radius 18, padding 12. From 
 
 ## 8. Claims
 
-The section is called **Claims** everywhere, never "Order tracker".
+The part is called **Claims** everywhere, never "Order tracker". It is the second tab of a post, so it always shows that one post's claims.
 
 ### Page, top to bottom
 
-1. **Title row:** `h1` "Claims", with **How claims work** on the right.
-2. **Post:** a labelled dropdown ("Post"), showing `22 Oct, 4:11 pm · 7 photos` and `Friday Post · 2 photos`.
-3. **Totals card:**
+1. **Post head:** breadcrumbs, the post's title with Rename and Manage post, and the Photos | Claims tabs, the same as on Photos.
+2. **Totals card:**
    - "To collect" as a big number, with "Paid" in `--green`
    - a 6px `--green` progress bar
    - `7 buyers · 11 cards · RM188 claimed`
-   - the primary **Add comment screenshots**
-   - a gray **Drop-off slips** button
+   - the primary **Add claims**
+   - gray **Drop-off slips** and **How claims work** buttons
+3. **No photos yet:** the empty card says to add photos first, with **Go to Photos**.
 4. **Buyers · N,** with a **Sort** dropdown: Claim order, Name or Photo ("so you can pull cards in order").
 5. **Filter:** a segmented control with counts: All | Unpaid | Paid | Done.
-6. **Buyer cards:**
-   - **Header:** the name (17/600) and the total (22/700). Under the name, a status dot with "Unpaid · 3 cards".
-   - **Item lines:**
-     - "Photo 7 · Increasing Ambition", then `$4.49 × 2.5`, with `RM12` on the right.
-     - With a quantity: "Photo 3 · Deathcap Glade ×2", then `$4.99 × 2.5 → RM13 each`, with `RM26` on the right.
-   - **Actions:** **Copy message** (flexible width), **QR** (44px icon button), then the next-status button. After copying, the button reads "Copied" in `--green` until you copy another buyer's message.
-   - **Done** buyers collapse to one line, "Paid and dropped off", with **Not done**.
+6. **Buyer cards.** A card fits its buyer's cards, two rows at most, so a buyer with one card gets a shorter card. In the grid on a computer, the cards of one row stretch to the tallest, with the actions at the bottom, so the buttons line up:
+   - **Header:** the name (17/600, one line, cut with …) and the total (22/700). Under the name, a status dot with "Unpaid · 3 cards".
+   - **Card rows: at most 2.** Each row is one height:
+     - the card cut from the seller's photo, 48px wide at 63:88, radius 5. A quantity shows as a `×2` badge on its corner. Clicking it opens the picture large.
+     - the name (15/600), then "Photo 7" (only when the post has several photos), then `$4.49 × 2.5`, or `$4.99 × 2.5 → RM13 each` for several copies. Each is one line, cut with ….
+     - the row's total (`RM26`) on the right.
+   - **See more:** "See 3 more cards" opens the buyer dialog. It shows only when there are more.
+   - **Actions:** **Copy message** (flexible width), **QR** (44px icon button), then the next-status button, at the bottom of the card. After copying, the button reads "Copied" in `--green` until you copy another buyer's message.
+   - **Done** buyers keep the same card, with "Paid and dropped off" and **Not done** where the actions are, and the name and total in `--ink-soft`.
    - Clicking the name opens the **buyer dialog**:
+     - "N cards": every card row, as on the buyer card, then **+ Add a card for {name}** (opens Add claims on a claim typed by hand, with the name filled in)
      - the exact message, in a bubble
      - **Copy message** (primary) and **Copy DuitNow QR**
      - the status control (Unpaid | Paid | Done)
      - "Buyer's number, for the drop-off slip"
      - **Remove buyer**
-7. **Empty state:** "No claims yet", **Add comment screenshots**, and the four steps of How claims work, shown inline.
+7. **Empty state:** "No claims yet", **Add claims**, and the four steps of How claims work, shown inline.
 
 ### Where the guide lives
 
 - **First visit:** the empty state shows the four steps inline, under the primary button.
-- **Any time after:** the **How claims work** button in the title row opens a dialog with the same steps. Its footer has the primary **Add comment screenshots**.
+- **Any time after:** the **How claims work** button on the totals card opens a dialog with the same steps. Its footer has the primary **Add claims**.
 - **While adding:** one line at the top of the Add comments dialog: "Screenshot the post with its comments, or just the comments. One screenshot can hold many comments."
 - **The four steps:**
   1. **Screenshot the comments.** Include the post's photo if it fits, so the app can tell which photo the comments are for. If not, you pick it.
@@ -487,7 +500,9 @@ The section is called **Claims** everywhere, never "Order tracker".
   3. **Copy each buyer's message.** Paste it in Messenger. Your payment details are added for you.
   4. **Print drop-off slips.** One slip per buyer with their name, for the drop-off point.
 
-### Add comments → check → add
+### Add claims: screenshots or by hand → check → add
+
+**Add claims** is one dialog for both ways in. It opens on screenshots, the usual way. Under **Choose screenshots**, a plain link "No screenshot? Add a claim by hand" goes straight to step 4 with one blank claim: the buyer's name, then the card picker open, then the quantity. Claims typed by hand cost no claim read. The buyer's name suggests the seller's buyers, this post's first, and a name already known adds to that buyer.
 
 1. **Add the screenshot.** The dialog shows its thumbnail with "Remove screenshot".
 2. **Which photo?** Photo names alone don't tell sellers which is which, so always show the photos.
@@ -503,6 +518,7 @@ The section is called **Claims** everywhere, never "Order tracker".
    - a quantity stepper
 
    Flag a fuzzy match in `--warn`: "Spelled differently in the comment. Check it's the right card." List skipped lines too: "Skipped 1 line that isn't a claim: …".
+   At the end of the list, **+ Add another claim** adds a blank claim, for a comment the app missed. Claims typed by hand stay when **Find claims** runs again.
 5. **Add N claims.** The new buyers join the list with a "New" chip.
 
 ### Statuses
@@ -557,7 +573,7 @@ Leave out payment parts that are empty. With no payment details at all, the mess
 
 ## 9. Profile
 
-A normal page (`h1` "Profile"). It opens from the avatar in the top bar on every page. It has no Done button; leave it with the tabs or the browser's Back.
+A normal page (`h1` "Profile"). It opens from the avatar in the top bar on every page. It has no Done button; leave it with the mark in the top bar or the browser's Back.
 
 1. **Account card:**
    - avatar, name, "Signed in with Google"
@@ -584,13 +600,13 @@ A normal page (`h1` "Profile"). It opens from the avatar in the top bar on every
 ## 10. Sign-in page
 
 - **Order:**
-  1. Top bar: the mark and the name only. Tabs and the avatar appear after sign-in.
-  2. Headline "Snap. Price. Post." and the tagline
+  1. Top bar: the mark and the name only. The avatar appears after sign-in.
+  2. Headline "Snap. Price. Post." and the tagline, which tells the life of a post: priced from a photo, then the claims from the comments
   3. **Google button**, with "Google sign-in only — no password, nothing posted to your profile." under it
-  4. **Try it** demo with a Scanner | Claims switch
-  5. **What it does** (four rows: One photo, everything priced · Export ready for Facebook · Claims from the comments · Drop-off slips)
-  6. Google button again
-  7. Footer link
+  4. **Try a sample post:** the demo, with a `1 · Photos | 2 · Claims` switch named like the post's tabs in the app. After the scan plays, **Next: Claims** moves to the Claims demo.
+  5. **How a post works:** four numbered rows, each with a chip naming the tab it happens on: Snap and price (On Photos) · Post to Facebook (On Photos) · Read the claims (On Claims) · Collect and drop off (On Claims)
+  6. Google button again (phones only; on wide screens the first one stays beside the demo)
+  7. Footer: language, appearance and links
 - **The sign-in button must be visible on the first screen** without scrolling, including on a 375×667 phone.
 - **The Google button is Google's own:**
   - Call `google.accounts.id.renderButton` with `{ type: "standard", theme: "outline", size: "large", text: "continue_with", shape: "pill", logo_alignment: "left", width: <container px, max 400> }`.
@@ -598,16 +614,16 @@ A normal page (`h1` "Profile"). It opens from the avatar in the top bar on every
   - It is 40px tall. That's the one allowed exception to the 44px rule, so keep 8px clear around it.
   - Never redraw Google's logo yourself.
 - **Demo:** no fake desktop window chrome (traffic-light dots) on phones.
-  - **Scanner tab:**
+  - **Photos:**
     - The sample photo fills the column.
     - Clicking play draws card outlines, then price pills, then shows the results list ("4 cards found · Total RM68").
     - Progress uses `--accent-fill`, not gold.
-  - **Claims tab:**
+  - **Claims:**
     - A screenshot of a post with four comments, then **Find claims**.
     - Each comment gets its result: an RM amount or "Skipped".
     - Then a buyer switch (Aina | Wei Jie | Hafiz), the exact message, and **Copy message**.
   - **Sample data only.** Use invented buyers and `Payment: Maybank 0000 0000 0000 (Your name)`. This page is public: never real names, accounts or QR codes.
-- **Feature list:** one list box with 36px `--accent-soft` icon circles, not three separate bordered cards.
+- **Steps list:** one list box with 36px `--accent-soft` number circles, not separate bordered cards.
 
 ---
 
@@ -666,7 +682,7 @@ A normal page (`h1` "Profile"). It opens from the avatar in the top bar on every
 | Post · phone | Breadcrumbs and rename, the total, Share photos / Download all, Pricing settings row, photos (search, sort, select, reorder), and Manage post (Archive with Undo, Delete with confirm). The board draws Manage post as a card at the end; the app puts it in the ⋯ menu next to the title |
 | Photo 2 · phone | Breadcrumbs, 11 working tiles, the viewer, the Change card dialog, and the Edit price dialog (Cancel / Save price) |
 | Pricing settings · phone | The Pricing page: radio cards, text boxes, dropdowns, checkboxes and the sticky Cancel / Save bar |
-| Claims · phone | Post dropdown, How claims work, totals, buyers (Copy message, QR, Mark paid), Add comments with the photo picker and In this post, check claims, buyer dialog, drop-off slips dialog, and the empty state (tweak: view) |
+| Claims · phone | (Drawn before Claims moved into the post: the app has the post head and tabs where the board has the Post dropdown.) How claims work, totals, buyers (Copy message, QR, Mark paid), Add comments with the photo picker and In this post, check claims, buyer dialog, drop-off slips dialog, and the empty state (tweak: view) |
 | Drop-off slips · A4 PDF | The printed page: 10 slips with the buyer's name, number and seller lines only |
 | Profile · phone | Account, the payment details form with Save, DuitNow QR, default pricing, preferences, and the help dialogs |
 | Desktop boards | Compare, Change card, Edit price, and Photo 2 in place at 1440px, with the same top bar and tabs |
@@ -679,6 +695,6 @@ A normal page (`h1` "Profile"). It opens from the avatar in the top bar on every
 - [ ] Tokens only, with no new hex values (except the fixed photo-label, slip and Google button colors).
 - [ ] At most one primary button on the page or dialog.
 - [ ] Every price shows its formula; every live price shows `≈`.
-- [ ] Web patterns only: top bar with tabs, breadcrumbs on inner pages, dialogs with × and a footer, checkboxes instead of switches, explicit Save.
+- [ ] Web patterns only: top bar, breadcrumbs on inner pages, post tabs, dialogs with × and a footer, checkboxes instead of switches, explicit Save.
 - [ ] Copy is sentence case and uses seller words.
 - [ ] Buyer messages match the template in section 8, character for character.

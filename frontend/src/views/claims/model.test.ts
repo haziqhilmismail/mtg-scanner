@@ -13,7 +13,7 @@ const ms = (k: string, v?: Record<string, string | number>) => translate('ms', k
 const AT = '2026-10-22T08:00:00Z';
 const NOW = '2026-10-24T09:30:00Z';
 
-const line = (over: Partial<Line>): Line => ({ id: 1, name: 'Opt', qty: 1, each: 1, formula: null, photo: null, live: false, ...over });
+const line = (over: Partial<Line>): Line => ({ id: 1, name: 'Opt', qty: 1, each: 1, formula: null, photo: null, crop: null, live: false, ...over });
 const AMBITION = line({ id: 1, name: 'Increasing Ambition', each: 12, formula: { usd: 4.49, mult: 2.5 }, photo: 7 });
 const GLADE = line({ id: 2, name: 'Deathcap Glade', qty: 2, each: 13, formula: { usd: 4.99, mult: 2.5 }, photo: 3 });
 const PAYMENT: Payment = {

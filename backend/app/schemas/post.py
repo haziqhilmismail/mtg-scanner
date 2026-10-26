@@ -42,3 +42,6 @@ class PostReadWithStats(PostRead):
     total_qty: int = 0
     total_value_myr: str = "0.00"
     has_image: bool = False
+    # Buyers with claims on the post, and how many of them still have to pay.
+    buyer_count: int = 0
+    unpaid_buyer_count: int = 0

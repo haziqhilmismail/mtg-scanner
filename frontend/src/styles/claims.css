@@ -14,8 +14,6 @@
    bare button, button:hover and button:active; changes to a ui-btn are
    written `.ui-btn.x`, because ui.css loads after this file. */
 
-.claims-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 8px 0 16px; }
-.claims-head .ui-btn { flex: 0 1 auto; min-width: 0; padding: 0 14px 0 12px; }
 .claims-load-error { margin: 0 0 16px; padding: 10px 12px; border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 13px; overflow-wrap: anywhere; }
 .claims-approx { font-weight: 400; color: var(--ink-soft); }
 
@@ -75,13 +73,17 @@
 }
 .claims-none { margin: 0; padding: 24px 16px; text-align: center; font-size: 15px; color: var(--ink-soft); }
 
-.claims-buyers { display: grid; gap: 12px; align-items: start; }
+.claims-buyers { display: grid; gap: 12px; }
 @media (min-width: 768px) {
   .claims-buyers { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 }
-.claims-buyer { container-type: inline-size; min-width: 0; padding: 14px 16px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); }
-/* The total moves under the name when both don't fit (big text, zoom). */
-.claims-buyer-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 10px; }
+/* A buyer card fits its cards (two rows at most). In the grid on a computer,
+   the cards of one row stretch to the tallest, with the actions at the bottom. */
+.claims-buyer {
+  container-type: inline-size; min-width: 0; display: flex; flex-direction: column;
+  padding: 14px 16px 16px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow);
+}
+.claims-buyer-head { display: flex; align-items: flex-start; gap: 10px; }
 button.claims-buyer-open {
   flex: 1 1 140px; min-width: 0; min-height: var(--tap);
   display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 3px;
@@ -92,8 +94,8 @@ button.claims-buyer-open:hover, button.claims-buyer-open:active { background: no
 @media (hover: hover) {
   button.claims-buyer-open:hover .claims-buyer-name-text { text-decoration: underline; text-underline-offset: 3px; }
 }
-.claims-buyer-name { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 17px; font-weight: 600; line-height: 1.25; }
-.claims-buyer-name-text { min-width: 0; overflow-wrap: anywhere; }
+.claims-buyer-name { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; line-height: 1.25; }
+.claims-buyer-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .claims-status { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1.35; font-weight: 400; color: var(--ink-soft); }
 .claims-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
 .claims-dot.is-unpaid { background: var(--warn); }
@@ -103,13 +105,27 @@ button.claims-buyer-open:hover, button.claims-buyer-open:active { background: no
 .claims-buyer.is-done :is(.claims-buyer-name, .claims-buyer-total) { color: var(--ink-soft); }
 
 .claims-lines { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--rule); }
-.claims-line { display: flex; justify-content: space-between; gap: 12px; }
-.claims-line-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.claims-line-name { font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.claims-lines { --pic-w: 48px; }
+.claims-line { display: flex; align-items: center; gap: 12px; }
+.claims-line-pic {
+  position: relative; flex: none; width: var(--pic-w); aspect-ratio: 63 / 88; padding: 0; border: 0; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center; background: var(--fill); color: var(--ink-faint);
+}
+.claims-line-pic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+button.claims-line-pic { cursor: zoom-in; }
+.claims-line-qty {
+  position: absolute; right: -6px; bottom: -6px; padding: 1px 6px; border-radius: 6px;
+  background: var(--ink); color: var(--paper); box-shadow: 0 0 0 2px var(--paper);
+  font-size: 12px; font-weight: 700; line-height: 1.3;
+}
+.claims-line-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.claims-line-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.claims-line-name { font-size: 15px; font-weight: 600; line-height: 1.3; }
 .claims-line-working { font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
 .claims-line-total { flex: none; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.ui-btn.claims-buyer-more { align-self: flex-start; margin: 4px 0 0 -10px; }
 
-.claims-buyer-actions { display: flex; gap: 8px; margin-top: 14px; }
+.claims-buyer-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 14px; }
 .claims-buyer-actions .ui-btn { padding: 0 16px; }
 .claims-buyer-actions .claims-copy { flex: 1 1 auto; min-width: 0; padding: 0 12px; }
 .ui-btn.claims-copy.is-copied { color: var(--green); }
@@ -119,9 +135,9 @@ button.claims-buyer-open:hover, button.claims-buyer-open:active { background: no
   .claims-buyer-actions { flex-wrap: wrap; }
   .claims-buyer-actions > :last-child { flex: 1 1 100%; }
 }
-.claims-buyer-done { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+.claims-buyer-done { align-items: center; justify-content: space-between; min-height: var(--tap); }
 .claims-buyer-done-text { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
-.claims-buyer-done .ui-btn { flex: none; margin: 0 -10px 0 auto; }
+.claims-buyer-actions.claims-buyer-done .ui-btn { flex: none; margin-right: -10px; padding: 0 10px; }
 
 /* ---------- Dialogs ---------- */
 @media (max-width: 767px) {
@@ -149,6 +165,11 @@ button.claims-text-btn:hover, button.claims-text-btn:active { background: none; 
 /* The buyer: the message as a bubble, then status, number and Remove. */
 .claims-bubble { margin: 6px 0 0; padding: 14px 16px; border-radius: 16px; background: var(--surface-2); font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
 .claims-buyer-dialog .ui-field { margin-top: 22px; }
+.ui-btn.claims-by-hand { display: flex; margin: 10px auto 0; }
+.ui-btn.claims-add-another { margin-top: 16px; }
+.claims-buyer-dialog .claims-lines { margin-top: 10px; padding-top: 0; border-top: 0; }
+.ui-btn.claims-add-for { margin: 6px 0 0 -10px; }
+.claims-message-label { margin-top: 18px; }
 .ui-dialog-sub .claims-status { display: inline-flex; }
 .claims-buyer-dialog .save-field { margin-top: 22px; }
 @media (max-width: 767px) {

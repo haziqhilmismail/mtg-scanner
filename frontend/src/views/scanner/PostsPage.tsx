@@ -15,11 +15,14 @@ export function PostsPage({ area }: { area: Area }) {
   const [showArchived, setShowArchived] = useState(false);
   const defaultKind = pricingFor(null).priceMode;
 
-  const row = (f: Folder) => (
-    <li key={f.key}>
-      <PostRow title={f.title} items={f.items} total={f.total} settings={pricingFor(f.postId)} t={t} to={{ page: 'post', folder: f.key }} />
-    </li>
+  // A post with buyers opens on Claims: collecting is what is left to do.
+  const postRow = (f: Folder) => (
+    <PostRow
+      title={f.title} items={f.items} total={f.total} settings={pricingFor(f.postId)} buyers={f.buyers} unpaid={f.unpaid} t={t}
+      to={{ page: f.buyers ? 'claims' : 'post', folder: f.key }}
+    />
   );
+  const row = (f: Folder) => <li key={f.key}>{postRow(f)}</li>;
 
   return (
     <>
@@ -69,7 +72,7 @@ export function PostsPage({ area }: { area: Area }) {
                 <ul className="ui-list postlist">
                   {archivedFolders.map(f => (
                     <li key={f.key} className="postrow-archived">
-                      <PostRow title={f.title} items={f.items} total={f.total} settings={pricingFor(f.postId)} t={t} to={{ page: 'post', folder: f.key }} />
+                      {postRow(f)}
                       <button type="button" className="ui-btn" onClick={() => setArchived(f, false)}>{t('posts_restore')}</button>
                     </li>
                   ))}

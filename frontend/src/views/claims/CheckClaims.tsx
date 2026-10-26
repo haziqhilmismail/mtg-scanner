@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { CardPicker, hideBroken, type CardRef, type CardStatus, type Photo } from '../../components/ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
@@ -9,7 +9,17 @@ import { counted, rm } from './model.ts';
 
 // hint: the photo the comment is about, when known, so its cards come first.
 export interface DraftItem { key: string | null; qty: number; said: string; unclear: string; hint: number | null }
-export interface Draft { buyer: string; comment: string; unclear: string; items: DraftItem[] }
+// byHand: typed by the seller, not read from a comment.
+export interface Draft { buyer: string; comment: string; unclear: string; items: DraftItem[]; byHand: boolean }
+
+// What the check step holds: claims read from comments, only typed ones, or none.
+export const draftsKind = (drafts: Draft[]): 'found' | 'hand' | 'none' =>
+  !drafts.length ? 'none' : drafts.some(d => !d.byHand) ? 'found' : 'hand';
+
+// A claim to type: the buyer (when known) and one card still to choose.
+export const blankDraft = (buyer = ''): Draft => ({
+  buyer, comment: '', unclear: '', byHand: true, items: [{ key: null, qty: 1, said: '', unclear: '', hint: null }],
+});
 
 interface Props {
   drafts: Draft[];
@@ -20,6 +30,7 @@ interface Props {
   cents: boolean;
   live: boolean;
   problem: 'unresolved' | 'unpriced' | null;
+  buyerNames: string[];      // the seller's buyers, suggested as a name is typed
   onChange: (drafts: Draft[]) => void;
 }
 
@@ -27,9 +38,16 @@ const quoteOf = (line: string) => `“${line.length > 80 ? `${line.slice(0, 79)}
 
 // The claims found, one card each, to fix before they are added: the buyer's
 // name, their comment, the matched card with Change, and how many.
-export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, cents, live, problem, onChange }: Props) {
+export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, cents, live, problem, buyerNames, onChange }: Props) {
   const t = useT();
-  const [picking, setPicking] = useState<string | null>(null);   // `${draft}:${item}` whose card is being changed
+  const namesId = useId();
+  // `${draft}:${item}` whose card is being changed. A claim typed by hand
+  // starts with its card picker open.
+  const [picking, setPicking] = useState<string | null>(() => {
+    const blank = drafts.findIndex(d => d.byHand && !d.items[0]?.key);
+    return blank < 0 ? null : `${blank}:0`;
+  });
+  const addAnother = () => { onChange([...drafts, blankDraft()]); setPicking(`${drafts.length}:0`); };
 
   const patchDraft = (di: number, patch: Partial<Draft>) => onChange(drafts.map((d, i) => (i === di ? { ...d, ...patch } : d)));
   const patchItem = (di: number, ii: number, patch: Partial<DraftItem>) =>
@@ -72,11 +90,16 @@ export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, ce
 
   return (
     <>
-      <p className="claims-intro">{drafts.length ? t('claims_check_intro') : t('claims_none_found_text')}</p>
+      <p className="claims-intro">
+        {t({ found: 'claims_check_intro', hand: 'claims_hand_intro', none: 'claims_none_found_text' }[draftsKind(drafts)])}
+      </p>
       <div className="claims-drafts">
         {drafts.map((d, di) => (
           <div key={di} className="claims-draft">
-            <TextField label={t('claims_buyer')} className="claims-draft-buyer" value={d.buyer} onChange={e => patchDraft(di, { buyer: e.target.value })} />
+            <TextField
+              label={t('claims_buyer')} className="claims-draft-buyer" value={d.buyer} list={namesId} autoComplete="off"
+              onChange={e => patchDraft(di, { buyer: e.target.value })}
+            />
             {d.comment ? <p className="claims-quote">“{d.comment}”</p> : null}
             {d.unclear ? <p className="claims-note"><Icon name="warning" size={15} />{d.unclear}</p> : null}
             {d.items.map((it, ii) => {
@@ -135,6 +158,10 @@ export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, ce
           </div>
         ))}
       </div>
+      <button type="button" className="ui-btn ui-btn--block claims-add-another" onClick={addAnother}>
+        <Icon name="plus" size={18} />{t('claims_add_another')}
+      </button>
+      <datalist id={namesId}>{buyerNames.map(n => <option key={n} value={n} />)}</datalist>
       {skipped.length ? <p className="claims-foot-note">{counted(t, 'claims_skipped', skipped.length, { lines: skipped.map(quoteOf).join(', ') })}</p> : null}
       {problem ? <p className="claims-note">{t(problem === 'unresolved' ? 'claims_unresolved' : 'claims_unpriced')}</p> : null}
     </>

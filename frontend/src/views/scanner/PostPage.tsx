@@ -1,11 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { PhotoDrop } from '../../components/PhotoDrop.tsx';
 import { PricingRow } from '../../components/SettingsPanel.tsx';
 import { Select, TextField } from '../../components/ui/Field.tsx';
-import { Menu } from '../../components/ui/Menu.tsx';
 import { StickyBar } from '../../components/ui/StickyBar.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import { photosOf } from '../../lib/photoFiles.ts';
@@ -15,7 +13,6 @@ import { byPostOrder, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../util
 import { keyTaken, ScanProgress, type Area, type Folder } from './area.tsx';
 import { PhotoList } from './PhotoList.tsx';
 import { PostSummary } from './PostSummary.tsx';
-import { RenamePostDialog } from './RenamePostDialog.tsx';
 import { usePostExport } from './usePostExport.ts';
 
 // What the photo list is doing: showing the photos, ticking some, or
@@ -26,20 +23,18 @@ type Mode =
   | { kind: 'reorder'; draft: string[] };
 const NORMAL: Mode = { kind: 'normal' };
 
-// One post: its name with Rename and Manage post, its total and actions,
-// then its photos to search, sort, select and reorder.
+// A post's Photos part: its total and actions, then its photos to search,
+// sort, select and reorder.
 export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   const {
     t, scanner, pricingFor, go, pickerPosts, postTitle, numbers, exportJob,
-    renamePost, setArchived, deletePost, deletePhotos, moveTo, sort, setSort, openPhoto,
+    deletePhotos, moveTo, sort, setSort, openPhoto,
   } = area;
   const dialog = useDialog();
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<Mode>(NORMAL);
   const [saving, setSaving] = useState(false);
-  // The name being typed in Rename; null while the dialog is closed.
-  const [renaming, setRenaming] = useState(false);
   const headId = useId();
   const searchId = useId();
   const addInput = useRef<HTMLInputElement>(null);
@@ -116,37 +111,6 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
 
   return (
     <>
-      <Breadcrumbs items={[{ label: t('scans_title'), to: POSTS }, { label: folder.title }]} />
-      <div className="post-head">
-        <h1 className="page-title">{folder.title}</h1>
-        {isPost ? (
-          <span className="post-head-actions">
-            <button type="button" className="ui-icon-btn" aria-label={t('rename_post')} aria-haspopup="dialog" onClick={() => setRenaming(true)}>
-              <Icon name="edit" size={18} />
-            </button>
-            <Menu
-              label={t('manage_post')}
-              items={[
-                folder.archived
-                  ? { label: t('restore_post'), hint: t('restore_post_hint'), onSelect: () => setArchived(folder, false) }
-                  : { label: t('archive_post'), hint: t('archive_post_hint'), onSelect: () => setArchived(folder, true) },
-                { label: t('delete_post'), hint: t('delete_post_hint'), destructive: true, onSelect: () => deletePost(folder) },
-              ]}
-            >
-              <Icon name="more" size={20} />
-            </Menu>
-          </span>
-        ) : null}
-      </div>
-      {folder.archived ? (
-        <div className="post-note">
-          <Icon name="archive" size={18} />
-          <span>{t('post_archived_note')}</span>
-          <button type="button" className="ui-btn" onClick={() => setArchived(folder, false)}>{t('posts_restore')}</button>
-        </div>
-      ) : null}
-      {!isPost ? <p className="post-note"><Icon name="folder" size={18} /><span>{t('unfiled_note')}</span></p> : null}
-
       <div className="post-layout">
         <div className="post-side">
           {isPost && count ? <PostSummary area={area} folder={folder} quiet={mode.kind === 'reorder'} jobs={shareJobs} exp={exp} /> : null}
@@ -261,7 +225,6 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
 
       <PhotoDrop label={t('post_drop')} onPhotos={addPhotos} t={t} />
 
-      <RenamePostDialog open={renaming} title={folder.title} onClose={() => setRenaming(false)} onSave={title => renamePost(folder, title)} t={t} />
     </>
   );
 }

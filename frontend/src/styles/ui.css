@@ -60,6 +60,9 @@ html:has(dialog[open]) { overflow: hidden; }
   opacity: 0.4; cursor: not-allowed;
 }
 
+/* Read out, not shown. */
+.ui-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
 .ui-chip {
   display: inline-flex; align-items: center; gap: 4px; flex: none;
   min-height: 22px; padding: 0 8px; border-radius: 6px;

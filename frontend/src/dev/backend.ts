@@ -49,11 +49,17 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
 
   // The counts the server works out when it lists rows.
   const postRead = (p: Post): Post => {
-    const ls = f.listings.filter(l => l.post_ids.includes(p.id));
+    // As the server counts them: the cards linked to the post, and for its
+    // buyers also the cards scanned in its photos.
+    const linked = f.listings.filter(l => l.post_ids.includes(p.id));
+    const inPost = new Set(f.listings.filter(l => l.post_ids.includes(p.id) || (l.scan_id != null && scanOf(String(l.scan_id))?.post_id === p.id)).map(l => l.id));
+    const claims = f.orders.filter(o => o.status !== 'cancelled' && !o.archived_at && o.items.some(i => inPost.has(i.listing_id)));
     return {
-      ...p, listing_count: ls.length, active_listing_count: ls.filter(l => l.status === 'active').length,
-      total_qty: ls.reduce((n, l) => n + l.qty_total, 0),
-      total_value_myr: ls.reduce((n, l) => n + l.qty_total * Number(l.unit_price_myr), 0).toFixed(2),
+      ...p, listing_count: linked.length, active_listing_count: linked.filter(l => l.status === 'active').length,
+      total_qty: linked.reduce((n, l) => n + l.qty_total, 0),
+      total_value_myr: linked.reduce((n, l) => n + l.qty_total * Number(l.unit_price_myr), 0).toFixed(2),
+      buyer_count: new Set(claims.map(o => o.buyer_id)).size,
+      unpaid_buyer_count: new Set(claims.filter(o => !o.paid_at).map(o => o.buyer_id)).size,
     };
   };
   const listingRead = (l: Listing): Listing => ({ ...l, qty_committed: committed(l.id), qty_available: Math.max(0, l.qty_total - committed(l.id)) });

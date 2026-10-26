@@ -109,7 +109,7 @@ export function newPost(f: Fixture, fields: { title: string | null; pricing: Set
     id: nextId(f.posts), user_id: f.me.id, title: fields.title, fb_url: null, note: null,
     status: fields.status ?? 'active', image_path: null, image_mime: null, created_at: at, updated_at: at,
     listing_count: 0, active_listing_count: 0, total_qty: 0, total_value_myr: '0.00', has_image: false,
-    pricing: fields.pricing,
+    buyer_count: 0, unpaid_buyer_count: 0, pricing: fields.pricing,
   };
   f.posts.push(post);
   return post;
