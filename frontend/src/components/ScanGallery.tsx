@@ -81,6 +81,7 @@ interface PostRowProps {
   // Buyers with claims on the post, and how many still have to pay.
   buyers: number;
   unpaid: number;
+  paid: number;          // RM buyers have paid, shown in green under the total
   t: T;
   to: Route;
 }
@@ -88,7 +89,7 @@ interface PostRowProps {
 // One post in the list: its photos, name, total, kind and what still waits.
 // For a live post that is photos with cards not in the post yet; for a
 // price-on-photo post, photos not finished. Then who still has to pay.
-export function PostRow({ title, items, total, settings, buyers, unpaid, t, to }: PostRowProps) {
+export function PostRow({ title, items, total, settings, buyers, unpaid, paid, t, to }: PostRowProps) {
   const live = settings.priceMode === 'live';
   const scanning = items.filter(s => s.batch.status === 'scanning').length;
   const waiting = items.filter(s => waits(s, live)).length;
@@ -101,7 +102,12 @@ export function PostRow({ title, items, total, settings, buyers, unpaid, t, to }
       <span className="ui-row-main">
         <span className="postrow-head">
           <span className="ui-row-title">{title}</span>
-          {items.length ? <span className="postrow-total"><Money amount={total} settings={settings} /></span> : null}
+          {items.length ? (
+            <span className="postrow-total">
+              <span><Money amount={total} settings={settings} /></span>
+              {paid > 0 ? <span className="postrow-paid">{t('posts_paid', { amount: formatMyr(paid, settings) })}</span> : null}
+            </span>
+          ) : null}
         </span>
         <span className="ui-row-meta">{meta}</span>
         {waiting || needs || buyers ? (

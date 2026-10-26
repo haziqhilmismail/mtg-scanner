@@ -327,7 +327,7 @@ def test_live_prices_change_until_sent(client):
     assert client.put(f"/api/orders/{order['id']}/prices", headers=me, json={"items": [{"id": item, "unit_price_myr": "12.00"}]}).json()["total_myr"] == "24.00"
 
 
-def test_each_post_counts_its_buyers_and_who_still_has_to_pay(client):
+def test_each_post_counts_its_buyers_who_still_has_to_pay_and_what_was_paid(client):
     uid = run(_dispose_then(new_user()))
     run(engine.dispose())
     me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
@@ -342,7 +342,7 @@ def test_each_post_counts_its_buyers_and_who_still_has_to_pay(client):
     assert client.post(f"/api/orders/{aiman['id']}/mark-paid", headers=me).status_code == 200
     assert client.patch(f"/api/orders/{farah['id']}", json={"status": "cancelled"}, headers=me).status_code == 200
 
-    counts = {p["id"]: (p["buyer_count"], p["unpaid_buyer_count"]) for p in client.get("/api/posts", headers=me).json()}
-    assert counts == {post: (2, 1), quiet: (0, 0)}
+    counts = {p["id"]: (p["buyer_count"], p["unpaid_buyer_count"], p["paid_myr"]) for p in client.get("/api/posts", headers=me).json()}
+    assert counts == {post: (2, 1, "9.00"), quiet: (0, 0, "0.00")}
     one = client.get(f"/api/posts/{post}", headers=me).json()
-    assert (one["buyer_count"], one["unpaid_buyer_count"]) == (2, 1)
+    assert (one["buyer_count"], one["unpaid_buyer_count"], one["paid_myr"]) == (2, 1, "9.00")

@@ -25,6 +25,7 @@ export interface Folder {
   // Buyers with claims on the post, and how many still have to pay.
   buyers: number;
   unpaid: number;
+  paid: number;         // RM buyers have paid
   items: BatchSummary[];
   needs: number;
   total: number;
@@ -70,7 +71,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
 
 // The photos in no post, before any are added to it.
 const emptyUnfiled = (t: T): Folder => ({
-  key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, buyers: 0, unpaid: 0, items: [], needs: 0, total: 0,
+  key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, buyers: 0, unpaid: 0, paid: 0, items: [], needs: 0, total: 0,
 });
 
 // A key press that belongs to a field or to an open popup, not to the page.
@@ -331,7 +332,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   const folders = useMemo<Folder[]>(() => {
     const byKey = new Map<string, Folder>(posts.map(p => [folderOf(p.id), {
       key: folderOf(p.id), postId: p.id, title: postTitle(p), archived: p.status === 'archived',
-      buyers: p.buyer_count, unpaid: p.unpaid_buyer_count, items: [], needs: 0, total: 0,
+      buyers: p.buyer_count, unpaid: p.unpaid_buyer_count, paid: Number(p.paid_myr), items: [], needs: 0, total: 0,
     }]));
     const unfiled = emptyUnfiled(t);
     for (const b of scanner.batches) {
