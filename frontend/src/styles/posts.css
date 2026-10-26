@@ -38,7 +38,8 @@
 /* The total keeps the right edge beside a short name; under a long one it drops below. */
 .postrow-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
 .postrow-head .ui-row-title { flex: 1 1 auto; min-width: 0; }
-.postrow-total { flex: none; font-size: 17px; font-weight: 700; white-space: nowrap; }
+.postrow-total { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-size: 17px; font-weight: 700; white-space: nowrap; }
+.postrow-paid { font-size: 13px; font-weight: 600; color: var(--green); }
 .postrow-archived { display: flex; align-items: center; }
 .postrow-archived > .ui-row { flex: 1; min-width: 0; }
 .postrow-archived > .ui-btn { flex: none; margin-right: 12px; }

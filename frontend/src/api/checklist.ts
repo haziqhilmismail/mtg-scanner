@@ -96,6 +96,7 @@ export interface Post {
   // Buyers with claims on the post, and how many still have to pay.
   buyer_count: number;
   unpaid_buyer_count: number;
+  paid_myr: string;        // RM buyers have paid for its claims
   // The post's own pricing; null = it follows the user's default.
   pricing: Settings | null;
 }

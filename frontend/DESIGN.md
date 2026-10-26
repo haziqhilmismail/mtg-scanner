@@ -334,7 +334,7 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
   - radio cards for Price on photo (default) and Live price
   - a tip: "avoid glare, lay cards flat on a clean, light background"
   - a footer with **Choose photos** (gray) and **Take photo** (primary)
-- **List:** one box of rows. Each row has the mosaic, the name, the total (`≈RM402` for live), meta (`Live price · 2 photos`) and its status chips.
+- **List:** one box of rows. Each row has the mosaic, the name, the total (`≈RM402` for live) with what buyers have paid under it in `--green` ("RM251 paid", left out while nothing is paid; never `≈`, it is money in), meta (`Live price · 2 photos`) and its status chips.
   - Claims chip: "3 buyers to pay" (`--warn-soft`), or "All 5 buyers paid" (`--green-soft`) once everyone has paid.
   - A row with buyers opens the post on **Claims**, since collecting is what is left to do. A row with none opens **Photos**.
 - **Archived posts:** listed under an "Archived · N" link at the end, each with **Restore**. This isn't drawn on the canvas yet.

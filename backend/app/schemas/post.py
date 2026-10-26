@@ -45,3 +45,5 @@ class PostReadWithStats(PostRead):
     # Buyers with claims on the post, and how many of them still have to pay.
     buyer_count: int = 0
     unpaid_buyer_count: int = 0
+    # RM from the post's claims that buyers have paid.
+    paid_myr: str = "0.00"

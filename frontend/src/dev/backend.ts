@@ -60,6 +60,8 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       total_value_myr: linked.reduce((n, l) => n + l.qty_total * Number(l.unit_price_myr), 0).toFixed(2),
       buyer_count: new Set(claims.map(o => o.buyer_id)).size,
       unpaid_buyer_count: new Set(claims.filter(o => !o.paid_at).map(o => o.buyer_id)).size,
+      paid_myr: claims.filter(o => o.paid_at).flatMap(o => o.items).filter(i => inPost.has(i.listing_id))
+        .reduce((n, i) => n + Number(i.line_total_myr), 0).toFixed(2),
     };
   };
   const listingRead = (l: Listing): Listing => ({ ...l, qty_committed: committed(l.id), qty_available: Math.max(0, l.qty_total - committed(l.id)) });
