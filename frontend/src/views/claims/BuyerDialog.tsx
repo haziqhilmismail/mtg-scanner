@@ -4,8 +4,8 @@ import { Dialog } from '../../components/ui/Dialog.tsx';
 import { SaveField } from '../../components/ui/SaveField.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import { PAY_STATES, type BuyerGroup, type PayState } from './model.ts';
-import { Money, StatusLine } from './parts.tsx';
+import { counted, PAY_STATES, type BuyerGroup, type PayState } from './model.ts';
+import { ClaimLines, Money, StatusLine } from './parts.tsx';
 
 interface Props {
   open: boolean;
@@ -13,6 +13,7 @@ interface Props {
   group: BuyerGroup | null;
   message: string;
   cents: boolean;
+  showPhotos: boolean;        // the post has several photos, so each line names its photo
   hasPayment: boolean;
   qrLabel: string | null;     // null: no DuitNow QR to send
   live: boolean;              // a live-price post
@@ -24,11 +25,13 @@ interface Props {
   onSavePhone: (phone: string) => Promise<boolean>;
   onRemove: () => void;
   onResend: () => void;
+  onAddCard: () => void;      // a claim typed by hand, for this buyer
 }
 
-// Everything about one buyer: the exact message, the status, their name, the
-// number for the drop-off slip, and Remove buyer (with Undo on the page).
-export function BuyerDialog({ open, onClose, group: g, message, cents, hasPayment, qrLabel, live, sentOn, onCopy, onQr, onStatus, onSaveName, onSavePhone, onRemove, onResend }: Props) {
+// Everything about one buyer: every card they claimed (with Add a card), the
+// exact message, the status, their name, the number for the drop-off slip,
+// and Remove buyer (with Undo on the page).
+export function BuyerDialog({ open, onClose, group: g, message, cents, showPhotos, hasPayment, qrLabel, live, sentOn, onCopy, onQr, onStatus, onSaveName, onSavePhone, onRemove, onResend, onAddCard }: Props) {
   const t = useT();
   return (
     <Dialog
@@ -44,7 +47,12 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, hasPaymen
     >
       {g ? (
         <>
-          <p className="ui-label">{t('claims_message')}</p>
+          <p className="ui-label">{counted(t, 'claims_cards', g.cards)}</p>
+          <ClaimLines lines={g.lines} cents={cents} showPhotos={showPhotos} />
+          <button type="button" className="ui-btn ui-btn--plain claims-add-for" onClick={onAddCard}>
+            <Icon name="plus" size={16} />{t('claims_add_for', { name: g.name.trim() })}
+          </button>
+          <p className="ui-label claims-message-label">{t('claims_message')}</p>
           <p className="claims-bubble">{message}</p>
           <p className="claims-foot-note">
             {hasPayment ? t('claims_pay_note') : t('claims_pay_none')}{' '}

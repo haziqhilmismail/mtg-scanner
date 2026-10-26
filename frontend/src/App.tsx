@@ -14,7 +14,6 @@ import { usePricing } from './hooks/usePricing.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useTheme } from './hooks/useTheme.ts';
 import type { Appearance, Credits, Lang } from './types.ts';
-import { Claims } from './views/Claims.tsx';
 import { Login } from './views/Login.tsx';
 import { PricingPage } from './views/PricingPage.tsx';
 import { Profile } from './views/Profile.tsx';
@@ -88,10 +87,9 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   const scanner = useScanner(auth.user?.id ?? null, auth.signOut);
 
   const navStore = useNav();
-  const { route, replace } = navStore;
+  const { route } = navStore;
   const page = route.page;
-  // A post, a photo and a post's pricing sit under Scanner.
-  const onScanner = page === 'posts' || page === 'post' || page === 'photo' || page === 'pricing';
+  const onProfile = page === 'profile' || page === 'profile-pricing';
   const [health, setHealth] = useState<Health | null>(null);
   const [healthErr, setHealthErr] = useState(false);
 
@@ -136,29 +134,17 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
     <ImageZoomProvider>
     <Header route={route} healthLabel={healthLabel} healthState={healthState} user={auth.config?.auth_enabled ? auth.user : null} />
     <main className="wrap">
-      {/* Both tabs stay mounted, so switching shows them at once instead of
-          loading again; the one not showing renders nothing. */}
+      {/* Stays mounted on Profile, so coming back shows the posts at once
+          instead of loading again; it renders nothing meanwhile. */}
       <Scanner
-        active={onScanner}
+        active={!onProfile}
         scanner={scanner}
         nav={navStore}
         pricing={pricing}
         health={health}
         t={t}
         lang={lang}
-      />
-      <Claims
-        active={page === 'claims'}
-        scanner={scanner}
-        pricing={pricing}
-        t={t}
-        lang={lang}
-        folderKey={page === 'claims' ? route.folder : null}
-        onFolderChange={key => replace({ page: 'claims', folder: key })}
-        credits={credits}
-        onCredits={setCredits}
-        payment={payments.payment}
-        onEnterVoucher={() => setVoucherOpen(true)}
+        claims={{ credits, onCredits: setCredits, payment: payments.payment, onEnterVoucher: () => setVoucherOpen(true) }}
       />
       {page === 'profile' ? (
         <Profile

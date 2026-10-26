@@ -22,13 +22,16 @@ export interface Folder {
   postId: number | null;
   title: string;
   archived: boolean;    // hidden from the posts list (shown under Archived)
+  // Buyers with claims on the post, and how many still have to pay.
+  buyers: number;
+  unpaid: number;
   items: BatchSummary[];
   needs: number;
   total: number;
 }
 
 export interface ScannerProps {
-  // The tab is showing (both tabs stay mounted, so switching doesn't reload).
+  // A post page is showing, not Profile (both stay mounted, so going back doesn't reload).
   active: boolean;
   scanner: ScannerStore;
   // Which post, photo or pricing page is open: the URL (see useNav).
@@ -64,6 +67,11 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
     }),
   };
 }
+
+// The photos in no post, before any are added to it.
+const emptyUnfiled = (t: T): Folder => ({
+  key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, buyers: 0, unpaid: 0, items: [], needs: 0, total: 0,
+});
 
 // A key press that belongs to a field or to an open popup, not to the page.
 export function keyTaken(e: KeyboardEvent): boolean {
@@ -122,7 +130,15 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     setPostsLoaded(true);
   }, [listPosts]);
 
-  useEffect(() => { refreshPosts(); }, [refreshPosts]);
+  // Read once at the start, then again on each arrival at Posts, so its
+  // claim counts are current.
+  const onPosts = route.page === 'posts';
+  const postsRead = useRef(false);
+  useEffect(() => {
+    if (postsRead.current && !onPosts) return;
+    postsRead.current = true;
+    refreshPosts();
+  }, [refreshPosts, onPosts]);
 
   // One card onto the checklist of a post, tied to its photo so deleting the
   // photo takes it off again.
@@ -296,7 +312,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   // ---------- Gallery navigation ----------
   // Three levels: all posts → one post's photos → one photo, each with its
   // own URL (see useNav).
-  const folderKey = route.page === 'post' || route.page === 'photo' || route.page === 'pricing' ? route.folder : null;
+  const folderKey = routeFolder(route);
   // The open photo, found by its scan id: a photo scanned this session keeps
   // its own batch id, so the URL names the scan.
   const activeBatch = route.page === 'photo' ? (scanner.batches.find(b => b.scanId === route.scanId) ?? null) : null;
@@ -314,9 +330,10 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   // this page doesn't know), as the Unfiled folder.
   const folders = useMemo<Folder[]>(() => {
     const byKey = new Map<string, Folder>(posts.map(p => [folderOf(p.id), {
-      key: folderOf(p.id), postId: p.id, title: postTitle(p), archived: p.status === 'archived', items: [], needs: 0, total: 0,
+      key: folderOf(p.id), postId: p.id, title: postTitle(p), archived: p.status === 'archived',
+      buyers: p.buyer_count, unpaid: p.unpaid_buyer_count, items: [], needs: 0, total: 0,
     }]));
-    const unfiled: Folder = { key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, items: [], needs: 0, total: 0 };
+    const unfiled = emptyUnfiled(t);
     for (const b of scanner.batches) {
       const f = byKey.get(folderOf(b.postId)) ?? unfiled;
       const sum = summarise(b, pricingFor(f.postId));
@@ -331,7 +348,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   const openFolder = useMemo<Folder | null>(() => {
     if (folderKey == null) return null;
     return folders.find(f => f.key === folderKey)
-      ?? (folderKey === UNFILED ? { key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, items: [], needs: 0, total: 0 } : null);
+      ?? (folderKey === UNFILED ? emptyUnfiled(t) : null);
   }, [folderKey, folders, t]);
 
   // A post that no longer exists (deleted elsewhere): back to the list
@@ -491,12 +508,10 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     toast(t('post_deleted_toast'));
   }, [dialog, toast, scanner, current, replace, refreshPosts, setArchived, t]);
 
-  const pricingTitle = (folder: Folder) => (folder.postId == null ? t('menu_default_pricing') : t('settings_title'));
-
   return {
     scanner, pricing, pricingFor, health, t, lang, route, go, replace,
-    loading, postsById, pickerPosts, postTitle,
-    liveFolders, archivedFolders, openFolder, activeBatch, numbers, pricingTitle, sharePhone, ready, finishing, share, finishPhoto, deliverPhoto, editPrices, explainFinish, runFinishAll, addCard, takeOutCard, refreshScanPrices, deletePhotos, renamePost, setArchived, deletePost, moveTo, startPost, unfiledFolder, exportJob,
+    loading, postsById, pickerPosts, postTitle, refreshPosts,
+    liveFolders, archivedFolders, openFolder, activeBatch, numbers, sharePhone, ready, finishing, share, finishPhoto, deliverPhoto, editPrices, explainFinish, runFinishAll, addCard, takeOutCard, refreshScanPrices, deletePhotos, renamePost, setArchived, deletePost, moveTo, startPost, unfiledFolder, exportJob,
     sort, setSort, openPhoto, liveNavIds, navIndex, step,
   };
 }

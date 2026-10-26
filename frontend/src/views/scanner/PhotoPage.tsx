@@ -5,7 +5,6 @@ import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { PrintingsModal } from '../../components/PrintingsModal.tsx';
-import { PricingRow } from '../../components/SettingsPanel.tsx';
 import { folderOf, POSTS } from '../../routes.ts';
 import type { Batch, Candidate } from '../../types.ts';
 import { matchThumbs } from '../../utils.ts';
@@ -14,7 +13,7 @@ import { keyTaken, type Area } from './area.tsx';
 // One photo: its cards as tiles, with previous and next through its post.
 export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
   const {
-    t, lang, scanner, pricing, pricingFor, pricingTitle, go, openFolder, postsById, postTitle, numbers,
+    t, lang, scanner, pricingFor, go, openFolder, postsById, postTitle, numbers,
     finishing, finishPhoto, deliverPhoto, editPrices, refreshScanPrices, addCard, takeOutCard,
     deletePhotos, liveNavIds, navIndex, step,
   } = area;
@@ -115,10 +114,6 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
           </div>
         </div>
       </div>
-
-      {openFolder && pricing.pricingKnown(batch.postId) ? (
-        <PricingRow title={pricingTitle(openFolder)} settings={settings} t={t} to={{ page: 'pricing', folder }} />
-      ) : null}
 
       <ActiveBatchView
         batch={batch}

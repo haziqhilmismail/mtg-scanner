@@ -13,7 +13,7 @@ import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import type { Credits, Settings } from '../../types.ts';
 import { creditsLine, creditsOutText, formatMyrWithFoil, listingFields, sortScreenshots } from '../../utils.ts';
-import { CheckClaims, type Draft } from './CheckClaims.tsx';
+import { blankDraft, CheckClaims, draftsKind, type Draft } from './CheckClaims.tsx';
 import { counted } from './model.ts';
 import { PostPhotos } from './PostPhotos.tsx';
 import { ShotCard, type Shot } from './ShotCard.tsx';
@@ -28,6 +28,10 @@ interface Props {
   postId: number | null;
   postTitle: string;
   claimedBy: Map<string, { qty: number; names: string[] }>;
+  buyerNames: string[];
+  // Starts on a claim typed by hand, for this buyer ('' for none yet), rather
+  // than on screenshots.
+  handFor: string | null;
   settings: Settings;
   credits: Credits | null;
   onCredits: (credits: Credits) => void;
@@ -40,12 +44,12 @@ const isImage = (f: File) => f.type.startsWith('image/') || /\.(heic|heif)$/i.te
 
 // Mounted for the whole session, open or not, so a closed one can come back
 // with Undo; a new session is a new key.
-export function AddComments({ open, onClose, onSaved, incoming, photos, postId, postTitle, claimedBy, settings, credits, onCredits, onEnterVoucher, lang }: Props) {
+export function AddComments({ open, onClose, onSaved, incoming, photos, postId, postTitle, claimedBy, buyerNames, handFor, settings, credits, onCredits, onEnterVoucher, lang }: Props) {
   const t = useT();
   const [shots, setShots] = useState<Shot[]>([]);
-  const [step, setStep] = useState<'shots' | 'check'>('shots');
+  const [step, setStep] = useState<'shots' | 'check'>(handFor == null ? 'shots' : 'check');
   const [busy, setBusy] = useState<Busy>(null);
-  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [drafts, setDrafts] = useState<Draft[]>(() => (handFor == null ? [] : [blankDraft(handFor)]));
   const [skipped, setSkipped] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [pickerFor, setPickerFor] = useState<number | null>(null);   // the screenshot whose In this post is open
@@ -121,7 +125,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
         skip.push(...(res.skipped ?? []));
         for (const d of res.claims) {
           found.push({
-            buyer: d.buyer, comment: d.comment, unclear: d.unclear,
+            buyer: d.buyer, comment: d.comment, unclear: d.unclear, byHand: false,
             items: d.items.map(i => {
               const key = `${i.scan_id}:${i.card_id}`;
               const hint = photos.some(p => p.batch.scanId === i.scan_id) ? i.scan_id : typeof photo === 'number' ? photo : null;
@@ -130,7 +134,8 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
           });
         }
       }
-      setDrafts(found); setSkipped(skip); setStep('check');
+      // Claims typed by hand stay; the ones read before are read again.
+      setDrafts(prev => [...found, ...prev.filter(d => d.byHand)]); setSkipped(skip); setStep('check');
     } catch (e) {
       // Each call works out claims with Gemini and costs a credit.
       if (e instanceof OutOfCreditsError && e.credits) onCredits(e.credits);
@@ -168,14 +173,20 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
     ? t('claims_photo', { n: photos.find(p => p.batch.scanId === chosen[0])?.index ?? '' })
     : t('claims_several_lower');
   const balance = creditsLine(credits, t, lang);
-  const close = () => onClose(shots.length > 0);
+  // Work to offer back with Undo: screenshots, or a typed claim with a card.
+  const close = () => onClose(shots.length > 0 || drafts.some(d => d.byHand && d.items.some(i => i.key)));
+  const byHand = () => { setDrafts(prev => [...prev, blankDraft()]); setError(''); setStep('check'); };
 
   return (
     <>
       <Dialog
         open={open} onClose={close} variant="picker" className="claims-dialog" closeLabel={t('claims_close')}
-        title={step === 'check' ? (drafts.length ? counted(t, 'claims_found', drafts.length) : t('claims_found_none')) : t('claims_add_title')}
-        subtitle={step === 'check'
+        title={step === 'shots' ? t('claims_add_title') : {
+          found: counted(t, 'claims_found', drafts.length),
+          hand: t(drafts.length > 1 ? 'claims_add_title' : 'claims_hand_title'),
+          none: t('claims_found_none'),
+        }[draftsKind(drafts)]}
+        subtitle={step === 'check' && filled.length
           ? `${counted(t, 'claims_from_shots', filled.length)} · ${photoText}`
           : `${postTitle} · ${counted(t, 'claims_photos', photos.length)}`}
         footer={step === 'check' ? (
@@ -200,7 +211,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
         {step === 'check' ? (
           <CheckClaims
             drafts={drafts} skipped={skipped} photos={photos} cardsByKey={cardsByKey} claimedBy={claimedBy}
-            cents={cents} live={live} problem={problem} onChange={setDrafts}
+            cents={cents} live={live} problem={problem} buyerNames={buyerNames} onChange={setDrafts}
           />
         ) : (
           <>
@@ -218,6 +229,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
               {busy === 'reading' ? <span className="claims-spin" aria-hidden="true" /> : <Icon name="plus" size={18} />}
               {busy === 'reading' ? t('claims_reading') : t(shots.length ? 'claims_choose_more' : 'claims_choose')}
             </button>
+            <button type="button" className="ui-btn ui-btn--plain claims-by-hand" onClick={byHand}>{t('claims_by_hand')}</button>
             {balance ? (
               <p className="claims-foot-note">
                 {balance}

@@ -1,8 +1,11 @@
 // Small pieces the Claims page and its dialogs share.
 
+import { hideBroken } from '../../components/ClaimPickers.tsx';
+import { Icon } from '../../components/Icon.tsx';
+import { useImageZoom } from '../../components/ImageZoomProvider.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import { counted, rm, type BuyerGroup } from './model.ts';
+import { counted, formulaText, rm, type BuyerGroup, type Line } from './model.ts';
 
 // An amount in RM; a live price not sent yet carries ≈ (DESIGN.md section 7).
 export function Money({ value, live = false, cents }: { value: number; live?: boolean; cents: boolean }) {
@@ -18,6 +21,44 @@ export function StatusLine({ group }: { group: BuyerGroup }) {
     counted(t, 'claims_cards', group.cards),
   ].filter(Boolean).join(' · ');
   return <span className="claims-status"><span className={`claims-dot is-${group.state}`} aria-hidden="true" />{words}</span>;
+}
+
+// A buyer's cards, one row each: the card cut from the seller's photo (it
+// opens large, and carries ×2 for two copies), the name, its photo, how the
+// price was made, and the row's total. Every row is one height, so buyer
+// cards line up.
+export function ClaimLines({ lines, cents, showPhotos }: { lines: Line[]; cents: boolean; showPhotos: boolean }) {
+  const t = useT();
+  const zoom = useImageZoom();
+  return (
+    <ul className="claims-lines">
+      {lines.map(l => {
+        const { crop } = l;
+        const many = l.qty > 1;
+        const qty = many ? <span className="claims-line-qty">×{l.qty}</span> : null;
+        return (
+          <li key={l.id} className="claims-line">
+            {crop ? (
+              <button type="button" className="claims-line-pic" aria-label={t('claims_view_card', { name: l.name })} onClick={() => zoom.open(crop, l.name)}>
+                <img src={crop} alt="" loading="lazy" decoding="async" onError={hideBroken} />{qty}
+              </button>
+            ) : <span className="claims-line-pic" aria-hidden="true"><Icon name="photo" size={18} />{qty}</span>}
+            <span className="claims-line-text">
+              <span className="claims-line-name">{l.name}{many ? <span className="ui-sr-only"> ×{l.qty}</span> : null}</span>
+              {showPhotos && l.photo ? <span className="claims-line-working">{t('claims_photo', { n: l.photo })}</span> : null}
+              {l.formula || many ? (
+                <span className="claims-line-working">
+                  {l.formula ? formulaText(l.formula) : null}
+                  {many ? <>{l.formula ? ' → ' : ''}<Money value={l.each} live={l.live} cents={cents} /> {t('claims_copy_each')}</> : null}
+                </span>
+              ) : null}
+            </span>
+            <span className="claims-line-total"><Money value={l.each * l.qty} live={l.live} cents={cents} /></span>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 const STEPS = [1, 2, 3, 4] as const;

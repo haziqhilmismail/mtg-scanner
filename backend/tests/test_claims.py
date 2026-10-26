@@ -325,3 +325,24 @@ def test_live_prices_change_until_sent(client):
     # Resend at today's price.
     assert client.delete(f"/api/orders/{order['id']}/prices-sent", headers=me).json()["prices_sent_at"] is None
     assert client.put(f"/api/orders/{order['id']}/prices", headers=me, json={"items": [{"id": item, "unit_price_myr": "12.00"}]}).json()["total_myr"] == "24.00"
+
+
+def test_each_post_counts_its_buyers_and_who_still_has_to_pay(client):
+    uid = run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
+    quiet = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()["id"]
+    scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, data={"post_id": str(post)}, headers=me).json()["scan_id"]
+    aiman, siti, farah = client.post("/api/claims/confirm", headers=me, json={"post_id": post, "claims": [
+        {"buyer": "Aiman", "items": [_item(scan, 0, "Sol Ring", "9.00")]},
+        {"buyer": "Siti", "items": [_item(scan, 1, "Island", "2.00")]},
+        {"buyer": "Farah", "items": [_item(scan, 2, "Forest", "2.00")]},
+    ]}).json()
+    assert client.post(f"/api/orders/{aiman['id']}/mark-paid", headers=me).status_code == 200
+    assert client.patch(f"/api/orders/{farah['id']}", json={"status": "cancelled"}, headers=me).status_code == 200
+
+    counts = {p["id"]: (p["buyer_count"], p["unpaid_buyer_count"]) for p in client.get("/api/posts", headers=me).json()}
+    assert counts == {post: (2, 1), quiet: (0, 0)}
+    one = client.get(f"/api/posts/{post}", headers=me).json()
+    assert (one["buyer_count"], one["unpaid_buyer_count"]) == (2, 1)

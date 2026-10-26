@@ -1,5 +1,5 @@
-// Claims: who wants which card on a post, what they owe, and the message
-// each buyer is sent.
+// A post's Claims part: who wants which card on the post, what they owe,
+// and the message each buyer is sent.
 //
 // Facebook gives no way to read a group's comments, so the seller brings the
 // thread in as screenshots (Add comments). Each buyer then has a card with
@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { paymentApi, relookupScanPrices, type Payment } from '../api.ts';
 import {
   buyersApi, listingsApi, ordersApi, salesApi,
-  type Buyer, type Listing, type Order, type OrderItem, type Post, type SentLine,
+  type Buyer, type Listing, type Order, type OrderItem, type SentLine,
 } from '../api/checklist.ts';
 import type { CardRef, Photo } from '../components/ClaimPickers.tsx';
 import { Icon } from '../components/Icon.tsx';
@@ -18,15 +18,10 @@ import { Link } from '../components/Link.tsx';
 import { SlipsSheet } from '../components/SlipsSheet.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
-import { Select } from '../components/ui/Field.tsx';
 import { Segmented } from '../components/ui/Segmented.tsx';
 import { useToast } from '../components/ui/Toast.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
-import type { PricingStore } from '../hooks/usePricing.ts';
-import type { ScannerStore } from '../hooks/useScanner.ts';
-import type { T } from '../hooks/useLang.ts';
-import { UNFILED } from '../routes.ts';
-import type { Batch, CardRowData, Credits } from '../types.ts';
+import type { CardRowData, Credits } from '../types.ts';
 import { byPostOrder, computeCardData, dueForSupportAsk, paymentLines, photoNumbers, popupOpen } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
@@ -37,17 +32,13 @@ import {
 } from './claims/model.ts';
 import { ClaimSteps, HowDialog, Money } from './claims/parts.tsx';
 import { useScreenshotDrop } from './claims/useScreenshotDrop.ts';
+import type { Area, Folder } from './scanner/area.tsx';
 
-interface Props {
-  // The page is showing (Scanner and Claims stay mounted, so switching doesn't reload).
-  active: boolean;
-  scanner: ScannerStore;
-  pricing: PricingStore;
-  t: T;
-  lang: string;
-  // The open post, from the URL (?post=).
-  folderKey: string | null;
-  onFolderChange: (key: string) => void;
+export interface ClaimsProps {
+  // The open post, from the URL; null while another page shows. Claims
+  // stays mounted then, so coming back to it doesn't load again.
+  folder: Folder | null;
+  area: Area;
   // Claim-read balance; null until loaded. onCredits takes the new one after each read.
   credits: Credits | null;
   onCredits: (credits: Credits) => void;
@@ -90,9 +81,10 @@ function describePositions(cards: CardRowData[]): Map<number, string> {
   return out;
 }
 
-export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t, lang, folderKey, onFolderChange, credits, onCredits, onEnterVoucher, payment }: Props) {
+export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payment }: ClaimsProps) {
+  const { scanner, pricingFor, refreshPosts, t, lang } = area;
+  const active = folder != null;
   const toast = useToast();
-  const [posts, setPosts] = useState<Post[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
@@ -101,35 +93,20 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
 
   const reload = useCallback(async () => {
     try {
-      const [p, l, o, b] = await Promise.all([listPosts(), listingsApi.list(), ordersApi.list(true), buyersApi.list()]);
-      setPosts(p); setListings(l); setOrders(o); setBuyers(b); setLoadError('');
+      // The posts too: their claim counts show on Posts and on the tabs.
+      const [l, o, b] = await Promise.all([listingsApi.list(), ordersApi.list(true), buyersApi.list(), refreshPosts()]);
+      setListings(l); setOrders(o); setBuyers(b); setLoadError('');
     } catch (e) {
       setLoadError((e as Error).message);
     }
     setLoaded(true);
-  }, [listPosts]);
-  // Refreshed each time the page shows, so changes made on Scanner are current.
+  }, [refreshPosts]);
+  // Refreshed each time the page shows, so changes made on Photos are current.
   useEffect(() => { if (active) reload(); }, [active, reload]);
 
-  // ---------- which post ----------
-  // Posts with saved photos, newest first; archived ones under their own group.
-  const postsById = useMemo(() => new Map(posts.map(p => [p.id, p])), [posts]);
-  const keyOfBatch = useCallback((b: Batch) => (b.postId != null && postsById.has(b.postId) ? `p${b.postId}` : UNFILED), [postsById]);
-  const postOptions = useMemo(() => {
-    const count = new Map<string, number>();
-    for (const b of scanner.batches) {
-      if (b.scanId != null && b.response) count.set(keyOfBatch(b), (count.get(keyOfBatch(b)) ?? 0) + 1);
-    }
-    return [...count].reverse().map(([key, n]) => {
-      const post = key === UNFILED ? undefined : postsById.get(Number(key.slice(1)));
-      const title = post ? post.title || `#${post.id}` : t('scans_unfiled');
-      return { key, title, label: `${title} · ${counted(t, 'claims_photos', n)}`, archived: post?.status === 'archived' };
-    });
-  }, [scanner.batches, keyOfBatch, postsById, t]);
-  const activeKey = postOptions.some(o => o.key === folderKey)
-    ? folderKey : (postOptions.find(o => !o.archived) ?? postOptions[0])?.key ?? null;
-  const postTitle = postOptions.find(o => o.key === activeKey)?.title ?? '';
-  const postId = activeKey && activeKey !== UNFILED ? Number(activeKey.slice(1)) : null;
+  const activeKey = folder?.key ?? null;
+  const postTitle = folder?.title ?? '';
+  const postId = folder?.postId ?? null;
   // Every photo here is the open post's, so one pricing prices them all.
   const settings = pricingFor(postId);
   const cents = settings.showCents;
@@ -140,7 +117,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
     if (!activeKey) return [];
     const numbers = photoNumbers(scanner.batches);
     return scanner.batches
-      .filter(b => b.scanId != null && b.response && keyOfBatch(b) === activeKey)
+      .filter(b => b.scanId != null && b.response && b.postId === postId)
       .sort(byPostOrder)
       .map((batch, at) => {
         const index = numbers.get(batch.id) ?? at + 1;
@@ -154,7 +131,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
           })),
         };
       });
-  }, [scanner.batches, activeKey, keyOfBatch, settings]);
+  }, [scanner.batches, activeKey, postId, settings]);
 
   // ---------- the claims on this post ----------
   const scanIds = useMemo(() => new Set(photos.map(p => p.batch.scanId as number)), [photos]);
@@ -177,10 +154,13 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
     const pending = live && !o.prices_sent_at;
     const today = card?.cd.unitPrice;
     const each = pending && today != null && Number.isFinite(today) && today > 0 ? today : Number(i.unit_price_myr);
-    return { id: i.id, name: i.name_snapshot, qty: i.qty, each, formula: card ? priceFormula(card.cd, each) : null, photo: card?.photo ?? null, live: pending };
+    return { id: i.id, name: i.name_snapshot, qty: i.qty, each, formula: card ? priceFormula(card.cd, each) : null, photo: card?.photo ?? null,
+      crop: card?.cd.card.crop_b64 || null, live: pending };
   }, [cardOf, live]);
   const groups = useMemo(() => buyerGroups(orders, buyers, inPost, lineOf), [orders, buyers, inPost, lineOf]);
   const claimedBy = useMemo(() => claimedCounts(orders, buyers, i => cardOf(i)?.key), [orders, buyers, cardOf]);
+  // Suggested as a buyer's name is typed: this post's buyers first.
+  const buyerNames = useMemo(() => [...new Set([...groups.map(g => g.name), ...buyers.map(b => b.fb_name)].map(n => n.trim()))], [groups, buyers]);
   const totals = claimTotals(groups);
 
   const [storedSort, setSort] = usePersistedState<ClaimSort>('mtg.claims.sort', 'claimed');
@@ -195,25 +175,25 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
   const [addOpen, setAddOpen] = useState(false);
   const [session, setSession] = useState(0);    // a new Add comments starts afresh
   const [incoming, setIncoming] = useState<{ id: number; files: File[] } | null>(null);
+  const [handFor, setHandFor] = useState<string | null>(null);   // a claim typed by hand, for this buyer
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [newSince, setNewSince] = useState<Set<number> | null>(null);   // buyers before the last Add
   const [supportOpen, setSupportOpen] = useState(false);
   const [supportAsk, setSupportAsk] = usePersistedState<{ saves: number; askedAt: number | null }>('mtg.claims.supportAsk', { saves: 0, askedAt: null });
   // Another post: nothing from the last one carries over.
   const [shownKey, setShownKey] = useState(activeKey);
-  if (shownKey !== activeKey) {
+  if (activeKey != null && shownKey !== activeKey) {
     setShownKey(activeKey); setFilter('all'); setCopiedId(null); setNewSince(null); setSession(s => s + 1); setAddOpen(false);
   }
 
-  const startAdd = useCallback((files?: File[]) => {
-    // The URL names the post from here on, so a scan finishing on a newer
-    // post can't swap the post under the open dialog.
-    if (activeKey && activeKey !== folderKey) onFolderChange(activeKey);
+  // Add claims, from screenshots, or with a claim typed by hand for a buyer.
+  const startAdd = useCallback((files?: File[], hand: string | null = null) => {
     setHowOpen(false);
     setSession(s => s + 1);
     setIncoming(files?.length ? { id: Date.now(), files } : null);
+    setHandFor(hand);
     setAddOpen(true);
-  }, [activeKey, folderKey, onFolderChange]);
+  }, []);
   const pageDragging = useScreenshotDrop(active, () => photos.length > 0 && !popupOpen(), startAdd);
 
   const closeAdd = (hadWork: boolean) => {
@@ -238,8 +218,9 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
   // can't overtake the change it undoes. A failed one reloads the truth.
   const writes = useRef<Promise<unknown>>(Promise.resolve());
   const queue = useCallback((job: () => Promise<unknown>) => {
-    writes.current = writes.current.then(job).catch(() => { toast(t('claims_save_failed')); return reload(); });
-  }, [toast, t, reload]);
+    // Then the posts again: the buyer counts on the tabs and on Posts follow.
+    writes.current = writes.current.then(job).then(refreshPosts, () => { toast(t('claims_save_failed')); return reload(); });
+  }, [toast, t, reload, refreshPosts]);
   const stamp = useCallback((changes: Map<number, Stamps>) => {
     setOrders(prev => prev.map(o => (changes.has(o.id) ? { ...o, ...changes.get(o.id) } : o)));
     queue(async () => { for (const [id, s] of changes) await ordersApi.update(id, s); });
@@ -387,7 +368,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
 
   // ---------- render ----------
   // Another page is showing: keep the state, render nothing.
-  if (!active) return null;
+  if (!folder) return null;
   if (!loaded || (scanner.loadingSaved && scanner.batches.length === 0)) return <Spinner label={t('ck_loading')} />;
 
   const buyer = groups.find(g => g.buyerId === buyerId) ?? null;
@@ -397,7 +378,6 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
     ? new Date(g.orders.map(o => o.prices_sent_at!).sort().at(-1)!).toLocaleDateString(lang === 'ms' ? 'ms-MY' : 'en-MY', { day: 'numeric', month: 'short' })
     : null);
   const qrFor = (name: string) => (qrAction ? t(qrAction === 'share' ? 'claims_share_qr_for' : 'claims_copy_qr_for', { name: name.trim() }) : null);
-  const archived = postOptions.filter(o => o.archived);
   const paidShare = totals.claimed > 0 ? totals.paid / totals.claimed : 0;
   const addButton = (
     <button type="button" className="ui-btn ui-btn--primary ui-btn--lg ui-btn--block" aria-haspopup="dialog" disabled={!photos.length} onClick={() => startAdd()}>
@@ -413,20 +393,16 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
 
   return (
     <div className="claims">
-      <div className="claims-head">
-        <h1 className="page-title">{t('nav_claims')}</h1>
-        <button type="button" className="ui-btn" aria-haspopup="dialog" onClick={() => setHowOpen(true)}><Icon name="help" size={18} />{t('claims_how')}</button>
-      </div>
       {loadError ? <p className="claims-load-error" role="alert">{t('ck_backend_error', { err: loadError })}</p> : null}
 
-      {!postOptions.length ? (
+      {!photos.length ? (
         <div className="claims-layout is-empty">
           <div className="claims-side">
             <section className="ui-card claims-empty">
               <span className="claims-empty-icon" aria-hidden="true"><Icon name="chat" size={24} /></span>
               <h2 className="claims-empty-title">{t('claims_empty_title')}</h2>
-              <p>{t('claims_no_posts_text')}</p>
-              <Link to={{ page: 'posts' }} className="ui-btn ui-btn--primary ui-btn--lg ui-btn--block">{t('claims_go_scanner')}</Link>
+              <p>{t('claims_no_photos_text')}</p>
+              <Link replace to={{ page: 'post', folder: folder.key }} className="ui-btn ui-btn--primary ui-btn--lg ui-btn--block">{t('claims_go_photos')}</Link>
             </section>
           </div>
           <div className="claims-main">{steps}</div>
@@ -434,14 +410,6 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
       ) : (
         <div className={groups.length ? 'claims-layout' : 'claims-layout is-empty'}>
           <div className="claims-side">
-            <Select label={t('claims_post')} value={activeKey ?? ''} onChange={e => onFolderChange(e.target.value)}>
-              {postOptions.filter(o => !o.archived).map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-              {archived.length ? (
-                <optgroup label={t('claims_archived')}>
-                  {archived.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-                </optgroup>
-              ) : null}
-            </Select>
             {groups.length ? (
               <section className="ui-card claims-totals" aria-label={t('claims_to_collect')}>
                 <div className="claims-totals-row">
@@ -463,6 +431,7 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
                 {addButton}
                 <div className="claims-totals-more">
                   <button type="button" className="ui-btn" aria-haspopup="dialog" onClick={() => setSlipsOpen(true)}><Icon name="print" size={18} />{t('claims_slips')}</button>
+                  <button type="button" className="ui-btn" aria-haspopup="dialog" onClick={() => setHowOpen(true)}><Icon name="help" size={18} />{t('claims_how')}</button>
                   {live ? (
                     <button type="button" className="ui-btn" disabled={refreshing} onClick={refreshPrices}>
                       <Icon name="refresh" size={18} />{refreshing ? t('claims_refreshing') : t('claims_refresh')}
@@ -525,18 +494,19 @@ export function Claims({ active, scanner, pricing: { pricingFor, listPosts }, t,
       <HowDialog open={howOpen} onClose={() => setHowOpen(false)} onAdd={photos.length ? () => startAdd() : undefined} />
       <AddComments
         key={session} open={addOpen} onClose={closeAdd} onSaved={added} incoming={incoming}
-        photos={photos} postId={postId} postTitle={postTitle} claimedBy={claimedBy} settings={settings}
+        photos={photos} postId={postId} postTitle={postTitle} claimedBy={claimedBy} buyerNames={buyerNames} handFor={handFor} settings={settings}
         credits={credits} onCredits={onCredits} onEnterVoucher={onEnterVoucher} lang={lang}
       />
       <BuyerDialog
         open={buyerId != null} onClose={() => setBuyerId(null)} group={buyer}
-        message={buyer ? messageOf(buyer) : ''} cents={cents} live={live} sentOn={buyer ? sentOn(buyer) : null}
+        message={buyer ? messageOf(buyer) : ''} cents={cents} showPhotos={photos.length > 1} live={live} sentOn={buyer ? sentOn(buyer) : null}
         hasPayment={paymentLines(payment, t).length > 0}
         qrLabel={qrAction ? t(qrAction === 'share' ? 'claims_share_qr' : 'claims_copy_qr') : null}
         onCopy={() => buyer && copy(buyer)} onQr={sendQr} onStatus={to => buyer && move(buyer, to)}
         onSaveName={name => (buyer ? saveBuyer(buyer, { fb_name: name }) : Promise.resolve(false))}
         onSavePhone={phone => (buyer ? saveBuyer(buyer, { phone: phone || null }) : Promise.resolve(false))}
         onRemove={() => buyer && remove(buyer)} onResend={() => buyer && resend(buyer)}
+        onAddCard={() => { if (!buyer) return; setBuyerId(null); startAdd(undefined, buyer.name.trim()); }}
       />
       <SlipsSheet
         open={slipsOpen} onClose={() => setSlipsOpen(false)} postTitle={postTitle}

@@ -49,6 +49,7 @@ export interface Line {
   each: number;          // RM a copy, as charged
   formula: Formula | null;
   photo: number | null;  // its photo in the post, when known
+  crop: string | null;   // the card cut from that photo, when known
   live: boolean;         // a live price the buyer has not been sent yet
 }
 
