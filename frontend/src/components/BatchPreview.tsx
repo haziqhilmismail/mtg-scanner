@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { CardRowData, Settings } from '../types.ts';
 import { goldPill, photoLabel } from '../utils.ts';
 
@@ -8,6 +8,9 @@ interface Props {
   height: number;
   // The kept cards. One added by hand has no spot on the photo, so it gets no outline.
   cards: CardRowData[];
+  // Cards sold on an earlier post: blurred, darkened and marked SOLD, as the
+  // download draws them (price_overlay.py _cover_sold).
+  covers?: CardRowData[];
   settings: Settings;
   // What the picture shows, for a screen reader.
   label: string;
@@ -60,15 +63,37 @@ function computePillAnchor(
   return { cx: cxBox, cy: rectY + rectH / 2, rectW, rectH };
 }
 
+// A card's outline in photo pixels: its quad when known, else its bbox.
+function outline(cd: CardRowData): string {
+  const [x, y, w, h] = cd.card.bbox;
+  const corners = cd.card.corners;
+  return Array.isArray(corners) && corners.length === 4
+    ? corners.map(([px, py]) => `${px},${py}`).join(' ')
+    : `${x},${y} ${x + w},${y} ${x + w},${y + h} ${x},${y + h}`;
+}
+
 // The photo with each card's outline and the price label the download will
 // carry, drawn in the photo's own pixels so the whole picture scales as one,
 // on the page and full screen. Outlines and labels wait for the photo:
 // frames drawn over nothing look broken.
-export function BatchPreview({ src, width, height, cards, settings, label, className }: Props) {
+export function BatchPreview({ src, width, height, cards, covers = [], settings, label, className }: Props) {
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const loaded = loadedSrc === src;
   const onPhoto = cards.filter(cd => cd.card.bbox_source !== 'user');
   const baseFont = Math.max(22, Math.floor(Math.min(width, height) * 0.03 * settings.labelFontScale));
+  // url(#…) breaks on the colons React puts in its ids.
+  const uid = useId().replace(/[^a-zA-Z0-9-]/g, '');
+  // A price pill, or SOLD across a sold card, where the download draws it.
+  const pill = (key: string, cd: CardRowData, text: string, position: Settings['labelPosition'], foil: boolean) => {
+    const a = computePillAnchor(cd.card.bbox, text, width, height, position, settings.labelFontScale);
+    const r = a.rectH / 2;
+    return (
+      <g key={key} className={`preview-pill ${foil ? 'foil' : ''}`}>
+        <rect x={a.cx - a.rectW / 2} y={a.cy - r} width={a.rectW} height={a.rectH} rx={r} ry={r} />
+        <text x={a.cx} y={a.cy} dominantBaseline="central" textAnchor="middle" style={{ fontSize: `${baseFont}px` }}>{text}</text>
+      </g>
+    );
+  };
   return (
     <svg
       className={['photo-svg', loaded ? '' : 'is-loading', className ?? ''].filter(Boolean).join(' ')}
@@ -77,25 +102,28 @@ export function BatchPreview({ src, width, height, cards, settings, label, class
       aria-label={label}
     >
       <image href={src} width={width} height={height} onLoad={() => setLoadedSrc(src)} onError={() => setLoadedSrc(src)} />
-      {loaded ? onPhoto.map(cd => {
-        const [x, y, w, h] = cd.card.bbox;
-        const corners = cd.card.corners;
-        const points = Array.isArray(corners) && corners.length === 4
-          ? corners.map(([px, py]) => `${px},${py}`).join(' ')
-          : `${x},${y} ${x + w},${y} ${x + w},${y + h} ${x},${y + h}`;
-        return <polygon key={`out-${cd.origIdx}`} points={points} className={`card-outline ${cd.isFoil ? 'foil' : ''}`} />;
-      }) : null}
+      {loaded && covers.length ? (
+        <>
+          <defs>
+            {/* The blur and shade of price_overlay.py's cover (_cover_blur, COVER_SHADE). */}
+            <filter id={`${uid}-blur`}><feGaussianBlur stdDeviation={Math.max(10, Math.floor(Math.min(width, height) / 50))} /></filter>
+            {covers.map(cd => <clipPath key={cd.origIdx} id={`${uid}-c${cd.origIdx}`}><polygon points={outline(cd)} /></clipPath>)}
+          </defs>
+          {covers.map(cd => (
+            <g key={`cover-${cd.origIdx}`} clipPath={`url(#${uid}-c${cd.origIdx})`}>
+              <image href={src} width={width} height={height} filter={`url(#${uid}-blur)`} />
+              <polygon points={outline(cd)} className="preview-cover" />
+            </g>
+          ))}
+          {covers.map(cd => pill(`sold-${cd.origIdx}`, cd, 'SOLD', 'center', false))}
+        </>
+      ) : null}
+      {loaded ? onPhoto.map(cd => (
+        <polygon key={`out-${cd.origIdx}`} points={outline(cd)} className={`card-outline ${cd.isFoil ? 'foil' : ''}`} />
+      )) : null}
       {loaded ? onPhoto.map(cd => {
         const text = photoLabel(cd, settings);
-        if (!text) return null;
-        const a = computePillAnchor(cd.card.bbox, text, width, height, settings.labelPosition, settings.labelFontScale);
-        const r = a.rectH / 2;
-        return (
-          <g key={`pill-${cd.origIdx}`} className={`preview-pill ${goldPill(cd, settings) ? 'foil' : ''}`}>
-            <rect x={a.cx - a.rectW / 2} y={a.cy - r} width={a.rectW} height={a.rectH} rx={r} ry={r} />
-            <text x={a.cx} y={a.cy} dominantBaseline="central" textAnchor="middle" style={{ fontSize: `${baseFont}px` }}>{text}</text>
-          </g>
-        );
+        return text ? pill(`pill-${cd.origIdx}`, cd, text, settings.labelPosition, goldPill(cd, settings)) : null;
       }) : null}
     </svg>
   );

@@ -13,7 +13,7 @@ import {
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import type { Batch, Candidate, DetectedCard, LockedPrice, RelookupMsg, ScanUiState } from '../types.ts';
-import { bboxKey, canRetry, correctionFor, freshState, generateBatchId, normalizeUiState } from '../utils.ts';
+import { bboxKey, canRetry, correctionFor, freshState, generateBatchId, normalizeUiState, uiStateOf } from '../utils.ts';
 import type { T } from './useLang.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
 
@@ -76,22 +76,6 @@ async function deleteSaved(key: string, sid: number) {
     await apiDeleteScan(sid);
     removeTombstones(key, [sid]);
   } catch { /* tombstone persists */ }
-}
-
-// What is saved to the server for a batch (its rev is added when queued).
-function uiStateOf(b: Batch): ScanUiState {
-  return {
-    isFoil: b.isFoil,
-    priceOverride: b.priceOverride,
-    quantity: b.quantity,
-    multOverride: b.multOverride,
-    removed: b.removed,
-    pillOffset: b.pillOffset,
-    versionOk: b.versionOk,
-    picks: b.picks,
-    locked: b.locked,
-    lockedAt: b.lockedAt ?? null,
-  };
 }
 
 function batchFromSavedScan(saved: SavedScan): Batch {
@@ -322,7 +306,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
       status: 'scanning',
       response: null,
       isFoil: [], priceOverride: [], quantity: [],
-      multOverride: [], removed: [], pillOffset: [], versionOk: [], picks: [], locked: [],
+      multOverride: [], removed: [], sold: [], pillOffset: [], versionOk: [], picks: [], locked: [],
       relookupBusy: [], relookupMsg: [],
     }));
     commit(prev => [...prev, ...stubs]);
@@ -413,10 +397,16 @@ export function useScanner(userId: number | null, signOut: () => void) {
     [],
   );
 
+  // Removed or restored by hand: no longer a card sold on an earlier post,
+  // so it is never covered on the photo.
   const setRemoved = useCallback(
     (batchId: string, idx: number, removed: boolean) =>
-      updateCardArray(batchId, 'removed', idx, removed),
-    [updateCardArray],
+      commit(prev => prev.map(b => (b.id !== batchId ? b : {
+        ...b,
+        removed: b.removed.map((r, i) => (i === idx ? removed : r)),
+        sold: b.sold.map((s, i) => (i === idx ? false : s)),
+      }))),
+    [commit],
   );
 
 
@@ -474,6 +464,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
           quantity: [...b.quantity, Math.max(1, card.gemini?.quantity || 1)],
           multOverride: [...b.multOverride, null],
           removed: [...b.removed, false],
+          sold: [...b.sold, false],
           pillOffset: [...b.pillOffset, null],
           versionOk: [...b.versionOk, false],
           picks: [...b.picks, null],
@@ -489,7 +480,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
 
   const restoreAll = useCallback((batchId: string) => {
     commit(prev =>
-      prev.map(b => (b.id === batchId ? { ...b, removed: b.removed.map(() => false) } : b)),
+      prev.map(b => (b.id === batchId ? { ...b, removed: b.removed.map(() => false), sold: b.sold.map(() => false) } : b)),
     );
   }, []);
 
@@ -648,6 +639,11 @@ export function useScanner(userId: number | null, signOut: () => void) {
     }
   }, [tombKey]);
 
+  // Photos saved by another route (a repost's copies), shown as they come.
+  const addSaved = useCallback((scans: SavedScan[]) => {
+    commit(prev => [...prev, ...scans.map(batchFromSavedScan)]);
+  }, [commit]);
+
   return {
     batches,
     loadingSaved,
@@ -661,6 +657,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
     unlockBatch,
     scanProgress,
     removeBatch,
+    addSaved,
     moveBatches,
     orderBatches,
     toggleFoil,

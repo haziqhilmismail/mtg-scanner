@@ -10,6 +10,9 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 BACKEND_ROOT = Path(__file__).resolve().parent.parent  # mtg-scanner/backend
 DATA_DIR = BACKEND_ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
+# Each scan's photo, as <scan id>.bin.
+SCANS_DIR = DATA_DIR / "scans"
+SCANS_DIR.mkdir(exist_ok=True)
 
 
 class Settings(BaseSettings):

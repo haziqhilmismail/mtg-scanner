@@ -39,7 +39,7 @@ test('a price box holding only "." is no price, not RM0', () => {
   const batch: Batch = {
     id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ candidates: [sel] } as DetectedCard] },
-    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false], picks: [null], locked: [null],
+    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], sold: [false], pillOffset: [null], versionOk: [false], picks: [null], locked: [null],
     relookupBusy: [false], relookupMsg: [null],
   };
   const settings = { ...DEFAULT_SETTINGS, multNormal: 3 };
@@ -69,7 +69,7 @@ test('saved per-card state is fitted to the cards, entry by entry', () => {
     priceOverride: ['5', null, null],
     quantity: [1, 3, 4],
     multOverride: [null, 2.5, null],
-    removed: [false, false, false],
+    removed: [false, false, false], sold: [false, false, false],
     pillOffset: [{ dx: 1, dy: 2 }, null, null],
     versionOk: [false, false, false],
     picks: [{ name: 'Sol Ring', set: 'c21' }, null, null],
@@ -89,7 +89,7 @@ test('a photo still has to add its priced, kept cards that are not listed', () =
     id: 'b', scanId: 1, postId: 7, position: null, listed: ['0,0,5,5'], filename: '', status: 'done',
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [card(0), card(10), card(20), card(30)] },
     isFoil: [false, false, false, false], priceOverride: [null, null, null, '0'], quantity: [1, 1, 1, 1],
-    multOverride: [null, null, null, null], removed: [false, false, true, false], pillOffset: [null, null, null, null],
+    multOverride: [null, null, null, null], removed: [false, false, true, false], sold: [false, false, false, false], pillOffset: [null, null, null, null],
     versionOk: [false, false, false, false], picks: [null, null, null, null], locked: [null, null, null, null], relookupBusy: [], relookupMsg: [],
   };
   // Listed, not added, removed, priced at zero.
@@ -150,7 +150,7 @@ test('a finished photo keeps its prices and their working whatever changes after
   const batch: Batch = {
     id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ candidates: [sel] } as DetectedCard, { candidates: [sel] } as DetectedCard] },
-    isFoil: [false, false], priceOverride: [null, '7'], quantity: [1, 2], multOverride: [null, null], removed: [false, false],
+    isFoil: [false, false], priceOverride: [null, '7'], quantity: [1, 2], multOverride: [null, null], removed: [false, false], sold: [false, false],
     pillOffset: [null, null], versionOk: [false, false], picks: [null, null], locked: [null, null], relookupBusy: [], relookupMsg: [],
   };
   const posted = { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up' as const, roundStep: 1 as const };
@@ -194,6 +194,11 @@ test('a live-price photo labels only what CK does not decide', () => {
   assert.equal(photoLabel(cd({}), live), '');                                   // live, post rate: nothing
   assert.equal(photoLabel(cd({ hasOverride: true, unitPrice: 12 }), live), 'RM12');
   assert.equal(photoLabel(cd({ hasMultOverride: true, mult: 3 }), live), 'CK ×3');
+  // Live: a foil card always carries F, whatever the foil mark setting.
+  const gold = { ...live, foilStyle: 'gold' as const };
+  assert.equal(photoLabel(cd({ isFoil: true }), gold), 'F');
+  assert.equal(photoLabel(cd({ isFoil: true, hasOverride: true, unitPrice: 12 }), gold), 'RM12F');
+  assert.equal(photoLabel(cd({ isFoil: true, hasMultOverride: true, mult: 3 }), gold), 'CK ×3 · F');
   assert.equal(photoLabel(cd({ needsPrice: true, unitPrice: NaN }), s), '');
 });
 
@@ -234,7 +239,7 @@ test("the seller's own price: RM is kept as typed, USD still gets the multiplier
     id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
     response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [card(0), card(10), card(20)] },
     isFoil: [false, false, false], priceOverride: ['usd:4.5', '15.50', null], quantity: [1, 2, 1], multOverride: [null, null, 3],
-    removed: [false, false, false], pillOffset: [null, null, null], versionOk: [false, false, false], picks: [null, null, null],
+    removed: [false, false, false], sold: [false, false, false], pillOffset: [null, null, null], versionOk: [false, false, false], picks: [null, null, null],
     locked: [null, null, null], relookupBusy: [], relookupMsg: [],
   };
   const [usd, rm, auto] = computeCardData(batch, { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up', roundStep: 1, minPrice: 1 });
@@ -253,7 +258,7 @@ test('a typed price is a number above 0 with at most two decimals, or nothing', 
 const shown = (scanId: number | null = 7, sid = 'aaa'): Batch => ({
   id: 'b', scanId, postId: null, position: null, listed: [], filename: '', status: 'done',
   response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ id: 5, candidates: [{ scryfall_id: sid } as Candidate] } as DetectedCard] },
-  isFoil: [false], priceOverride: [null], quantity: [1], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false], picks: [null], locked: [null],
+  isFoil: [false], priceOverride: [null], quantity: [1], multOverride: [null], removed: [false], sold: [false], pillOffset: [null], versionOk: [false], picks: [null], locked: [null],
   relookupBusy: [false], relookupMsg: [null],
 });
 

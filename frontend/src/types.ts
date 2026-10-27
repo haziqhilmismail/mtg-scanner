@@ -153,6 +153,9 @@ export interface ScanUiState {
   quantity: number[];
   multOverride: (number | null)[];
   removed: boolean[];
+  // Why a removed card went: it sold on an earlier post, so the photo of a
+  // repost covers it. Only counts while the card is removed (Restore uncovers).
+  sold: boolean[];
   pillOffset: (PillOffset | null)[];
   // The seller said an unsure printing guess (see CardRow) is right.
   versionOk: boolean[];
@@ -211,6 +214,7 @@ export interface CardRowData {
   sel: Candidate;
   origIdx: number;
   removed: boolean;
+  sold: boolean;          // removed because it sold before: covered on the photo
   isFoil: boolean;
   isManual: boolean;
   needsPrice: boolean;

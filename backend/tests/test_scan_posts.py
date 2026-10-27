@@ -1,8 +1,9 @@
 """Scans are filed under posts: upload into one, move between them, unfile on delete."""
 
-from conftest import _dispose_then, _photo, new_user, run
+from conftest import _FakeCK, _dispose_then, _photo, new_user, run
 
 from app.db import engine
+from app.routers import posts
 from app.services.auth_service import issue_session_token
 
 
@@ -118,3 +119,52 @@ def test_photos_keep_the_order_the_seller_gives_them(client):
     # Moved to another post: unplaced there, so after its photos.
     client.post("/api/scans/move", json={"scan_ids": [b], "post_id": sunday}, headers=me)
     assert positions()[b] is None
+
+
+def test_a_repost_copies_the_photos_into_a_new_post_with_the_same_pricing(client, monkeypatch):
+    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
+    run(engine.dispose())
+    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    pricing = '{"priceMode": "live", "mult": 2.5}'
+    friday = client.post("/api/posts", data={"title": "Friday", "pricing": pricing}, headers=me).json()["id"]
+    sunday = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()["id"]
+    a, b = _upload(client, me, friday), _upload(client, me, friday)
+    elsewhere = _upload(client, me, sunday)
+    state = {"removed": [True], "sold": [True]}
+    # A printing picked but not saved yet goes into the copy, not its state.
+    pick = {"scryfall_id": "abc", "name": "Sol Ring", "set": "c21"}
+
+    class NextDay(_FakeCK):
+        def lookup(self, sid):
+            return {**super().lookup(sid), "retail_normal": 3.0}
+
+    async def next_day():
+        return NextDay()
+    monkeypatch.setattr(posts, "get_ck_index", next_day)
+
+    r = client.post(f"/api/posts/{friday}/repost", headers=me, json={
+        "title": " Friday (repost) ", "photos": [{"scan_id": a["scan_id"], "state": {**state, "picks": [pick]}}]})
+    assert r.status_code == 201, r.text
+    new_post, scans = r.json()["post"], r.json()["scans"]
+    assert (new_post["title"], new_post["pricing"]) == ("Friday (repost)", {"priceMode": "live", "mult": 2.5})
+    [copy] = scans
+    assert copy["scan_id"] not in (a["scan_id"], b["scan_id"])
+    assert (copy["post_id"], copy["ui_state"], copy["listed"]) == (new_post["id"], state, [])
+    assert copy["cards"][0]["candidates"][0]["name"] == "Sol Ring"
+    assert copy["cards"][0]["candidates"][0]["usd"] == 3.0                # today's CK price, not the scan day's
+    kept = client.post(f"/api/posts/{friday}/repost", headers=me, json={
+        "title": "x", "new_prices": False, "photos": [{"scan_id": a["scan_id"], "state": {}}]}).json()["scans"][0]
+    assert kept["cards"][0]["candidates"][0]["usd"] == 1.0                # the old post's price, if the seller asks
+    # Its own picture: the copy exports, and the original keeps its post.
+    sid = str(copy["scan_id"])
+    assert client.post("/api/export", headers=me, data={"payload": f'{{"image_id": "{sid}", "cards": [], "covers": [{{"bbox": [1, 1, 20, 28]}}]}}'}).status_code == 200
+    assert _by_post(client, me)[a["scan_id"]] == friday
+
+    # Only this post's photos, and only the seller's own post.
+    one = {"title": "x", "photos": [{"scan_id": elsewhere["scan_id"], "state": {}}]}
+    assert client.post(f"/api/posts/{friday}/repost", headers=me, json=one).status_code == 404
+    mine = {"title": "x", "photos": [{"scan_id": a["scan_id"], "state": {}}]}
+    assert client.post(f"/api/posts/{friday}/repost", headers=them, json=mine).status_code == 404
+    twice = {"title": "x", "photos": [{"scan_id": a["scan_id"], "state": {}}] * 2}
+    assert client.post(f"/api/posts/{friday}/repost", headers=me, json=twice).status_code == 400

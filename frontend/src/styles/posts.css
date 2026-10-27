@@ -263,3 +263,14 @@ label.photorow.is-selected { --ui-bg: var(--accent-soft); --ui-bg-hover: var(--a
   .postrow .ui-row-main, .photorow .ui-row-main { flex-basis: 100%; }
   .chips .ui-chip { flex-shrink: 1; min-width: 0; white-space: normal; }
 }
+
+/* Repost unsold cards */
+.repost-intro { margin: 0 0 12px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
+.repost-summary { margin: 16px 0 12px; font-size: 15px; font-weight: 600; }
+.repost-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin: 0 0 16px; padding: 0; border: 0; min-width: 0; }
+.repost-photos > legend { padding: 0; margin-bottom: 8px; }
+.repost-photo { position: relative; display: flex; flex-direction: column; gap: 4px; cursor: pointer; font-size: 13px; color: var(--ink-soft); }
+.repost-photo > img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; outline: 3px solid var(--accent-fill); outline-offset: -3px; background: var(--fill); }
+.repost-photo > input { position: absolute; z-index: 1; top: 6px; left: 6px; width: 22px; height: 22px; margin: 0; accent-color: var(--accent-fill); }
+.repost-photo:has(input:not(:checked)) > img { outline-color: transparent; opacity: .45; }
+.repost-photo:has(input:focus-visible) > img { outline: 3px solid var(--ink); }

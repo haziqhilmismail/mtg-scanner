@@ -6,6 +6,7 @@ import { Menu } from '../../components/ui/Menu.tsx';
 import { POSTS } from '../../routes.ts';
 import type { Area, Folder } from './area.tsx';
 import { RenamePostDialog } from './RenamePostDialog.tsx';
+import { RepostDialog } from './RepostDialog.tsx';
 
 export type PostPart = 'photos' | 'claims';
 
@@ -15,6 +16,7 @@ export type PostPart = 'photos' | 'claims';
 export function PostHead({ area, folder, part }: { area: Area; folder: Folder; part: PostPart }) {
   const { t, renamePost, setArchived, deletePost } = area;
   const [renaming, setRenaming] = useState(false);
+  const [reposting, setReposting] = useState(false);
   const isPost = folder.postId != null;
   const tab = (id: PostPart, label: string, n: number) => (
     // In place, like a filter: Back leaves the post rather than flipping between its parts.
@@ -39,6 +41,7 @@ export function PostHead({ area, folder, part }: { area: Area; folder: Folder; p
             <Menu
               label={t('manage_post')}
               items={[
+                { label: t('repost_post'), hint: t('repost_post_hint'), onSelect: () => setReposting(true) },
                 folder.archived
                   ? { label: t('restore_post'), hint: t('restore_post_hint'), onSelect: () => setArchived(folder, false) }
                   : { label: t('archive_post'), hint: t('archive_post_hint'), onSelect: () => setArchived(folder, true) },
@@ -64,6 +67,7 @@ export function PostHead({ area, folder, part }: { area: Area; folder: Folder; p
         </nav>
       ) : <p className="post-note"><Icon name="folder" size={18} /><span>{t('unfiled_note')}</span></p>}
       <RenamePostDialog open={renaming} title={folder.title} onClose={() => setRenaming(false)} onSave={title => renamePost(folder, title)} t={t} />
+      {isPost ? <RepostDialog open={reposting} onClose={() => setReposting(false)} area={area} folder={folder} /> : null}
     </>
   );
 }

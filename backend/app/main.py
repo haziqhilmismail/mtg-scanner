@@ -49,7 +49,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select
 
-from .config import DATA_DIR, settings
+from .config import DATA_DIR, SCANS_DIR, settings
 from .db import async_session_factory
 from .deps import CurrentUserId, DbSession, limiter
 
@@ -82,8 +82,6 @@ from .services.scryfall_lookup import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-SCANS_DIR = DATA_DIR / "scans"
-SCANS_DIR.mkdir(exist_ok=True)
 
 
 @asynccontextmanager
@@ -786,17 +784,25 @@ async def _resolve_export_image(db: DbSession, user_id: int, image_id: str) -> b
     raise HTTPException(404, "image_id not found (re-upload the image)")
 
 
+def _card_shape(c: dict) -> dict | None:
+    """A payload card's bbox and corners, checked; None when it has no bbox."""
+    bbox = c.get("bbox")
+    if not isinstance(bbox, list) or len(bbox) != 4:
+        return None
+    corners = c.get("corners")
+    if not (isinstance(corners, list) and len(corners) == 4
+            and all(isinstance(p, list) and len(p) == 2 for p in corners)):
+        corners = None
+    return {"bbox": bbox, "corners": corners}
+
+
 def _render_export(data: dict, raw: bytes) -> bytes:
     """Render one priced-overlay JPEG from an export payload dict + source bytes."""
     cards = []
     for c in data.get("cards", []):
-        bbox = c.get("bbox")
-        if not bbox or len(bbox) != 4:
+        shape = _card_shape(c)
+        if not shape:
             continue
-        corners = c.get("corners")
-        if not (isinstance(corners, list) and len(corners) == 4
-                and all(isinstance(p, list) and len(p) == 2 for p in corners)):
-            corners = None
         try:
             pill_dx = int(c.get("pill_dx") or 0)
         except (TypeError, ValueError):
@@ -806,8 +812,7 @@ def _render_export(data: dict, raw: bytes) -> bytes:
         except (TypeError, ValueError):
             pill_dy = 0
         cards.append({
-            "bbox": bbox,
-            "corners": corners,
+            **shape,
             "label": c.get("label_override") or c.get("label") or "",
             "is_foil": bool(c.get("is_foil", False)),
             "pill_dx": pill_dx,
@@ -821,11 +826,15 @@ def _render_export(data: dict, raw: bytes) -> bytes:
     except (TypeError, ValueError):
         font_scale = 1.0
 
+    # Sold cards on a repost: covered on the photo.
+    covers = [shape for c in data.get("covers") or [] if isinstance(c, dict) and (shape := _card_shape(c))]
+
     return render_overlay(
         raw, cards,
         show_outlines=show_outlines,
         label_position=label_position,
         font_scale=font_scale,
+        covers=covers,
     )
 
 

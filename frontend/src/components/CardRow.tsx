@@ -77,7 +77,7 @@ export function CardRow({
     return (
       <article className="photo-tile is-removed">
         <span className="photo-tile-num">{num}</span>
-        <p className="photo-tile-removed"><strong>{t('photo_removed')}</strong> · {name}</p>
+        <p className="photo-tile-removed"><strong>{t(cd.sold ? 'photo_sold' : 'photo_removed')}</strong> · {name}</p>
         {locked ? null : (
           <button type="button" className="ui-btn ui-btn--plain" aria-label={t('photo_restore_card', { name })} onClick={onRestore}>{t('photo_restore')}</button>
         )}

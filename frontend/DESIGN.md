@@ -361,8 +361,18 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
   - **Reorder** shows ↑/↓ buttons on each row and **Save order**.
   - **Select** shows a checkbox on each row and the sticky bar (Download · Delete).
 - **Manage post:** a ⋯ button next to the title (`aria-label="Manage post"`) opens a small menu, anchored to the button:
+  - **Repost unsold cards:** "A new post of these photos, with the sold cards covered." It opens the **Repost** dialog (below).
   - **Archive post:** "Hides it from Posts. Claims stay, and you can bring it back." It shows a toast with Undo.
   - **Delete post:** "Removes its photos, cards and claims for good." It opens the confirm dialog.
+
+### Repost unsold cards
+
+A new post for what is left after a post sells: the same photos, with the sold cards covered.
+
+- **Dialog:** "Repost unsold cards". One line says what happens, then **Name of the new post** (default "Friday Post (repost)"), then the checkbox **Use the CK prices of today** (on at first; hint "Off: the cards keep the prices of this post."), then the counts read from the post's claims ("7 photos · 36 cards left · 14 sold cards covered"), then **Photos to repost**: a grid of the photos with a card left, each a square picture with a checkbox and "N cards left" under it. All are on at first; an unchecked photo fades, and the counts follow the photos chosen. Footer: **Cancel** and **Make new post**. With nothing left, or no photo chosen ("Choose at least 1 photo."), it says so and **Make new post** stays disabled.
+- **What counts as sold:** a card whose every copy is claimed (any claim not cancelled). A card partly claimed stays, with only the copies left. A photo with nothing left is not copied.
+- **The new post:** its own copies of the photos, with the same pricing, today's CK prices unless the seller turns that off, and nothing finished yet. Prices the seller typed stay. The seller finishes it as any new post. The old post, its claims and its buyers stay as they are.
+- **A sold card:** removed, and marked Sold. On the photo (the preview and every download) it is blurred, darkened, and carries a `SOLD` pill in the price-pill style. Its tile row reads "Sold · {name}", and **Restore** brings it back uncovered. The photo meta counts it apart: "5 cards · 3 sold".
 
 ### Photo
 
@@ -450,6 +460,7 @@ Tile: `--surface` on the photo's `--paper` section, radius 18, padding 12. From 
   - The `≈` is the same size as the number, weight 400, in `--ink-soft`.
   - Once per page, say when the price gets set: "Each buyer's price is set when you send them their total."
   - Buyer messages never carry `≈`: copying the message is the moment the price is set.
+  - The photo shows no prices, so a foil card always carries an `F` pill, whatever the Foil mark setting: `F` alone, `RM12F` on a card with its own RM price, `CK ×3 · F` on one with its own multiplier.
 - **Totals:** a label with a count ("Total · 12 cards"), with the amount as a big number.
 - **Color meanings:** money in is `--green`, and foil is `--gold`. Nothing else uses gold, including progress bars, Paid and highlights.
 

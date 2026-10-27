@@ -92,7 +92,8 @@ export function ActiveBatchView({
   const data = batch.response;
   const locked = !!batch.lockedAt;
   const visible = cardData.filter(cd => !cd.removed);
-  const removedCount = cardData.length - visible.length;
+  const covered = cardData.filter(cd => cd.sold);
+  const removedCount = cardData.length - visible.length - covered.length;
   const isAdded = (cd: CardRowData) => batch.listed.includes(bboxKey(cd.card.bbox));
   const priced = (cd: CardRowData) => Number.isFinite(cd.unitPrice);
   const pending = notAdded(batch, visible).length;
@@ -207,13 +208,13 @@ export function ActiveBatchView({
         <h2 className="photo-panel-title" id={`photo-title-${batch.id}`}>{photoName}</h2>
         {photoNumber != null ? <p className="photo-panel-file" title={batch.filename}>{batch.filename}</p> : null}
         <p className="photo-panel-meta">
-          {cardsLabel(visible.length)}{removedCount ? ` · ${t('photo_n_removed', { n: removedCount })}` : ''} · {data.width}×{data.height}
+          {cardsLabel(visible.length)}{covered.length ? ` · ${t('photo_n_sold', { n: covered.length })}` : ''}{removedCount ? ` · ${t('photo_n_removed', { n: removedCount })}` : ''} · {data.width}×{data.height}
         </p>
       </header>
       <div className="photo-panel-body">
         <div className="photo-panel-photo">
           <div className="photo-frame" style={{ width: `min(100%, calc(70vh * ${data.width / data.height}))` }}>
-            <BatchPreview src={data.image_b64} width={data.width} height={data.height} cards={visible} settings={settings} label={t('photo_alt', { name: photoName })} />
+            <BatchPreview src={data.image_b64} width={data.width} height={data.height} cards={visible} covers={covered} settings={settings} label={t('photo_alt', { name: photoName })} />
             <button type="button" className="photo-expand" aria-label={t('photo_expand', { name: photoName })} onClick={() => setView({ card: null, side: 0, open: true })}>
               <Icon name="expand" size={16} />
             </button>
@@ -281,7 +282,7 @@ export function ActiveBatchView({
         <PhotoViewer
           open={view.open} onClose={() => setView(v => (v ? { ...v, open: false } : v))}
           label={t('photo_expand', { name: photoName })} closeLabel={t('voucher_close')}
-          media={<BatchPreview src={data.image_b64} width={data.width} height={data.height} cards={visible} settings={settings} label={t('photo_alt', { name: photoName })} className="is-full" />}
+          media={<BatchPreview src={data.image_b64} width={data.width} height={data.height} cards={visible} covers={covered} settings={settings} label={t('photo_alt', { name: photoName })} className="is-full" />}
         >
           <p className="ui-viewer-caption photo-viewer-caption"><strong>{photoName}</strong>{photoNumber != null ? <span>{batch.filename}</span> : null}</p>
         </PhotoViewer>
