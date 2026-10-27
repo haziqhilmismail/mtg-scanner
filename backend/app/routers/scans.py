@@ -75,31 +75,56 @@ async def list_scans(
         .order_by(Listing.id)
     )).all():
         listed.setdefault(scan_id, []).append(bbox)
-    out = []
-    for s in rows:
-        payload = s.gemini_raw or {}
-        cards = payload.get("cards", [])
-        if lite:
-            cards = [{**c, "crop_b64": ""} for c in cards]
-        out.append({
-            "image_id": str(s.id),
-            "scan_id": s.id,
-            "post_id": s.post_id,
-            "filename": s.filename,
-            "image_b64": "" if lite else payload.get("image_b64", ""),
-            "width": s.width,
-            "height": s.height,
-            "cards": cards,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-            "position": s.position,
-            "ui_state": s.ui_state,
-            "listed": listed.get(s.id, []),
-        })
-    return out
+    return [scan_out(s, listed.get(s.id, []), lite) for s in rows]
+
+
+def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:
+    """A saved scan as the client rehydrates it (see list_scans)."""
+    payload = s.gemini_raw or {}
+    cards = payload.get("cards", [])
+    if lite:
+        cards = [{**c, "crop_b64": ""} for c in cards]
+    return {
+        "image_id": str(s.id),
+        "scan_id": s.id,
+        "post_id": s.post_id,
+        "filename": s.filename,
+        "image_b64": "" if lite else payload.get("image_b64", ""),
+        "width": s.width,
+        "height": s.height,
+        "cards": cards,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+        "position": s.position,
+        "ui_state": s.ui_state,
+        "listed": listed,
+    }
 
 
 class ScanState(BaseModel):
     state: dict
+
+
+def split_state(raw: dict, n_cards: int) -> tuple[dict, list | None]:
+    """A client's per-card edits, checked: the state to store, and the picks
+    taken out of it (see save_scan_state)."""
+    if len(json.dumps(raw)) > 64 * 1024:
+        raise HTTPException(413, "State too large (max 64 KB)")
+    state = dict(raw)
+    picks = state.pop("picks", None)
+    if picks is not None and not (
+        isinstance(picks, list)
+        and len(picks) <= n_cards
+        and all(p is None or (isinstance(p, dict) and isinstance(p.get("name"), str)) for p in picks)
+    ):
+        raise HTTPException(400, "picks must be a list of null or a candidate with a name, one per card")
+    return state, picks
+
+
+def apply_picks(payload: dict, picks: list | None) -> None:
+    """Each pick becomes its card's first candidate in the saved scan."""
+    for card, pick in zip(payload["cards"], picks or []):
+        if pick is not None:
+            card["candidates"] = [pick, *(card.get("candidates") or [])[1:]]
 
 
 @router.patch("/{scan_id}/state", status_code=204)
@@ -111,16 +136,7 @@ async def save_scan_state(scan_id: ScanId, body: ScanState, db: DbSession, user_
     chose for a card. They are not kept in ui_state: each one replaces the
     card's first candidate in the saved scan, so every later read sees it."""
     scan_row = await _own_scan(db, scan_id, user_id)
-    if len(json.dumps(body.state)) > 64 * 1024:
-        raise HTTPException(413, "State too large (max 64 KB)")
-    state = dict(body.state)
-    picks = state.pop("picks", None)
-    if picks is not None and not (
-        isinstance(picks, list)
-        and len(picks) <= len((scan_row.gemini_raw or {}).get("cards", []))
-        and all(p is None or (isinstance(p, dict) and isinstance(p.get("name"), str)) for p in picks)
-    ):
-        raise HTTPException(400, "picks must be a list of null or a candidate with a name, one per card")
+    state, picks = split_state(body.state, len((scan_row.gemini_raw or {}).get("cards", [])))
     # One conditional UPDATE, so two saves arriving together can't both pass a
     # read-then-compare and leave the older one stored.
     rev = state.get("rev")
@@ -144,9 +160,7 @@ async def save_scan_state(scan_id: ScanId, body: ScanState, db: DbSession, user_
     # re-read and write can't interleave with another writer of this scan.
     await db.refresh(scan_row, ["gemini_raw"])
     payload = scan_row.gemini_raw
-    for card, pick in zip(payload["cards"], picks):
-        if pick is not None:
-            card["candidates"] = [pick, *(card.get("candidates") or [])[1:]]
+    apply_picks(payload, picks)
     scan_row.gemini_raw = payload
     flag_modified(scan_row, "gemini_raw")
 
@@ -277,6 +291,25 @@ async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
     await db.delete(scan_row)
 
 
+def refresh_prices(payload: dict, ck_index) -> int:
+    """Today's CK prices on every candidate of a scan's payload, in place.
+    Returns how many candidates got a price row."""
+    cards = payload.get("cards", []) or []
+    updated = 0
+    for card in cards:
+        cands = card.get("candidates", []) or []
+        for i, cand in enumerate(cands):
+            if not cand:
+                continue
+            new_cand = enrich_with_ck(cand, ck_index)
+            if new_cand:
+                cands[i] = new_cand
+                updated += 1
+        card["candidates"] = cands
+    payload["cards"] = cards
+    return updated
+
+
 @router.post("/{scan_id}/relookup-prices")
 @limiter.limit("30/minute")
 async def relookup_scan_prices(
@@ -290,22 +323,8 @@ async def relookup_scan_prices(
     scan_row = await _own_scan(db, scan_id, user_id)
 
     payload = scan_row.gemini_raw or {}
-    cards = payload.get("cards", [])
-    ck_index = await get_ck_index()
-
-    updated = 0
-    for card in cards:
-        cands = card.get("candidates", []) or []
-        for i, cand in enumerate(cands):
-            if not cand:
-                continue
-            new_cand = enrich_with_ck(cand, ck_index)
-            if new_cand:
-                cands[i] = new_cand
-                updated += 1
-        card["candidates"] = cands
-
-    payload["cards"] = cards
+    updated = refresh_prices(payload, await get_ck_index())
+    cards = payload["cards"]
     scan_row.gemini_raw = payload
     # JSON column needs an explicit mark — SQLAlchemy doesn't detect
     # in-place dict mutation.

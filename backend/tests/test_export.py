@@ -38,3 +38,24 @@ def test_export_is_a_jpeg_and_the_zip_keeps_the_post_order_names(client):
             "photo.jpg",
         ]
         assert all(Image.open(BytesIO(zf.read(n))).format == "JPEG" for n in zf.namelist())
+
+
+def test_a_sold_card_is_blurred_and_darkened_and_the_rest_of_the_photo_is_not():
+    from PIL import ImageStat
+
+    from app.services.price_overlay import render_overlay
+
+    # Fine black-and-white stripes: sharp, so a blur shows as lost contrast.
+    photo = Image.new("RGB", (600, 400), "white")
+    for x in range(0, 600, 4):
+        photo.paste((0, 0, 0), (x, 0, x + 2, 400))
+    buf = BytesIO()
+    photo.save(buf, format="PNG")
+
+    out = Image.open(BytesIO(render_overlay(buf.getvalue(), [], covers=[{"bbox": [40, 40, 140, 196]}]))).convert("L")
+    # Inside the sold card, away from its SOLD pill; then a patch outside it.
+    sold = ImageStat.Stat(out.crop((50, 50, 170, 90)))
+    kept = ImageStat.Stat(out.crop((400, 50, 520, 90)))
+    assert sold.stddev[0] < kept.stddev[0] / 4      # the stripes are gone
+    assert sold.mean[0] < kept.mean[0] - 20         # and it is darker
+    assert kept.stddev[0] > 100                     # the rest stays sharp

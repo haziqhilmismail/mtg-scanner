@@ -4,15 +4,19 @@ as regular Listing rows with `post_id` set.
 
 We never query Facebook. The URL is reference-only."""
 
+import asyncio
+import copy
+import os
+import shutil
 from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
-from pydantic import BaseModel, Json
+from pydantic import BaseModel, Field, Json
 from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import selectinload
 
-from ..config import DATA_DIR
+from ..config import DATA_DIR, SCANS_DIR
 from ..deps import CurrentUserId, DbSession, ImageUserId, check_pricing_size
 from ..models import (
     Listing,
@@ -25,6 +29,8 @@ from ..models import (
     Scan,
 )
 from ..schemas import PostReadWithStats, PostUpdate
+from ..services.cardkingdom_prices import get_index as get_ck_index
+from .scans import apply_picks, refresh_prices, scan_out, split_state
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
@@ -186,6 +192,87 @@ async def create_post(
     # the greenlet bridge.
     await db.refresh(post)
     return await _build_read_with_stats(db, post)
+
+
+class RepostPhoto(BaseModel):
+    scan_id: int
+    # The copy's per-card edits, built by the client, which owns their shape:
+    # the sold cards removed and marked sold, so the photo covers them.
+    state: dict
+
+
+class Repost(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    photos: list[RepostPhoto] = Field(..., min_length=1, max_length=100)
+    # A new post is a new day: today's CK prices, unless the seller keeps the old post's.
+    new_prices: bool = True
+
+
+@router.post("/{post_id}/repost", status_code=201)
+async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUserId) -> dict:
+    """A new post of this post's photos, for the cards still unsold: each photo
+    copied (its picture on disk too) with the edits the client sends, checked
+    as PATCH /api/scans/{id}/state checks them. The new post takes this post's
+    pricing, and its cards today's CK prices unless `new_prices` is off. The copies have no cards on the post yet: the seller finishes
+    them, as on any new post. Returns the new post and its photos as
+    GET /api/scans lists them (lite)."""
+    post = await db.get(Post, post_id)
+    if not post or post.user_id != user_id:
+        raise HTTPException(404, "Post not found")
+    ids = [p.scan_id for p in body.photos]
+    if len(set(ids)) != len(ids):
+        raise HTTPException(400, "A photo is listed twice")
+    found = {s.id: s for s in (await db.execute(
+        select(Scan).where(Scan.id.in_(ids), Scan.user_id == user_id, Scan.post_id == post_id)
+    )).scalars().all()}
+    if len(found) != len(ids):
+        raise HTTPException(404, "Photo not found in this post")
+    if any(not (s.image_path and Path(s.image_path).exists()) for s in found.values()):
+        raise HTTPException(409, "A photo's picture is missing on the server")
+
+    new_post = Post(user_id=user_id, title=body.title.strip(), pricing=copy.deepcopy(post.pricing))
+    db.add(new_post)
+    await db.flush()
+    ck_index = await get_ck_index() if body.new_prices else None
+    copies: list[Scan] = []
+    written: list[Path] = []
+    try:
+        for photo in body.photos:
+            src = found[photo.scan_id]
+            payload = copy.deepcopy(src.gemini_raw) or {}
+            state, picks = split_state(photo.state, len(payload.get("cards", [])))
+            apply_picks(payload, picks)
+            if ck_index:
+                refresh_prices(payload, ck_index)
+            dup = Scan(
+                user_id=user_id, post_id=new_post.id, position=src.position, filename=src.filename,
+                width=src.width, height=src.height, gemini_raw=payload, ui_state=state,
+            )
+            db.add(dup)
+            await db.flush()
+            dst = SCANS_DIR / f"{dup.id}.bin"
+            # A scan's picture never changes once saved, so a hard link is a
+            # full copy that takes no time and no space.
+            try:
+                os.link(src.image_path, dst)
+            except OSError:
+                await asyncio.to_thread(shutil.copyfile, src.image_path, dst)
+            written.append(dst)
+            dup.image_path = str(dst)
+            copies.append(dup)
+        await db.flush()
+    except BaseException:
+        # The rows roll back with the request; their pictures go too.
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
+    await db.refresh(new_post)
+    for dup in copies:
+        await db.refresh(dup)
+    return {
+        "post": await _build_read_with_stats(db, new_post),
+        "scans": [scan_out(dup, [], lite=True) for dup in copies],
+    }
 
 
 @router.get("/{post_id}", response_model=PostReadWithStats)

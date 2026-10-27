@@ -29,12 +29,88 @@ def _load_font(size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default()
 
 
+def _polygon(c: dict) -> list[tuple[int, int]]:
+    """A card's outline: its 4-point quad when known, else its bbox."""
+    corners = c.get("corners")
+    if corners and len(corners) == 4:
+        return [(int(px), int(py)) for px, py in corners]
+    x, y, w, h = c["bbox"]
+    return [(int(x), int(y)), (int(x + w), int(y)), (int(x + w), int(y + h)), (int(x), int(y + h))]
+
+
+class _Pill:
+    """A pill's text measured once: its size, and where the text sits in it."""
+
+    def __init__(self, draw, label: str, font, base_font_size: int):
+        self.label, self.font, self.base = label, font, base_font_size
+        self.text_box = draw.textbbox((0, 0), label, font=font)
+        self.pad_x = max(12, base_font_size // 2)
+        self.pad_y = max(8, base_font_size // 3)
+        self.w = self.text_box[2] - self.text_box[0] + self.pad_x * 2
+        self.h = self.text_box[3] - self.text_box[1] + self.pad_y * 2
+
+    def clamp(self, x: int, y: int, W: int, H: int) -> tuple[int, int]:
+        """(x, y) moved inside the photo, 4px from its edges."""
+        return max(4, min(W - self.w - 4, x)), max(4, min(H - self.h - 4, y))
+
+    def draw(self, fg_draw, sh_draw, x: int, y: int, is_foil: bool = False) -> None:
+        """The pill at (x, y): its drop shadow, the fill and ring, the text."""
+        radius = max(6, self.base // 3)
+
+        # Drop shadow (slightly offset, drawn solid; blurred later)
+        offset = max(2, self.base // 10)
+        sh_draw.rounded_rectangle(
+            [x + offset, y + offset, x + self.w + offset, y + self.h + offset],
+            radius=radius, fill=(0, 0, 0, 130),
+        )
+
+        # Pill background
+        if is_foil:
+            bg_color = (240, 195, 50, 250)
+            text_color = (25, 20, 10, 255)
+        else:
+            bg_color = (20, 20, 20, 245)
+            text_color = (255, 255, 255, 255)
+
+        # The ring: gold on a foil pill; on the dark pill, 18% white
+        # pre-blended, since the layer stores the colour instead of blending it.
+        ring = (255, 230, 130, 255) if is_foil else (62, 62, 62, 245)
+        fg_draw.rounded_rectangle([x, y, x + self.w, y + self.h], radius=radius, fill=bg_color, outline=ring, width=2)
+        fg_draw.text(
+            (x + self.pad_x - self.text_box[0], y + self.pad_y - self.text_box[1]),
+            self.label, font=self.font, fill=text_color,
+        )
+
+
+# A sold card's cover; BatchPreview.tsx draws the same in the preview.
+COVER_SHADE = 120  # alpha of the black over it (0.47)
+
+
+def _cover_blur(W: int, H: int) -> int:
+    return max(10, min(W, H) // 50)
+
+
+def _cover_sold(pil: Image.Image, covers: list[dict]) -> Image.Image:
+    """Each sold card blurred past reading and darkened, so a repost of the
+    photo shows what is left without hiding the photo itself."""
+    W, H = pil.size
+    blurred = pil.filter(ImageFilter.GaussianBlur(radius=_cover_blur(W, H)))
+    mask = Image.new("L", pil.size, 0)
+    shade = Image.new("RGBA", pil.size, (0, 0, 0, 0))
+    mask_draw, shade_draw = ImageDraw.Draw(mask), ImageDraw.Draw(shade)
+    for c in covers:
+        mask_draw.polygon(_polygon(c), fill=255)
+        shade_draw.polygon(_polygon(c), fill=(0, 0, 0, COVER_SHADE))
+    return Image.alpha_composite(Image.composite(blurred, pil, mask), shade)
+
+
 def render_overlay(
     image_bytes: bytes,
     cards: list[dict],
     show_outlines: bool = False,
     label_position: str = "bottom",
     font_scale: float = 1.0,
+    covers: list[dict] | None = None,
 ) -> bytes:
     """
     image_bytes : original photo bytes
@@ -54,12 +130,16 @@ def render_overlay(
     font_scale : multiplier on the auto-scaled base font size (default 1.0).
                  Clamped to [0.5, 3.0] so a malformed payload can't blow up
                  the pill to fill the whole photo.
+    covers : sold cards, each a dict with bbox and optional corners: blurred,
+             darkened and marked SOLD (a repost of the photo).
 
     Returns JPEG-encoded bytes: a fifth of the PNG size for a photo, which
     matters when a phone shares a whole post.
     """
     pil = Image.open(BytesIO(image_bytes)).convert("RGBA")
     W, H = pil.size
+    if covers:
+        pil = _cover_sold(pil, covers)
 
     # Drop-shadow layer (drawn first, blurred, then composited)
     shadow_layer = Image.new("RGBA", pil.size, (0, 0, 0, 0))
@@ -83,7 +163,6 @@ def render_overlay(
 
     for c in cards:
         raw_x, raw_y, raw_w, raw_h = c["bbox"]
-        corners = c.get("corners")
         label = (c.get("label") or "").strip()
         is_foil = bool(c.get("is_foil", False))
 
@@ -92,14 +171,7 @@ def render_overlay(
         # outline follows the card's tilt instead of an axis-aligned rectangle.
         if show_outlines:
             line_color = (220, 170, 30, 220) if is_foil else (50, 180, 100, 220)
-            if corners and len(corners) == 4:
-                pts = [(int(px), int(py)) for px, py in corners]
-                fg_draw.polygon(pts, outline=line_color, width=line_width)
-            else:
-                fg_draw.rectangle(
-                    [raw_x, raw_y, raw_x + raw_w, raw_y + raw_h],
-                    outline=line_color, width=line_width,
-                )
+            fg_draw.polygon(_polygon(c), outline=line_color, width=line_width)
 
         if not label:
             continue
@@ -123,14 +195,8 @@ def render_overlay(
         h = int(card_h)
         x2, y2 = x + w, y + h
 
-        # Measure label
-        bbox = fg_draw.textbbox((0, 0), label, font=font)
-        tw = bbox[2] - bbox[0]
-        th = bbox[3] - bbox[1]
-        pad_x = max(12, base_font_size // 2)
-        pad_y = max(8, base_font_size // 3)
-        rect_w = tw + pad_x * 2
-        rect_h = th + pad_y * 2
+        pill = _Pill(fg_draw, label, font, base_font_size)
+        rect_w, rect_h = pill.w, pill.h
 
         card_cx = x + w // 2
         if label_position == "top":
@@ -150,41 +216,13 @@ def render_overlay(
         rect_x += pill_dx
         rect_y += pill_dy
 
-        # Clamp inside image
-        rect_x = max(4, min(W - rect_w - 4, rect_x))
-        rect_y = max(4, min(H - rect_h - 4, rect_y))
+        pill.draw(fg_draw, sh_draw, *pill.clamp(rect_x, rect_y, W, H), is_foil)
 
-        radius = max(6, base_font_size // 3)
-
-        # Drop shadow (slightly offset, drawn solid; blurred later)
-        shadow_offset = max(2, base_font_size // 10)
-        sh_draw.rounded_rectangle(
-            [rect_x + shadow_offset, rect_y + shadow_offset,
-             rect_x + rect_w + shadow_offset, rect_y + rect_h + shadow_offset],
-            radius=radius,
-            fill=(0, 0, 0, 130),
-        )
-
-        # Pill background
-        if is_foil:
-            bg_color = (240, 195, 50, 250)
-            text_color = (25, 20, 10, 255)
-        else:
-            bg_color = (20, 20, 20, 245)
-            text_color = (255, 255, 255, 255)
-
-        # The ring: gold on a foil pill; on the dark pill, 18% white
-        # pre-blended, since the layer stores the colour instead of blending it.
-        ring = (255, 230, 130, 255) if is_foil else (62, 62, 62, 245)
-        fg_draw.rounded_rectangle(
-            [rect_x, rect_y, rect_x + rect_w, rect_y + rect_h],
-            radius=radius, fill=bg_color, outline=ring, width=2,
-        )
-
-        fg_draw.text(
-            (rect_x + pad_x - bbox[0], rect_y + pad_y - bbox[1]),
-            label, font=font, fill=text_color,
-        )
+    # SOLD across the middle of each sold card.
+    sold = _Pill(fg_draw, "SOLD", font, base_font_size)
+    for c in covers or []:
+        x, y, w, h = c["bbox"]
+        sold.draw(fg_draw, sh_draw, *sold.clamp(int(x + w / 2 - sold.w / 2), int(y + h / 2 - sold.h / 2), W, H))
 
     # Blur the shadow layer
     shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=base_font_size // 4))

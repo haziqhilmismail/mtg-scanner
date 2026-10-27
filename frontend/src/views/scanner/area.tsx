@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { relookupScanPrices, type ExportPayload, type Health } from '../../api.ts';
+import { relookupScanPrices, repostPost, type ExportPayload, type Health } from '../../api.ts';
 import { listingsApi, postsApi, type Post } from '../../api/checklist.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { countText, summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
@@ -10,6 +10,7 @@ import { readStored, writeStored } from '../../hooks/usePersistedState.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { migrateAdded } from '../../lib/addedMarkers.ts';
+import type { RepostPhoto } from '../../lib/repost.ts';
 import { photoFileName } from '../../lib/photoFiles.ts';
 import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
 import type { Batch, CardRowData, PriceMode, Settings } from '../../types.ts';
@@ -51,9 +52,11 @@ export interface ScannerProps {
 function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | null {
   if (!batch.response) return null;
   // A card added by hand has no spot on the photo, so it gets no label there.
-  const visible = computeCardData(batch, settings).filter(cd => !cd.removed && cd.card.bbox_source !== 'user');
+  const onPhoto = computeCardData(batch, settings).filter(cd => cd.card.bbox_source !== 'user');
+  const visible = onPhoto.filter(cd => !cd.removed);
   return {
     image_id: batch.response.image_id,
+    covers: onPhoto.filter(cd => cd.sold).map(cd => ({ bbox: cd.card.bbox, corners: cd.card.corners })),
     show_outlines: settings.showOutlines,
     label_position: settings.labelPosition,
     font_scale: settings.labelFontScale,
@@ -509,10 +512,27 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     toast(t('post_deleted_toast'));
   }, [dialog, toast, scanner, current, replace, refreshPosts, setArchived, t]);
 
+  // A new post of a post's photos with the sold cards covered (lib/repost.ts),
+  // then open it.
+  const repost = useCallback(async (folder: Folder, title: string, photos: RepostPhoto[], newPrices: boolean) => {
+    if (folder.postId == null) return false;
+    try {
+      const { post, scans } = await repostPost(folder.postId, title, photos, newPrices);
+      scanner.addSaved(scans);
+      await refreshPosts();
+      go({ page: 'post', folder: folderOf(post.id) });
+      toast(t('repost_done_toast'));
+      return true;
+    } catch (e) {
+      await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
+      return false;
+    }
+  }, [scanner, refreshPosts, go, toast, dialog, t]);
+
   return {
     scanner, pricing, pricingFor, health, t, lang, route, go, replace,
     loading, postsById, pickerPosts, postTitle, refreshPosts,
-    liveFolders, archivedFolders, openFolder, activeBatch, numbers, sharePhone, ready, finishing, share, finishPhoto, deliverPhoto, editPrices, explainFinish, runFinishAll, addCard, takeOutCard, refreshScanPrices, deletePhotos, renamePost, setArchived, deletePost, moveTo, startPost, unfiledFolder, exportJob,
+    liveFolders, archivedFolders, openFolder, activeBatch, numbers, sharePhone, ready, finishing, share, finishPhoto, deliverPhoto, editPrices, explainFinish, runFinishAll, addCard, takeOutCard, refreshScanPrices, deletePhotos, renamePost, setArchived, deletePost, repost, moveTo, startPost, unfiledFolder, exportJob,
     sort, setSort, openPhoto, liveNavIds, navIndex, step,
   };
 }

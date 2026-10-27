@@ -216,6 +216,7 @@ export function addPhoto(f: Fixture, post: Post | null, spec: PhotoSpec): Photo 
     quantity: cards.map(c => c.qty ?? 1),
     multOverride: cards.map(c => c.mult ?? null),
     removed: cards.map(c => !!c.removed),
+    sold: cards.map(() => false),
     pillOffset: cards.map(() => null),
     versionOk: cards.map(() => false),
     picks: cards.map(() => null),

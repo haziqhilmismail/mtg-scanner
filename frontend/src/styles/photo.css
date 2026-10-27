@@ -31,6 +31,8 @@
    price_overlay.py, so the photo on screen matches the one downloaded. */
 .card-outline { fill: rgba(10, 132, 255, 0.08); stroke: #0a84ff; stroke-width: 6; stroke-linejoin: round; opacity: 0.95; }
 .card-outline.foil { stroke: #ffcc00; fill: rgba(255, 204, 0, 0.1); }
+/* A sold card on a repost: the shade the download puts on it (price_overlay.py COVER_SHADE, 120 of 255). */
+.preview-cover { fill: rgba(0, 0, 0, 0.47); }
 .preview-pill rect { fill: #141414; stroke: rgba(255, 255, 255, 0.18); stroke-width: 2; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35)); }
 .preview-pill text { fill: #ffffff; font-weight: 700; pointer-events: none; user-select: none; }
 .preview-pill.foil rect { fill: #f0c332; stroke: rgba(255, 230, 130, 0.9); }

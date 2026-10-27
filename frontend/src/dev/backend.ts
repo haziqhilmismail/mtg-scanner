@@ -129,6 +129,25 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       const pricing = form.get('pricing');
       return json(postRead(newPost(f, { title, pricing: typeof pricing === 'string' ? JSON.parse(pricing) : null })), 201);
     }],
+    ['POST', route('/api/posts/:id/repost'), async ({ params: { id }, req }) => {
+      const post = find(f.posts, id);
+      if (!post) return notFound('Post not found');
+      const body: { title: string; photos: Array<{ scan_id: number; state: unknown }> } = await req.json();
+      const sources = body.photos.map(p => f.scans.find(s => s.scan_id === p.scan_id && s.post_id === post.id));
+      if (sources.some(s => !s)) return notFound('Photo not found in this post');
+      const copy = newPost(f, { title: body.title.trim(), pricing: post.pricing });
+      const scans = sources.map((src, i) => {
+        const scan_id = Math.max(...f.scans.map(s => s.scan_id)) + 1;
+        const dup: SavedScan = { ...src!, scan_id, image_id: String(scan_id), post_id: copy.id, ui_state: body.photos[i].state, created_at: ago(0) };
+        f.scans.push(dup);
+        for (const [path, url] of [...f.images]) {
+          const prefix = `/api/scans/${src!.scan_id}/`;
+          if (path.startsWith(prefix)) f.images.set(`/api/scans/${scan_id}/${path.slice(prefix.length)}`, url);
+        }
+        return scanRead(dup, true);
+      });
+      return json({ post: postRead(copy), scans }, 201);
+    }],
     ['PATCH', route('/api/posts/:id'), async ({ params: { id }, req }) => {
       const post = find(f.posts, id);
       if (!post) return notFound('Post not found');

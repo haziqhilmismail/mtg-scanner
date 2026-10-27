@@ -80,11 +80,14 @@ export function pillLabel(
 
 // What a card's label on the photo says ('' = no label), on screen and in the
 // exported image alike. A live-price post prints only what CK won't decide:
-// an RM price set on the card, or the card's own multiplier.
+// an RM price set on the card, or the card's own multiplier. There a foil
+// card always says so with F, whatever the foil mark setting: with no price
+// on the photo, nothing else tells a buyer it is the foil.
 export function photoLabel(cd: CardRowData, settings: Settings): string {
   if (settings.priceMode === 'live') {
-    if (cd.hasOverride && Number.isFinite(cd.unitPrice)) return pillLabel(cd, settings);
-    return cd.hasMultOverride ? `CK ×${cd.mult}` : '';
+    if (cd.hasOverride && Number.isFinite(cd.unitPrice)) return pillLabel(cd, { ...settings, foilStyle: cd.isFoil ? 'suffix' : settings.foilStyle });
+    const own = cd.hasMultOverride ? `CK ×${cd.mult}` : '';
+    return !cd.isFoil ? own : own ? `${own} · F` : 'F';
   }
   if (cd.needsPrice || !Number.isFinite(cd.unitPrice)) return '';
   return pillLabel(cd, settings);
@@ -246,6 +249,7 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
     const isManual = !!sel._manual;
     const isFoil = batch.isFoil[origIdx] ?? false;
     const removed = !!batch.removed[origIdx];
+    const sold = removed && !!batch.sold[origIdx];
     const usd = isFoil ? (sel.usd_foil || sel.usd || 0) : (sel.usd || 0);
     const globalMult = isFoil ? settings.multFoil : settings.multNormal;
     const multRaw = batch.multOverride[origIdx];
@@ -272,7 +276,7 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
     const lock = batch.lockedAt ? batch.locked[origIdx] : null;
     if (lock) {
       return {
-        card: c, sel, origIdx, removed, isFoil, isManual, needsPrice: false,
+        card: c, sel, origIdx, removed, sold, isFoil, isManual, needsPrice: false,
         usd: lock.usd, mult: lock.mult, globalMult, hasMultOverride,
         autoPrice: lock.manual ? autoPrice : lock.price, qty, unitPrice: lock.price,
         hasOverride: lock.manual, ownUsd: null, lineTotal: lock.price * qty, source: (lock.manual ? 'manual' : 'cardkingdom') as CardRowData['source'],
@@ -285,7 +289,7 @@ export function computeCardData(batch: Batch, settings: Settings): CardRowData[]
         ? (sel.price_source_foil || 'none')
         : (sel.price_source_normal || 'none')) as CardRowData['source'];
     return {
-      card: c, sel, origIdx, removed,
+      card: c, sel, origIdx, removed, sold,
       isFoil, isManual, needsPrice,
       usd, mult, globalMult, hasMultOverride,
       autoPrice, qty, unitPrice, hasOverride, ownUsd, lineTotal, source,
@@ -319,6 +323,7 @@ export function freshState(cards: DetectedCard[]): ScanUiState {
     quantity: cards.map(c => Math.max(1, c.gemini?.quantity || 1)),
     multOverride: new Array(n).fill(null),
     removed: new Array(n).fill(false),
+    sold: new Array(n).fill(false),
     pillOffset: new Array(n).fill(null),
     versionOk: new Array(n).fill(false),
     picks: new Array(n).fill(null),
@@ -332,6 +337,7 @@ const VALID: { [K in Exclude<keyof ScanUiState, 'rev' | 'lockedAt'>]: (v: unknow
   quantity: v => Number.isInteger(v) && (v as number) >= 1,
   multOverride: v => v === null || (Number.isFinite(v) && (v as number) >= 0),
   removed: v => typeof v === 'boolean',
+  sold: v => typeof v === 'boolean',
   pillOffset: v => v === null || (Number.isFinite((v as PillOffset)?.dx) && Number.isFinite((v as PillOffset)?.dy)),
   versionOk: v => typeof v === 'boolean',
   picks: v => v === null || typeof (v as Candidate)?.name === 'string',
@@ -340,6 +346,23 @@ const VALID: { [K in Exclude<keyof ScanUiState, 'rev' | 'lockedAt'>]: (v: unknow
     && Number.isFinite((v as LockedPrice).usd) && Number.isFinite((v as LockedPrice).mult)
     && typeof (v as LockedPrice).manual === 'boolean'),
 };
+
+// What is saved to the server for a batch (its rev is added when queued).
+export function uiStateOf(b: Batch): ScanUiState {
+  return {
+    isFoil: b.isFoil,
+    priceOverride: b.priceOverride,
+    quantity: b.quantity,
+    multOverride: b.multOverride,
+    removed: b.removed,
+    sold: b.sold,
+    pillOffset: b.pillOffset,
+    versionOk: b.versionOk,
+    picks: b.picks,
+    locked: b.locked,
+    lockedAt: b.lockedAt ?? null,
+  };
+}
 
 // A scan's saved per-card state, made safe to use: one entry per card, each
 // valid entry kept and anything missing or malformed (another device saved

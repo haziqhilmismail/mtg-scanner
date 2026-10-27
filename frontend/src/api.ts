@@ -1,6 +1,7 @@
 // Typed wrappers over the FastAPI backend. Vite proxies /api/* to localhost:8000
 // in dev (see vite.config.ts).
 
+import type { Post } from './api/checklist.ts';
 import { imageUrl, request } from './api/http.ts';
 import type { Candidate, Correction, Credits, DetectedCard, ScanResponse, ScanUiState } from './types.ts';
 
@@ -46,19 +47,35 @@ export const SCANS_PAGE = 500;
 export async function fetchScans(before?: number): Promise<SavedScan[]> {
   const url = `/api/scans?lite=1&limit=${SCANS_PAGE}${before != null ? `&before=${before}` : ''}`;
   const scans = (await (await request(url)).json()) as SavedScan[];
-  return scans.map(s => {
-    // A server that predates `lite` ignores it and still embeds the pictures.
-    if (s.image_b64) return s;
-    const base = `/api/scans/${s.scan_id}`;
-    // v= keeps a reused scan id from showing a cached older picture.
-    const v = s.created_at;
-    return {
-      ...s,
-      image_b64: imageUrl(`${base}/preview`, { v }),
-      thumb_url: imageUrl(`${base}/preview`, { w: 480, v }),
-      cards: s.cards.map(c => ({ ...c, crop_b64: imageUrl(`${base}/crops/${c.id}`, { v }) })),
-    };
+  return scans.map(withPictureUrls);
+}
+
+// A scan listed without its pictures (lite), pointed at their own URLs.
+function withPictureUrls(s: SavedScan): SavedScan {
+  // A server that predates `lite` ignores it and still embeds the pictures.
+  if (s.image_b64) return s;
+  const base = `/api/scans/${s.scan_id}`;
+  // v= keeps a reused scan id from showing a cached older picture.
+  const v = s.created_at;
+  return {
+    ...s,
+    image_b64: imageUrl(`${base}/preview`, { v }),
+    thumb_url: imageUrl(`${base}/preview`, { w: 480, v }),
+    cards: s.cards.map(c => ({ ...c, crop_b64: imageUrl(`${base}/crops/${c.id}`, { v }) })),
+  };
+}
+
+// A new post of a post's photos, for the cards still unsold (see lib/repost.ts).
+export async function repostPost(
+  postId: number, title: string, photos: Array<{ scanId: number; state: ScanUiState }>, newPrices: boolean,
+): Promise<{ post: Post; scans: SavedScan[] }> {
+  const res = await request(`/api/posts/${postId}/repost`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title, new_prices: newPrices, photos: photos.map(p => ({ scan_id: p.scanId, state: p.state })) }),
   });
+  const out = (await res.json()) as { post: Post; scans: SavedScan[] };
+  return { post: out.post, scans: out.scans.map(withPictureUrls) };
 }
 
 // Save a scan's per-card edits. `keepalive` lets the request finish while
@@ -226,6 +243,8 @@ export interface ExportPayload {
     pill_dx?: number;
     pill_dy?: number;
   }>;
+  // Cards sold on an earlier post: covered on a repost's photo.
+  covers?: Array<{ bbox: [number, number, number, number]; corners?: [number, number][] }>;
   show_outlines: boolean;
   label_position: 'top' | 'bottom' | 'center';
   // Multiplier on the auto-scaled base font size (default 1.0).
