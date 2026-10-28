@@ -3,6 +3,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { PricingExample } from '../../components/SettingsPanel.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { RadioCards } from '../../components/ui/RadioCards.tsx';
+import { Segmented } from '../../components/ui/Segmented.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import { photosOf } from '../../lib/photoFiles.ts';
 import type { PriceMode, Settings } from '../../types.ts';
@@ -25,6 +26,8 @@ interface Props {
 export function NewPostDialog({ open, onClose, defaults, onStart, t }: Props) {
   const defaultKind = defaults.priceMode;
   const [picked, setPicked] = useState<PriceMode | null>(null);
+  const [how, setHow] = useState(false);
+  const [tab, setTab] = useState<PriceMode>('photo');
   const kind = picked ?? defaultKind;
   const choose = useRef<HTMLInputElement>(null);
   const take = useRef<HTMLInputElement>(null);
@@ -48,6 +51,7 @@ export function NewPostDialog({ open, onClose, defaults, onStart, t }: Props) {
   });
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={close}
@@ -72,13 +76,35 @@ export function NewPostDialog({ open, onClose, defaults, onStart, t }: Props) {
         onDragOver={e => e.preventDefault()}
         onDrop={e => { e.preventDefault(); start(e.dataTransfer.files); }}
       >
-        <p id="new-post-kind" className="ui-label">{t('new_post_kind')}</p>
+        <div className="new-post-kind">
+          <p id="new-post-kind" className="ui-label">{t('new_post_kind')}</p>
+          <button type="button" className="ui-btn ui-btn--plain" aria-haspopup="dialog" onClick={() => { setTab(kind); setHow(true); }}>
+            <Icon name="help" size={16} />{t('new_post_how')}
+          </button>
+        </div>
         <RadioCards aria-labelledby="new-post-kind" value={kind} onChange={setPicked} options={[option('photo'), option('live')]} />
-        <PricingExample settings={{ ...defaults, priceMode: kind }} caption={false} t={t} />
         <p className="new-post-tip"><Icon name="bolt" size={16} />{t('new_post_tip')}</p>
       </div>
       {input(choose, false)}
       {input(take, true)}
     </Dialog>
+    <Dialog open={how} onClose={() => setHow(false)} title={t('new_post_how')} closeLabel={t('cancel')} className="new-post-how">
+      <Segmented aria-label={t('new_post_kind')} value={tab} onChange={setTab} options={(['photo', 'live'] as const).map(k => ({ value: k, label: t(`kind_${k}`) }))} />
+      {/* Both cards share one grid cell, so the sheet is as tall as the taller one and never jumps. */}
+      <div className="how-tabs">
+        {(['photo', 'live'] as const).map(k => (
+          <section key={k} className={k === kind ? 'how-card is-chosen' : 'how-card'} aria-hidden={k !== tab} data-on={k === tab}>
+            <div className="how-card-head">
+              <span className={`how-card-icon is-${k}`}><Icon name={k === 'photo' ? 'tag' : 'bolt'} size={18} /></span>
+              <h3>{t(`kind_${k}`)}</h3>
+              {k === kind ? <span className="ui-chip ui-chip--accent">{t('new_post_how_chosen')}</span> : null}
+            </div>
+            <p className="how-card-desc">{t(`kind_${k}_desc`)}</p>
+            <PricingExample settings={{ ...defaults, priceMode: k }} caption={false} t={t} />
+          </section>
+        ))}
+      </div>
+    </Dialog>
+    </>
   );
 }
