@@ -2,11 +2,13 @@
 
 import json
 from collections.abc import AsyncIterator
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
@@ -48,9 +50,19 @@ async def get_current_user_id(user_id: OptionalUserId, db: DbSession) -> int:
     `/api/auth/google`); 401 without one. Solo user when auth is off."""
     if user_id is None:
         raise HTTPException(401, "Missing, invalid or expired token")
+    if not settings.auth_enabled:
+        return user_id
+    user = await db.get(User, user_id)
     # A deleted account's token stays valid for days; its user row is gone.
-    if settings.auth_enabled and await db.get(User, user_id) is None:
+    if user is None:
         raise HTTPException(401, "Account not found")
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # At most one write an hour, committed now so a slow route (a Gemini scan)
+    # does not hold the SQLite write lock. updated_at is kept, so it still
+    # means the user changed something.
+    if user.last_seen_at is None or now - user.last_seen_at > timedelta(hours=1):
+        await db.execute(update(User).where(User.id == user_id).values(last_seen_at=now, updated_at=User.updated_at))
+        await db.commit()
     return user_id
 
 

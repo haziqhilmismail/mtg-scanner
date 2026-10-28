@@ -70,3 +70,25 @@ def test_scans_keep_their_ids_and_stop_reusing_them(tmp_path, monkeypatch):
     command.downgrade(cfg, "d4a9e2f7c1b3")
     assert sql("select id from scans order by id") == [(2,), (5,), (10,)]
     assert "AUTOINCREMENT" not in scans_sql()
+
+
+def test_last_seen_is_filled_from_the_newest_activity(tmp_path, monkeypatch):
+    db = tmp_path / "app.db"
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db}")
+    cfg = Config(str(main.BASE_DIR.parent / "alembic.ini"))
+    sql = lambda q: sqlite3.connect(db).execute(q).fetchall()
+
+    command.upgrade(cfg, "c5a8e2f7b1d4")
+    with sqlite3.connect(db) as c:
+        for uid in (1, 2):
+            c.execute("insert into users (id, email, default_currency, default_mult_normal, default_mult_foil, created_at, updated_at)"
+                      f" values ({uid}, 'u{uid}@b.c', 'RM', 2.8, 3.0, '2026-01-01 08:00:00', '2026-01-02 08:00:00')")
+        c.execute("insert into posts (id, user_id, title, status, created_at, updated_at)"
+                  " values (7, 1, 'Friday', 'active', '2026-03-01 08:00:00', '2026-03-05 21:15:00.123456')")
+
+    command.upgrade(cfg, "a7e3c9d2f5b8")
+    assert sql("select id, last_seen_at from users order by id") == [
+        (1, "2026-03-05 21:15:00.123456"), (2, "2026-01-02 08:00:00")]
+
+    command.downgrade(cfg, "c5a8e2f7b1d4")
+    assert "last_seen_at" not in [r[1] for r in sql("pragma table_info(users)")]
