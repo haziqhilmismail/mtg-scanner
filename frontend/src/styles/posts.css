@@ -89,6 +89,18 @@
 .ui-radio-card-title .ui-chip { margin-left: 6px; vertical-align: 2px; }
 .new-post-body { display: flex; flex-direction: column; gap: 10px; }
 .new-post-body .ui-label { margin: 0; }
+.new-post-kind { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.new-post-kind .ui-btn { margin: -8px -10px -8px 0; padding: 0 10px; min-height: 36px; font-size: 14px; }
+.how-card { padding: 14px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--rule); }
+.how-card.is-chosen { box-shadow: inset 0 0 0 2px var(--accent); }
+.how-card-head { display: flex; align-items: center; gap: 10px; }
+.how-card-head h3 { flex: 1; margin: 0; font-size: 16px; font-weight: 700; }
+.how-card-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
+.how-card-icon.is-live { background: var(--warn-soft); color: var(--warn); }
+.how-card-desc { margin: 8px 0 12px; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.how-tabs { display: grid; margin-top: 14px; }
+.how-tabs > .how-card { grid-area: 1 / 1; align-self: start; }
+.how-tabs > [data-on="false"] { visibility: hidden; }
 .new-post-tip { display: flex; align-items: flex-start; gap: 8px; margin: 6px 2px 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
 .new-post-tip .icon { flex: none; margin-top: 1px; color: var(--accent); }
 

@@ -4,6 +4,8 @@
 export const en = {
   new_post: 'New post',
   new_post_kind: 'What kind of post?',
+  new_post_how: 'How prices work',
+  new_post_how_chosen: 'Chosen',
   new_post_tip: 'For best results, avoid glare and lay cards flat on a clean, light background. You can pick several photos at once.',
   new_post_choose: 'Choose photos',
   new_post_take: 'Take photo',
@@ -142,6 +144,8 @@ export const en = {
 export const ms = {
   new_post: 'Post baharu',
   new_post_kind: 'Jenis post apa?',
+  new_post_how: 'Cara harga dikira',
+  new_post_how_chosen: 'Dipilih',
   new_post_tip: 'Untuk hasil terbaik, elak silau dan letak kad rata di atas latar yang bersih dan cerah. Anda boleh pilih banyak foto sekali gus.',
   new_post_choose: 'Pilih foto',
   new_post_take: 'Ambil foto',
