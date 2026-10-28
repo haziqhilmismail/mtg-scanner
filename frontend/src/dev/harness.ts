@@ -30,7 +30,8 @@ export function installHarness(): void {
   const apiOrigin = new URL(apiUrl('/'), location.href).origin;
   window.fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-    if (url.origin !== apiOrigin || !url.pathname.startsWith('/api/')) return realFetch(input, init);
+    // The support QR is real even in test data, like its <img>: it is public, and not in this repo.
+    if (url.origin !== apiOrigin || !url.pathname.startsWith('/api/') || url.pathname === '/api/support-qr') return realFetch(input, init);
     return answer(input instanceof Request ? input : new Request(url, init));
   };
   // <img> tags don't use fetch: their image routes point at fixture pictures.
