@@ -606,6 +606,7 @@ A normal page (`h1` "Profile"). It opens from the avatar in the top bar on every
    - Appearance: Auto | Light | Dark
    - Each is a segmented control with its label above.
 5. **Help:** **Support this app** and **Send feedback**, as full-width gray buttons. Each opens a dialog.
+   - **Support this app ☕** shows the DuitNow QR in a 200 px white square, with white space around the image, and **Save QR image** under it. Android downloads the PNG to the gallery's Download album; iPhone opens the share sheet, whose Save Image puts it in Photos.
 
 ---
 
