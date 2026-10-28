@@ -57,6 +57,8 @@ class User(Base, TimestampMixin):
     # means forever).
     bonus_scan_credits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     unlimited_scans_until: Mapped[datetime | None] = mapped_column(DateTime)
+    # The last API call, to the hour; deps.get_current_user_id keeps it.
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     @property
     def seller_name(self) -> str:
