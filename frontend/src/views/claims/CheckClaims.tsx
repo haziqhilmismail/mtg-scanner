@@ -96,10 +96,16 @@ export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, ce
       <div className="claims-drafts">
         {drafts.map((d, di) => (
           <div key={di} className="claims-draft">
-            <TextField
-              label={t('claims_buyer')} className="claims-draft-buyer" value={d.buyer} list={namesId} autoComplete="off"
-              onChange={e => patchDraft(di, { buyer: e.target.value })}
-            />
+            <div className="claims-draft-head">
+              <TextField
+                label={t('claims_buyer')} className="claims-draft-buyer" value={d.buyer} list={namesId} autoComplete="off"
+                onChange={e => patchDraft(di, { buyer: e.target.value })}
+              />
+              <button
+                type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label={`${t('claims_remove_claim')} ${d.buyer.trim()}`.trim()}
+                onClick={() => { setPicking(null); onChange(drafts.filter((_, i) => i !== di)); }}
+              ><Icon name="close" size={16} /></button>
+            </div>
             {d.comment ? <p className="claims-quote">“{d.comment}”</p> : null}
             {d.unclear ? <p className="claims-note"><Icon name="warning" size={15} />{d.unclear}</p> : null}
             {d.items.map((it, ii) => {

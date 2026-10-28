@@ -522,7 +522,7 @@ The part is called **Claims** everywhere, never "Order tracker". It is the secon
    - If it doesn't, nothing is preselected, and **Find claims** stays disabled until a photo (or Several photos) is picked.
    - **In this post** opens a full-height dialog listing every photo large, in post order. Each shows "Photo N", `8 cards · RM133` and **Use this photo**, or "Chosen" on the current pick.
 3. **The comments that were read,** as rows: the name, then the text. The raw text sits behind "Fix a misread name".
-4. **Find claims,** then check them. Each claim gets one card with:
+   - the buyer's name, editable, with an × that removes the whole claim
    - the buyer's name, editable
    - the comment, in quotes
    - the matched card: thumbnail, name, photo and price, with **Change**
