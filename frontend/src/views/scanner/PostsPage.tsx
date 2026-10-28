@@ -84,7 +84,7 @@ export function PostsPage({ area }: { area: Area }) {
       )}
       {/* On a computer, photos dropped or pasted on the page start a post of the default kind. */}
       <PhotoDrop label={t('new_post_drop')} onPhotos={photos => startPost(photos, defaultKind)} t={t} />
-      <NewPostDialog open={newOpen} onClose={() => setNewOpen(false)} defaultKind={defaultKind} onStart={startPost} t={t} />
+      <NewPostDialog open={newOpen} onClose={() => setNewOpen(false)} defaults={pricingFor(null)} onStart={startPost} t={t} />
     </>
   );
 }

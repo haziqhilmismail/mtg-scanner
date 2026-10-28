@@ -332,6 +332,7 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
 
 - **Title row:** "Posts · 2", with a primary **+ New post** on the right. It opens the **New post** dialog:
   - radio cards for Price on photo (default) and Live price
+  - the Default pricing example for the chosen kind, with the seller's default multipliers. Live price leaves out the caption to copy.
   - a tip: "avoid glare, lay cards flat on a clean, light background"
   - a footer with **Choose photos** (gray) and **Take photo** (primary)
 - **List:** one box of rows. Each row has the mosaic, the name, the total (`≈RM402` for live) with what buyers have paid under it in `--green` ("RM251 paid", left out while nothing is paid; never `≈`, it is money in), meta (`Live price · 2 photos`) and its status chips.

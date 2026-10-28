@@ -35,8 +35,9 @@ export function PricingRow({ title, settings, t, to }: RowProps) {
 const SAMPLE = { name: 'Lord Skitter, Sewer King', usd: 4.99, usdFoil: 4.49 };
 
 // One card priced with these settings: the labels printed on a price-on-photo
-// post, or for a live post the rate, today's price and when it gets set.
-export function PricingExample({ settings, t }: { settings: Settings; t: T }) {
+// post, or for a live post the rate, today's price and when it gets set, with
+// the caption to copy unless `caption` is false.
+export function PricingExample({ settings, t, caption: showCaption = true }: { settings: Settings; t: T; caption?: boolean }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -97,7 +98,7 @@ export function PricingExample({ settings, t }: { settings: Settings; t: T }) {
           ))}
         </ol>
       </div>
-      <div className="pricing-caption">
+      {showCaption ? <div className="pricing-caption">
         <span className="pricing-caption-text">
           <span>{t('pricing_caption')}</span>
           <strong>“{caption}”</strong>
@@ -108,7 +109,7 @@ export function PricingExample({ settings, t }: { settings: Settings; t: T }) {
         >
           {copied ? <><Icon name="check" size={16} />{t('pricing_copied')}</> : <><Icon name="copy" size={16} />{t('pricing_copy')}</>}
         </button>
-      </div>
+      </div> : null}
     </>
   );
 }

@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
+import { PricingExample } from '../../components/SettingsPanel.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { RadioCards } from '../../components/ui/RadioCards.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import { photosOf } from '../../lib/photoFiles.ts';
-import type { PriceMode } from '../../types.ts';
+import type { PriceMode, Settings } from '../../types.ts';
 
 // A phone opens its camera for Take photo; a computer would only open the
 // same file picker again, so there Choose photos is the one button.
@@ -13,15 +14,16 @@ const hasCamera = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coa
 interface Props {
   open: boolean;
   onClose: () => void;
-  // The kind the seller's default pricing has; picked to start with.
-  defaultKind: PriceMode;
+  // The seller's default pricing; its kind is picked to start with.
+  defaults: Settings;
   onStart: (photos: File[], kind: PriceMode) => void;
   t: T;
 }
 
 // New post: what kind of post, then its photos (chosen, taken, or dropped
 // onto the dialog on a computer).
-export function NewPostDialog({ open, onClose, defaultKind, onStart, t }: Props) {
+export function NewPostDialog({ open, onClose, defaults, onStart, t }: Props) {
+  const defaultKind = defaults.priceMode;
   const [picked, setPicked] = useState<PriceMode | null>(null);
   const kind = picked ?? defaultKind;
   const choose = useRef<HTMLInputElement>(null);
@@ -72,6 +74,7 @@ export function NewPostDialog({ open, onClose, defaultKind, onStart, t }: Props)
       >
         <p id="new-post-kind" className="ui-label">{t('new_post_kind')}</p>
         <RadioCards aria-labelledby="new-post-kind" value={kind} onChange={setPicked} options={[option('photo'), option('live')]} />
+        <PricingExample settings={{ ...defaults, priceMode: kind }} caption={false} t={t} />
         <p className="new-post-tip"><Icon name="bolt" size={16} />{t('new_post_tip')}</p>
       </div>
       {input(choose, false)}
