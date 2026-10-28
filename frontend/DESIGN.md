@@ -238,7 +238,7 @@ To show a count next to a heading, write `Posts · 2`, with the count in weight 
     - Focus moves into the dialog and returns to the button that opened it.
     - Markup: `role="dialog" aria-modal="true" aria-labelledby`.
   - **Edits are a draft.** Cancel, × and Esc throw the changes away; **Save** keeps them. Edit price, for example, ends with **Cancel** and **Save price**.
-  - **Info-only dialogs** (Support this app) have a single **Close** in the footer.
+  - **Info-only dialogs** have a single **Close** in the footer. Support this app is the exception: its one footer button is **Maybe later**, since a tip is a request, not information.
 - **Confirm dialog** (`role="alertdialog"`):
   - Small and centred, for things that can't be undone only.
   - The title names the thing: "Delete “Friday Post”?".

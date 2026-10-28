@@ -17,7 +17,7 @@ const IOS = typeof navigator !== 'undefined'
 interface Props {
   open: boolean;
   onClose: () => void;
-  // Opened by the app after a save, not from Profile: thank first, offer a way out.
+  // Opened by the app after a save, not from Profile: thank first.
   asking?: boolean;
   t: T;
 }
@@ -48,7 +48,7 @@ export function SupportSheet({ open, onClose, asking, t }: Props) {
       onClose={onClose}
       title={t(asking ? 'support_ask_title' : 'support_title')}
       closeLabel={t('voucher_close')}
-      footer={<button type="button" className="ui-btn ui-btn--primary" onClick={onClose}>{t(asking ? 'support_later' : 'voucher_close')}</button>}
+      footer={<button type="button" className="ui-btn ui-btn--primary" onClick={onClose}>{t('support_later')}</button>}
     >
       <p className="support-body">{t('support_sub')}</p>
       {!noQr ? (
