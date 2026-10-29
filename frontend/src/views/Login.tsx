@@ -35,7 +35,7 @@ export function Login({ clientId, onCredential, error, lang, setLang, t, appeara
   const gis = useGis(clientId, onCredential);
   // The scan's results run long on a phone: the Claims demo starts at its top.
   const toClaims = () => { setDemo('claims'); document.getElementById('signin-try-title')?.scrollIntoView(); };
-  const cta = <><GoogleButton gis={gis} /><p className="signin-note">{t('lp_cta_foot')}</p></>;
+  const cta = <><GoogleButton gis={gis} /><p className="signin-note"><strong className="signin-free">{t('lp_cta_free')}</strong> {t('lp_cta_foot')}</p></>;
 
   return (
     <>
