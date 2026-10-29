@@ -628,15 +628,15 @@ export function useScanner(userId: number | null, signOut: () => void) {
     }
   }, []);
 
-  // A photo still waiting or scanning has no scan id yet; its scan job sees
-  // it gone from the list and deletes what the server saved.
-  const removeBatch = useCallback(async (id: string) => {
-    const b = batchesRef.current.find(x => x.id === id);
-    commit(prev => prev.filter(x => x.id !== id));
-    if (b?.scanId) {
-      saves.forget(b.scanId);
-      await deleteSaved(tombKey, b.scanId);
-    }
+  // The photos leave the list in one update, then their deletes run side by
+  // side. A photo still waiting or scanning has no scan id yet; its scan job
+  // sees it gone from the list and deletes what the server saved.
+  const removeBatches = useCallback(async (ids: string[]) => {
+    const gone = new Set(ids);
+    const scanIds = batchesRef.current.flatMap(b => (gone.has(b.id) && b.scanId ? [b.scanId] : []));
+    commit(prev => prev.filter(b => !gone.has(b.id)));
+    scanIds.forEach(sid => saves.forget(sid));
+    await Promise.all(scanIds.map(sid => deleteSaved(tombKey, sid)));
   }, [tombKey]);
 
   // Photos saved by another route (a repost's copies), shown as they come.
@@ -656,7 +656,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
     lockBatch,
     unlockBatch,
     scanProgress,
-    removeBatch,
+    removeBatches,
     addSaved,
     moveBatches,
     orderBatches,

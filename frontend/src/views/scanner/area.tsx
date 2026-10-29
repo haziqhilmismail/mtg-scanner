@@ -438,7 +438,8 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     if (cur.page === 'photo' && ids.some(id => scanner.batches.find(b => b.id === id)?.scanId === cur.scanId)) {
       replace({ page: 'post', folder: cur.folder });
     }
-    for (const id of ids) await scanner.removeBatch(id);
+    // Gone from the list at once; a failed delete is retried on the next visit.
+    void scanner.removeBatches(ids);
     return true;
   }, [dialog, scanner, current, replace, t]);
 
@@ -506,7 +507,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
       }
       return;
     }
-    for (const s of folder.items) await scanner.removeBatch(s.batch.id);
+    void scanner.removeBatches(folder.items.map(s => s.batch.id));
     if (routeFolder(current()) === folder.key) replace(POSTS);
     await refreshPosts();
     toast(t('post_deleted_toast'));
