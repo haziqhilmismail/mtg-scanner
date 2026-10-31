@@ -77,7 +77,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
       // A one-photo post has nothing to sort.
       const sorted = all.length === 1
         ? read.map(() => ({ scanId: all[0], by: 'picked' as const }))
-        : sortScreenshots<number | 'all'>(read.map(pg => ({ sure: ours(pg.scan_id), guess: ours(pg.guess) })), shotsRef.current.at(-1)?.photo ?? null);
+        : sortScreenshots<number | 'all'>(read.map(pg => ({ sure: ours(pg.scan_id), guess: ours(pg.guess) })), shotsRef.current.at(-1)?.photo ?? null, 'all');
       setShots(prev => [...prev, ...read.map((pg, i) => ({
         id: nextId.current++, name: images[i].name, src: URL.createObjectURL(images[i]),
         text: pg.text, photo: sorted[i].scanId, by: sorted[i].by,
@@ -115,7 +115,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
       // Screenshots of one photo are read as one thread, in order, so "top
       // left" means that photo; several photos are read against the post.
       const threads = new Map<number | 'all', string[]>();
-      for (const s of filled) threads.set(s.photo!, [...(threads.get(s.photo!) ?? []), s.text.trim()]);
+      for (const s of filled) threads.set(s.photo, [...(threads.get(s.photo) ?? []), s.text.trim()]);
       const found: Draft[] = [];
       const skip: string[] = [];
       for (const [photo, texts] of threads) {
@@ -201,7 +201,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
             <button type="button" className="ui-btn ui-btn--ink" onClick={close}>{t('claims_cancel')}</button>
             <button
               type="button" className="ui-btn ui-btn--primary" onClick={findClaims}
-              disabled={!!busy || !filled.length || shots.some(s => s.photo == null)}
+              disabled={!!busy || !filled.length}
             >
               {busy === 'finding' ? <><span className="claims-spin" aria-hidden="true" />{t('claims_finding')}</> : t('claims_find')}
             </button>

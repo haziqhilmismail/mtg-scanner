@@ -520,7 +520,7 @@ The part is called **Claims** everywhere, never "Order tracker". It is the secon
 2. **Which photo?** Photo names alone don't tell sellers which is which, so always show the photos.
    - The label "Comments are for" sits next to **In this post**, above the photo picker grid.
    - If the screenshot includes the post's photo, preselect it and say so in green: "✓ Found Photo 4 in it". It stays changeable.
-   - If it doesn't, nothing is preselected, and **Find claims** stays disabled until a photo (or Several photos) is picked.
+   - If it doesn't, **Several photos** is preselected: each comment is matched by card name or price across the post. It says so ("No photo in it. Cards are matched by name across all photos."), and the seller can still pick one photo.
    - **In this post** opens a full-height dialog listing every photo large, in post order. Each shows "Photo N", `8 cards · RM133` and **Use this photo**, or "Chosen" on the current pick.
 3. **The comments that were read,** as rows: the name, then the text. The raw text sits behind "Fix a misread name".
    - the buyer's name, editable, with an × that removes the whole claim
