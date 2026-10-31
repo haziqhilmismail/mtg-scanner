@@ -169,13 +169,13 @@ test('a finished photo keeps its prices and their working whatever changes after
 test('comment screenshots go to the photo they show, else the one before', () => {
   const seen = (sure: number | null, guess: number | null = null) => ({ sure, guess });
   // Photo 3 with its comments, two scrolls of comments, photo 5 (a guess between look-alikes), then comments.
-  assert.deepEqual(sortScreenshots([seen(3), seen(null), seen(null), seen(null, 5), seen(null)], null), [
+  assert.deepEqual(sortScreenshots([seen(3), seen(null), seen(null), seen(null, 5), seen(null)], null, 0), [
     { scanId: 3, by: 'found' }, { scanId: 3, by: 'follows' }, { scanId: 3, by: 'follows' },
     { scanId: 5, by: 'guess' }, { scanId: 5, by: 'follows' },
   ]);
-  // Comments only, nothing before: not sorted. Added later: they follow what is there.
-  assert.deepEqual(sortScreenshots([seen(null)], null), [{ scanId: null, by: 'none' }]);
-  assert.deepEqual(sortScreenshots([seen(null)], 7), [{ scanId: 7, by: 'follows' }]);
+  // Comments only, nothing before: every photo. Added later: they follow what is there.
+  assert.deepEqual(sortScreenshots([seen(null), seen(null)], null, 0), [{ scanId: 0, by: 'none' }, { scanId: 0, by: 'none' }]);
+  assert.deepEqual(sortScreenshots([seen(null)], 7, 0), [{ scanId: 7, by: 'follows' }]);
 });
 
 test('photos are numbered in the order the seller gave them, then oldest scan first', () => {

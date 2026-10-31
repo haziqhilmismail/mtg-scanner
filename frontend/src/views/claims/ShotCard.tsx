@@ -13,7 +13,7 @@ export interface Shot {
   name: string;
   src: string;                    // object URL of the screenshot
   text: string;                   // what was read; the seller can fix it
-  photo: number | 'all' | null;   // the photo's scan id; 'all' = several photos; null = not chosen yet
+  photo: number | 'all';          // the photo's scan id; 'all' = several photos
   by: SortedBy;                   // how it got that photo
 }
 
@@ -31,7 +31,7 @@ const TONE: Record<SortedBy, { tone: string; icon: IconName }> = {
   picked: { tone: 'is-picked', icon: 'edit' },
   guess: { tone: 'is-check', icon: 'warning' },
   follows: { tone: 'is-check', icon: 'warning' },
-  none: { tone: 'is-check', icon: 'warning' },
+  none: { tone: 'is-picked', icon: 'photo' },
 };
 
 // The screenshot, which photo its comments are for, and the comments read

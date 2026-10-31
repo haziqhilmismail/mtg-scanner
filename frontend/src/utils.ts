@@ -426,18 +426,19 @@ export function creditsOutText(credits: Credits, t: T, lang: string): string {
 // How a comment screenshot got its photo: the seller picked it, the app saw
 // the photo in it (sure, or a best guess between look-alike photos), or it
 // follows the screenshot before (comments scrolled past the photo).
-// 'none': not sorted yet.
+// 'none': no photo in it and none before, so it goes with every photo.
 export type SortedBy = 'picked' | 'found' | 'guess' | 'follows' | 'none';
 
 // Which photo each screenshot, in the order taken, is about. Each has the
 // photo the app saw in it (`sure`) or its best guess (`guess`), either may be
-// null; `before` is the photo of the screenshot already there ahead of them.
-export function sortScreenshots<P>(seen: Array<{ sure: P | null; guess: P | null }>, before: P | null): Array<{ scanId: P | null; by: SortedBy }> {
+// null; `before` is the photo of the screenshot already there ahead of them,
+// and `unknown` is what a screenshot gets when nothing says which photo.
+export function sortScreenshots<P>(seen: Array<{ sure: P | null; guess: P | null }>, before: P | null, unknown: P): Array<{ scanId: P; by: SortedBy }> {
   let last = before;
   return seen.map(({ sure, guess }) => {
     if (sure != null) { last = sure; return { scanId: sure, by: 'found' as const }; }
     if (guess != null) { last = guess; return { scanId: guess, by: 'guess' as const }; }
-    return last != null ? { scanId: last, by: 'follows' as const } : { scanId: null, by: 'none' as const };
+    return last != null ? { scanId: last, by: 'follows' as const } : { scanId: unknown, by: 'none' as const };
   });
 }
 
