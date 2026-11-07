@@ -135,7 +135,7 @@ def test_confirm_makes_orders_and_reuses_listings(client):
     aiman, siti = r.json()
     assert (aiman["status"], aiman["total_myr"], siti["total_myr"]) == ("claimed", "13.00", "2.00")
     assert siti["notes"] == "top left"
-    assert client.patch(f"/api/orders/{siti['id']}", json={"status": "cancelled"}, headers=me).json()["status"] == "cancelled"
+    assert client.post(f"/api/orders/{siti['id']}/cancel", headers=me).json()["status"] == "cancelled"
     assert client.post(f"/api/orders/{siti['id']}/restore", headers=me).status_code == 200
 
     listings = client.get("/api/listings", headers=me).json()
@@ -326,8 +326,9 @@ def test_each_post_counts_its_buyers_who_still_has_to_pay_and_what_was_paid(clie
         {"buyer": "Siti", "items": [_item(scan, 1, "Island", "2.00")]},
         {"buyer": "Farah", "items": [_item(scan, 2, "Forest", "2.00")]},
     ]}).json()
-    assert client.post(f"/api/orders/{aiman['id']}/mark-paid", headers=me).status_code == 200
-    assert client.patch(f"/api/orders/{farah['id']}", json={"status": "cancelled"}, headers=me).status_code == 200
+    paid = {"paid_at": "2026-11-07T10:00:00Z", "delivered_at": None}
+    assert client.patch(f"/api/orders/{aiman['id']}", json=paid, headers=me).status_code == 200
+    assert client.post(f"/api/orders/{farah['id']}/cancel", headers=me).status_code == 200
 
     counts = {p["id"]: (p["buyer_count"], p["unpaid_buyer_count"], p["paid_myr"]) for p in client.get("/api/posts", headers=me).json()}
     assert counts == {post: (2, 1, "9.00"), quiet: (0, 0, "0.00")}
