@@ -1,7 +1,4 @@
-"""
-gemini_scanner.py
------------------
-The Gemini scanner (SCANNER_BACKEND=gemini, the code default) behind the
+"""The Gemini scanner (SCANNER_BACKEND=gemini, the code default) behind the
 `Scanner` interface of services/scans.py.
 
 Gemini does both jobs in one call:
@@ -32,12 +29,12 @@ from .classical_detector import detect_card_quads
 # Gemini's answer for one card. Structured outputs don't support
 # Optional/Union types, so empty strings mean "unknown" instead of null.
 class GeminiCard(BaseModel):
-    name: str          # exact card name as printed (English)
-    set_code: str      # 3-letter Scryfall set code, lowercase, or "" if unknown
-    collector_number: str  # collector number from card bottom, or "" if unknown
-    is_foil: bool      # true if rainbow shimmer / holographic treatment visible
-    quantity: int      # 1 for a single card; N for N stacked-with-offset copies
-    box_2d: list[int]  # [ymin, xmin, ymax, xmax] normalized 0-1000
+    name: str
+    set_code: str
+    collector_number: str
+    is_foil: bool
+    quantity: int
+    box_2d: list[int]
 
 
 PROMPT = """You are an expert at identifying Magic: The Gathering trading cards.
@@ -109,7 +106,7 @@ def scan_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> list[Gemini
     parsed = gemini.generate_json(
         [types.Part.from_bytes(data=image_bytes, mime_type=mime_type), PROMPT],
         list[GeminiCard],
-        temperature=0.1,  # low temp for accuracy
+        temperature=0.1,
     )
     if parsed is None:
         raise RuntimeError("Could not parse Gemini response")
@@ -154,8 +151,6 @@ class GeminiScanner:
     async def detect(self, pil: Image.Image, jpeg: bytes) -> list[Detection]:
         W, H = pil.size
 
-        # Card-shaped blobs: a tight axis-aligned bbox (for IoU matching
-        # against Gemini) and a 4-corner quad following the card edges.
         classical_boxes: list[tuple[int, int, int, int]] = []
         classical_quads: list[list[list[int]]] = []
         if settings.use_classical_bbox:
@@ -166,8 +161,6 @@ class GeminiScanner:
             except Exception as e:
                 print(f"[scan] classical detector failed: {e}", flush=True)
 
-        # The Gemini SDK call is synchronous and takes several seconds; run it
-        # in a worker thread so the event loop keeps serving other requests.
         cards = await asyncio.to_thread(scan_image, jpeg)
 
         out: list[Detection] = []
@@ -211,8 +204,6 @@ class GeminiScanner:
             out.append(Detection(
                 guess=Guess(**card.model_dump(exclude={"box_2d"})),
                 bbox=(x, y, x2 - x, y2 - y),
-                # The classical quad when one matched; otherwise the box as a
-                # rectangle, so `corners` is always a 4-point polygon.
                 corners=matched_quad or [[x, y], [x2, y], [x2, y2], [x, y2]],
                 bbox_source=bbox_source,
                 name_source="gemini",

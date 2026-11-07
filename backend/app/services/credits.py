@@ -1,7 +1,4 @@
-"""
-credits.py
-----------
-Scan credits. Each signed-in user gets `settings.free_scans_per_window` free
+"""Scan credits. Each signed-in user gets `settings.free_scans_per_window` free
 photo scans in any rolling 30-day window; a voucher (and later a payment) can
 add extra credits that don't expire, or switch the limit off.
 

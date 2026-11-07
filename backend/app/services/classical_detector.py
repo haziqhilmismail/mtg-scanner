@@ -1,24 +1,11 @@
-"""
-classical_detector.py
----------------------
-Pure PIL + numpy + scipy.ndimage card-bbox detector.
+"""Pure PIL + numpy + scipy.ndimage card detector. The Gemini scanner uses it
+to tighten Gemini's boxes, and takes each card's corner quad from it so the
+outline follows a tilted card.
 
-Pipeline:
-    grayscale -> Gaussian blur -> Sobel edges -> adaptive threshold ->
-    morphological closing -> fill holes -> connected components ->
-    filter by area + MTG card aspect ratio (~488:680).
-
-`detect_card_quads` returns an axis-aligned (x, y, w, h) box per kept blob plus
-its smallest enclosing quadrilateral (4 corner points) via convex hull →
-polygon simplification → all-C(n, 4) edge-combination search. The quad is
-what the frontend uses to draw a tight outline on tilted/skewed cards and
-what `price_overlay.py` uses to draw a 4-point polygon instead of a rectangle.
-
-No neural model is loaded — this is a bbox-refinement pass over Gemini's
-detections. It works well on clean photos (uniform background, well-separated
-cards) and degrades gracefully (returns fewer boxes) when the scene gets
-noisy; callers should treat the absence of a matching classical box as
-"trust Gemini's bbox instead."
+No neural model is loaded. It works well on clean photos (uniform background,
+well-separated cards) and returns fewer boxes when the scene gets noisy;
+callers should treat the absence of a matching classical box as "trust
+Gemini's bbox instead."
 """
 
 from io import BytesIO
@@ -75,7 +62,6 @@ def detect_card_quads(
     gray = pil.convert("L").filter(ImageFilter.GaussianBlur(radius=3))
     g = np.asarray(gray, dtype=np.float32)
 
-    # Sobel magnitude
     gx = ndi.sobel(g, axis=1)
     gy = ndi.sobel(g, axis=0)
     mag = np.hypot(gx, gy)
@@ -95,8 +81,6 @@ def detect_card_quads(
 
     min_area = (W * H) * MIN_AREA_FRAC
 
-    # First pass: collect candidate blobs that pass the bbox-level gates.
-    # We need the slice (sl) to extract the boundary for the quad step.
     raw: list[tuple[int, int, int, int, int, tuple[slice, slice], int]] = []
     for i, sl in enumerate(ndi.find_objects(labels), start=1):
         if sl is None:
@@ -120,7 +104,6 @@ def detect_card_quads(
             continue
         raw.append((x1, y1, x2, y2, area, sl, i))
 
-    # Sort by area desc, dedupe by IoU > 0.3.
     raw.sort(key=lambda b: -b[4])
     kept: list[tuple[int, int, int, int, int, tuple[slice, slice], int]] = []
     for b in raw:
@@ -128,26 +111,15 @@ def detect_card_quads(
             continue
         kept.append(b)
 
-    # Second pass: compute the min-area quadrilateral for each kept blob.
-    # If the quad search fails for some reason, fall back to the rectangle.
     out: list[tuple[tuple[int, int, int, int], list[list[int]]]] = []
     for x1, y1, x2, y2, _area, sl, label_id in kept:
         bbox = (x1, y1, x2 - x1, y2 - y1)
         quad = _min_area_quad_for_blob(labels, sl, label_id, W, H)
         if quad is None:
-            # Axis-aligned 4 corners — keeps the response shape stable
-            # so downstream code can always treat 'corners' as a polygon.
             quad = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
         out.append((bbox, quad))
 
     return out
-
-
-# ---------- min-area quadrilateral helpers ----------
-# Geometry ported from notebook §25. The quad search reduces each blob's
-# convex hull to a 5–8 vertex polygon by dropping its shortest segments,
-# then brute-forces all 4-subsets of edges to find the smallest enclosing
-# quadrilateral. C(8, 4) = 70 candidates — cheap.
 
 
 def _line_intersection(
@@ -248,11 +220,7 @@ def _order_quad_corners(q: np.ndarray) -> np.ndarray:
     """Sort 4 corners to (TL, TR, BR, BL) by position. Robust for cards with
     mild skew (<45°). For sideways cards we rotate by 90° CCW so the long
     edge is vertical (portrait), matching the orientation the frontend
-    overlay expects.
-
-    Earlier draft used angle-around-centroid + chirality flip; that swapped
-    TL ↔ TR on some cyclic inputs of `_min_area_quad`, which would mirror
-    the polygon outline in the rendered overlay."""
+    overlay expects."""
     q = np.asarray(q, dtype=float)
     by_y = q[np.argsort(q[:, 1])]
     top, bot = by_y[:2], by_y[2:]
@@ -296,7 +264,6 @@ def _min_area_quad_for_blob(
     if quad is None:
         return None
     ordered = _order_quad_corners(quad)
-    # Clamp to image bounds; cast to int for the response.
     out: list[list[int]] = []
     for x, y in ordered:
         out.append([int(np.clip(round(x), 0, W - 1)),

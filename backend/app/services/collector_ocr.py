@@ -1,7 +1,4 @@
-"""
-collector_ocr.py
-----------------
-Read the collector line printed in the bottom-left corner of a card:
+"""Read the collector line printed in the bottom-left corner of a card:
 
     R 0209                241/261 R
     TLA ★ EN  ARTIST      DMR • EN  ARTIST

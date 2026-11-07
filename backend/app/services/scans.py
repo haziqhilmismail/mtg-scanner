@@ -195,7 +195,7 @@ async def store(
         gemini_raw=payload,
     )
     db.add(scan_row)
-    await db.flush()  # need id before writing file path
+    await db.flush()
     # The normalized JPEG (downscaled + EXIF-corrected), not the raw upload:
     # its pixels match the W/H and polygon coords of the response, so the
     # frontend and /api/export agree, and export never re-decodes HEIC.

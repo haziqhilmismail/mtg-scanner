@@ -20,8 +20,6 @@ from ..config import settings
 # 7-day session window. Long enough to survive a weekend pasar malam without
 # re-logging in, short enough that a stolen token isn't a permanent compromise.
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
-# Image tokens start on the current week's Monday 00:00 UTC and last 5 weeks
-# (28 to 35 days left when issued).
 _WEEK = 7 * 24 * 60 * 60
 IMAGE_TTL_SECONDS = 5 * _WEEK
 _IMAGE_SCOPE = "img"
@@ -30,13 +28,6 @@ _jwt_secret_cache: str | None = None
 
 
 def _jwt_secret() -> str:
-    """Lazy-loads / lazy-generates the session-signing secret.
-
-    Resolution order:
-    1. settings.jwt_secret from env (preferred for production)
-    2. data/jwt_secret.txt on disk (auto-persisted between restarts)
-    3. Generate a fresh one and write it to disk
-    """
     global _jwt_secret_cache
     if _jwt_secret_cache is not None:
         return _jwt_secret_cache
@@ -53,11 +44,8 @@ def _jwt_secret() -> str:
 
 
 def verify_google_id_token(token: str) -> dict:
-    """Verify a Google-issued ID token. Raises on any failure.
-
-    Returns the claims dict on success: {sub, email, name, picture, ...}.
-    Audience is checked against our configured client ID — a token issued for
-    a different OAuth client (e.g. someone else's app) is rejected.
+    """Verify a Google-issued ID token for our OAuth client and return its
+    claims. Raises on any failure.
     """
     if not settings.google_client_id:
         raise ValueError("Google auth not configured")
