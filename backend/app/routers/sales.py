@@ -12,7 +12,7 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUserId, DbSession, limiter, owned
-from ..models import Order, OrderItem, OrderStatus, Post, SaleRecord
+from ..models import Order, OrderItem, Post, SaleRecord
 from ..services import catalogue
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
@@ -70,7 +70,7 @@ async def record_sales(request: Request, body: SentSummary, db: DbSession, user_
     rows = []
     for item in items:
         seq, qty, price = last.get(item.id, (0, None, None))
-        if item.order.status == OrderStatus.cancelled or (qty, price) == (item.qty, item.unit_price_myr):
+        if not item.order.holds_stock or (qty, price) == (item.qty, item.unit_price_myr):
             continue
         line, listing = wanted[item.id], item.listing
         ck_price = ck.price(listing.scryfall_id, listing.is_foil)

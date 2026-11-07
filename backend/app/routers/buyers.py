@@ -1,10 +1,10 @@
 """CRUD for Facebook buyer profiles."""
 
 from fastapi import APIRouter
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 
 from ..deps import CurrentUserId, DbSession, owned
-from ..models import Buyer, Order, OrderStatus
+from ..models import Buyer, Order
 from ..schemas import BuyerRead, BuyerReadWithStats, BuyerUpdate
 
 router = APIRouter(prefix="/api/buyers", tags=["buyers"])
@@ -12,23 +12,9 @@ router = APIRouter(prefix="/api/buyers", tags=["buyers"])
 
 @router.get("", response_model=list[BuyerReadWithStats])
 async def list_buyers(db: DbSession, user_id: CurrentUserId) -> list[BuyerReadWithStats]:
-    """Each buyer comes back with cached counts: total orders and open orders
-    (where status != cancelled AND not yet both paid + delivered)."""
-    # 1 when the order is "open" (not cancelled, and not both paid + delivered), else 0
-    is_open = case(
-        (Order.status == OrderStatus.cancelled, 0),
-        (
-            (Order.paid_at.is_not(None)) & (Order.delivered_at.is_not(None)),
-            0,
-        ),
-        else_=1,
-    )
+    """Each buyer with their number of orders, cancelled ones included."""
     q = (
-        select(
-            Buyer,
-            func.count(Order.id).label("total_orders"),
-            func.coalesce(func.sum(is_open), 0).label("open_orders"),
-        )
+        select(Buyer, func.count(Order.id))
         .outerjoin(Order, Order.buyer_id == Buyer.id)
         .where(Buyer.user_id == user_id)
         .group_by(Buyer.id)
@@ -36,11 +22,10 @@ async def list_buyers(db: DbSession, user_id: CurrentUserId) -> list[BuyerReadWi
     )
     result = await db.execute(q)
     out: list[BuyerReadWithStats] = []
-    for buyer, total, open_count in result.all():
+    for buyer, total in result.all():
         out.append(
             BuyerReadWithStats.model_validate({
                 **{c.name: getattr(buyer, c.name) for c in Buyer.__table__.columns},
-                "open_orders_count": int(open_count or 0),
                 "total_orders_count": int(total or 0),
             })
         )

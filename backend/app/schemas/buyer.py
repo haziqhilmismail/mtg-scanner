@@ -30,6 +30,5 @@ class BuyerRead(BuyerBase):
 
 
 class BuyerReadWithStats(BuyerRead):
-    """BuyerRead + aggregates. Used by list views that show order counts."""
-    open_orders_count: int = 0
+    """BuyerRead + the buyer's order count."""
     total_orders_count: int = 0

@@ -19,7 +19,6 @@ export interface Buyer {
   notes: string | null;
   created_at: string;
   updated_at: string;
-  open_orders_count?: number;
   total_orders_count?: number;
 }
 

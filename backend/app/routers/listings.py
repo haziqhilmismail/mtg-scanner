@@ -10,7 +10,6 @@ from ..models import (
     ListingStatus,
     Order,
     OrderItem,
-    OrderStatus,
     Post,
     Scan,
     listing_post_links,
@@ -87,7 +86,7 @@ async def list_listings(
             func.coalesce(func.sum(OrderItem.qty), 0).label("committed"),
         )
         .join(Order, Order.id == OrderItem.order_id)
-        .where(Order.status != OrderStatus.cancelled)
+        .where(Order.holds_stock)
         .group_by(OrderItem.listing_id)
         .subquery()
     )

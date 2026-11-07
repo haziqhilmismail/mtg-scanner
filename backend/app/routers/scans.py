@@ -19,7 +19,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm.attributes import flag_modified
 
 from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter, owned
-from ..models import Listing, ListingStatus, Order, OrderItem, OrderStatus, Post, Scan
+from ..models import Listing, ListingStatus, Order, OrderItem, Post, Scan
 from ..models.card_correction import CorrectionKind
 from ..services import catalogue, corrections, credits, scans
 from ..services.listings import drop_listing, locked_prices
@@ -306,7 +306,7 @@ async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
     claimed = (
         select(OrderItem.listing_id)
         .join(Order, Order.id == OrderItem.order_id)
-        .where(Order.status != OrderStatus.cancelled)
+        .where(Order.holds_stock)
     )
     for listing in (await db.execute(
         select(Listing).where(Listing.scan_id == scan_id, Listing.id.not_in(claimed))
