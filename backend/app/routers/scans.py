@@ -331,5 +331,4 @@ async def relookup_scan_prices(
     # JSON column needs an explicit mark — SQLAlchemy doesn't detect
     # in-place dict mutation.
     flag_modified(scan_row, "gemini_raw")
-    await db.commit()
     return {**scan_out(scan_row, [], lite=False), "updated": updated}
