@@ -23,7 +23,7 @@ export function PostPhotos({ open, onClose, photos, postTitle, chosen, cents, li
   const t = useT();
   return (
     <Dialog
-      open={open} onClose={onClose} variant="picker" className="claims-dialog" closeLabel={t('claims_close')} title={t('claims_in_post')}
+      open={open} onClose={onClose} variant="picker" className="claims-dialog" title={t('claims_in_post')}
       subtitle={t('claims_post_photos_sub', { title: postTitle, photos: plural(t, 'claims_photos', photos.length) })}
     >
       <ul className="claims-post-photos">

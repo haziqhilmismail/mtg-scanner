@@ -22,7 +22,7 @@ export function ImageZoomProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{ open, close }}>
       {children}
       {zoom ? (
-        <PhotoViewer open={zoom.open} onClose={close} label={zoom.caption || t('photo_viewer_label')} closeLabel={t('voucher_close')} image={{ src: zoom.src, alt: zoom.caption }}>
+        <PhotoViewer open={zoom.open} onClose={close} label={zoom.caption || t('photo_viewer_label')} image={{ src: zoom.src, alt: zoom.caption }}>
           {zoom.caption ? <p className="ui-viewer-caption">{zoom.caption}</p> : null}
         </PhotoViewer>
       ) : null}

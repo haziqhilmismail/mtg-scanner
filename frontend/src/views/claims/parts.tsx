@@ -89,10 +89,10 @@ export function HowDialog({ open, onClose, onAdd }: { open: boolean; onClose: ()
   const t = useT();
   return (
     <Dialog
-      open={open} onClose={onClose} className="claims-dialog" title={t('claims_how')} closeLabel={t('claims_close')}
+      open={open} onClose={onClose} className="claims-dialog" title={t('claims_how')}
       footer={(
         <>
-          <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('claims_close')}</button>
+          <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('close')}</button>
           {onAdd ? <button type="button" className="ui-btn ui-btn--primary" onClick={onAdd}>{t('claims_add')}</button> : null}
         </>
       )}

@@ -54,7 +54,7 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
   // A card the scan missed: the seller names it, then picks its printing.
   const addMissingCard = useCallback(async () => {
     if (batch.scanId == null || !batch.response) return;
-    const name = await dialog.prompt({ title: t('add_card_title'), message: t('add_card_msg'), placeholder: 'Sol Ring', okLabel: t('add_card_ok'), cancelLabel: t('cancel') });
+    const name = await dialog.prompt({ title: t('add_card_title'), message: t('add_card_msg'), placeholder: 'Sol Ring', okLabel: t('add_card_ok') });
     if (!name?.trim()) return;
     const { width: w, height: h } = batch.response;
     const cw = Math.round(Math.min(w, h) * 0.18), ch = Math.round(cw * 1.395);
@@ -64,10 +64,10 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
       const idx = batch.response.cards.length;
       scanner.appendFramedCard(batch.id, card);
       await scanner.relookupByName(batch.id, idx, name, t);
-      await dialog.alert({ title: t('add_card_title'), message: t('add_card_next'), okLabel: t('photo_ok') });
+      await dialog.alert({ title: t('add_card_title'), message: t('add_card_next') });
       setPrintingsCtx({ batchId: batch.id, idx });
     } catch (e) {
-      await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message, okLabel: t('photo_ok') });
+      await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
     }
   }, [batch, dialog, scanner, t]);
 

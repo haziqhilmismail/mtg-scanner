@@ -47,7 +47,7 @@ export function SupportSheet({ open, onClose, asking, t }: Props) {
       open={open}
       onClose={onClose}
       title={t(asking ? 'support_ask_title' : 'support_title')}
-      closeLabel={t('voucher_close')}
+     
       footer={<button type="button" className="ui-btn ui-btn--primary" onClick={onClose}>{t('support_later')}</button>}
     >
       <p className="support-body">{t('support_sub')}</p>

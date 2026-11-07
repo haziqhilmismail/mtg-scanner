@@ -227,7 +227,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   // What Finish does, said once before the first time.
   const explainFinish = useCallback(async () => {
     if (readStored('mtg.finish.explained', false)) return true;
-    const ok = await dialog.confirm({ title: t('finish_explain_title'), message: t('finish_explain_msg'), okLabel: t('finish_explain_ok'), cancelLabel: t('cancel') });
+    const ok = await dialog.confirm({ title: t('finish_explain_title'), message: t('finish_explain_msg'), okLabel: t('finish_explain_ok') });
     if (ok) writeStored('mtg.finish.explained', true);
     return ok;
   }, [dialog, t]);
@@ -276,7 +276,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   }, [finishing, exportJob, failedAlert]);
 
   const editPrices = useCallback(async (batch: Batch) => {
-    const ok = await dialog.confirm({ title: t('edit_prices_title'), message: t('edit_prices_msg'), okLabel: t('edit_prices_ok'), cancelLabel: t('cancel') });
+    const ok = await dialog.confirm({ title: t('edit_prices_title'), message: t('edit_prices_msg'), okLabel: t('edit_prices_ok') });
     if (ok) { scanner.unlockBatch(batch.id); setReady(null); }
   }, [dialog, t, scanner.unlockBatch]);
 
@@ -427,7 +427,6 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
       title: plural(t, 'photos_delete_title', ids.length),
       message: t('scans_delete_msg'),
       okLabel: plural(t, 'photos_delete_ok', ids.length),
-      cancelLabel: t('cancel'),
       destructive: true,
     });
     if (!ok) return false;
@@ -486,7 +485,6 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
         ? t('delete_post_body', { photos: plural(t, 'post_photos_count', photos), cards: plural(t, 'post_cards', cards) })
         : t('delete_post_body_empty'),
       okLabel: t('delete_post'),
-      cancelLabel: t('cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -500,7 +498,6 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
         title: t('delete_post_claimed_title', { name: folder.title }),
         message: t('delete_post_claimed_body'),
         okLabel: t('archive_post'),
-        cancelLabel: t('cancel'),
       })) {
         await setArchived(folder, true);
       }

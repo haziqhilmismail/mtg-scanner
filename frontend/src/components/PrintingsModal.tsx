@@ -30,7 +30,7 @@ const PAGE_SIZE = 30;
 export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, busy, msg, onFind, onUseAsIs, t }: Props) {
   return (
     <Dialog
-      open={open} onClose={onClose} closeLabel={t('voucher_close')} variant="picker" className="change-card"
+      open={open} onClose={onClose} variant="picker" className="change-card"
       title={t('cc_title')} subtitle={t('cc_subtitle', { name: cardName })}
     >
       <Printings cardName={cardName} currentSid={currentSid} onSelect={onSelect} busy={busy} msg={msg} onFind={onFind} onUseAsIs={onUseAsIs} t={t} />

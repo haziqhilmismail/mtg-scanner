@@ -181,7 +181,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
   return (
     <>
       <Dialog
-        open={open} onClose={close} variant="picker" className="claims-dialog" closeLabel={t('claims_close')}
+        open={open} onClose={close} variant="picker" className="claims-dialog"
         title={step === 'shots' ? t('claims_add_title') : {
           found: plural(t, 'claims_found', drafts.length),
           hand: t(drafts.length > 1 ? 'claims_add_title' : 'claims_hand_title'),
@@ -199,7 +199,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
           </>
         ) : (
           <>
-            <button type="button" className="ui-btn ui-btn--ink" onClick={close}>{t('claims_cancel')}</button>
+            <button type="button" className="ui-btn ui-btn--ink" onClick={close}>{t('cancel')}</button>
             <button
               type="button" className="ui-btn ui-btn--primary" onClick={findClaims}
               disabled={!!busy || !filled.length}
@@ -252,7 +252,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
         onUse={scanId => { setShots(prev => prev.map(x => (x.id === pickerFor ? { ...x, photo: scanId, by: 'picked' } : x))); setPickerFor(null); }}
       />
       <PhotoViewer
-        open={viewing != null} onClose={() => setViewing(null)} label={t('claims_view_shot')} closeLabel={t('claims_close')}
+        open={viewing != null} onClose={() => setViewing(null)} label={t('claims_view_shot')}
         image={{ src: viewing?.src ?? '', alt: viewing?.name ?? '' }}
       />
     </>

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useT } from '../../hooks/useLang.ts';
 import { Icon } from '../Icon.tsx';
 import { Modal } from './Modal.tsx';
 import { Segmented } from './Segmented.tsx';
@@ -15,7 +16,7 @@ type Common = {
   open: boolean;
   onClose: () => void;
   label: string;  // names the viewer, e.g. "Photo 2, full screen"
-  closeLabel: string;
+  closeLabel?: string;
   children?: ReactNode;
 };
 
@@ -36,6 +37,7 @@ export function PhotoViewer(props: PhotoViewerProps) {
 }
 
 function ViewerBody(props: PhotoViewerProps) {
+  const t = useT();
   const [at, setAt] = useState<number>('pair' in props ? props.start ?? 0 : 0);
   const media = 'pair' in props ? (
     <>
@@ -56,7 +58,7 @@ function ViewerBody(props: PhotoViewerProps) {
     <>
       {media}
       {props.children}
-      <button type="button" className="ui-viewer-close" aria-label={props.closeLabel} onClick={props.onClose}>
+      <button type="button" className="ui-viewer-close" aria-label={props.closeLabel ?? t('close')} onClick={props.onClose}>
         <Icon name="close" size={20} />
       </button>
     </>

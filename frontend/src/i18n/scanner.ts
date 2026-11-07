@@ -71,7 +71,6 @@ export const en = {
   bulk_label: 'Set all',
   bulk_all_foil: 'All foil',
   bulk_all_nonfoil: 'All non-foil',
-  cancel: 'Cancel',
   scanner_loading_saved: 'Loading your posts…',
   bulk_add_failed: 'Cards not added: {n}. Check your connection and add them again.',
 };
@@ -146,7 +145,6 @@ export const ms: Record<keyof typeof en, string> = {
   bulk_label: 'Set semua',
   bulk_all_foil: 'Semua foil',
   bulk_all_nonfoil: 'Semua bukan foil',
-  cancel: 'Batal',
   scanner_loading_saved: 'Memuatkan post anda…',
   bulk_add_failed: 'Kad tidak ditambah: {n}. Semak sambungan anda dan tambah semula.',
 };
