@@ -8,7 +8,7 @@ import pytest
 from conftest import LIMIT, _photo, run, sign_in
 from PIL import Image, ImageDraw, ImageFont
 
-from app.services import claims, credits
+from app.services import claims, credits, gemini
 
 
 def _thread_png(lines, dark=False) -> bytes:
@@ -72,18 +72,17 @@ def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
     C, P, D, I = claims.CatalogueCard, claims.CataloguePhoto, claims.ClaimDraft, claims.ClaimItemDraft
     photo = P(scan_id=7, label="Photo 1", cards=[C(card_id=0, name="Sol Ring"), C(card_id=1, name="Island")])
 
-    class _Models:
-        def generate_content(self, **kw):
-            assert "Sol Ring" in kw["contents"][0] and "nak no 1" in kw["contents"][0]
-            return type("R", (), {"parsed": claims.ParseResult(claims=[
-                D(buyer="Aiman", comment="nak no 1", unclear="", items=[
-                    I(scan_id=7, card_id=0, qty=0, said="no 1", unclear=""),      # qty 0 → 1
-                    I(scan_id=0, card_id=1, qty=1, said="island", unclear=""),    # one photo: scan filled in
-                    I(scan_id=7, card_id=9, qty=1, said="bolt", unclear=""),      # not on offer → unclear
-                ]),
-                D(buyer="Nobody", comment="pm", unclear="", items=[]),           # nothing claimed → skipped
-            ], skipped=["Farah: ada lagi?"])})()
-    monkeypatch.setattr(claims, "get_client", lambda: type("Cl", (), {"models": _Models()})())
+    def answer(contents, schema, temperature):
+        assert "Sol Ring" in contents[0] and "nak no 1" in contents[0]
+        return claims.ParseResult(claims=[
+            D(buyer="Aiman", comment="nak no 1", unclear="", items=[
+                I(scan_id=7, card_id=0, qty=0, said="no 1", unclear=""),      # qty 0 → 1
+                I(scan_id=0, card_id=1, qty=1, said="island", unclear=""),    # one photo: scan filled in
+                I(scan_id=7, card_id=9, qty=1, said="bolt", unclear=""),      # not on offer → unclear
+            ]),
+            D(buyer="Nobody", comment="pm", unclear="", items=[]),           # nothing claimed → skipped
+        ], skipped=["Farah: ada lagi?"])
+    monkeypatch.setattr(gemini, "generate_json", answer)
 
     result = claims.parse_claims("Aiman\nnak no 1", [photo], "Seller")
     assert [d.buyer for d in result.claims] == ["Aiman"]
@@ -242,11 +241,9 @@ TAGGED_PHOTO = claims.CataloguePhoto(scan_id=3, label="Photo 1", cards=[
 def test_prompt_explains_seller_tags_in_replies(monkeypatch, thread):
     sent = []
 
-    class _Models:
-        def generate_content(self, **kw):
-            sent.append(kw["contents"][0])
-            return type("R", (), {"parsed": None})()
-    monkeypatch.setattr(claims, "get_client", lambda: type("Cl", (), {"models": _Models()})())
+    def answer(contents, schema, temperature):
+        sent.append(contents[0])
+    monkeypatch.setattr(gemini, "generate_json", answer)
 
     claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi")
     prompt = sent[0]

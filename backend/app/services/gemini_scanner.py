@@ -18,13 +18,13 @@ card-shaped blob when one matches, and supplies the card's corner quad.
 
 import asyncio
 
-from google import genai
 from google.genai import types
 from PIL import Image
 from pydantic import BaseModel
 
 from ..config import settings
 from ..schemas.scan import Detection, Guess
+from . import gemini
 from .classical_detector import detect_card_quads, iou_xywh
 
 
@@ -103,71 +103,15 @@ Order the array in reading order: top-to-bottom, then left-to-right.
 Return ONLY the JSON array. No markdown fences, no explanation, no preamble."""
 
 
-def get_client():
-    api_key = settings.gemini_api_key
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY not set. Get a free key at https://aistudio.google.com/apikey "
-            "and put it in backend/.env or export it as an environment variable."
-        )
-    return genai.Client(api_key=api_key)
-
-
 def scan_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> list[GeminiCard]:
     """Send the image to Gemini and parse out card detections."""
-    client = get_client()
-    model = settings.gemini_model
-
-    response = client.models.generate_content(
-        model=model,
-        contents=[
-            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-            PROMPT,
-        ],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=list[GeminiCard],
-            temperature=0.1,  # low temp for accuracy
-            thinking_config=types.ThinkingConfig(
-                thinking_budget=settings.gemini_thinking_budget,
-            ),
-        ),
+    parsed = gemini.generate_json(
+        [types.Part.from_bytes(data=image_bytes, mime_type=mime_type), PROMPT],
+        list[GeminiCard],
+        temperature=0.1,  # low temp for accuracy
     )
-
-    # Log per-call token usage so we can see actual cost shape and prove the
-    # thinking-budget cap is working. At $0.50/M input + $3.00/M output (and
-    # thinking is billed at the output rate), the dominant lever is the
-    # thinking token count.
-    usage = getattr(response, "usage_metadata", None)
-    if usage is not None:
-        prompt_t = getattr(usage, "prompt_token_count", 0) or 0
-        output_t = getattr(usage, "candidates_token_count", 0) or 0
-        thinking_t = getattr(usage, "thoughts_token_count", 0) or 0
-        total_t = getattr(usage, "total_token_count", 0) or 0
-        # Rough USD cost estimate at advertised Gemini 3 Flash rates.
-        cost_usd = (prompt_t * 0.5 + (output_t + thinking_t) * 3.0) / 1_000_000
-        print(
-            f"[gemini-usage] prompt={prompt_t} thinking={thinking_t} "
-            f"output={output_t} total={total_t} cost=${cost_usd:.5f}",
-            flush=True,
-        )
-
-    parsed = response.parsed
     if parsed is None:
-        # Fall back to manual JSON parsing if structured output failed
-        import json
-        try:
-            text = response.text or ""
-            # Strip possible markdown fences
-            text = text.strip()
-            if text.startswith("```"):
-                text = text.split("```", 2)[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            data = json.loads(text.strip())
-            parsed = [GeminiCard(**item) for item in data]
-        except Exception as e:
-            raise RuntimeError(f"Could not parse Gemini response: {e}\nRaw: {response.text[:500]}")
+        raise RuntimeError("Could not parse Gemini response")
 
     # Post-process: Gemini sometimes ignores the "stacked = one detection with qty=N"
     # instruction and returns two separate detections for stacked-with-offset cards.
@@ -239,7 +183,7 @@ class GeminiScanner:
 
     def ready(self) -> str | None:
         try:
-            get_client()
+            gemini.client()
         except Exception as e:
             return str(e)
         return None
