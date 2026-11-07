@@ -29,10 +29,13 @@ export function applyRounding(price: number, settings: Settings): number {
   return p;
 }
 
+// The label a price field and a rounding step carry; RM when the seller left it blank.
+export const currencyOf = (s: Pick<Settings, 'currencyLabel'>) => s.currencyLabel.trim() || 'RM';
+
 // A price as the app writes it: "RM13", "RM1,240". Cents show when Show
 // cents is on, and always when the price has them (a price the seller typed,
 // or a rounding step under RM 1): hiding them would show a price nobody pays.
-export function formatMyr(price: number, settings: Settings): string {
+export function formatMyr(price: number, settings: Pick<Settings, 'currencyLabel' | 'showCurrency' | 'showCents'>): string {
   const n = Number(price);
   if (isNaN(n)) {
     return settings.showCurrency ? `${settings.currencyLabel} —` : '—';

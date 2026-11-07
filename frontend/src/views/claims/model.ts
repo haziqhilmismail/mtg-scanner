@@ -6,7 +6,7 @@ import type { Payment } from '../../api.ts';
 import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
 import type { T } from '../../i18n/index.ts';
 import type { CardRowData } from '../../types.ts';
-import { paymentLines } from '../../utils.ts';
+import { fmt2, formatMyr, paymentLines } from '../../utils.ts';
 
 export type PayState = 'unpaid' | 'paid' | 'done';
 export const PAY_STATES: readonly PayState[] = ['unpaid', 'paid', 'done'];
@@ -149,16 +149,12 @@ export function sortGroups(groups: BuyerGroup[], sort: ClaimSort): BuyerGroup[] 
     .sort((a, b) => photoOf(a.lines[0]) - photoOf(b.lines[0]) || byName(a, b));
 }
 
-// RM as buyers read it (DESIGN.md section 7): RM1,240, with cents only when
-// the seller shows cents or the amount has them.
-export function rm(n: number, cents = false): string {
-  const digits = cents || Math.abs(n - Math.round(n)) >= 0.005 ? 2 : 0;
-  return 'RM' + n.toLocaleString('en-MY', { minimumFractionDigits: digits, maximumFractionDigits: digits });
-}
+// RM as buyers read it: buyers pay ringgit, whatever label the photos carry.
+export const rm = (n: number, cents = false) => formatMyr(n, { currencyLabel: 'RM', showCurrency: true, showCents: cents });
 
 // The working of a price: "$4.49 × 2.5".
 export const formulaText = (f: Formula) =>
-  `$${f.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × ${+f.mult.toFixed(3)}`;
+  `$${fmt2(f.usd)} × ${+f.mult.toFixed(3)}`;
 
 // The message a buyer is sent, built exactly as DESIGN.md section 8 has it:
 // each card with the working of its price, the total in *bold* (Messenger

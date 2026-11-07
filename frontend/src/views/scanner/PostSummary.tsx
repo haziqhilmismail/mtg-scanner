@@ -1,6 +1,8 @@
 import { Icon } from '../../components/Icon.tsx';
-import { Money, waits } from '../../components/ScanGallery.tsx';
+import { Money } from '../../components/Money.tsx';
+import { waits } from '../../components/ScanGallery.tsx';
 import { plural, type Counted } from '../../i18n/index.ts';
+import { formatMyr } from '../../utils.ts';
 import type { Area, Folder } from './area.tsx';
 import type { ExportJob } from './exportFiles.ts';
 import type { usePostExport } from './usePostExport.ts';
@@ -43,7 +45,7 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
     <>
       <section className="ui-card post-summary" aria-label={t('total')}>
         <span className="post-summary-label">{t('total')}</span>
-        <span className="post-total" aria-live="polite"><Money amount={folder.total} settings={settings} /></span>
+        <span className="post-total" aria-live="polite"><Money live={settings.priceMode === 'live'}>{formatMyr(folder.total, settings)}</Money></span>
         <span className="post-summary-meta">
           {[t(live ? 'kind_live' : 'kind_photo'), n('photos', items.length), n('cards', cards)].join(' · ')}
         </span>

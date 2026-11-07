@@ -3,7 +3,6 @@
 // seller checks both, then Find claims matches comments to cards. Nothing is
 // saved until the seller has checked the claims and pressed Add.
 
-import { plural } from '../../i18n/index.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { confirmClaims, parseClaims, readClaimScreenshots, type CataloguePhoto } from '../../api.ts';
 import { OutOfCreditsError } from '../../api/http.ts';
@@ -12,10 +11,10 @@ import { Icon } from '../../components/Icon.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { useT } from '../../hooks/useLang.ts';
+import { plural } from '../../i18n/index.ts';
 import type { Credits, Settings } from '../../types.ts';
 import { creditsLine, creditsOutText, formatMyrWithFoil, listingFields, sortScreenshots } from '../../utils.ts';
 import { blankDraft, CheckClaims, draftsKind, type Draft } from './CheckClaims.tsx';
-
 import { PostPhotos } from './PostPhotos.tsx';
 import { ShotCard, type Shot } from './ShotCard.tsx';
 import { useScreenshotDrop } from './useScreenshotDrop.ts';

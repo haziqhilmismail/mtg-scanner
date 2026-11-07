@@ -15,6 +15,7 @@ import {
 import type { CardRef, Photo } from '../components/ClaimPickers.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Link } from '../components/Link.tsx';
+import { approxText, Money } from '../components/Money.tsx';
 import { SlipsSheet } from '../components/SlipsSheet.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
@@ -31,7 +32,7 @@ import {
   buyerGroups, buyerMessage, claimedCounts, claimTotals, CLAIM_SORTS, PAY_STATES, priceFormula, rm, sortGroups, stampsFor,
   type BuyerGroup, type ClaimSort, type Line, type PayState, type Stamps, type StatusMove,
 } from './claims/model.ts';
-import { ClaimSteps, HowDialog, Money } from './claims/parts.tsx';
+import { ClaimSteps, HowDialog } from './claims/parts.tsx';
 import { useScreenshotDrop } from './claims/useScreenshotDrop.ts';
 import type { Area, Folder } from './scanner/area.tsx';
 
@@ -416,17 +417,17 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
                 <div className="claims-totals-row">
                   <p className="claims-total">
                     <span className="claims-total-label">{t('claims_to_collect')}</span>
-                    <span className="claims-big" aria-live="polite"><Money value={totals.toCollect} live={totals.live.toCollect} cents={cents} /></span>
+                    <span className="claims-big" aria-live="polite"><Money live={totals.live.toCollect}>{rm(totals.toCollect, cents)}</Money></span>
                   </p>
                   <p className="claims-total is-paid">
                     <span className="claims-total-label">{t('claims_state_paid')}</span>
-                    <span className="claims-paid" aria-live="polite"><Money value={totals.paid} live={totals.live.paid} cents={cents} /></span>
+                    <span className="claims-paid" aria-live="polite"><Money live={totals.live.paid}>{rm(totals.paid, cents)}</Money></span>
                   </p>
                 </div>
                 <div className="claims-bar" aria-hidden="true"><span style={{ width: `${Math.round(paidShare * 100)}%` }} /></div>
                 <p className="claims-totals-meta">
                   {[plural(t, 'claims_buyers', groups.length), plural(t, 'cards', totals.cards),
-                    t('claims_claimed', { amount: `${totals.live.claimed ? '≈' : ''}${rm(totals.claimed, cents)}` })].join(' · ')}
+                    t('claims_claimed', { amount: approxText(rm(totals.claimed, cents), totals.live.claimed) })].join(' · ')}
                 </p>
                 {live ? <p className="claims-totals-meta">{t('claims_live_note')}</p> : null}
                 {addButton}

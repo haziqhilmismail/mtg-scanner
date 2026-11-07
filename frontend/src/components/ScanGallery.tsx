@@ -1,14 +1,15 @@
 // Posts as list rows: big enough to tell a post by its pictures, with what is
 // worth knowing before opening it (its total, how many photos, what waits).
 
-import { plural } from '../i18n/index.ts';
 import type { SyntheticEvent } from 'react';
+import { plural } from '../i18n/index.ts';
 import type { Route } from '../routes.ts';
 import type { Batch, Settings } from '../types.ts';
 import { computeCardData, formatMyr, notAdded } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { Link } from './Link.tsx';
 import type { T } from '../hooks/useLang.ts';
+import { Money } from './Money.tsx';
 
 export interface BatchSummary {
   batch: Batch;
@@ -44,16 +45,6 @@ export const thumbOf = (b: Batch) => (b.response ? b.response.thumb_url ?? b.res
 
 // A picture that won't load leaves its plain cell, not a broken-image icon.
 export const hideBroken = (e: SyntheticEvent<HTMLImageElement>) => { e.currentTarget.hidden = true; };
-
-// An amount, with "≈" when it is a live price: the price is set later.
-export function Money({ amount, settings }: { amount: number; settings: Settings }) {
-  return (
-    <>
-      {settings.priceMode === 'live' ? <span className="approx">≈</span> : null}
-      {formatMyr(amount, settings)}
-    </>
-  );
-}
 
 // A post's first photos in a square, the fourth cell saying how many more.
 export function Mosaic({ srcs, photos }: { srcs: string[]; photos: number }) {
@@ -102,7 +93,7 @@ export function PostRow({ title, items, total, settings, buyers, unpaid, paid, t
           <span className="ui-row-title">{title}</span>
           {items.length ? (
             <span className="postrow-total">
-              <span><Money amount={total} settings={settings} /></span>
+              <span><Money live={settings.priceMode === 'live'}>{formatMyr(total, settings)}</Money></span>
               {paid > 0 ? <span className="postrow-paid">{t('posts_paid', { amount: formatMyr(paid, settings) })}</span> : null}
             </span>
           ) : null}

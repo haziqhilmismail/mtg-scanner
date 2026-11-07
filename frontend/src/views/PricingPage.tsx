@@ -14,6 +14,7 @@ import type { PricingStore } from '../hooks/usePricing.ts';
 import { formulaLine, priceField, pricingSummary, roundingKey, ROUNDINGS, roundingText, samePricing, type PriceField } from '../lib/pricing.ts';
 import type { Route } from '../routes.ts';
 import type { FoilStyle, LabelPosition, PriceMode, Settings } from '../types.ts';
+import { currencyOf } from '../utils.ts';
 
 interface Props {
   // The post whose pricing this is; null for the default that new posts start with.
@@ -109,7 +110,7 @@ function PricingForm({ postId, parent, pricing, t }: Omit<Props, 'postTitle' | '
               >
                 {roundings.map(r => <option key={roundingKey(r)} value={roundingKey(r)}>{roundingText(r, next, t, 'option')}</option>)}
               </Select>
-              {field('minPrice', t('min_price'), values.currencyLabel.trim() || 'RM', 'numeric', t('min_error'))}
+              {field('minPrice', t('min_price'), currencyOf(values), 'numeric', t('min_error'))}
             </div>
             <p className="pricing-formula">{formulaLine(next, t)}</p>
           </section>
@@ -134,7 +135,7 @@ function PricingForm({ postId, parent, pricing, t }: Omit<Props, 'postTitle' | '
                   <TextField label={t('currency_label')} value={values.currencyLabel} maxLength={4} autoComplete="off" onChange={e => set('currencyLabel', e.target.value)} />
                 </div>
                 <Checkbox
-                  label={t('show_currency', { cur: values.currencyLabel.trim() || 'RM' })}
+                  label={t('show_currency', { cur: currencyOf(values) })}
                   checked={values.showCurrency} onChange={e => set('showCurrency', e.target.checked)}
                 />
                 <Checkbox label={t('show_cents')} checked={values.showCents} onChange={e => set('showCents', e.target.checked)} />

@@ -1,12 +1,13 @@
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
+import { Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { SaveField } from '../../components/ui/SaveField.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
-import { PAY_STATES, type BuyerGroup, type PayState } from './model.ts';
-import { ClaimLines, Money, StatusLine } from './parts.tsx';
+import { PAY_STATES, rm, type BuyerGroup, type PayState } from './model.ts';
+import { ClaimLines, StatusLine } from './parts.tsx';
 
 interface Props {
   open: boolean;
@@ -38,7 +39,7 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, showPhoto
     <Dialog
       open={open && !!g} onClose={onClose} className="claims-dialog claims-buyer-dialog"
       title={g?.name ?? ''}
-      subtitle={g ? <><StatusLine group={g} /> · <Money value={g.total} live={g.live} cents={cents} /></> : null}
+      subtitle={g ? <><StatusLine group={g} /> · <Money live={g.live}>{rm(g.total, cents)}</Money></> : null}
       footer={(
         <>
           {qrLabel ? <button type="button" className="ui-btn" onClick={onQr}><Icon name="qr" size={18} />{qrLabel}</button> : null}

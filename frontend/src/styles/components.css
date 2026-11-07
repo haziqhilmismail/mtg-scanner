@@ -20,6 +20,9 @@
 .review-title { min-width: 0; }
 .review-title h1, .review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 
+/* A live amount's "≈" (Money.tsx) */
+.approx { margin-right: 2px; font-weight: 400; color: var(--ink-soft); }
+
 /* Version display */
 .version-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .set-badge {

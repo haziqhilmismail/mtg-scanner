@@ -1,10 +1,10 @@
 import { hideBroken, photoThumb, type Photo } from '../../components/ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
+import { Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { useT } from '../../hooks/useLang.ts';
-
 import { plural } from '../../i18n/index.ts';
-import { Money } from './parts.tsx';
+import { rm } from './model.ts';
 
 interface Props {
   open: boolean;
@@ -37,7 +37,7 @@ export function PostPhotos({ open, onClose, photos, postTitle, chosen, cents, li
               <div className="claims-post-photo-row">
                 <span className="claims-post-photo-text">
                   <strong>{t('photo_n', { n: p.index })}</strong>
-                  <span>{plural(t, 'cards', cards)} · <Money value={value} live={live} cents={cents} /></span>
+                  <span>{plural(t, 'cards', cards)} · <Money live={live}>{rm(value, cents)}</Money></span>
                 </span>
                 {chosen === scanId ? (
                   <span className="claims-chosen"><Icon name="check" size={16} />{t('claims_chosen')}</span>

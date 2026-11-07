@@ -3,6 +3,7 @@ import type { T } from '../hooks/useLang.ts';
 import type { CardRowData, Settings } from '../types.ts';
 import { ckSearchUrl, fmt2, formatMyr, rarityKey, smallScryfallImage } from '../utils.ts';
 import { Icon } from './Icon.tsx';
+import { approxText, Money } from './Money.tsx';
 import { PhotoViewer } from './ui/PhotoViewer.tsx';
 import { Stepper } from './ui/Stepper.tsx';
 
@@ -51,7 +52,7 @@ function formula(cd: CardRowData, live: boolean, settings: Settings, t: T): Reac
   if (cd.hasOverride) {
     const yours = <span className="photo-yours">{t('photo_your_price')}</span>;
     if (cd.ownUsd != null) return <>{foil}{yours} · USD {fmt2(cd.ownUsd)} × {cd.mult}</>;
-    const auto = cd.autoPrice > 0 ? t('photo_auto', { price: `${live ? '≈' : ''}${formatMyr(cd.autoPrice, settings)}` }) : noCk;
+    const auto = cd.autoPrice > 0 ? t('photo_auto', { price: approxText(formatMyr(cd.autoPrice, settings), live) }) : noCk;
     return <>{foil}{yours} · {auto}</>;
   }
   if (cd.needsPrice) return <>{foil}{noCk}</>;
@@ -89,7 +90,7 @@ export function CardRow({
   const rarity = rarityKey(cd.sel.rarity);
   const matchSrc = cd.sel.image_url || '';
   const priced = Number.isFinite(cd.unitPrice);
-  const approx = live && !cd.hasOverride ? <span className="photo-approx">≈</span> : null;
+  const approx = live && !cd.hasOverride;
   return (
     <article className={`photo-tile${cd.isFoil ? ' is-foil' : ''}`}>
       <div className="photo-tile-pair">
@@ -141,7 +142,7 @@ export function CardRow({
 
       <div className="photo-tile-price">
         {priced ? (
-          <span className="photo-tile-amount">{approx}{formatMyr(cd.unitPrice, settings)}</span>
+          <span className="photo-tile-amount"><Money live={approx}>{formatMyr(cd.unitPrice, settings)}</Money></span>
         ) : <span className="photo-tile-setprice">{t('photo_set_price')}</span>}
         {locked ? null : (
           <button
@@ -150,7 +151,7 @@ export function CardRow({
           ><Icon name="edit" size={16} /></button>
         )}
         {priced && cd.qty > 1 ? (
-          <span className="photo-tile-each">{t('photo_times', { qty: cd.qty, total: `${approx ? '≈' : ''}${formatMyr(cd.lineTotal, settings)}` })}</span>
+          <span className="photo-tile-each">{t('photo_times', { qty: cd.qty, total: approxText(formatMyr(cd.lineTotal, settings), approx) })}</span>
         ) : null}
       </div>
 

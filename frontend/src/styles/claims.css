@@ -1,7 +1,6 @@
 /* ---------- Claims (DESIGN.md section 8) ---------- */
 
 .claims-load-error { margin: 0 0 16px; padding: 10px 12px; border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 13px; overflow-wrap: anywhere; }
-.claims-approx { font-weight: 400; color: var(--ink-soft); }
 
 /* Phone: post and totals, then the buyers. Wide: the totals stay in a side column. */
 .claims-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
