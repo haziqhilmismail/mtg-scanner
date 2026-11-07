@@ -23,10 +23,12 @@ from ..models import (
     Order,
     OrderItem,
     Post,
+    PostStatus,
     listing_post_links,
     Scan,
 )
 from ..schemas import PostReadWithStats, PostUpdate
+from ..schemas.post import PostBase
 from ..schemas.types import Id, Pricing
 from ..services import catalogue
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
@@ -120,8 +122,7 @@ async def list_posts(
         .order_by(Post.created_at.desc())
     )
     if not include_archived:
-        from ..models import PostStatus as _PS
-        q = q.where(Post.status != _PS.archived)
+        q = q.where(Post.status != PostStatus.archived)
     rows = (await db.execute(q)).scalars().all()
     ids = [p.id for p in rows]
     stats, claims = await _stats_by_post(db, ids), await _claims_by_post(db, ids)
@@ -139,13 +140,8 @@ async def create_post(
 ) -> PostReadWithStats:
     """Create a post. Empty strings become NULL. `pricing` is a JSON object as
     a string."""
-    post = Post(
-        user_id=user_id,
-        title=(title or None) and title.strip() or None,
-        fb_url=(fb_url or None) and fb_url.strip() or None,
-        note=(note or None) and note.strip() or None,
-        pricing=pricing,
-    )
+    text = PostBase(title=title, fb_url=fb_url, note=note)
+    post = Post(user_id=user_id, **text.model_dump(), pricing=pricing)
     db.add(post)
     await db.flush()
 
@@ -242,10 +238,7 @@ async def update_post(
     post = await owned(db, Post, post_id, user_id)
     updates = payload.model_dump(exclude_unset=True)
     for k, v in updates.items():
-        if k == "status":
-            setattr(post, k, v)
-        else:
-            setattr(post, k, v.strip() if isinstance(v, str) and v.strip() else (v if not isinstance(v, str) else None))
+        setattr(post, k, v)
     await db.flush()
     await db.refresh(post)
     return await _build_read_with_stats(db, post)
