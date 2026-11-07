@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Text
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
@@ -78,3 +79,9 @@ class Order(Base, TimestampMixin):
     payments: Mapped[list["Payment"]] = relationship(
         back_populates="order", cascade="all, delete-orphan"
     )
+
+    @hybrid_property
+    def holds_stock(self) -> bool:
+        """Not cancelled: its cards are spoken for. Works on a loaded order
+        and in a query (`.where(Order.holds_stock)`)."""
+        return self.status != OrderStatus.cancelled

@@ -22,7 +22,6 @@ from ..models import (
     ListingStatus,
     Order,
     OrderItem,
-    OrderStatus,
     Post,
     listing_post_links,
     Scan,
@@ -60,7 +59,7 @@ async def _claims_by_post(db, post_ids: list[int]) -> dict[int, tuple[int, int, 
     shows: not cancelled, not archived. A card is in a post when it is linked
     to it or was scanned in one of its photos, the same rule as the Claims
     page. One row per claimed card, so a card reached both ways counts once."""
-    live = (Order.status != OrderStatus.cancelled, Order.archived_at.is_(None))
+    live = (Order.holds_stock, Order.archived_at.is_(None))
     item = (Order.buyer_id, Order.paid_at.is_(None), OrderItem.id, OrderItem.line_total_myr)
     linked = (
         select(listing_post_links.c.post_id, *item)
@@ -269,7 +268,7 @@ async def delete_post(post_id: int, db: DbSession, user_id: CurrentUserId) -> No
         .join(Listing, Listing.id == OrderItem.listing_id)
         .join(listing_post_links, listing_post_links.c.listing_id == Listing.id)
         .join(Order, Order.id == OrderItem.order_id)
-        .where(listing_post_links.c.post_id == post_id, Order.status != OrderStatus.cancelled)
+        .where(listing_post_links.c.post_id == post_id, Order.holds_stock)
     ) or 0
     if open_commit:
         raise HTTPException(409, f"{open_commit} item(s) under this post still claimed in active orders")

@@ -10,10 +10,9 @@ from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUser, CurrentUserId, DbSession, limiter, owned
 from ..models import Listing, ListingStatus, Post, Scan
-from ..schemas import OrderCreate, OrderItemCreate, OrderRead
-from ..services import claims, credits
+from ..schemas import OrderRead
+from ..services import claims, credits, orders
 from ..services.listings import locked_prices
-from . import orders as orders_router
 
 router = APIRouter(prefix="/api/claims", tags=["claims"])
 
@@ -154,16 +153,15 @@ async def confirm_claims(body: ConfirmRequest, db: DbSession, user_id: CurrentUs
     # A card of a finished photo sells at the price it was posted with.
     locked = {sid: locked_prices(s.ui_state, s.gemini_raw) for sid, s in scans.items()}
 
-    orders = []
+    out = []
     for claim in body.claims:
-        lines: list[OrderItemCreate] = []
+        lines = []
         for item in claim.items:
             if (price := locked[item.scan_id].get(tuple(item.bbox))) is not None:
                 item = item.model_copy(update={"unit_price_myr": price})
-            listing = await _listing_for(db, user_id, post, item)
-            lines.append(OrderItemCreate(listing_id=listing.id, qty=item.qty, unit_price_myr=item.unit_price_myr))
-        orders.append(await orders_router.create_order(
-            OrderCreate(buyer_fb_name=claim.buyer.strip(), items=lines, notes=claim.note),
-            db, user_id,
-        ))
-    return orders
+            lines.append((await _listing_for(db, user_id, post, item), item.qty, item.unit_price_myr))
+        try:
+            out.append(await orders.create_order(db, user_id, claim.buyer, lines, notes=claim.note))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    return out
