@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from scipy.signal import fftconvolve
 
 from . import gemini
+from .scans import decode_upright
 
 # English + Malay: threads mix both ("nak no 3", "mine", "kiri atas").
 OCR_LANGS = "eng+msa"
@@ -140,11 +141,10 @@ def read_screenshot(
     Raises ValueError if the bytes are not an image, RuntimeError if
     Tesseract is missing or fails."""
     try:
-        shot = Image.open(BytesIO(image_bytes))
-        shot.load()
-    except Exception:
+        shot = decode_upright(image_bytes)
+    except ValueError:
         raise ValueError("Could not read that image")
-    shot = ImageOps.exif_transpose(shot).convert("RGB")
+    shot = shot.convert("RGB")
     scan_id, box, sure = locate_photo(shot, photos or {})
     img = _thread_region(shot, box).convert("L")
     # Tesseract wants dark text on a light page: flip dark-mode screenshots.

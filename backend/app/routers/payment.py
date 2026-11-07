@@ -1,16 +1,15 @@
 """The seller's payment details: bank account, a note, and a DuitNow QR, added
 to the order summaries copied for buyers."""
 
-from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile
-from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 
 from ..config import settings
 from ..deps import CurrentUser, DbSession, ImageUserId
 from ..models import User
+from ..services.scans import decode_upright
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
 
@@ -68,9 +67,8 @@ async def upload_qr(db: DbSession, user: CurrentUser, image: UploadFile = File(.
     if len(raw) > MAX_QR_BYTES:
         raise HTTPException(413, "Image too large (max 8 MB)")
     try:
-        img = ImageOps.exif_transpose(Image.open(BytesIO(raw)))
-        img.load()
-    except Exception:
+        img = decode_upright(raw)
+    except ValueError:
         raise HTTPException(400, "Could not read that image")
     if img.mode not in ("1", "L", "LA", "P", "RGB", "RGBA"):
         img = img.convert("RGB")  # e.g. a CMYK JPEG, which PNG can't hold
