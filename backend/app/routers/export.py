@@ -4,7 +4,6 @@ import asyncio
 import re
 import zipfile
 from io import BytesIO
-from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import Response
@@ -21,10 +20,9 @@ async def _resolve_export_image(db: DbSession, user_id: int, image_id: str) -> b
     """The source photo bytes for an export `image_id` (a scan id), from disk
     and only for the scan's owner. Raises 404 otherwise."""
     scan_row = await owned(db, Scan, as_id(image_id), user_id)
-    p = Path(scan_row.image_path) if scan_row.image_path else None
-    if not p or not p.exists():
+    if not (photo := scan_row.photo):
         raise HTTPException(404, "image_id not found (re-upload the image)")
-    return p.read_bytes()
+    return photo.read_bytes()
 
 
 def _card_shape(c: dict) -> dict | None:

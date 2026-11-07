@@ -89,8 +89,7 @@ async def frame_card(
     except (TypeError, ValueError):
         raise HTTPException(400, "Corners must be numeric")
 
-    photo = Path(scan_row.image_path) if scan_row.image_path else None
-    if not photo or not photo.exists():
+    if not (photo := scan_row.photo):
         raise HTTPException(404, "image_id not found (re-upload the image)")
     pil = await asyncio.to_thread(scans.decode_upright, photo.read_bytes())
 

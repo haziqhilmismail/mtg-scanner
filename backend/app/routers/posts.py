@@ -178,7 +178,7 @@ async def repost(post_id: Id, body: Repost, db: DbSession, user_id: CurrentUserI
     )).scalars().all()}
     if len(found) != len(ids):
         raise HTTPException(404, "Photo not found in this post")
-    if any(not (s.image_path and Path(s.image_path).exists()) for s in found.values()):
+    if any(not s.photo for s in found.values()):
         raise HTTPException(409, "A photo's picture is missing on the server")
 
     new_post = Post(user_id=user_id, title=body.title.strip(), pricing=copy.deepcopy(post.pricing))

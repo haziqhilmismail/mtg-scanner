@@ -1,5 +1,6 @@
 """An uploaded photo and its scan result. Listings can reference a scan."""
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, ForeignKey, Integer, String
@@ -49,6 +50,12 @@ class Scan(Base, TimestampMixin):
         back_populates="scan",
         cascade="save-update, merge",
     )
+
+    @property
+    def photo(self) -> Path | None:
+        """The photo on disk, or None when it is not there any more."""
+        p = Path(self.image_path) if self.image_path else None
+        return p if p and p.exists() else None
 
     def card(self, card_id: int) -> dict[str, Any] | None:
         return next((c for c in (self.gemini_raw or {}).get("cards", []) if c.get("id") == card_id), None)
