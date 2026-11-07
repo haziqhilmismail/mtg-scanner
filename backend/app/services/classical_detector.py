@@ -157,7 +157,7 @@ def _iou_xyxy(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> flo
 
 
 def iou_xywh(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
-    """IoU between two (x, y, w, h) boxes. Used by the matcher in main.py."""
+    """IoU between two (x, y, w, h) boxes. Used by the box matcher in gemini_scanner.py."""
     ax1, ay1, aw, ah = a
     bx1, by1, bw, bh = b
     ax2, ay2 = ax1 + aw, ay1 + ah

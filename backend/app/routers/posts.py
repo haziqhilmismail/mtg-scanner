@@ -1,5 +1,5 @@
-"""CRUD for Facebook post groups. A post is a tiny container: FB URL + optional
-reminder image + free-form note. The N cards listed under the post are stored
+"""CRUD for Facebook post groups. A post is a tiny container: FB URL +
+free-form note. The N cards listed under the post are stored
 as regular Listing rows with `post_id` set.
 
 We never query Facebook. The URL is reference-only."""
@@ -11,13 +11,12 @@ import shutil
 from decimal import Decimal
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Form, HTTPException
 from pydantic import BaseModel, Field, Json
 from sqlalchemy import case, func, select, update
-from sqlalchemy.orm import selectinload
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession, ImageUserId, check_pricing_size
+from ..deps import CurrentUserId, DbSession, check_pricing_size
 from ..models import (
     Listing,
     ListingStatus,
@@ -29,36 +28,10 @@ from ..models import (
     Scan,
 )
 from ..schemas import PostReadWithStats, PostUpdate
-from ..services.cardkingdom_prices import get_index as get_ck_index
-from .scans import apply_picks, refresh_prices, scan_out, split_state
+from ..services import catalogue
+from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
-
-
-ALLOWED_IMAGE_MIME = {
-    "image/jpeg", "image/jpg", "image/png", "image/webp",
-    "image/heic", "image/heif", "image/gif",
-}
-MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MiB
-
-
-def _post_image_path(post_id: int) -> Path:
-    return settings.posts_dir / f"{post_id}.bin"
-
-
-async def _save_image(post: Post, image: UploadFile) -> None:
-    """Read image into memory (size-checked), write to disk, stamp the post row."""
-    if image.content_type and image.content_type not in ALLOWED_IMAGE_MIME:
-        raise HTTPException(400, f"Unsupported image type: {image.content_type}")
-    raw = await image.read()
-    if len(raw) > MAX_IMAGE_BYTES:
-        raise HTTPException(413, "Image too large (max 8 MB)")
-    if not raw:
-        raise HTTPException(400, "Empty image upload")
-    path = _post_image_path(post.id)
-    path.write_bytes(raw)
-    post.image_path = str(path)
-    post.image_mime = image.content_type or "application/octet-stream"
 
 
 async def _stats_by_post(db, post_ids: list[int]) -> dict:
@@ -123,7 +96,6 @@ def _read_with_stats(post: Post, stats: dict, claims: dict[int, tuple[int, int, 
         "active_listing_count": int(active_count or 0),
         "total_qty": int(total_qty or 0),
         "total_value_myr": f"{Decimal(total_value or 0):.2f}",
-        "has_image": bool(post.image_path) and _post_image_path(post.id).exists(),
         "buyer_count": buyer_count,
         "unpaid_buyer_count": unpaid_buyer_count,
         "paid_myr": f"{paid:.2f}",
@@ -165,11 +137,9 @@ async def create_post(
     fb_url: str | None = Form(None),
     note: str | None = Form(None),
     pricing: Json[dict] | None = Form(None),
-    image: UploadFile | None = File(None),
 ) -> PostReadWithStats:
-    """Create a post. Image is optional — supply it now or upload later via
-    POST /api/posts/{id}/image. Empty strings become NULL. `pricing` is a JSON
-    object as a string."""
+    """Create a post. Empty strings become NULL. `pricing` is a JSON object as
+    a string."""
     check_pricing_size(pricing)
     post = Post(
         user_id=user_id,
@@ -179,11 +149,7 @@ async def create_post(
         pricing=pricing,
     )
     db.add(post)
-    await db.flush()  # need post.id before writing image file
-
-    if image is not None and image.filename:
-        await _save_image(post, image)
-        await db.flush()
+    await db.flush()
 
     # Refresh through the async session so subsequent attribute access
     # (in _build_read_with_stats) doesn't trigger a sync lazy-load outside
@@ -231,7 +197,7 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
     new_post = Post(user_id=user_id, title=body.title.strip(), pricing=copy.deepcopy(post.pricing))
     db.add(new_post)
     await db.flush()
-    ck_index = await get_ck_index() if body.new_prices else None
+    ck_index = await catalogue.ck_index() if body.new_prices else None
     copies: list[Scan] = []
     written: list[Path] = []
     try:
@@ -273,14 +239,6 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
     }
 
 
-@router.get("/{post_id}", response_model=PostReadWithStats)
-async def get_post(post_id: int, db: DbSession, user_id: CurrentUserId) -> PostReadWithStats:
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
-    return await _build_read_with_stats(db, post)
-
-
 @router.patch("/{post_id}", response_model=PostReadWithStats)
 async def update_post(
     post_id: int, payload: PostUpdate, db: DbSession, user_id: CurrentUserId,
@@ -302,109 +260,9 @@ async def update_post(
     return await _build_read_with_stats(db, post)
 
 
-@router.post("/{post_id}/image", response_model=PostReadWithStats)
-async def upload_post_image(
-    post_id: int,
-    db: DbSession,
-    user_id: CurrentUserId,
-    image: UploadFile = File(...),
-) -> PostReadWithStats:
-    """Replace the post's reminder image. Used by the paste/upload UI in the form."""
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
-    await _save_image(post, image)
-    await db.flush()
-    await db.refresh(post)
-    return await _build_read_with_stats(db, post)
-
-
-@router.get("/{post_id}/image")
-async def get_post_image(
-    post_id: int,
-    db: DbSession,
-    user_id: ImageUserId,
-) -> Response:
-    """Serve the post's reminder image (auth: ?token=<image token>)."""
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
-    if not post.image_path:
-        raise HTTPException(404, "No image attached")
-    p = Path(post.image_path)
-    if not p.exists():
-        raise HTTPException(404, "Image file missing")
-    return Response(
-        content=p.read_bytes(),
-        media_type=post.image_mime or "application/octet-stream",
-        headers={"Cache-Control": "private, max-age=300"},
-    )
-
-
-@router.delete("/{post_id}/image", status_code=204)
-async def delete_post_image(post_id: int, db: DbSession, user_id: CurrentUserId) -> None:
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
-    if post.image_path:
-        try:
-            Path(post.image_path).unlink(missing_ok=True)
-        except Exception:
-            pass
-    post.image_path = None
-    post.image_mime = None
-    await db.flush()
-
-
-class PostListingsPayload(BaseModel):
-    listing_ids: list[int]
-
-
-@router.put("/{post_id}/listings", response_model=PostReadWithStats)
-async def set_post_listings(
-    post_id: int,
-    payload: PostListingsPayload,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> PostReadWithStats:
-    """Replace the full set of listings linked to this post. Used by the
-    "Add cards from stock" picker — checkboxes drive set membership. Listings
-    that the user owns get linked; ones already linked but not in the payload
-    get unlinked. Other posts' links are unaffected (we only touch this post's
-    rows in the join table)."""
-    q = (
-        select(Post)
-        .where(Post.id == post_id, Post.user_id == user_id)
-        .options(selectinload(Post.listings))
-    )
-    post = (await db.execute(q)).scalar_one_or_none()
-    if not post:
-        raise HTTPException(404, "Post not found")
-
-    if not payload.listing_ids:
-        new_listings: list[Listing] = []
-    else:
-        rows = (await db.execute(
-            select(Listing).where(
-                Listing.id.in_(payload.listing_ids),
-                Listing.user_id == user_id,
-            )
-        )).scalars().all()
-        found = {l.id for l in rows}
-        missing = [lid for lid in payload.listing_ids if lid not in found]
-        if missing:
-            raise HTTPException(404, f"Listing(s) not found: {missing}")
-        new_listings = list(rows)
-
-    post.listings = new_listings
-    await db.flush()
-    await db.refresh(post)
-    return await _build_read_with_stats(db, post)
-
-
 @router.delete("/{post_id}", status_code=204)
 async def delete_post(post_id: int, db: DbSession, user_id: CurrentUserId) -> None:
-    """Delete the post. Its image is removed; the join table rows are dropped
+    """Delete the post. The join table rows are dropped
     via CASCADE, but the underlying listings stay intact (and may still be
     linked to other posts). Refuses delete if any of the listings are
     currently committed to an open order — caller should cancel those first."""
@@ -422,6 +280,7 @@ async def delete_post(post_id: int, db: DbSession, user_id: CurrentUserId) -> No
     if open_commit:
         raise HTTPException(409, f"{open_commit} item(s) under this post still claimed in active orders")
 
+    # Older posts can still have a reminder image on disk.
     if post.image_path:
         try:
             Path(post.image_path).unlink(missing_ok=True)

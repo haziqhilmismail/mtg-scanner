@@ -2,17 +2,15 @@
 
 import json
 
-from conftest import _dispose_then, _photo, new_user, run
+from conftest import _photo, new_user, run
 
-from app.db import engine
 from app.services.auth_service import issue_session_token
 
 PRICING = {"multNormal": 2.8, "multFoil": 3.0, "currencyLabel": "RM", "roundStep": 0.5}
 
 
 def _users(n):
-    ids = [run(_dispose_then(new_user())) for _ in range(n)]
-    run(engine.dispose())
+    ids = [run(new_user()) for _ in range(n)]
     return [{"Authorization": f"Bearer {issue_session_token(i)}"} for i in ids]
 
 
@@ -25,9 +23,8 @@ def test_post_pricing(client):
     plain = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()
     assert plain["pricing"] is None
 
-    single = lambda: client.get(f"/api/posts/{pid}", headers=me).json()["pricing"]
     listed = lambda: next(p["pricing"] for p in client.get("/api/posts", headers=me).json() if p["id"] == pid)
-    assert single() == listed() == PRICING
+    assert listed() == PRICING
 
     for bad in ("not json", "[1, 2]", '"x"'):
         assert client.post("/api/posts", data={"pricing": bad}, headers=me).status_code == 422
@@ -41,9 +38,9 @@ def test_post_pricing(client):
     assert patch({"pricing": [1]}).status_code == 422
     assert patch({"pricing": {"x": "y" * 9000}}).status_code == 413
     assert patch({"pricing": {}}, them).status_code == 404
-    assert single() == listed() == changed
+    assert listed() == changed
     assert patch({"pricing": None}).json()["pricing"] is None                 # null clears
-    assert single() is None and listed() is None
+    assert listed() is None
 
 
 def test_default_pricing_on_me(client):

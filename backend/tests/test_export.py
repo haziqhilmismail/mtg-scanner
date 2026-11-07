@@ -5,17 +5,12 @@ import json
 import zipfile
 from io import BytesIO
 
-from conftest import _dispose_then, _scan, new_user, run
+from conftest import _scan, sign_in
 from PIL import Image
-
-from app.db import engine
-from app.services.auth_service import issue_session_token
 
 
 def test_export_is_a_jpeg_and_the_zip_keeps_the_post_order_names(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    headers = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    _, headers = sign_in()
     sid = str(_scan(client, headers["Authorization"][7:]).json()["scan_id"])
     cards = [{"bbox": [40, 40, 120, 168], "is_foil": False, "label_override": "RM13"},
              {"bbox": [200, 40, 120, 168], "is_foil": True, "label_override": "RM13F"}]

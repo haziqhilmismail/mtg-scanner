@@ -3,22 +3,21 @@ left without a link to the seller when their account is deleted."""
 
 from decimal import Decimal
 
-from conftest import _dispose_then, _photo, new_user, run
+from conftest import _photo, new_user, run, sign_in
 from sqlalchemy import func, select
 
-from app.db import async_session_factory, engine
+from app.db import async_session_factory
 from app.models import Base, SaleRecord
-from app.services import cardkingdom_prices
+from app.services import catalogue
+from app.services.cardkingdom_prices import CKPrice
 from app.services.accounts import delete_account
-from app.services.auth_service import issue_session_token
 
 
 class _CK:
     fetched_at = None
 
-    def lookup(self, sid):
-        return {"retail_normal": 4.49, "retail_foil": 9.99, "buy_normal": 2.5, "buy_foil": None,
-                "in_stock_normal": True, "in_stock_foil": False, "url_normal": "", "url_foil": ""}
+    def price(self, sid, foil):
+        return CKPrice(retail=9.99) if foil else CKPrice(retail=4.49, buy=2.5)
 
 
 async def _records(order_item_id: int) -> list[SaleRecord]:
@@ -31,10 +30,8 @@ def _sold_order(client, monkeypatch):
     """A user with a post, one scanned photo and an order for 2 x Sol Ring at RM12."""
     async def ck():
         return _CK()
-    monkeypatch.setattr(cardkingdom_prices, "get_index", ck)
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    monkeypatch.setattr(catalogue, "ck_index", ck)
+    uid, me = sign_in()
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")},
                        data={"post_id": str(post)}, headers=me).json()["scan_id"]
@@ -56,7 +53,7 @@ def test_each_send_that_changes_a_line_is_kept_once(client, monkeypatch):
                                             json={"items": [{"id": item, "unit_price_myr": p}], "sent": sent})
 
     assert send() == {"recorded": 1}
-    [r] = run(_dispose_then(_records(item)))
+    [r] = run(_records(item))
     assert (r.user_id, r.post_id, r.line_seq, r.channel, r.schema_version) == (uid, post, 1, "copy", 1)
     assert (r.card_name, r.scryfall_id, r.set_code, r.collector_number, r.rarity, r.is_foil) == (
         "Sol Ring", "abc", "cmm", "1", "uncommon", False)
@@ -76,16 +73,14 @@ def test_each_send_that_changes_a_line_is_kept_once(client, monkeypatch):
     client.delete(f"/api/orders/{oid}/prices-sent", headers=me)
     price("12.00")
     assert send() == {"recorded": 1}
-    rows = run(_dispose_then(_records(item)))
+    rows = run(_records(item))
     assert [(r.line_seq, r.unit_price_myr) for r in rows] == [(1, Decimal("12.00")), (2, Decimal("13.00")), (3, Decimal("12.00"))]
 
 
 def test_cancelled_orders_and_others_lines_are_not_kept(client, monkeypatch):
     _, me, post, order = _sold_order(client, monkeypatch)
     line = {"order_item_id": order["items"][0]["id"]}
-    other = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    _, them = sign_in()
     assert client.post("/api/sales", headers=them, json={"channel": "share", "lines": [line]}).status_code == 404
     assert client.post("/api/sales", headers=them, json={"channel": "share", "post_id": post, "lines": [line]}).status_code == 404
     assert client.post("/api/sales", headers=me, json={"channel": "fax", "lines": [line]}).status_code == 422
@@ -113,7 +108,7 @@ def test_deleting_an_account_leaves_nothing_but_unlinked_sales(client, monkeypat
             kept = (await db.scalars(select(SaleRecord).where(
                 SaleRecord.card_name == "Sol Ring", SaleRecord.user_id.is_(None), SaleRecord.order_status.is_not(None)))).all()
         return counts, files, left, kept
-    counts, files, left, kept = run(_dispose_then(go()))
+    counts, files, left, kept = run(go())
 
     assert set(left.values()) == {0}, left
     assert counts["users"] == 1 and counts["orders"] == 1 and counts["buyers"] == 1
@@ -125,4 +120,4 @@ def test_deleting_an_account_leaves_nothing_but_unlinked_sales(client, monkeypat
     # Their token still decodes, but the account is gone; and the next
     # account gets a new id, not theirs.
     assert client.get("/api/posts", headers=me).status_code == 401
-    assert run(_dispose_then(new_user())) > uid
+    assert run(new_user()) > uid

@@ -2,11 +2,10 @@
 
 from io import BytesIO
 
-from conftest import _dispose_then, new_user, run
+from conftest import new_user, run, sign_in
 from PIL import Image
 
 import app.main as main
-from app.db import engine
 from app.services.auth_service import issue_image_token, issue_session_token
 
 
@@ -17,8 +16,7 @@ def _png(mode="RGB") -> bytes:
 
 
 def test_payment_details_and_qr(client):
-    a, b = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
+    a, b = run(new_user()), run(new_user())
     me = {"Authorization": f"Bearer {issue_session_token(a)}"}
 
     empty = client.get("/api/payment", headers=me).json()
@@ -45,9 +43,7 @@ def test_payment_details_and_qr(client):
 
 
 def test_qr_is_cropped_square_from_the_top(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    uid, me = sign_in()
     # A tall screenshot: the QR (black) on top, the bank app's buttons (white) under it.
     tall = Image.new("RGB", (40, 100), "white")
     tall.paste((0, 0, 0), (0, 0, 40, 40))
@@ -60,9 +56,7 @@ def test_qr_is_cropped_square_from_the_top(client):
 
 def test_stored_qr_uploaded_again_is_the_same_picture(client):
     # Undo of "Delete my payment details" uploads the stored file again.
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    uid, me = sign_in()
     url = f"/api/payment/qr?token={issue_image_token(uid)}"
     tall = Image.frombytes("RGBA", (30, 70), bytes((i * 37) % 251 for i in range(30 * 70 * 4)))
     buf = BytesIO()

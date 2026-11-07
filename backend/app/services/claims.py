@@ -23,13 +23,11 @@ import tempfile
 from io import BytesIO
 
 import numpy as np
-from google.genai import types
 from PIL import Image, ImageOps, ImageStat
 from pydantic import BaseModel
 from scipy.signal import fftconvolve
 
-from ..config import settings
-from .gemini_scanner import get_client
+from . import gemini
 
 # English + Malay: threads mix both ("nak no 3", "mine", "kiri atas").
 OCR_LANGS = "eng+msa"
@@ -291,20 +289,7 @@ def parse_claims(thread: str, photos: list[CataloguePhoto], seller: str) -> Pars
         catalogue=_catalogue_text(photos), scope=scope,
         seller=seller or "(unknown)", thread=thread,
     )
-    # Keep the client in a variable: a temporary is closed as soon as it is
-    # garbage-collected, which can be mid-request.
-    client = get_client()
-    response = client.models.generate_content(
-        model=settings.gemini_model,
-        contents=[prompt],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=ParseResult,
-            temperature=0.0,
-            thinking_config=types.ThinkingConfig(thinking_budget=settings.gemini_thinking_budget),
-        ),
-    )
-    result = response.parsed or ParseResult(claims=[], skipped=[])
+    result = gemini.generate_json([prompt], ParseResult, temperature=0.0) or ParseResult(claims=[], skipped=[])
     drafts = result.claims
     # Never trust ids we did not offer: anything else becomes "unclear".
     valid = {(p.scan_id, c.card_id) for p in photos for c in p.cards}

@@ -193,7 +193,7 @@ def render_overlay(
         y = int(cy - card_h / 2)
         w = int(card_w)
         h = int(card_h)
-        x2, y2 = x + w, y + h
+        y2 = y + h
 
         pill = _Pill(fg_draw, label, font, base_font_size)
         rect_w, rect_h = pill.w, pill.h

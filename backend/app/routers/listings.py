@@ -12,21 +12,15 @@ from ..models import (
     OrderItem,
     OrderStatus,
     Post,
-    PostStatus,
     Scan,
-    User,
     listing_post_links,
 )
 from ..schemas import (
-    BulkImportLine,
-    BulkImportPayload,
-    BulkImportResult,
     ListingCreate,
     ListingRead,
     ListingReadWithAvailability,
     ListingUpdate,
 )
-from ..services.bulk_import import lookup_lines, parse_line, price_for_card
 from ..services.listings import drop_listing
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
@@ -138,27 +132,6 @@ async def create_listing(
     return _read(listing)
 
 
-@router.get("/{listing_id}", response_model=ListingReadWithAvailability)
-async def get_listing(
-    listing_id: int, db: DbSession, user_id: CurrentUserId,
-) -> ListingReadWithAvailability:
-    q = (
-        select(Listing)
-        .where(Listing.id == listing_id)
-        .options(selectinload(Listing.posts))
-    )
-    listing = (await db.execute(q)).scalar_one_or_none()
-    if not listing or listing.user_id != user_id:
-        raise HTTPException(404, "Listing not found")
-    committed = await db.scalar(
-        select(func.coalesce(func.sum(OrderItem.qty), 0))
-        .join(Order, Order.id == OrderItem.order_id)
-        .where(OrderItem.listing_id == listing_id)
-        .where(Order.status != OrderStatus.cancelled)
-    ) or 0
-    return _read_with_availability(listing, int(committed))
-
-
 @router.patch("/{listing_id}", response_model=ListingRead)
 async def update_listing(
     listing_id: int, payload: ListingUpdate, db: DbSession, user_id: CurrentUserId,
@@ -195,109 +168,3 @@ async def remove_listing(listing_id: int, db: DbSession, user_id: CurrentUserId)
     if not listing or listing.user_id != user_id:
         raise HTTPException(404, "Listing not found")
     await drop_listing(db, listing)
-
-
-@router.post("/bulk-import", response_model=BulkImportResult)
-async def bulk_import(
-    payload: BulkImportPayload, db: DbSession, user_id: CurrentUserId,
-) -> BulkImportResult:
-    """Moxfield-style import: parse N lines, look each up on Scryfall, save as
-    listings. Parse failures + Scryfall misses are returned in `lines` with
-    `ok=false` so the user can fix and retry. Created rows use the user's default
-    multipliers and a RM 1 ceiling round; user can edit prices afterwards.
-
-    `post_id` (single) is the post to link every imported listing into. If you
-    need multi-post links, edit them on the stock card after import."""
-
-    # Resolve target post (if any) — refuse archived ones up front
-    target_post: Post | None = None
-    if payload.post_id is not None:
-        target_post = await db.get(Post, payload.post_id)
-        if not target_post or target_post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
-        if target_post.status == PostStatus.archived:
-            raise HTTPException(400, "Cannot import into an archived post — un-archive it first")
-
-    # Pull the user's pricing defaults
-    user = await db.get(User, user_id)
-    if not user:
-        raise HTTPException(500, "User missing")
-    mult_normal = user.default_mult_normal
-    mult_foil = user.default_mult_foil
-
-    # 1) Parse every line up-front. Each parse error is captured per-line.
-    raw_lines = payload.text.splitlines()
-    parsed_or_err: list[tuple[int, str, dict | Exception | None]] = []
-    for i, raw in enumerate(raw_lines):
-        try:
-            parsed = parse_line(raw)
-        except ValueError as e:
-            parsed_or_err.append((i, raw, e))
-            continue
-        if parsed is None:
-            continue  # blank/comment — skip silently
-        if payload.apply_foil_to_all:
-            parsed["is_foil"] = True
-        parsed_or_err.append((i, raw, parsed))
-
-    # 2) Look each successfully-parsed line up on Scryfall in parallel
-    lookups = await lookup_lines([(idx, parsed) for idx, _, parsed in parsed_or_err if isinstance(parsed, dict)])
-
-    # 3) Create listings + collect per-line results in input order
-    results: list[BulkImportLine] = []
-    created = 0
-    for idx, raw, parsed in parsed_or_err:
-        if isinstance(parsed, Exception):
-            results.append(BulkImportLine(raw=raw, ok=False, error=str(parsed)))
-            continue
-        if not isinstance(parsed, dict):
-            continue
-        summary = lookups.get(idx)
-        if not summary:
-            results.append(BulkImportLine(
-                raw=raw, ok=False,
-                error="Not found on Scryfall",
-                name=parsed["name"],
-                set_code=parsed.get("set_code"),
-                collector_number=parsed.get("collector_number"),
-                is_foil=parsed["is_foil"],
-                qty=parsed["qty"],
-            ))
-            continue
-
-        price = price_for_card(summary, parsed["is_foil"], mult_normal, mult_foil)
-        listing = Listing(
-            user_id=user_id,
-            scryfall_id=summary.get("scryfall_id") or None,
-            name=summary.get("name") or parsed["name"],
-            set_code=(summary.get("set") or parsed.get("set_code") or "").lower() or None,
-            set_name=summary.get("set_name") or None,
-            collector_number=summary.get("collector_number") or parsed.get("collector_number"),
-            rarity=summary.get("rarity") or None,
-            is_foil=parsed["is_foil"],
-            image_url=summary.get("image_url") or None,
-            unit_price_myr=price,
-            qty_total=parsed["qty"],
-        )
-        if target_post is not None:
-            listing.posts = [target_post]
-        db.add(listing)
-        await db.flush()
-        created += 1
-        results.append(BulkImportLine(
-            raw=raw, ok=True,
-            listing_id=listing.id,
-            name=listing.name,
-            set_code=listing.set_code,
-            collector_number=listing.collector_number,
-            is_foil=listing.is_foil,
-            qty=listing.qty_total,
-            unit_price_myr=str(price),
-            image_url=listing.image_url,
-        ))
-
-    return BulkImportResult(
-        created=created,
-        skipped=len(results) - created,
-        lines=results,
-    )

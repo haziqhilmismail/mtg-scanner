@@ -25,25 +25,28 @@ from io import BytesIO  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from PIL import Image  # noqa: E402
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
+from sqlalchemy.pool import NullPool  # noqa: E402
 
 import app.main as main  # noqa: E402
-from app.db import async_session_factory, engine  # noqa: E402
+from app.db import async_session_factory  # noqa: E402
 from app.models import User  # noqa: E402
-from app.services.gemini_scanner import CardDetection  # noqa: E402
+from app.schemas.scan import Detection, Guess  # noqa: E402
+from app.services import catalogue, scans  # noqa: E402
+from app.services.cardkingdom_prices import CKPrice  # noqa: E402
+from app.services.auth_service import issue_session_token  # noqa: E402
 
 LIMIT = 10
 _emails = iter(f"user{i}@example.com" for i in range(1000))
 
 
+# Each run() and each TestClient has its own event loop, and a pooled
+# connection must not outlive the loop that opened it. NullPool keeps none.
+async_session_factory.configure(bind=create_async_engine(main.settings.database_url, poolclass=NullPool))
+
+
 def run(coro):
     return asyncio.run(coro)
-
-
-async def _dispose_then(coro):
-    # Each asyncio.run() gets a new event loop; drop pooled connections that
-    # belong to the previous one.
-    await engine.dispose()
-    return await coro
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -53,7 +56,6 @@ def schema():
     from alembic.config import Config
     command.upgrade(Config(str(main.BASE_DIR.parent / "alembic.ini")), "head")
     main.settings.make_data_dirs()
-    run(engine.dispose())
 
 
 async def new_user() -> int:
@@ -64,6 +66,12 @@ async def new_user() -> int:
         return u.id
 
 
+def sign_in() -> tuple[int, dict]:
+    """A fresh signed-in user: their id and the headers that carry their session."""
+    uid = run(new_user())
+    return uid, {"Authorization": f"Bearer {issue_session_token(uid)}"}
+
+
 def _photo() -> bytes:
     buf = BytesIO()
     Image.new("RGB", (400, 300), (230, 230, 225)).save(buf, format="JPEG")
@@ -71,38 +79,60 @@ def _photo() -> bytes:
 
 
 class _FakeCK:
-    matched_scryfall_count = 1
-    def lookup(self, sid):
-        return {"retail_normal": 1.0, "retail_foil": 2.0, "buy_normal": None, "buy_foil": None,
-                "in_stock_normal": True, "in_stock_foil": False, "url_normal": "", "url_foil": ""}
+    matched_scryfall_count, fetched_at = 1, None
+
+    def price(self, sid, foil):
+        return CKPrice(retail=2.0 if foil else 1.0)
+
+
+def sol_ring(**over) -> Detection:
+    """A Gemini-style detection of Sol Ring, boxed in the 400x300 test photo."""
+    return Detection(**{
+        "guess": Guess(name="Sol Ring", set_code="cmm", collector_number="1"),
+        "bbox": (40, 30, 120, 120), "corners": [[40, 30], [160, 30], [160, 150], [40, 150]],
+        "bbox_source": "gemini", "name_source": "gemini", **over,
+    })
+
+
+class FakeScanner:
+    """Stands in for the scanner behind /api/scan (`client.scanner`). A test
+    sets `cards`, `fail` or `costs_credit`; `calls` counts the scans run."""
+    model = "fake"
+
+    def __init__(self):
+        self.calls, self.fail, self.costs_credit = 0, False, True
+        self.cards = [sol_ring()]
+
+    def load(self):
+        pass
+
+    def ready(self):
+        return None
+
+    async def detect(self, pil, jpeg):
+        self.calls += 1
+        if self.fail:
+            raise RuntimeError("gemini is down")
+        return self.cards
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    calls = {"gemini": 0, "fail": False}
-
-    def fake_scan(image_bytes, *a, **k):
-        calls["gemini"] += 1
-        if calls["fail"]:
-            raise RuntimeError("gemini is down")
-        return [CardDetection(name="Sol Ring", set_code="cmm", collector_number="1",
-                              is_foil=False, quantity=1, box_2d=[100, 100, 500, 400])]
-
-    async def fake_lookup(dets):
-        return [{"scryfall_id": "abc", "name": d.name, "set": d.set_code} for d in dets]
+    async def fake_lookup(guesses):
+        # Scryfall knows every named card; a nameless guess gets the "no match" candidate.
+        return [{"scryfall_id": "abc", "name": g.name, "set": g.set_code} if g.name else None for g in guesses]
 
     async def fake_ck():
         return _FakeCK()
 
-    monkeypatch.setattr(main, "scan_image", fake_scan)
-    monkeypatch.setattr(main, "lookup_all", fake_lookup)
-    monkeypatch.setattr(main, "get_ck_index", fake_ck)
+    scanner = FakeScanner()
+    monkeypatch.setattr(scans, "scanner", scanner)
+    monkeypatch.setattr(catalogue, "scryfall_cards", fake_lookup)
+    monkeypatch.setattr(catalogue, "ck_index", fake_ck)
     monkeypatch.setattr(main.limiter, "enabled", False)
-    run(engine.dispose())
     with TestClient(main.app) as c:
-        c.calls = calls
+        c.scanner = scanner
         yield c
-    run(engine.dispose())
 
 
 def _scan(client, token):

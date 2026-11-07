@@ -32,6 +32,7 @@ import asyncio
 import sqlite3
 import time
 from datetime import datetime, timezone
+from typing import NamedTuple
 
 import aiohttp
 import ijson
@@ -48,6 +49,7 @@ CACHE_TTL_SECONDS = 24 * 3600
 # of returning rows that are missing the new columns.
 SCHEMA_VERSION = 2
 
+# The one User-Agent for Card Kingdom and Scryfall (catalogue.py).
 USER_AGENT = "MTGPasarMalamScanner/2.2"
 
 def _to_float(v) -> float:
@@ -138,12 +140,12 @@ ON CONFLICT(scryfall_id, is_foil) DO UPDATE SET
 """
 
 
-_EMPTY_LOOKUP = {
-    "retail_normal": None, "retail_foil": None,
-    "buy_normal": None, "buy_foil": None,
-    "in_stock_normal": False, "in_stock_foil": False,
-    "url_normal": "", "url_foil": "",
-}
+class CKPrice(NamedTuple):
+    """CK's NM price for one finish of one printing. Prices are None when CK
+    does not list it (or lists it at 0); url is CK's path, "" when unlisted."""
+    retail: float | None = None
+    buy: float | None = None
+    url: str = ""
 
 
 class CKPriceIndex:
@@ -303,37 +305,17 @@ class CKPriceIndex:
         del old  # refcount-close; safe vs. in-flight lookups holding the prior ref
         return unique_count, product_count
 
-    def lookup(self, scryfall_id: str) -> dict:
-        """
-        Returns:
-          {
-            "retail_normal": float | None,
-            "retail_foil":   float | None,
-            "buy_normal":    float | None,
-            "buy_foil":      float | None,
-            "in_stock_normal": bool,
-            "in_stock_foil":   bool,
-            "url_normal":    str,
-            "url_foil":      str,
-          }
-        """
+    def price(self, scryfall_id: str | None, foil: bool) -> CKPrice:
         if not scryfall_id or self._conn is None:
-            return dict(_EMPTY_LOOKUP)
-        rows = self._conn.execute(
-            "SELECT is_foil, price_retail, price_buy, qty_retail, url "
-            "FROM ck_prices WHERE scryfall_id = ?",
-            (scryfall_id,),
-        ).fetchall()
-        if not rows:
-            return dict(_EMPTY_LOOKUP)
-        result = dict(_EMPTY_LOOKUP)
-        for is_foil, price, buy, qty, url in rows:
-            side = "foil" if is_foil else "normal"
-            result[f"retail_{side}"] = price if price and price > 0 else None
-            result[f"buy_{side}"] = buy if buy and buy > 0 else None
-            result[f"in_stock_{side}"] = (qty or 0) > 0
-            result[f"url_{side}"] = url or ""
-        return result
+            return CKPrice()
+        row = self._conn.execute(
+            "SELECT price_retail, price_buy, url FROM ck_prices WHERE scryfall_id = ? AND is_foil = ?",
+            (scryfall_id, int(foil)),
+        ).fetchone()
+        if not row:
+            return CKPrice()
+        retail, buy, url = row
+        return CKPrice(retail if retail and retail > 0 else None, buy if buy and buy > 0 else None, url or "")
 
 
 def _iter_ck_products(f):
@@ -352,51 +334,3 @@ def _iter_ck_products(f):
     f.seek(0)
     path = "data.item" if prefix == b"{" else "item"
     yield from ijson.items(f, path, use_float=True)
-
-
-# Module-level singleton
-_index: CKPriceIndex | None = None
-
-
-async def get_index() -> CKPriceIndex:
-    global _index
-    if _index is None:
-        _index = CKPriceIndex()
-        await _index.refresh()
-    return _index
-
-
-def enrich(summary: dict | None, ck_index: CKPriceIndex) -> dict | None:
-    """Merge CK prices/URLs into a Scryfall summary. CK is the *only* price
-    source — no Scryfall/TCG fallback. If CK has no entry, the card is priced
-    at 0 with `price_source_*` = "none" so the UI can flag it for a manual
-    override."""
-    if not summary:
-        return None
-    sid = summary.get("scryfall_id", "")
-    ck = ck_index.lookup(sid) if sid else {
-        "retail_normal": None, "retail_foil": None,
-        "buy_normal": None, "buy_foil": None,
-        "in_stock_normal": False, "in_stock_foil": False,
-        "url_normal": "", "url_foil": "",
-    }
-
-    def _ck_full_url(path: str) -> str:
-        if not path:
-            return ""
-        return "https://www.cardkingdom.com/" + path.lstrip("/")
-
-    summary = {**summary}
-    summary["usd"] = ck["retail_normal"] or 0.0
-    summary["usd_foil"] = ck["retail_foil"] or 0.0
-    summary["price_source_normal"] = "cardkingdom" if ck["retail_normal"] else "none"
-    summary["price_source_foil"] = "cardkingdom" if ck["retail_foil"] else "none"
-    summary["ck_retail_normal"] = ck["retail_normal"]
-    summary["ck_retail_foil"] = ck["retail_foil"]
-    summary["ck_buy_normal"] = ck["buy_normal"]
-    summary["ck_buy_foil"] = ck["buy_foil"]
-    summary["ck_in_stock_normal"] = ck["in_stock_normal"]
-    summary["ck_in_stock_foil"] = ck["in_stock_foil"]
-    summary["ck_url_normal"] = _ck_full_url(ck.get("url_normal", ""))
-    summary["ck_url_foil"] = _ck_full_url(ck.get("url_foil", ""))
-    return summary

@@ -115,7 +115,7 @@ test('saving claims finds or makes the buyer and the listing, and makes the orde
 });
 
 test('a route with no test data answers 404', async () => {
-  assert.equal((await api('worst').send('GET', '/api/posts/1/image')).status, 404);
+  assert.equal((await api('worst').send('GET', '/api/no-such-route')).status, 404);
 });
 
 test('a post with an open claim is not deleted, as on the server; once the claim is cancelled it is', async () => {

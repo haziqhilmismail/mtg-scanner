@@ -1,10 +1,9 @@
 """Scans are filed under posts: upload into one, move between them, unfile on delete."""
 
-from conftest import _FakeCK, _dispose_then, _photo, new_user, run
+from conftest import _FakeCK, _photo, sign_in
 
-from app.db import engine
-from app.routers import posts
-from app.services.auth_service import issue_session_token
+from app.services import catalogue
+from app.services.cardkingdom_prices import CKPrice
 
 
 def _upload(client, headers, post_id=None):
@@ -19,10 +18,8 @@ def _by_post(client, headers):
 
 
 def test_scans_follow_their_post(client):
-    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
-    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    _, me = sign_in()
+    _, them = sign_in()
 
     friday = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     sunday = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()["id"]
@@ -51,9 +48,7 @@ def test_scans_follow_their_post(client):
 
 
 def test_post_stats(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    _, me = sign_in()
     full = client.post("/api/posts", data={"title": "Full"}, headers=me).json()["id"]
     empty = client.post("/api/posts", data={"title": "Empty"}, headers=me).json()["id"]
     for price, qty, status in (("1.50", 2, "active"), ("3.00", 1, "archived")):
@@ -64,14 +59,11 @@ def test_post_stats(client):
     stats = lambda p: (p["listing_count"], p["active_listing_count"], p["total_qty"], p["total_value_myr"])
     listed = {p["id"]: stats(p) for p in client.get("/api/posts", headers=me).json()}
     assert listed == {full: (2, 1, 3, "6.00"), empty: (0, 0, 0, "0.00")}
-    assert stats(client.get(f"/api/posts/{full}", headers=me).json()) == (2, 1, 3, "6.00")
 
 
 def test_cards_follow_their_photo(client):
-    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
-    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    _, me = sign_in()
+    _, them = sign_in()
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     scan = _upload(client, me, post)["scan_id"]
 
@@ -90,7 +82,8 @@ def test_cards_follow_their_photo(client):
     listed = {s["scan_id"]: s["listed"] for s in client.get("/api/scans?lite=1", headers=me).json()}
     assert listed == {scan: [[1, 2, 3, 4], [5, 6, 7, 8], [9, 9, 9, 9]]}
 
-    r = client.post("/api/orders", json={"buyer_fb_name": "Siti", "items": [{"listing_id": sold}]}, headers=me)
+    claim = {"scan_id": scan, "card_id": 1, "bbox": [5, 6, 7, 8], "name": "Mana Crypt", "unit_price_myr": "5.00"}
+    r = client.post("/api/claims/confirm", json={"claims": [{"buyer": "Siti", "items": [claim]}]}, headers=me)
     assert r.status_code == 201, r.text
 
     # Deleting the photo takes its cards off the checklist, except a claimed one.
@@ -101,10 +94,8 @@ def test_cards_follow_their_photo(client):
 
 
 def test_photos_keep_the_order_the_seller_gives_them(client):
-    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
-    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    _, me = sign_in()
+    _, them = sign_in()
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     sunday = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()["id"]
     a, b, c = (_upload(client, me, post)["scan_id"] for _ in range(3))
@@ -122,10 +113,8 @@ def test_photos_keep_the_order_the_seller_gives_them(client):
 
 
 def test_a_repost_copies_the_photos_into_a_new_post_with_the_same_pricing(client, monkeypatch):
-    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
-    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    _, me = sign_in()
+    _, them = sign_in()
     pricing = '{"priceMode": "live", "mult": 2.5}'
     friday = client.post("/api/posts", data={"title": "Friday", "pricing": pricing}, headers=me).json()["id"]
     sunday = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()["id"]
@@ -136,12 +125,12 @@ def test_a_repost_copies_the_photos_into_a_new_post_with_the_same_pricing(client
     pick = {"scryfall_id": "abc", "name": "Sol Ring", "set": "c21"}
 
     class NextDay(_FakeCK):
-        def lookup(self, sid):
-            return {**super().lookup(sid), "retail_normal": 3.0}
+        def price(self, sid, foil):
+            return CKPrice(retail=2.0 if foil else 3.0)
 
     async def next_day():
         return NextDay()
-    monkeypatch.setattr(posts, "get_ck_index", next_day)
+    monkeypatch.setattr(catalogue, "ck_index", next_day)
 
     r = client.post(f"/api/posts/{friday}/repost", headers=me, json={
         "title": " Friday (repost) ", "photos": [{"scan_id": a["scan_id"], "state": {**state, "picks": [pick]}}]})
