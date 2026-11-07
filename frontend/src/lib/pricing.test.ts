@@ -64,6 +64,7 @@ test('the pricing summary and the formula follow the settings, in both languages
   assert.equal(formulaLine(s, en), 'Final price = Card Kingdom retail USD × multiplier, rounded up to the nearest RM 1, never below RM 1.');
   const odd = { ...s, roundDirection: 'nearest' as const, roundStep: 0.5 as const, minPrice: 0, currencyLabel: 'MYR' };
   assert.equal(pricingSummary(odd, en), '×2.5 · Foil ×2.8 · Round to the nearest MYR 0.50');
+  assert.equal(pricingSummary({ ...s, roundDirection: 'none' }, en), '×2.5 · Foil ×2.8 · No rounding');
   assert.equal(formulaLine(odd, en), 'Final price = Card Kingdom retail USD × multiplier, rounded to the nearest MYR 0.50.');
   assert.equal(formulaLine({ ...s, roundDirection: 'none', minPrice: 0.5 }, en), 'Final price = Card Kingdom retail USD × multiplier, never below RM 0.50.');
   assert.equal(formulaLine(s, ms), 'Harga akhir = harga runcit Card Kingdom dalam USD × pengganda, dibundarkan naik ke RM 1 terdekat, tidak kurang daripada RM 1.');
