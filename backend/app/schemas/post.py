@@ -1,22 +1,27 @@
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import MISSING, BaseModel, ConfigDict
+from pydantic import MISSING, BaseModel, BeforeValidator, ConfigDict
 
 from ..models.post import PostStatus
 from .types import Pricing
 
 
+# A post's free text is stored stripped, and blank text as NULL.
+Text = Annotated[str | None, BeforeValidator(lambda v: (v.strip() or None) if isinstance(v, str) else v)]
+
+
 class PostBase(BaseModel):
-    title: str | None = None
-    fb_url: str | None = None
-    note: str | None = None
+    title: Text = None
+    fb_url: Text = None
+    note: Text = None
     status: PostStatus = PostStatus.active
 
 
 class PostUpdate(BaseModel):
-    title: str | None = None
-    fb_url: str | None = None
-    note: str | None = None
+    title: Text = None
+    fb_url: Text = None
+    note: Text = None
     status: PostStatus | MISSING = MISSING
     pricing: Pricing | None = None  # null clears: the post follows the user's default
 
