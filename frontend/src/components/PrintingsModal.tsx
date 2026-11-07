@@ -7,6 +7,7 @@ import { fmt2, smallScryfallImage } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { Dialog } from './ui/Dialog.tsx';
 import { TextField } from './ui/Field.tsx';
+import { printingText } from './VersionLine.tsx';
 
 interface Props {
   open: boolean;
@@ -100,7 +101,7 @@ function Printings({ cardName, currentSid, onSelect, busy, msg, onFind, onUseAsI
 }
 
 function Printing({ p, current, onPick, t }: { p: Candidate; current: boolean; onPick: () => void; t: T }) {
-  const code = `${(p.set || '?').toUpperCase()} · #${p.collector_number || '?'}`;
+  const code = printingText(p);
   const normal = p.price_source_normal === 'cardkingdom' && p.usd > 0;
   const foil = p.price_source_foil === 'cardkingdom' && p.usd_foil > 0;
   return (

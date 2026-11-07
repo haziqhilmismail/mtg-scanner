@@ -46,6 +46,9 @@ export function formatMyr(price: number, settings: Pick<Settings, 'currencyLabel
   return settings.showCurrency ? `${settings.currencyLabel}${formatted}` : formatted;
 }
 
+// A card's name, or Unknown card while it has none.
+export const cardName = (cd: CardRowData, t: T) => cd.sel.name || t('unknown_card');
+
 // A card's own price, as priceOverride stores it: RM as typed ("15.5"), or a
 // USD price the multiplier and rounding still apply to ("usd:4.5"). Versions
 // before USD prices read "usd:" as no price of the seller's own, and keep it.

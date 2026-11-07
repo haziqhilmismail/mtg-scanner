@@ -1,12 +1,13 @@
 import { useId, useState } from 'react';
 import type { T } from '../hooks/useLang.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { computeCardData, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../utils.ts';
+import { cardName, computeCardData, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../utils.ts';
 import { approxText, Money } from './Money.tsx';
 import { Dialog } from './ui/Dialog.tsx';
 import { TextField } from './ui/Field.tsx';
 import { Segmented } from './ui/Segmented.tsx';
 import { Stepper } from './ui/Stepper.tsx';
+import { printingText } from './VersionLine.tsx';
 
 // What Save price writes back to the card: its finish, its own multiplier
 // (null: the pricing's) and its own price (null: none, see PriceOverride).
@@ -62,8 +63,8 @@ export function AdjustPanel({ open, batch, idx, live, settings, t, onClose, onSa
   }, settings)[idx];
   if (!cd) return null;
 
-  const name = cd.sel.name || t('unknown_card');
-  const set = [cd.sel.set?.toUpperCase(), cd.sel.collector_number ? `#${cd.sel.collector_number}` : '', cd.sel.set_name].filter(Boolean).join(' · ');
+  const name = cardName(cd, t);
+  const set = cd.sel.set ? printingText(cd.sel, true) : '';
   const defaultMult = draft.isFoil ? settings.multFoil : settings.multNormal;
   // A multiplier equal to the finish's own is no multiplier of the card's.
   const ownMult = (mult: number | null, foil = draft.isFoil) =>

@@ -3,7 +3,7 @@ import type { Key, T } from '../hooks/useLang.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import { plural } from '../i18n/index.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { bboxKey, canRetry, computeCardData, formatMyr, notAdded } from '../utils.ts';
+import { bboxKey, canRetry, cardName, computeCardData, formatMyr, notAdded } from '../utils.ts';
 import { AdjustPanel, type PriceEdit } from './AdjustPanel.tsx';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow, CardViewer } from './CardRow.tsx';
@@ -106,7 +106,7 @@ export function ActiveBatchView({
   const unpriced = visible.filter(cd => !priced(cd)).length;
   const approxTotal = live && visible.some(cd => !cd.hasOverride && priced(cd));
   const photoName = photoNumber != null ? t('photo_n', { n: photoNumber }) : batch.filename;
-  const nameOf = (cd: CardRowData) => cd.sel.name || t('unknown_card');
+  const nameOf = (cd: CardRowData) => cardName(cd, t);
 
   // The post's name shown as a name: posts are often called by a date and
   // time, which would read as part of the sentence.
