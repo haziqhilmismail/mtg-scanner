@@ -5,7 +5,7 @@ from sqlalchemy import case, func, select
 
 from ..deps import CurrentUserId, DbSession
 from ..models import Buyer, Order, OrderStatus
-from ..schemas import BuyerCreate, BuyerRead, BuyerReadWithStats, BuyerUpdate
+from ..schemas import BuyerRead, BuyerReadWithStats, BuyerUpdate
 
 router = APIRouter(prefix="/api/buyers", tags=["buyers"])
 
@@ -47,23 +47,6 @@ async def list_buyers(db: DbSession, user_id: CurrentUserId) -> list[BuyerReadWi
     return out
 
 
-@router.post("", response_model=BuyerRead, status_code=201)
-async def create_buyer(payload: BuyerCreate, db: DbSession, user_id: CurrentUserId) -> Buyer:
-    buyer = Buyer(**payload.model_dump(), user_id=user_id)
-    db.add(buyer)
-    await db.flush()
-    await db.refresh(buyer)
-    return buyer
-
-
-@router.get("/{buyer_id}", response_model=BuyerRead)
-async def get_buyer(buyer_id: int, db: DbSession, user_id: CurrentUserId) -> Buyer:
-    buyer = await db.get(Buyer, buyer_id)
-    if not buyer or buyer.user_id != user_id:
-        raise HTTPException(404, "Buyer not found")
-    return buyer
-
-
 @router.patch("/{buyer_id}", response_model=BuyerRead)
 async def update_buyer(
     buyer_id: int, payload: BuyerUpdate, db: DbSession, user_id: CurrentUserId,
@@ -76,20 +59,3 @@ async def update_buyer(
     await db.flush()
     await db.refresh(buyer)
     return buyer
-
-
-@router.delete("/{buyer_id}", status_code=204)
-async def delete_buyer(buyer_id: int, db: DbSession, user_id: CurrentUserId) -> None:
-    """Refuse to delete a buyer that has any orders — archive their orders first."""
-    buyer = await db.get(Buyer, buyer_id)
-    if not buyer or buyer.user_id != user_id:
-        raise HTTPException(404, "Buyer not found")
-    n_orders = await db.scalar(
-        select(func.count(Order.id)).where(Order.buyer_id == buyer_id)
-    )
-    if n_orders:
-        raise HTTPException(
-            409,
-            f"Buyer has {n_orders} order(s) — cancel or reassign them before deleting",
-        )
-    await db.delete(buyer)

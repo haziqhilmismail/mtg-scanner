@@ -2,37 +2,17 @@
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from ..config import settings
-from ..deps import CurrentUserId, DbSession, ImageUserId
+from ..deps import CurrentUserId, DbSession
 from ..models import Buyer, Listing, Order, OrderItem, OrderStatus
 from ..schemas import OrderCreate, OrderRead, OrderUpdate
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
-
-# ---------- Delivery-proof photo helpers ----------
-# Same on-disk layout as posts: bytes live at data/orders/{id}.bin and the
-# orders row stores the absolute path so the data dir can be relocated
-# without rewriting rows. The image bytes are served at GET .../delivery-photo
-# behind a ?token=<image token> query param (browsers don't send Authorization on <img>).
-
-
-ALLOWED_PHOTO_MIME = {
-    "image/jpeg", "image/jpg", "image/png", "image/webp",
-    "image/heic", "image/heif", "image/gif",
-}
-MAX_PHOTO_BYTES = 8 * 1024 * 1024  # 8 MiB
-
-
-def _order_photo_path(order_id: int) -> Path:
-    return settings.orders_dir / f"{order_id}.bin"
-
 
 async def _load_order(db, order_id: int, user_id: int) -> Order:
     """Fetch an order with items eagerly loaded; 404 if not found or not owned."""
@@ -67,69 +47,36 @@ async def list_orders(
     return list((await db.execute(q)).scalars().all())
 
 
-async def _resolve_buyer(db, user_id: int, payload: OrderCreate) -> Buyer:
-    """Look up an existing buyer by id or by FB name (case-insensitive), or create
-    a new one if a name was provided. Raises 400/404 with a helpful message otherwise."""
-    phone = (payload.buyer_phone or "").strip() or None
-
-    if payload.buyer_id:
-        buyer = await db.get(Buyer, payload.buyer_id)
-        if not buyer or buyer.user_id != user_id:
-            raise HTTPException(404, "Buyer not found")
-        # If extra info was supplied alongside the id, fill in fields that
-        # are still empty on the existing buyer (don't overwrite stored data).
-        if payload.buyer_fb_url and not buyer.fb_url:
-            buyer.fb_url = payload.buyer_fb_url
-        if phone and not buyer.phone:
-            buyer.phone = phone
-        return buyer
-
-    name = (payload.buyer_fb_name or "").strip()
+async def _resolve_buyer(db, user_id: int, name: str) -> Buyer:
+    """This user's buyer with this FB name (case-insensitive), or a new one."""
+    name = name.strip()
     if not name:
-        raise HTTPException(400, "Provide either buyer_id or buyer_fb_name")
-
-    # Case-insensitive name lookup against this user's buyers
-    from sqlalchemy import func as sql_func
+        raise HTTPException(400, "Buyer name is empty")
     existing = (await db.execute(
-        select(Buyer).where(
-            Buyer.user_id == user_id,
-            sql_func.lower(Buyer.fb_name) == name.lower(),
-        )
+        select(Buyer).where(Buyer.user_id == user_id, func.lower(Buyer.fb_name) == name.lower())
     )).scalar_one_or_none()
-
     if existing:
-        if payload.buyer_fb_url and not existing.fb_url:
-            existing.fb_url = payload.buyer_fb_url
-        if phone and not existing.phone:
-            existing.phone = phone
         return existing
-
-    new_buyer = Buyer(
-        user_id=user_id,
-        fb_name=name,
-        fb_url=(payload.buyer_fb_url or None),
-        phone=phone,
-    )
+    new_buyer = Buyer(user_id=user_id, fb_name=name)
     db.add(new_buyer)
     await db.flush()
     return new_buyer
 
 
-@router.post("", response_model=OrderRead, status_code=201)
 async def create_order(
     payload: OrderCreate, db: DbSession, user_id: CurrentUserId,
 ) -> Order:
-    """Create an order with N line items. Each line item snapshots the listing's
-    current name/set/price, so the order stays readable even if the listing is later edited.
-    Buyer can be referenced by id OR resolved by FB name (looked up case-insensitive,
-    created if missing)."""
-    buyer = await _resolve_buyer(db, user_id, payload)
+    """Create an order with N line items (Claims confirm calls this). Each line
+    item snapshots the listing's current name/set/price, so the order stays
+    readable even if the listing is later edited. The buyer is found by FB name
+    (case-insensitive), or created."""
+    buyer = await _resolve_buyer(db, user_id, payload.buyer_fb_name)
 
     order = Order(
         user_id=user_id,
         buyer_id=buyer.id,
-        dropoff_method=payload.dropoff_method or buyer.default_dropoff_method,
-        dropoff_address=payload.dropoff_address or buyer.default_dropoff_address,
+        dropoff_method=buyer.default_dropoff_method,
+        dropoff_address=buyer.default_dropoff_address,
         notes=payload.notes,
         total_myr=Decimal("0.00"),
     )
@@ -157,11 +104,6 @@ async def create_order(
     order.total_myr = total
     await db.flush()
     return await _load_order(db, order.id, user_id)
-
-
-@router.get("/{order_id}", response_model=OrderRead)
-async def get_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
-    return await _load_order(db, order_id, user_id)
 
 
 @router.patch("/{order_id}", response_model=OrderRead)
@@ -259,98 +201,3 @@ async def restore_order(order_id: int, db: DbSession, user_id: CurrentUserId) ->
     order.status = OrderStatus.claimed
     await db.flush()
     return await _load_order(db, order.id, user_id)
-
-
-@router.post("/{order_id}/archive", response_model=OrderRead)
-async def archive_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
-    """Stamp `archived_at` so the order drops out of the default kanban list.
-    Idempotent — re-archiving keeps the original timestamp."""
-    order = await _load_order(db, order_id, user_id)
-    if order.archived_at is None:
-        order.archived_at = datetime.now(timezone.utc)
-        await db.flush()
-    return await _load_order(db, order.id, user_id)
-
-
-@router.post("/{order_id}/unarchive", response_model=OrderRead)
-async def unarchive_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
-    """Clear `archived_at` so the order returns to the kanban."""
-    order = await _load_order(db, order_id, user_id)
-    order.archived_at = None
-    await db.flush()
-    return await _load_order(db, order.id, user_id)
-
-
-# ---------- Delivery-proof photo endpoints ----------
-# UI uses these to attach a photo of the cards being handed over for any
-# delivered order (paid+delivered "Done", or delivered-only "On credit").
-# The order itself doesn't *require* a photo — it's an optional record the
-# user keeps for their own peace of mind / dispute resolution.
-
-
-@router.post("/{order_id}/delivery-photo", response_model=OrderRead)
-async def upload_delivery_photo(
-    order_id: int,
-    db: DbSession,
-    user_id: CurrentUserId,
-    image: UploadFile = File(...),
-) -> Order:
-    """Upload (or replace) the delivery-proof photo for an order. The order
-    doesn't need to be delivered yet — the frontend gates which cards show
-    the upload affordance, but the backend doesn't enforce that so we don't
-    create chicken-and-egg problems when the photo is taken before
-    `mark-delivered` fires."""
-    order = await _load_order(db, order_id, user_id)
-    if image.content_type and image.content_type not in ALLOWED_PHOTO_MIME:
-        raise HTTPException(400, f"Unsupported image type: {image.content_type}")
-    raw = await image.read()
-    if len(raw) > MAX_PHOTO_BYTES:
-        raise HTTPException(413, "Image too large (max 8 MB)")
-    if not raw:
-        raise HTTPException(400, "Empty image upload")
-    path = _order_photo_path(order.id)
-    path.write_bytes(raw)
-    order.delivery_photo_path = str(path)
-    order.delivery_photo_mime = image.content_type or "application/octet-stream"
-    order.delivery_photo_uploaded_at = datetime.now(timezone.utc)
-    await db.flush()
-    return await _load_order(db, order.id, user_id)
-
-
-@router.get("/{order_id}/delivery-photo")
-async def get_delivery_photo(
-    order_id: int,
-    db: DbSession,
-    user_id: ImageUserId,
-) -> Response:
-    """Serve the delivery-proof photo (auth: ?token=<image token>)."""
-    order = await db.get(Order, order_id)
-    if not order or order.user_id != user_id:
-        raise HTTPException(404, "Order not found")
-    if not order.delivery_photo_path:
-        raise HTTPException(404, "No delivery photo attached")
-    p = Path(order.delivery_photo_path)
-    if not p.exists():
-        raise HTTPException(404, "Image file missing")
-    return Response(
-        content=p.read_bytes(),
-        media_type=order.delivery_photo_mime or "application/octet-stream",
-        headers={"Cache-Control": "private, max-age=300"},
-    )
-
-
-@router.delete("/{order_id}/delivery-photo", status_code=204)
-async def delete_delivery_photo(
-    order_id: int, db: DbSession, user_id: CurrentUserId,
-) -> None:
-    order = await _load_order(db, order_id, user_id)
-    if order.delivery_photo_path:
-        try:
-            Path(order.delivery_photo_path).unlink(missing_ok=True)
-        except Exception:
-            pass
-    order.delivery_photo_path = None
-    order.delivery_photo_mime = None
-    order.delivery_photo_uploaded_at = None
-    await db.flush()
-

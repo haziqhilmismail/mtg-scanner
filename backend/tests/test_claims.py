@@ -344,5 +344,3 @@ def test_each_post_counts_its_buyers_who_still_has_to_pay_and_what_was_paid(clie
 
     counts = {p["id"]: (p["buyer_count"], p["unpaid_buyer_count"], p["paid_myr"]) for p in client.get("/api/posts", headers=me).json()}
     assert counts == {post: (2, 1, "9.00"), quiet: (0, 0, "0.00")}
-    one = client.get(f"/api/posts/{post}", headers=me).json()
-    assert (one["buyer_count"], one["unpaid_buyer_count"], one["paid_myr"]) == (2, 1, "9.00")
