@@ -1,7 +1,4 @@
-"""Scan credits: the free rolling allowance, vouchers, and /api/scan's use of them.
-
-Run with:  python -m pytest tests
-"""
+"""Scan credits: the free rolling allowance, vouchers, and /api/scan's use of them."""
 
 import asyncio
 from datetime import timedelta
@@ -253,8 +250,6 @@ def test_owner_testing_pair_toggles_between_unlimited_and_a_fresh_limit():
     run(go())
 
 
-# ---------- /api/scan ----------
-
 def test_scan_spends_a_credit_and_refuses_when_out(client):
     uid = run(new_user())
     token = issue_session_token(uid)
@@ -328,6 +323,6 @@ def test_rate_limits_are_per_user_and_bad_refresh_tokens_do_not_count(client, mo
     for _ in range(5):
         assert client.post("/api/refresh-ck", headers={"X-Refresh-Token": "wrong"}).status_code == 403
 
-    # Scryfall lookups need a login now.
+    # Scryfall lookups need a login.
     assert client.post("/api/relookup", data={"payload": '{"name": "Sol Ring"}'}).status_code == 401
     assert client.post("/api/printings", data={"payload": '{"name": "Sol Ring"}'}).status_code == 401
