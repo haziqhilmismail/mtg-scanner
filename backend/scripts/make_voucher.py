@@ -21,54 +21,35 @@ away, which is how the owner's own bypass is set up.
 import argparse
 import asyncio
 import sys
-from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
-
 from app.db import async_session_factory  # noqa: E402
-from app.models import User, Voucher  # noqa: E402
 from app.services import credits  # noqa: E402
+from app.services.accounts import user_by_email  # noqa: E402
 
 
 async def main(args) -> int:
-    if not args.credits and not args.unlimited and not args.reset:
-        print("Nothing to do: pass --credits N, --unlimited and/or --reset", file=sys.stderr)
-        return 2
-    if args.days is not None and not args.unlimited:
-        print("--days only applies with --unlimited", file=sys.stderr)
-        return 2
-    if args.reusable and not args.only_for:
-        print("--reusable needs --only-for EMAIL (a reusable code anyone can use is a free pass)", file=sys.stderr)
-        return 2
-    now = credits._now()
-    code = credits.new_code()
     async with async_session_factory() as s:
         only_user_id = None
         if args.only_for:
-            only_user_id = await s.scalar(select(User.id).where(User.email == args.only_for))
-            if only_user_id is None:
+            user = await user_by_email(s, args.only_for)
+            if user is None:
                 print(f"No user with email {args.only_for}", file=sys.stderr)
                 return 1
-        voucher = Voucher(
-            resets=args.reset,
-            reusable=args.reusable,
-            only_user_id=only_user_id,
-            code=credits.normalise_code(code),
-            credits=args.credits,
-            unlimited=args.unlimited,
-            unlimited_days=args.days,
-            max_uses=args.max_uses,
-            expires_at=now + timedelta(days=args.expires_in_days) if args.expires_in_days else None,
-            note=args.note,
-            created_at=now,
-        )
-        s.add(voucher)
-        await s.flush()
+            only_user_id = user.id
+        try:
+            code = await credits.create_voucher(
+                s, credits=args.credits, unlimited=args.unlimited, unlimited_days=args.days,
+                resets=args.reset, reusable=args.reusable, only_user_id=only_user_id,
+                max_uses=args.max_uses, expires_in_days=args.expires_in_days, note=args.note,
+            )
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
         if args.redeem_for:
-            user = await s.scalar(select(User).where(User.email == args.redeem_for))
+            user = await user_by_email(s, args.redeem_for)
             if user is None:
                 print(f"No user with email {args.redeem_for}", file=sys.stderr)
                 return 1
