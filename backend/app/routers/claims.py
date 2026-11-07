@@ -1,7 +1,6 @@
 """Claims: read a Facebook comment thread, draft who claimed what, confirm into orders."""
 
 import asyncio
-from decimal import Decimal
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
@@ -11,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from ..deps import CurrentUser, CurrentUserId, DbSession, limiter, owned
 from ..models import Listing, ListingStatus, Post, Scan
 from ..schemas import OrderRead
+from ..schemas.listing import ListingBase
 from ..schemas.types import Id, as_id
 from ..services import claims, credits, orders
 from ..services.listings import locked_prices
@@ -78,22 +78,12 @@ async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user
             "credits": await credits.status(db, user.id)}
 
 
-class ConfirmItem(BaseModel):
+class ConfirmItem(ListingBase):
+    """A claimed card: the listing it becomes, where it is in which photo,
+    and how many this buyer wants (qty_total is how many the seller has)."""
     scan_id: Id
     card_id: int
     bbox: list[int] = Field(..., min_length=4, max_length=4)
-    name: str
-    scryfall_id: str | None = None
-    set_code: str | None = None
-    set_name: str | None = None
-    collector_number: str | None = None
-    rarity: str | None = None
-    is_foil: bool = False
-    image_url: str | None = None
-    ck_url: str | None = None
-    unit_price_myr: Decimal = Field(..., ge=0, decimal_places=2)
-    # How many of this card the seller has (from the scan), and how many this buyer wants.
-    qty_total: int = Field(1, ge=1)
     qty: int = Field(1, ge=1)
 
 
@@ -119,12 +109,7 @@ async def _listing_for(db, user_id: int, post: Post | None, item: ConfirmItem) -
     listing = next((l for l in rows if l.bbox == item.bbox and l.is_foil == item.is_foil), None)
     if listing is None:
         listing = Listing(
-            user_id=user_id, scan_id=item.scan_id, bbox=item.bbox,
-            name=item.name, scryfall_id=item.scryfall_id, set_code=item.set_code,
-            set_name=item.set_name, collector_number=item.collector_number, rarity=item.rarity,
-            is_foil=item.is_foil, image_url=item.image_url, ck_url=item.ck_url,
-            unit_price_myr=item.unit_price_myr, qty_total=item.qty_total,
-            status=ListingStatus.active,
+            **item.model_dump(exclude={"card_id", "qty"}), user_id=user_id, status=ListingStatus.active,
         )
         listing.posts = [post] if post else []
         db.add(listing)
