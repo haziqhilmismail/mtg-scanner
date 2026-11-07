@@ -280,3 +280,5 @@
 }
 .cc-asis > span { flex: 1 1 180px; min-width: 0; }
 .cc-asis > .ui-btn { flex: none; }
+
+@keyframes photo-pulse { 50% { opacity: 0.55; } }
