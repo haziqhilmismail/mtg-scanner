@@ -30,7 +30,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from .card_crop import warp_quad
-from .card_detector import CardDetector, Detection
+from .card_detector import CardDetector
 from .card_embedder import CardIndex, Embedder, Printing, normalize_name
 from .collector_ocr import (
     STRIP_SIZE, TITLE_SIZE, CollectorLine, CollectorReader, strip_quad, title_quad,
@@ -84,7 +84,6 @@ class ScannedCard:
     score: float  # cosine similarity of the embedding match
     name_source: str  # "title" (OCR'd name agreed or overruled) | "embedding"
     version_source: str  # "ocr" | "embedding"
-    foil_source: str  # "ocr" | "finishes" | "default"
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
@@ -307,13 +306,13 @@ class CardScanner:
             )
 
             if printing.foil_only:
-                is_foil, foil_source = True, "finishes"
+                is_foil = True
             elif printing.nonfoil_only:
-                is_foil, foil_source = False, "finishes"
+                is_foil = False
             elif line is not None and line.foil is not None:
-                is_foil, foil_source = line.foil, "ocr"
+                is_foil = line.foil
             else:
-                is_foil, foil_source = False, "default"
+                is_foil = False
 
             out.append(ScannedCard(
                 det=CardDetection(
@@ -328,6 +327,5 @@ class CardScanner:
                 score=printing.score,
                 name_source=name_source,
                 version_source=version_source,
-                foil_source=foil_source,
             ))
         return out
