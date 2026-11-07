@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession
+from ..deps import CurrentUserId, DbSession, owned
 from ..models import (
     Listing,
     ListingStatus,
@@ -136,14 +136,7 @@ async def create_listing(
 async def update_listing(
     listing_id: int, payload: ListingUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> ListingRead:
-    q = (
-        select(Listing)
-        .where(Listing.id == listing_id)
-        .options(selectinload(Listing.posts))
-    )
-    listing = (await db.execute(q)).scalar_one_or_none()
-    if not listing or listing.user_id != user_id:
-        raise HTTPException(404, "Listing not found")
+    listing = await owned(db, Listing, listing_id, user_id, selectinload(Listing.posts))
 
     updates = payload.model_dump(exclude_unset=True)
     post_ids = updates.pop("post_ids", None)  # None = unchanged, [] = unlink all
@@ -164,7 +157,5 @@ async def remove_listing(listing_id: int, db: DbSession, user_id: CurrentUserId)
     """Remove listing (see drop_listing). Either way the row stops appearing
     in the active stock view; this matters only for users digging into
     archived inventory."""
-    listing = await db.get(Listing, listing_id)
-    if not listing or listing.user_id != user_id:
-        raise HTTPException(404, "Listing not found")
+    listing = await owned(db, Listing, listing_id, user_id)
     await drop_listing(db, listing)

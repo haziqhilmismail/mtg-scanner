@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUser, CurrentUserId, DbSession, limiter
+from ..deps import CurrentUser, CurrentUserId, DbSession, limiter, owned
 from ..models import Listing, ListingStatus, Post, Scan
 from ..schemas import OrderCreate, OrderItemCreate, OrderRead
 from ..services import claims, credits
@@ -144,11 +144,7 @@ async def _listing_for(db, user_id: int, post: Post | None, item: ConfirmItem) -
 async def confirm_claims(body: ConfirmRequest, db: DbSession, user_id: CurrentUserId):
     """Turn confirmed drafts into orders: one per buyer, in the order given.
     All or nothing — a bad item rolls the whole batch back."""
-    post = None
-    if body.post_id is not None:
-        post = await db.get(Post, body.post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
+    post = None if body.post_id is None else await owned(db, Post, body.post_id, user_id)
     scan_ids = {i.scan_id for c in body.claims for i in c.items}
     scans = {s.id: s for s in (await db.scalars(
         select(Scan).where(Scan.id.in_(scan_ids), Scan.user_id == user_id)

@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.orm.attributes import flag_modified
 
-from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter
+from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter, owned
 from ..models import Listing, ListingStatus, Order, OrderItem, OrderStatus, Post, Scan
 from ..models.card_correction import CorrectionKind
 from ..services import catalogue, corrections, credits, scans
@@ -32,13 +32,6 @@ router = APIRouter(tags=["scans"])
 ScanId = Annotated[int, PathParam(ge=1, le=2**63 - 1)]
 
 
-async def _own_scan(db: DbSession, scan_id: int, user_id: int) -> Scan:
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
-    return scan_row
-
-
 @router.post("/api/scan")
 @limiter.limit("10/minute;100/hour")  # local scans load the home server's CPU; Gemini scans cost money
 async def scan(
@@ -50,9 +43,7 @@ async def scan(
 ):
     # Which post to file the photo under. Checked before anything costly.
     if post_id is not None:
-        post = await db.get(Post, post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
+        await owned(db, Post, post_id, user_id)
     if problem := scans.scanner.ready():
         raise HTTPException(503, problem)
     raw = await image.read()
@@ -94,9 +85,7 @@ async def frame_card(
     pixels, TL/TR/BR/BL order. Returns a "manual" card the user fills in via
     the row's edit controls. Appended to the scan's stored cards JSON so it
     survives refresh."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
+    scan_row = await owned(db, Scan, scan_id, user_id)
 
     corners = json_payload(payload).get("corners")
     if not (isinstance(corners, list) and len(corners) == 4
@@ -177,7 +166,7 @@ async def save_scan_state(scan_id: ScanId, body: ScanState, db: DbSession, user_
     `picks` (one entry per card, null or a candidate) are printings the seller
     chose for a card. They are not kept in ui_state: each one replaces the
     card's first candidate in the saved scan, so every later read sees it."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     state, picks = split_state(body.state, len((scan_row.gemini_raw or {}).get("cards", [])))
     # One conditional UPDATE, so two saves arriving together can't both pass a
     # read-then-compare and leave the older one stored.
@@ -223,7 +212,7 @@ async def correct_card(
     scanner. Sending the same answer again changes nothing; a different one
     replaces it. `kept` is false when the card has no usable crop, for example
     one the seller framed by hand."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     card = scan_row.card(card_id)
     if card is None:
         raise HTTPException(404, "Card not found")
@@ -240,9 +229,7 @@ async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
     """File photos under a post (or unfile them). Other people's scans in
     `scan_ids` are silently left alone."""
     if body.post_id is not None:
-        post = await db.get(Post, body.post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
+        await owned(db, Post, body.post_id, user_id)
     await db.execute(
         update(Scan)
         .where(Scan.id.in_(body.scan_ids), Scan.user_id == user_id)
@@ -294,7 +281,7 @@ async def scan_preview(
 ):
     """The scan's photo preview. `w` caps the longest edge, for the small
     thumbnails in the scan strip."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     # Resizing for ?w= is a decode + re-encode; a strip of thumbnails is many at once.
     return await asyncio.to_thread(_data_url_jpeg, (scan_row.gemini_raw or {}).get("image_b64", ""), w)
 
@@ -304,7 +291,7 @@ async def scan_card_crop(
     scan_id: ScanId, card_id: int, db: DbSession, user_id: ImageUserId,
 ):
     """One detected card's thumbnail, cut from the photo at scan time."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     if card := scan_row.card(card_id):
         return _data_url_jpeg(card.get("crop_b64", ""))
     raise HTTPException(404, "Card not found")
@@ -315,7 +302,7 @@ async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
     """Drop a scan from the dashboard. Removes the DB row, the image bytes on
     disk, and the checklist cards added from it. A card in an open order
     stays (unlinked from the scan), so no buyer's claim is lost."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     claimed = (
         select(OrderItem.listing_id)
         .join(Order, Order.id == OrderItem.order_id)
@@ -343,7 +330,7 @@ async def relookup_scan_prices(
     pricing fields (usd/usd_foil/price_source_*/ck_*) are refreshed from
     the current ck_index.db. Cheap (local SQLite lookups, no network).
     Returns the same shape as GET /api/scans for in-place rehydration."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
 
     payload = scan_row.gemini_raw or {}
     updated = refresh_prices(payload, await catalogue.ck_index())

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession, limiter
+from ..deps import CurrentUserId, DbSession, limiter, owned
 from ..models import Order, OrderItem, OrderStatus, Post, SaleRecord
 from ..services import catalogue
 
@@ -48,9 +48,7 @@ async def record_sales(request: Request, body: SentSummary, db: DbSession, user_
     cancelled orders are skipped too. 404 if a line or the post isn't the
     caller's."""
     if body.post_id is not None:
-        post = await db.get(Post, body.post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
+        await owned(db, Post, body.post_id, user_id)
 
     wanted = {line.order_item_id: line for line in body.lines}
     items = (await db.scalars(
