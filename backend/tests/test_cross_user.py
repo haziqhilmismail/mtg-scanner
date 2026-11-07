@@ -14,7 +14,7 @@ CASES = {
     "export": ("post", "/api/export", lambda ids: {"data": {"payload": json.dumps({"image_id": str(ids["scan"]), "cards": []})}}),
     "export-all": ("post", "/api/export-all", lambda ids: {"data": {"payload": json.dumps({"images": [{"image_id": str(ids["scan"]), "cards": []}]})}}),
     "scan state": ("patch", "/api/scans/{scan}/state", lambda ids: {"json": {"state": {}}}),
-    "frame card": ("post", "/api/scans/{scan}/frame-card", lambda ids: {"data": {"payload": json.dumps({"corners": [[0, 0], [99, 0], [99, 99], [0, 99]], "skip_identify": True})}}),
+    "frame card": ("post", "/api/scans/{scan}/frame-card", lambda ids: {"data": {"payload": json.dumps({"corners": [[0, 0], [99, 0], [99, 99], [0, 99]]})}}),
     "card correction": ("put", "/api/scans/{scan}/cards/0/correction", lambda ids: {"json": {"scryfall_id": "729877be-4894-4ef5-9e60-de8a8fb2bdc0", "kind": "pick"}}),
     "order": ("patch", "/api/orders/{order}", lambda ids: {"json": {"notes": "x"}}),
     "post": ("patch", "/api/posts/{post}", lambda ids: {"json": {"note": "x"}}),

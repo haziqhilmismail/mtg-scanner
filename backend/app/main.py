@@ -523,10 +523,9 @@ async def frame_card(
 ):
     """User-drawn frame around a card the detector missed (typically two
     cards merged into one bbox). Body: {corners: [[x,y]*4]} in source-image
-    pixels, TL/TR/BR/BL order. With the local scanner on, it tries to name
-    the card → fully-named card with CK pricing. Otherwise (or no match) →
-    "manual" stub the user renames via the existing relookup flow. Appended
-    to the scan's stored cards JSON so it survives refresh."""
+    pixels, TL/TR/BR/BL order. Returns a "manual" card the user fills in via
+    the row's edit controls. Appended to the scan's stored cards JSON so it
+    survives refresh."""
     scan_row = await db.get(Scan, scan_id)
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
@@ -559,49 +558,19 @@ async def frame_card(
     if x1 - x0 < 16 or y1 - y0 < 16:
         raise HTTPException(400, "Frame is too small")
 
-    # `skip_identify`: the user will fill the card in by hand via the row's
-    # edit controls.
-    local_det = None
-    if settings.use_local_scanner and not data.get("skip_identify"):
-        try:
-            local_det = await local_scan.identify_quad(pil.convert("RGB"), clamped)
-        except Exception as e:
-            print(f"[frame-card] identification failed: {e}", flush=True)
-
     crop_b64 = await asyncio.to_thread(_make_thumb_b64, pil, x0, y0, x1, y1)
 
-    # Build the card record. Two flavours: locally named (full Scryfall + CK)
-    # or manual stub (user types the name via existing relookup).
-    if local_det is not None:
-        det = local_det.det
-        summaries = await lookup_all([det])
-        ck_index = await get_ck_index()
-        sf = enrich_with_ck(summaries[0] if summaries else None, ck_index)
-        gemini_hint = {
-            "name": det.name, "set_code": det.set_code,
-            "collector_number": det.collector_number,
-            "is_foil": det.is_foil, "quantity": 1,
-        }
-        name_source = local_det.name_source
-        name_confidence = round(local_det.score, 3)
-    else:
-        sf = {
-            "scryfall_id": "",
-            "name": "",
-            "set": "", "set_name": "", "collector_number": "", "rarity": "",
-            "usd": 0.0, "usd_foil": 0.0,
-            "image_url": "", "scryfall_uri": "",
-            "_lookup_failed": True,
-            "_manual": True,
-            "price_source_normal": "manual",
-            "price_source_foil": "manual",
-        }
-        gemini_hint = {
-            "name": "", "set_code": "", "collector_number": "",
-            "is_foil": False, "quantity": 1,
-        }
-        name_source = "gemini"  # nothing named it; UI shows the manual banner
-        name_confidence = None
+    sf = {
+        "scryfall_id": "",
+        "name": "",
+        "set": "", "set_name": "", "collector_number": "", "rarity": "",
+        "usd": 0.0, "usd_foil": 0.0,
+        "image_url": "", "scryfall_uri": "",
+        "_lookup_failed": True,
+        "_manual": True,
+        "price_source_normal": "manual",
+        "price_source_foil": "manual",
+    }
 
     existing_payload = dict(scan_row.gemini_raw or {})
     existing_cards = list(existing_payload.get("cards") or [])
@@ -613,9 +582,9 @@ async def frame_card(
         "corners": clamped,
         "crop_b64": crop_b64,
         "bbox_source": "user",
-        "name_source": name_source,
-        "name_confidence": name_confidence,
-        "gemini": gemini_hint,
+        "name_source": "gemini",  # nothing named it; UI shows the manual banner
+        "name_confidence": None,
+        "gemini": {"name": "", "set_code": "", "collector_number": "", "is_foil": False, "quantity": 1},
         "candidates": [sf],
     }
     existing_cards.append(new_card)
