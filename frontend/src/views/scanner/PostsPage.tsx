@@ -56,7 +56,7 @@ export function PostsPage({ area }: { area: Area }) {
                   <span className="ui-row-main">
                     <span className="ui-row-title">{t('posts_unfiled')}</span>
                     <span className="ui-row-meta">
-                      {plural(t, 'post_photos_count', unfiledFolder.items.length)} · {t('posts_unfiled_meta')}
+                      {plural(t, 'photos', unfiledFolder.items.length)} · {t('posts_unfiled_meta')}
                     </span>
                   </span>
                 </Link>
@@ -74,7 +74,7 @@ export function PostsPage({ area }: { area: Area }) {
                   {archivedFolders.map(f => (
                     <li key={f.key} className="postrow-archived">
                       {postRow(f)}
-                      <button type="button" className="ui-btn" onClick={() => setArchived(f, false)}>{t('posts_restore')}</button>
+                      <button type="button" className="ui-btn" onClick={() => setArchived(f, false)}>{t('restore')}</button>
                     </li>
                   ))}
                 </ul>

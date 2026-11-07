@@ -199,7 +199,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
 
   const closeAdd = (hadWork: boolean) => {
     setAddOpen(false);
-    if (hadWork) toast(t('claims_toast_closed'), { undoLabel: t('claims_undo'), onUndo: () => setAddOpen(true) });
+    if (hadWork) toast(t('claims_toast_closed'), { undoLabel: t('undo'), onUndo: () => setAddOpen(true) });
   };
   const added = async (n: number) => {
     setNewSince(new Set(groups.map(g => g.buyerId)));
@@ -236,7 +236,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
     stamp(new Map(changed.map(o => [o.id, stampsFor(o, to, now)])));
     const said = to === 'unpaid' ? 'claims_toast_unpaid' : to === 'done' ? 'claims_toast_done' : g.state === 'done' ? 'claims_toast_back' : 'claims_toast_paid';
     toast(t(said, { name: g.name.trim() }), {
-      undoLabel: t('claims_undo'),
+      undoLabel: t('undo'),
       onUndo: () => stamp(new Map(changed.map(o => [o.id, { paid_at: o.paid_at, delivered_at: o.delivered_at }]))),
     });
   }, [stamp, toast, t]);
@@ -248,7 +248,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
     const ids = g.orders.map(o => o.id);
     setBuyerId(null);
     cancelOrders(ids, true);
-    toast(t('claims_toast_removed', { name: g.name.trim() }), { undoLabel: t('claims_undo'), onUndo: () => cancelOrders(ids, false) });
+    toast(t('claims_toast_removed', { name: g.name.trim() }), { undoLabel: t('undo'), onUndo: () => cancelOrders(ids, false) });
   };
   const saveBuyer = async (g: BuyerGroup, change: { fb_name: string } | { phone: string | null }) => {
     try {
@@ -425,7 +425,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
                 </div>
                 <div className="claims-bar" aria-hidden="true"><span style={{ width: `${Math.round(paidShare * 100)}%` }} /></div>
                 <p className="claims-totals-meta">
-                  {[plural(t, 'claims_buyers', groups.length), plural(t, 'claims_cards', totals.cards),
+                  {[plural(t, 'claims_buyers', groups.length), plural(t, 'cards', totals.cards),
                     t('claims_claimed', { amount: `${totals.live.claimed ? '≈' : ''}${rm(totals.claimed, cents)}` })].join(' · ')}
                 </p>
                 {live ? <p className="claims-totals-meta">{t('claims_live_note')}</p> : null}
@@ -435,7 +435,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
                   <button type="button" className="ui-btn" aria-haspopup="dialog" onClick={() => setHowOpen(true)}><Icon name="help" size={18} />{t('claims_how')}</button>
                   {live ? (
                     <button type="button" className="ui-btn" disabled={refreshing} onClick={refreshPrices}>
-                      <Icon name="refresh" size={18} />{refreshing ? t('claims_refreshing') : t('claims_refresh')}
+                      <Icon name="refresh" size={18} />{refreshing ? t('claims_refreshing') : t('refresh_prices')}
                     </button>
                   ) : null}
                 </div>

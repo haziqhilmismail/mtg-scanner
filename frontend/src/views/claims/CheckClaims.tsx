@@ -120,7 +120,7 @@ export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, ce
                       <span className="claims-thumb">{card.cd.card.crop_b64 ? <img src={card.cd.card.crop_b64} alt="" onError={hideBroken} /> : <Icon name="photo" size={16} />}</span>
                       <span className="claims-match-text">
                         <span className="claims-match-name">{card.cd.sel.name || '?'}</span>
-                        <span className="claims-match-meta">{[photos.length > 1 ? t('claims_photo', { n: card.photo }) : '', priceOf(card)].filter(Boolean).join(' · ')}</span>
+                        <span className="claims-match-meta">{[photos.length > 1 ? t('photo_n', { n: card.photo }) : '', priceOf(card)].filter(Boolean).join(' · ')}</span>
                       </span>
                       <button type="button" className="ui-btn" aria-expanded={open} onClick={() => setPicking(open ? null : at)}>{t('claims_change')}</button>
                     </div>

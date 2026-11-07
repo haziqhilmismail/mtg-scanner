@@ -48,7 +48,7 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, showPhoto
     >
       {g ? (
         <>
-          <p className="ui-label">{plural(t, 'claims_cards', g.cards)}</p>
+          <p className="ui-label">{plural(t, 'cards', g.cards)}</p>
           <ClaimLines lines={g.lines} cents={cents} showPhotos={showPhotos} />
           <button type="button" className="ui-btn ui-btn--plain claims-add-for" onClick={onAddCard}>
             <Icon name="plus" size={16} />{t('claims_add_for', { name: g.name.trim() })}
@@ -57,7 +57,7 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, showPhoto
           <p className="claims-bubble">{message}</p>
           <p className="claims-foot-note">
             {hasPayment ? t('claims_pay_note') : t('claims_pay_none')}{' '}
-            <Link to={{ page: 'profile' }}>{hasPayment ? t('claims_pay_edit') : t('claims_pay_add')}</Link>
+            <Link to={{ page: 'profile' }}>{hasPayment ? t('edit') : t('claims_pay_add')}</Link>
           </p>
           {live ? (
             <p className="claims-foot-note">
@@ -70,7 +70,7 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, showPhoto
           />
           <SaveField
             key={`name-${g.buyerId}`} saved={g.name} onSave={onSaveName} required maxLength={255} autoComplete="off"
-            label={t('claims_name')} saveLabel={t('claims_name_save')}
+            label={t('claims_name')} saveLabel={t('save_name')}
           />
           <SaveField
             key={`phone-${g.buyerId}`} saved={g.phone} onSave={onSavePhone} inputMode="tel" maxLength={32} autoComplete="off"

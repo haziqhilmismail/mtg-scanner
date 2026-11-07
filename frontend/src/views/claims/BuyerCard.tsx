@@ -50,7 +50,7 @@ export function BuyerCard({ group: g, isNew, copied, cents, showPhotos, qrLabel,
       ) : (
         <div className="claims-buyer-actions">
           <button type="button" className={copied ? 'ui-btn claims-copy is-copied' : 'ui-btn claims-copy'} onClick={onCopy}>
-            <Icon name={copied ? 'check' : 'copy'} size={17} />{copied ? t('claims_copied') : t('claims_copy')}
+            <Icon name={copied ? 'check' : 'copy'} size={17} />{copied ? t('copied') : t('claims_copy')}
           </button>
           {qrLabel ? (
             <button type="button" className="ui-icon-btn claims-qr" aria-label={qrLabel} onClick={onQr}><Icon name="qr" size={19} /></button>

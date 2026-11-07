@@ -469,7 +469,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     // Still on the post: the user may have left it meanwhile.
     if (archived && routeFolder(current()) === folder.key) go(POSTS);
     const message = t(archived ? 'post_archived_toast' : 'post_restored_toast');
-    toast(message, undoable ? { undoLabel: t('posts_undo'), onUndo: () => setArchived(folder, !archived, false) } : undefined);
+    toast(message, undoable ? { undoLabel: t('undo'), onUndo: () => setArchived(folder, !archived, false) } : undefined);
   }, [dialog, toast, refreshPosts, current, go, t]);
 
   // Deleting a post takes its photos with it. The server refuses while any
@@ -482,7 +482,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     const ok = await dialog.confirm({
       title: t('delete_post_title', { name: folder.title }),
       message: photos
-        ? t('delete_post_body', { photos: plural(t, 'post_photos_count', photos), cards: plural(t, 'post_cards', cards) })
+        ? t('delete_post_body', { photos: plural(t, 'photos', photos), cards: plural(t, 'cards', cards) })
         : t('delete_post_body_empty'),
       okLabel: t('delete_post'),
       destructive: true,

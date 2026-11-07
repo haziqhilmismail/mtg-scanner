@@ -92,7 +92,7 @@ export function PostRow({ title, items, total, settings, buyers, unpaid, paid, t
   const scanning = items.filter(s => s.batch.status === 'scanning').length;
   const waiting = items.filter(s => waits(s, live)).length;
   const needs = items.reduce((n, s) => n + s.needs, 0);
-  const meta = [live ? t('kind_live') : '', items.length ? plural(t, 'post_photos_count', items.length) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']
+  const meta = [live ? t('kind_live') : '', items.length ? plural(t, 'photos', items.length) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']
     .filter(Boolean).join(' · ');
   return (
     <Link className="ui-row postrow" to={to}>

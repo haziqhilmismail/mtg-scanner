@@ -59,7 +59,7 @@ export function ActiveBatchView({
   // card null: the whole photo.
   const [view, setView] = useState<{ card: number | null; side: 0 | 1; open: boolean } | null>(null);
   const cardData = useMemo(() => computeCardData(batch, settings), [batch, settings]);
-  const cardsLabel = (n: number) => plural(t, 'photo_cards', n);
+  const cardsLabel = (n: number) => plural(t, 'cards', n);
 
   if (batch.status === 'scanning' || batch.status === 'error' || !batch.response) {
     const failed = scanner.batches.filter(canRetry);
@@ -130,7 +130,7 @@ export function ActiveBatchView({
       else if (await onTakeOut(cd) === 'claimed') {
         await dialog.alert({ title: t('photo_claimed_title'), message: t('photo_claimed_msg', { name }) });
       } else {
-        toast(t('photo_taken_out', { name }), { undoLabel: t('photo_undo'), onUndo: () => { onAddToPost(cd).catch(listFailed); } });
+        toast(t('photo_taken_out', { name }), { undoLabel: t('undo'), onUndo: () => { onAddToPost(cd).catch(listFailed); } });
       }
     } catch {
       await listFailed();
@@ -141,7 +141,7 @@ export function ActiveBatchView({
 
   const remove = (cd: CardRowData) => {
     scanner.setRemoved(batch.id, cd.origIdx, true);
-    toast(t('photo_removed_toast', { name: nameOf(cd) }), { undoLabel: t('photo_undo'), onUndo: () => scanner.setRemoved(batch.id, cd.origIdx, false) });
+    toast(t('photo_removed_toast', { name: nameOf(cd) }), { undoLabel: t('undo'), onUndo: () => scanner.setRemoved(batch.id, cd.origIdx, false) });
   };
 
   const savePrice = (idx: number, e: PriceEdit) => {
@@ -162,7 +162,7 @@ export function ActiveBatchView({
     );
     const refreshButton = batch.scanId != null && !locked ? (
       <button type="button" className="ui-btn ui-btn--plain" disabled={refreshing} onClick={refresh}>
-        <Icon name="refresh" size={18} />{refreshing ? t('photo_refreshing') : t('scan_refresh_prices')}
+        <Icon name="refresh" size={18} />{refreshing ? t('photo_refreshing') : t('refresh_prices')}
       </button>
     ) : null;
     let hint: ReactNode;
@@ -171,7 +171,7 @@ export function ActiveBatchView({
       hint = <><Icon name="bolt" size={16} /><span>{withPost('live_hint')}</span></>;
       const add = pending > 0 ? (
         <button type="button" className={button(true)} disabled={busy} onClick={onFinish}>
-          <Icon name="addList" size={18} />{busy ? t('finish_busy') : t('live_add_all')}
+          <Icon name="addList" size={18} />{busy ? t('finish_busy') : t('add_all_to_post')}
         </button>
       ) : visible.length === 0 ? null : unpricedOut > 0 ? (
         <p className="photo-actions-note">{plural(t, 'photo_unpriced_out', unpricedOut)}</p>

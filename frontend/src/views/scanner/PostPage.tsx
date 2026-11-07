@@ -129,7 +129,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
               {mode.kind === 'select' ? (
                 <>
                   <button type="button" className="ui-btn ui-btn--plain" onClick={() => setMode({ kind: 'select', selected: new Set(allSelected ? [] : folder.items.map(s => s.batch.id)) })}>
-                    {t(allSelected ? 'photos_select_none' : 'photos_select_all')}
+                    {t(allSelected ? 'photos_select_none' : 'select_all')}
                   </button>
                   <button type="button" className="ui-btn ui-btn--ink" onClick={endMode}>{t('cancel')}</button>
                 </>
@@ -217,7 +217,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
         </StickyBar>
       ) : mode.kind === 'reorder' ? (
         <StickyBar>
-          <span className="ui-sticky-status" aria-live="polite">{dirty ? t('reorder_unsaved') : ''}</span>
+          <span className="ui-sticky-status" aria-live="polite">{dirty ? t('unsaved_changes') : ''}</span>
           <button type="button" className="ui-btn ui-btn--ink" onClick={endMode}>{t('cancel')}</button>
           <button type="button" className="ui-btn ui-btn--primary" disabled={!dirty || saving} onClick={saveOrder}>{t('reorder_save')}</button>
         </StickyBar>

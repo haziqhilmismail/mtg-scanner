@@ -41,11 +41,11 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
 
   return (
     <>
-      <section className="ui-card post-summary" aria-label={t('post_total')}>
-        <span className="post-summary-label">{t('post_total')}</span>
+      <section className="ui-card post-summary" aria-label={t('total')}>
+        <span className="post-summary-label">{t('total')}</span>
         <span className="post-total" aria-live="polite"><Money amount={folder.total} settings={settings} /></span>
         <span className="post-summary-meta">
-          {[t(live ? 'kind_live' : 'kind_photo'), n('post_photos_count', items.length), n('post_cards', cards)].join(' · ')}
+          {[t(live ? 'kind_live' : 'kind_photo'), n('photos', items.length), n('cards', cards)].join(' · ')}
         </span>
         {live ? <span className="post-summary-meta">{t('post_live_note')}</span> : null}
         {saved.length ? (
@@ -56,7 +56,7 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
                   {live ? n('post_not_added', notAdded) : n('post_unfinished', waiting.length)}
                 </span>
                 <button type="button" className={`ui-btn ui-btn--block ui-btn--lg${quiet ? '' : ' ui-btn--primary'}`} disabled={finishing != null} onClick={finish}>
-                  <Icon name={live ? 'addList' : 'lock'} size={18} />{busy ? t('post_busy') : t(live ? 'post_add_all' : 'post_finish')}
+                  <Icon name={live ? 'addList' : 'lock'} size={18} />{busy ? t('post_busy') : t(live ? 'add_all_to_post' : 'post_finish')}
                 </button>
               </>
             ) : !live || priced ? (

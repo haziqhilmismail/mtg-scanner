@@ -22,13 +22,13 @@ test('no key lives in two area files', () => {
 test('translate reads the merged dictionary', () => {
   assert.equal(translate('en', 'nav_claims'), 'Claims');
   assert.equal(translate('ms', 'nav_claims'), 'Tuntutan');
-  assert.equal(translate('en', 'post_photos_count', { n: 3 }), '3 photos');
+  assert.equal(translate('en', 'photos', { n: 3 }), '3 photos');
 });
 
 test('plural picks the _one twin for 1 and writes thousands with commas', () => {
   const en: T = (k, v) => translate('en', k, v);
   const ms: T = (k, v) => translate('ms', k, v);
-  assert.equal(plural(en, 'post_cards', 1), '1 card');
-  assert.equal(plural(en, 'post_cards', 1240), '1,240 cards');
-  assert.equal(plural(ms, 'post_cards', 1240), '1,240 kad');
+  assert.equal(plural(en, 'cards', 1), '1 card');
+  assert.equal(plural(en, 'cards', 1240), '1,240 cards');
+  assert.equal(plural(ms, 'cards', 1240), '1,240 kad');
 });

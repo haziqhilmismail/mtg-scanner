@@ -164,10 +164,10 @@ function PricingForm({ postId, parent, pricing, t }: Omit<Props, 'postTitle' | '
 
       <StickyBar>
         <span className={`ui-sticky-status${invalid ? ' is-warn' : ''}`} aria-live="polite">
-          {!dirty ? '' : invalid ? t('pricing_fix_red') : t('pricing_unsaved')}
+          {!dirty ? '' : invalid ? t('pricing_fix_red') : t('unsaved_changes')}
         </span>
         <button type="button" className="ui-btn ui-btn--ink" onClick={leave}>{t('cancel')}</button>
-        <button type="button" className="ui-btn ui-btn--primary" disabled={!dirty || invalid} onClick={save}>{t('pricing_save')}</button>
+        <button type="button" className="ui-btn ui-btn--primary" disabled={!dirty || invalid} onClick={save}>{t('save')}</button>
       </StickyBar>
     </>
   );

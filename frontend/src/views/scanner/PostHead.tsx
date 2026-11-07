@@ -57,7 +57,7 @@ export function PostHead({ area, folder, part }: { area: Area; folder: Folder; p
         <div className="post-note">
           <Icon name="archive" size={18} />
           <span>{t('post_archived_note')}</span>
-          <button type="button" className="ui-btn" onClick={() => setArchived(folder, false)}>{t('posts_restore')}</button>
+          <button type="button" className="ui-btn" onClick={() => setArchived(folder, false)}>{t('restore')}</button>
         </div>
       ) : null}
       {isPost ? (

@@ -56,7 +56,7 @@ export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute, 
         if (b.status === 'scanning') meta = t('posts_scanning');
         else if (b.outOfCredits) meta = t('photo_no_credits');
         else if (b.status === 'error') meta = t('photo_failed');
-        else meta = <>{plural(t, 'post_cards', s.cards)}{s.total > 0 ? <> · <Money amount={s.total} settings={settings} /></> : null}</>;
+        else meta = <>{plural(t, 'cards', s.cards)}{s.total > 0 ? <> · <Money amount={s.total} settings={settings} /></> : null}</>;
         const src = thumbOf(b);
         const body = (
           <>

@@ -74,7 +74,7 @@ export function SlipsSheet({ open, onClose, buyers, postTitle }: Props) {
           <div className="claims-list-head">
             <span id={listId} className="ui-label">{t('slips_buyers')}</span>
             <button type="button" className="ui-btn ui-btn--plain" onClick={() => setPicked(new Set(allOn ? [] : buyers.map(b => b.id)))}>
-              {allOn ? t('slips_select_none') : t('slips_select_all')}
+              {allOn ? t('slips_select_none') : t('select_all')}
             </button>
           </div>
           <ul className="claims-box claims-slip-list" aria-labelledby={listId}>

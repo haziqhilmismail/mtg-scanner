@@ -58,7 +58,7 @@ export function DemoFindClaims() {
 
       {stage === 'idle' ? (
         <button type="button" className="ui-btn ui-btn--primary ui-btn--lg ui-btn--block demo-find" onClick={find}>
-          <Icon name="search" size={19} />{t('lp_claims_find')}
+          <Icon name="search" size={19} />{t('claims_find')}
         </button>
       ) : null}
       {stage === 'reading' ? (
@@ -70,10 +70,10 @@ export function DemoFindClaims() {
             <strong>{t('lp_claims_found', { n: buyers.length, total: buyers.reduce((sum, b) => sum + totalOf(b), 0) })}</strong>
             <span>{t('lp_claims_skipped_n', { n: skipped.length })}</span>
           </p>
-          <Segmented aria-label={t('lp_claims_buyer')} value={who} onChange={setWho} options={buyers.map(b => ({ value: b.name, label: b.name }))} />
+          <Segmented aria-label={t('claims_buyer')} value={who} onChange={setWho} options={buyers.map(b => ({ value: b.name, label: b.name }))} />
           <p className="demo-message">{message}</p>
           <button type="button" className={copied === who ? 'ui-btn ui-btn--block demo-copied' : 'ui-btn ui-btn--block'} onClick={copy}>
-            <Icon name={copied === who ? 'check' : 'copy'} size={17} />{t(copied === who ? 'lp_claims_copied' : 'lp_claims_copy')}
+            <Icon name={copied === who ? 'check' : 'copy'} size={17} />{t(copied === who ? 'copied' : 'claims_copy')}
           </button>
           <p className="demo-note">{t('lp_claims_note', { name: skipped.map(c => c.name).join(', ') })}</p>
           <button type="button" className="ui-btn ui-btn--plain demo-reset" onClick={reset}>{t('lp_claims_reset')}</button>

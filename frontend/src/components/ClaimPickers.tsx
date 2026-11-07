@@ -72,7 +72,7 @@ export function CardPicker({ photos, hint, value, priceOf, statusOf, onPick }: C
       <p className="claims-picker-hint">{t('claims_pick_card')}</p>
       {shown.map(p => (
         <div key={p.batch.id} className="claims-picker-photo">
-          {photos.length > 1 ? <p className="claims-label">{t('claims_photo', { n: p.index })}</p> : null}
+          {photos.length > 1 ? <p className="claims-label">{t('photo_n', { n: p.index })}</p> : null}
           <div className="claims-pick-grid">
             {p.cards.map(c => (
               <CardTile key={c.key} card={c} price={priceOf(c)} status={statusOf(c)} selected={value === c.key} onPick={() => onPick(c.key)} />
