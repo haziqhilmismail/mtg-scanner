@@ -83,7 +83,7 @@ export function ShotCard({ shot, photos, onChange, onRemove, onView, onPostPhoto
                 <img src={photoThumb(p)} alt="" loading="lazy" decoding="async" onError={hideBroken} />
                 <Icon name="check" size={12} className="claims-photo-check" />
               </span>
-              <span className="claims-photo-label">{t('claims_photo', { n: p.index })}</span>
+              <span className="claims-photo-label">{t('photo_n', { n: p.index })}</span>
             </label>
           ))}
           {photos.length > 1 ? (

@@ -84,7 +84,7 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
                 <h2 id="profile-pricing-title" className="ui-card-title">{t('menu_default_pricing')}</h2>
                 <p className="profile-pricing">{pricing.pricingKnown(null) ? pricingSummary(pricing.pricingFor(null), t) : t('profile_loading')}</p>
               </div>
-              <Link className="ui-btn" to={{ page: 'profile-pricing' }}>{t('profile_pricing_edit')}</Link>
+              <Link className="ui-btn" to={{ page: 'profile-pricing' }}>{t('edit')}</Link>
             </div>
             <p className="profile-note">{t('profile_pricing_note')}</p>
           </section>
@@ -121,7 +121,7 @@ function SellerName() {
     <div className="profile-seller">
       <SaveField
         saved={saved} required maxLength={255} autoComplete="name"
-        label={t('profile_seller_name')} saveLabel={t('profile_seller_name_save')} hint={t('profile_seller_name_hint')}
+        label={t('profile_seller_name')} saveLabel={t('save_name')} hint={t('profile_seller_name_hint')}
         onSave={async name => {
           try { setSaved(await saveSellerName(name)); return true; } catch { toast(t('profile_seller_name_failed')); return false; }
         }}

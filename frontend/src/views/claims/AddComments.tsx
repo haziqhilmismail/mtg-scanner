@@ -171,7 +171,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
 
   const chosen = [...new Set(filled.map(s => s.photo))];
   const photoText = chosen.length === 1 && typeof chosen[0] === 'number'
-    ? t('claims_photo', { n: photos.find(p => p.batch.scanId === chosen[0])?.index ?? '' })
+    ? t('photo_n', { n: photos.find(p => p.batch.scanId === chosen[0])?.index ?? '' })
     : t('claims_several_lower');
   const balance = creditsLine(credits, t, lang);
   // Work to offer back with Undo: screenshots, or a typed claim with a card.
@@ -189,7 +189,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
         }[draftsKind(drafts)]}
         subtitle={step === 'check' && filled.length
           ? `${plural(t, 'claims_from_shots', filled.length)} · ${photoText}`
-          : `${postTitle} · ${plural(t, 'claims_photos', photos.length)}`}
+          : `${postTitle} · ${plural(t, 'photos', photos.length)}`}
         footer={step === 'check' ? (
           <>
             <button type="button" className="ui-btn ui-btn--ink" disabled={busy === 'saving'} onClick={() => { setStep('shots'); setError(''); }}>{t('claims_back')}</button>

@@ -126,7 +126,7 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
       await Promise.all([paymentApi.save(draftOf(NO_PAYMENT).fields), qr ? paymentApi.deleteQr() : null]);
       setPayment(NO_PAYMENT);
       setDraft(draftOf(NO_PAYMENT));
-      toast(t('pay_deleted_toast'), { undoLabel: t('pay_undo'), onUndo: () => restore(before, qr) });
+      toast(t('pay_deleted_toast'), { undoLabel: t('undo'), onUndo: () => restore(before, qr) });
     } catch {
       // Show what the server still has, so a failed delete isn't taken for done.
       setPayment(await paymentApi.get().catch(() => before));
@@ -216,7 +216,7 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
             {t('pay_delete_all')}
           </button>
           <button type="submit" className="ui-btn ui-btn--primary pay-save" disabled={!changes || busy}>
-            {t(saving ? 'pay_saving' : status === 'saved' && !changes ? 'pay_saved' : 'pay_save')}
+            {t(saving ? 'pay_saving' : status === 'saved' && !changes ? 'saved' : 'save')}
           </button>
         </div>
       </form>

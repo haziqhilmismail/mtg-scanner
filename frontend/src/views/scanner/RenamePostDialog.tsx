@@ -30,7 +30,7 @@ export function RenamePostDialog({ open, title, onClose, onSave, t }: Props) {
       footer={(
         <>
           <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('cancel')}</button>
-          <button type="submit" form={form} className="ui-btn ui-btn--primary" disabled={!name.trim()}>{t('rename_save')}</button>
+          <button type="submit" form={form} className="ui-btn ui-btn--primary" disabled={!name.trim()}>{t('save')}</button>
         </>
       )}
     >

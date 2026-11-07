@@ -19,7 +19,7 @@ export function StatusLine({ group }: { group: BuyerGroup }) {
   const words = [
     t(`claims_state_${group.state}`),
     group.droppedOff ? t('claims_dropped_off') : '',
-    plural(t, 'claims_cards', group.cards),
+    plural(t, 'cards', group.cards),
   ].filter(Boolean).join(' · ');
   return <span className="claims-status"><span className={`claims-dot is-${group.state}`} aria-hidden="true" />{words}</span>;
 }
@@ -46,7 +46,7 @@ export function ClaimLines({ lines, cents, showPhotos }: { lines: Line[]; cents:
             ) : <span className="claims-line-pic" aria-hidden="true"><Icon name="photo" size={18} />{qty}</span>}
             <span className="claims-line-text">
               <span className="claims-line-name">{l.name}{many ? <span className="ui-sr-only"> ×{l.qty}</span> : null}</span>
-              {showPhotos && l.photo ? <span className="claims-line-working">{t('claims_photo', { n: l.photo })}</span> : null}
+              {showPhotos && l.photo ? <span className="claims-line-working">{t('photo_n', { n: l.photo })}</span> : null}
               {l.formula || many ? (
                 <span className="claims-line-working">
                   {l.formula ? formulaText(l.formula) : null}

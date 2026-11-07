@@ -88,7 +88,7 @@ export function RepostDialog({ open, onClose, area, folder }: Props) {
               />
               <p className="repost-summary" aria-live="polite">
                 {!chosen.length ? t('repost_none_chosen')
-                  : [plural(t, 'post_photos_count', chosen.length), plural(t, 'repost_left', total('left')),
+                  : [plural(t, 'photos', chosen.length), plural(t, 'repost_left', total('left')),
                     total('sold') ? plural(t, 'repost_sold', total('sold')) : ''].filter(Boolean).join(' · ')}
               </p>
               <fieldset className="repost-photos">

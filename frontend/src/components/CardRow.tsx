@@ -79,7 +79,7 @@ export function CardRow({
         <span className="photo-tile-num">{num}</span>
         <p className="photo-tile-removed"><strong>{t(cd.sold ? 'photo_sold' : 'photo_removed')}</strong> · {name}</p>
         {locked ? null : (
-          <button type="button" className="ui-btn ui-btn--plain" aria-label={t('photo_restore_card', { name })} onClick={onRestore}>{t('photo_restore')}</button>
+          <button type="button" className="ui-btn ui-btn--plain" aria-label={t('photo_restore_card', { name })} onClick={onRestore}>{t('restore')}</button>
         )}
       </article>
     );

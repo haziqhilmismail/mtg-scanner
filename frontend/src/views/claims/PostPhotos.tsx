@@ -24,7 +24,7 @@ export function PostPhotos({ open, onClose, photos, postTitle, chosen, cents, li
   return (
     <Dialog
       open={open} onClose={onClose} variant="picker" className="claims-dialog" title={t('claims_in_post')}
-      subtitle={t('claims_post_photos_sub', { title: postTitle, photos: plural(t, 'claims_photos', photos.length) })}
+      subtitle={t('claims_post_photos_sub', { title: postTitle, photos: plural(t, 'photos', photos.length) })}
     >
       <ul className="claims-post-photos">
         {photos.map(p => {
@@ -33,11 +33,11 @@ export function PostPhotos({ open, onClose, photos, postTitle, chosen, cents, li
           const value = p.cards.reduce((sum, c) => sum + (Number.isFinite(c.cd.unitPrice) ? c.cd.unitPrice * c.cd.qty : 0), 0);
           return (
             <li key={p.batch.id} className={chosen === scanId ? 'claims-post-photo is-chosen' : 'claims-post-photo'}>
-              <span className="claims-post-photo-img"><img src={photoThumb(p)} alt={t('claims_photo', { n: p.index })} loading="lazy" decoding="async" onError={hideBroken} /></span>
+              <span className="claims-post-photo-img"><img src={photoThumb(p)} alt={t('photo_n', { n: p.index })} loading="lazy" decoding="async" onError={hideBroken} /></span>
               <div className="claims-post-photo-row">
                 <span className="claims-post-photo-text">
-                  <strong>{t('claims_photo', { n: p.index })}</strong>
-                  <span>{plural(t, 'claims_cards', cards)} · <Money value={value} live={live} cents={cents} /></span>
+                  <strong>{t('photo_n', { n: p.index })}</strong>
+                  <span>{plural(t, 'cards', cards)} · <Money value={value} live={live} cents={cents} /></span>
                 </span>
                 {chosen === scanId ? (
                   <span className="claims-chosen"><Icon name="check" size={16} />{t('claims_chosen')}</span>

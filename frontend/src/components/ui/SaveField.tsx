@@ -46,7 +46,7 @@ export function SaveField({ saved, onSave, label, saveLabel, placeholder, hint, 
           onChange={e => { setValue(e.target.value); setJustSaved(false); }}
         />
         <button type="submit" className="ui-btn" disabled={!changed || busy}>
-          {justSaved && value.trim() === saved ? t('field_saved') : saveLabel}
+          {justSaved && value.trim() === saved ? t('saved') : saveLabel}
         </button>
       </div>
     </form>

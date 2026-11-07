@@ -107,7 +107,7 @@ export function PricingExample({ settings, t, caption: showCaption = true }: { s
           type="button" className={copied ? 'ui-btn is-copied' : 'ui-btn'} aria-live="polite"
           onClick={() => navigator.clipboard?.writeText(caption).then(() => setCopied(true), () => { /* stays Copy */ })}
         >
-          {copied ? <><Icon name="check" size={16} />{t('pricing_copied')}</> : <><Icon name="copy" size={16} />{t('pricing_copy')}</>}
+          {copied ? <><Icon name="check" size={16} />{t('copied')}</> : <><Icon name="copy" size={16} />{t('pricing_copy')}</>}
         </button>
       </div> : null}
     </>
