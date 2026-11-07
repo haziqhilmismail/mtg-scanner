@@ -4,12 +4,12 @@
 
 import type { Payment } from '../../api.ts';
 import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
-import type { T } from '../../i18n/index.ts';
+import type { Counted, T } from '../../i18n/index.ts';
 import type { CardRowData } from '../../types.ts';
 import { paymentLines } from '../../utils.ts';
 
 // "1 card", "3 cards": counted strings come as `key` ({n}) and `key_one`.
-export const counted = (t: T, key: string, n: number, vars: Record<string, string> = {}) =>
+export const counted = (t: T, key: Counted, n: number, vars: Record<string, string> = {}) =>
   t(n === 1 ? `${key}_one` : key, { ...vars, n: n.toLocaleString('en-MY') });
 
 export type PayState = 'unpaid' | 'paid' | 'done';

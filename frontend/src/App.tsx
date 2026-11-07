@@ -18,7 +18,7 @@ import { Login } from './views/Login.tsx';
 import { PricingPage } from './views/PricingPage.tsx';
 import { Profile } from './views/Profile.tsx';
 import { Scanner } from './views/scanner/Scanner.tsx';
-import type { T } from './hooks/useLang.ts';
+import type { Key, T } from './hooks/useLang.ts';
 
 export default function App() {
   const { appearance, setAppearance } = useTheme();
@@ -193,8 +193,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
 }
 
 // Tells the user when something done in the background (a scan, a save)
-// failed. `notice` is a string key.
-function Notice({ source, t }: { source: { notice: string | null; clearNotice: () => void }; t: T }) {
+// failed. `notice` is a message key.
+function Notice({ source, t }: { source: { notice: Key | null; clearNotice: () => void }; t: T }) {
   const dialog = useDialog();
   const { notice, clearNotice } = source;
   useEffect(() => {

@@ -1,3 +1,4 @@
+import type { Key } from '../i18n/index.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   deleteScan as apiDeleteScan,
@@ -108,7 +109,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
   // Translation key of a background failure to tell the user about.
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Key | null>(null);
   const clearNotice = useCallback(() => setNotice(null), []);
   // Latest batches, for work that finishes after they changed. Every change
   // goes through commit, so the ref is never behind.

@@ -185,7 +185,7 @@ export const en = {
   claims_view_card: 'View {name}',
 };
 
-export const ms = {
+export const ms: Record<keyof typeof en, string> = {
   claims_how: 'Cara tuntutan berfungsi',
   claims_photos: '{n} foto',
   claims_photos_one: '1 foto',

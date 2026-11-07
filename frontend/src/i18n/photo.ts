@@ -94,7 +94,7 @@ export const en = {
   cc_asis_hint: 'Not listed? Use it as-is and set the price yourself.',
 };
 
-export const ms = {
+export const ms: Record<keyof typeof en, string> = {
   photo_of: 'daripada {total}',
   photo_steps_label: 'Foto dalam post ini',
   photo_scanning: 'Mengimbas foto ini…',

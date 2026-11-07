@@ -91,7 +91,7 @@ export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, ce
   return (
     <>
       <p className="claims-intro">
-        {t({ found: 'claims_check_intro', hand: 'claims_hand_intro', none: 'claims_none_found_text' }[draftsKind(drafts)])}
+        {t(({ found: 'claims_check_intro', hand: 'claims_hand_intro', none: 'claims_none_found_text' } as const)[draftsKind(drafts)])}
       </p>
       <div className="claims-drafts">
         {drafts.map((d, di) => (

@@ -122,7 +122,7 @@ export const en = {
   feedback_error: 'Could not send: {err}',
 };
 
-export const ms = {
+export const ms: Record<keyof typeof en, string> = {
   menu_language: 'Bahasa',
   menu_appearance: 'Paparan',
   menu_sign_out: 'Log keluar',
