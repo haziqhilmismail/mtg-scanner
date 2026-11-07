@@ -1,7 +1,7 @@
 """PATCH routes: a column that can't be empty refuses null with a 422."""
 
 import pytest
-from conftest import _dispose_then, new_user, run
+from conftest import _dispose_then, _photo, new_user, run
 
 from app.db import engine
 from app.services.auth_service import issue_session_token
@@ -23,14 +23,17 @@ def test_null_on_a_required_field_is_a_422(client, route, field):
     run(engine.dispose())
     me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
-    listing = client.post("/api/listings", json={"name": "Sol Ring", "unit_price_myr": "9.00"}, headers=me).json()["id"]
-    buyer = client.post("/api/buyers", json={"fb_name": "Aiman"}, headers=me).json()["id"]
-    order = client.post("/api/orders", json={"buyer_id": buyer, "items": [{"listing_id": listing}]}, headers=me).json()["id"]
-    url = f"/api/{route}/{ {'posts': post, 'listings': listing, 'buyers': buyer, 'orders': order}[route] }"
+    scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, headers=me).json()["scan_id"]
+    item = {"scan_id": scan, "card_id": 0, "bbox": [0, 0, 50, 70], "name": "Sol Ring", "unit_price_myr": "9.00"}
+    order = client.post("/api/claims/confirm", json={"claims": [{"buyer": "Aiman", "items": [item]}]}, headers=me).json()[0]
+    ids = {"posts": post, "listings": order["items"][0]["listing_id"], "buyers": order["buyer_id"], "orders": order["id"]}
+    url = f"/api/{route}/{ids[route]}"
+    # Read back through the list route, as the app does.
+    read = lambda: next(r for r in client.get(f"/api/{route}", headers=me).json() if r["id"] == ids[route])
 
-    before = client.get(url, headers=me).json()
+    before = read()
     assert client.patch(url, json={field: None}, headers=me).status_code == 422
-    assert client.get(url, headers=me).json()[field] == before[field]
+    assert read()[field] == before[field]
     # Nullable fields still clear, and omitted fields are left alone.
     r = client.patch(url, json={CLEARABLE[route]: None}, headers=me)
     assert r.status_code == 200 and r.json()[field] == before[field]

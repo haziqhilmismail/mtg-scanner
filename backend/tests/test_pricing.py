@@ -25,9 +25,8 @@ def test_post_pricing(client):
     plain = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()
     assert plain["pricing"] is None
 
-    single = lambda: client.get(f"/api/posts/{pid}", headers=me).json()["pricing"]
     listed = lambda: next(p["pricing"] for p in client.get("/api/posts", headers=me).json() if p["id"] == pid)
-    assert single() == listed() == PRICING
+    assert listed() == PRICING
 
     for bad in ("not json", "[1, 2]", '"x"'):
         assert client.post("/api/posts", data={"pricing": bad}, headers=me).status_code == 422
@@ -41,9 +40,9 @@ def test_post_pricing(client):
     assert patch({"pricing": [1]}).status_code == 422
     assert patch({"pricing": {"x": "y" * 9000}}).status_code == 413
     assert patch({"pricing": {}}, them).status_code == 404
-    assert single() == listed() == changed
+    assert listed() == changed
     assert patch({"pricing": None}).json()["pricing"] is None                 # null clears
-    assert single() is None and listed() is None
+    assert listed() is None
 
 
 def test_default_pricing_on_me(client):

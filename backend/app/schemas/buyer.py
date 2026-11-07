@@ -12,10 +12,6 @@ class BuyerBase(BaseModel):
     notes: str | None = None
 
 
-class BuyerCreate(BuyerBase):
-    pass
-
-
 class BuyerUpdate(BaseModel):
     fb_name: str | MISSING = MISSING
     fb_url: str | None = None

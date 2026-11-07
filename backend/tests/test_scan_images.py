@@ -61,7 +61,7 @@ def test_image_tokens_and_session_tokens_are_not_interchangeable(client):
 
     assert client.get(f"/api/scans/{sid}/preview?token={image}").status_code == 200
     # A session token never goes in a URL: image routes refuse it...
-    for url in (f"/api/scans/{sid}/preview", f"/api/scans/{sid}/crops/0", "/api/posts/1/image", "/api/orders/1/delivery-photo"):
+    for url in (f"/api/scans/{sid}/preview", f"/api/scans/{sid}/crops/0", "/api/payment/qr"):
         assert client.get(f"{url}?token={session}").status_code == 401, url
     # ...and the image token opens nothing else.
     assert client.get("/api/scans", headers={"Authorization": f"Bearer {image}"}).status_code == 401

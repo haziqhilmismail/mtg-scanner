@@ -138,27 +138,6 @@ async def create_listing(
     return _read(listing)
 
 
-@router.get("/{listing_id}", response_model=ListingReadWithAvailability)
-async def get_listing(
-    listing_id: int, db: DbSession, user_id: CurrentUserId,
-) -> ListingReadWithAvailability:
-    q = (
-        select(Listing)
-        .where(Listing.id == listing_id)
-        .options(selectinload(Listing.posts))
-    )
-    listing = (await db.execute(q)).scalar_one_or_none()
-    if not listing or listing.user_id != user_id:
-        raise HTTPException(404, "Listing not found")
-    committed = await db.scalar(
-        select(func.coalesce(func.sum(OrderItem.qty), 0))
-        .join(Order, Order.id == OrderItem.order_id)
-        .where(OrderItem.listing_id == listing_id)
-        .where(Order.status != OrderStatus.cancelled)
-    ) or 0
-    return _read_with_availability(listing, int(committed))
-
-
 @router.patch("/{listing_id}", response_model=ListingRead)
 async def update_listing(
     listing_id: int, payload: ListingUpdate, db: DbSession, user_id: CurrentUserId,

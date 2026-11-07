@@ -64,7 +64,6 @@ def test_post_stats(client):
     stats = lambda p: (p["listing_count"], p["active_listing_count"], p["total_qty"], p["total_value_myr"])
     listed = {p["id"]: stats(p) for p in client.get("/api/posts", headers=me).json()}
     assert listed == {full: (2, 1, 3, "6.00"), empty: (0, 0, 0, "0.00")}
-    assert stats(client.get(f"/api/posts/{full}", headers=me).json()) == (2, 1, 3, "6.00")
 
 
 def test_cards_follow_their_photo(client):
@@ -90,7 +89,8 @@ def test_cards_follow_their_photo(client):
     listed = {s["scan_id"]: s["listed"] for s in client.get("/api/scans?lite=1", headers=me).json()}
     assert listed == {scan: [[1, 2, 3, 4], [5, 6, 7, 8], [9, 9, 9, 9]]}
 
-    r = client.post("/api/orders", json={"buyer_fb_name": "Siti", "items": [{"listing_id": sold}]}, headers=me)
+    claim = {"scan_id": scan, "card_id": 1, "bbox": [5, 6, 7, 8], "name": "Mana Crypt", "unit_price_myr": "5.00"}
+    r = client.post("/api/claims/confirm", json={"claims": [{"buyer": "Siti", "items": [claim]}]}, headers=me)
     assert r.status_code == 201, r.text
 
     # Deleting the photo takes its cards off the checklist, except a claimed one.

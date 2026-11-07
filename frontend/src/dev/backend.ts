@@ -286,8 +286,6 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
         'mark-delivered': { delivered_at: order.delivered_at ?? ago(0) },
         cancel: { status: 'cancelled' },
         restore: { status: 'claimed' },
-        archive: { archived_at: order.archived_at ?? ago(0) },
-        unarchive: { archived_at: null },
       };
       return changes[action] ? json(touch(order, changes[action])) : notFound('Not Found');
     }],
