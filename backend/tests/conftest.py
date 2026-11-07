@@ -25,25 +25,26 @@ from io import BytesIO  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from PIL import Image  # noqa: E402
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
+from sqlalchemy.pool import NullPool  # noqa: E402
 
 import app.main as main  # noqa: E402
-from app.db import async_session_factory, engine  # noqa: E402
+from app.db import async_session_factory  # noqa: E402
 from app.models import User  # noqa: E402
+from app.services.auth_service import issue_session_token  # noqa: E402
 from app.services.gemini_scanner import CardDetection  # noqa: E402
 
 LIMIT = 10
 _emails = iter(f"user{i}@example.com" for i in range(1000))
 
 
+# Each run() and each TestClient has its own event loop, and a pooled
+# connection must not outlive the loop that opened it. NullPool keeps none.
+async_session_factory.configure(bind=create_async_engine(main.settings.database_url, poolclass=NullPool))
+
+
 def run(coro):
     return asyncio.run(coro)
-
-
-async def _dispose_then(coro):
-    # Each asyncio.run() gets a new event loop; drop pooled connections that
-    # belong to the previous one.
-    await engine.dispose()
-    return await coro
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -53,7 +54,6 @@ def schema():
     from alembic.config import Config
     command.upgrade(Config(str(main.BASE_DIR.parent / "alembic.ini")), "head")
     main.settings.make_data_dirs()
-    run(engine.dispose())
 
 
 async def new_user() -> int:
@@ -62,6 +62,12 @@ async def new_user() -> int:
         s.add(u)
         await s.commit()
         return u.id
+
+
+def sign_in() -> tuple[int, dict]:
+    """A fresh signed-in user: their id and the headers that carry their session."""
+    uid = run(new_user())
+    return uid, {"Authorization": f"Bearer {issue_session_token(uid)}"}
 
 
 def _photo() -> bytes:
@@ -98,11 +104,9 @@ def client(monkeypatch):
     monkeypatch.setattr(main, "lookup_all", fake_lookup)
     monkeypatch.setattr(main, "get_ck_index", fake_ck)
     monkeypatch.setattr(main.limiter, "enabled", False)
-    run(engine.dispose())
     with TestClient(main.app) as c:
         c.calls = calls
         yield c
-    run(engine.dispose())
 
 
 def _scan(client, token):

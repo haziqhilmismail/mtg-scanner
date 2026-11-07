@@ -3,10 +3,8 @@
 import json
 
 import pytest
-from conftest import _dispose_then, _photo, new_user, run
+from conftest import _photo, sign_in
 
-from app.db import engine
-from app.services.auth_service import issue_session_token
 
 # (method, url, body) — {scan}/{post}/{order} are the owner's ids. "img" routes
 # authenticate with ?token=<image token>, the rest with the bearer header.
@@ -25,10 +23,8 @@ CASES = {
 
 @pytest.mark.parametrize("case", CASES)
 def test_other_users_get_404(client, case):
-    owner, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
-    a = {"Authorization": f"Bearer {issue_session_token(owner)}"}
-    b = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    _, a = sign_in()
+    _, b = sign_in()
     pic = lambda: {"image": ("a.jpg", _photo(), "image/jpeg")}
 
     post = client.post("/api/posts", data={"title": "Friday"}, headers=a).json()["id"]

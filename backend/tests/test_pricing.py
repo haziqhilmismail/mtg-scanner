@@ -2,17 +2,15 @@
 
 import json
 
-from conftest import _dispose_then, _photo, new_user, run
+from conftest import _photo, new_user, run
 
-from app.db import engine
 from app.services.auth_service import issue_session_token
 
 PRICING = {"multNormal": 2.8, "multFoil": 3.0, "currencyLabel": "RM", "roundStep": 0.5}
 
 
 def _users(n):
-    ids = [run(_dispose_then(new_user())) for _ in range(n)]
-    run(engine.dispose())
+    ids = [run(new_user()) for _ in range(n)]
     return [{"Authorization": f"Bearer {issue_session_token(i)}"} for i in ids]
 
 

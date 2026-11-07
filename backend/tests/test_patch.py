@@ -1,10 +1,8 @@
 """PATCH routes: a column that can't be empty refuses null with a 422."""
 
 import pytest
-from conftest import _dispose_then, _photo, new_user, run
+from conftest import _photo, sign_in
 
-from app.db import engine
-from app.services.auth_service import issue_session_token
 
 # (route, field that may not be null)
 NOT_NULL = [
@@ -19,9 +17,7 @@ CLEARABLE = {"posts": "note", "listings": "notes", "buyers": "phone", "orders": 
 
 @pytest.mark.parametrize("route,field", NOT_NULL)
 def test_null_on_a_required_field_is_a_422(client, route, field):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    _, me = sign_in()
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, headers=me).json()["scan_id"]
     item = {"scan_id": scan, "card_id": 0, "bbox": [0, 0, 50, 70], "name": "Sol Ring", "unit_price_myr": "9.00"}

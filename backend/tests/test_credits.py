@@ -7,11 +7,11 @@ import asyncio
 from datetime import timedelta
 
 import pytest
-from conftest import LIMIT, _dispose_then, _scan, new_user, run
+from conftest import LIMIT, _scan, new_user, run
 from sqlalchemy import func, select
 
 import app.main as main
-from app.db import async_session_factory, engine
+from app.db import async_session_factory
 from app.models import ScanCreditEvent, User, Voucher
 from app.services import credits
 from app.services.auth_service import issue_session_token
@@ -51,7 +51,7 @@ def test_free_allowance_stops_at_the_limit():
         assert got == [credits.FREE] * LIMIT + [None, None]
         st = await get_status(uid)
         assert (st["used"], st["remaining"], st["unlimited"]) == (LIMIT, 0, False)
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_parallel_scans_cannot_overshoot():
@@ -59,7 +59,7 @@ def test_parallel_scans_cannot_overshoot():
         uid = await new_user()
         got = await asyncio.gather(*(credits.reserve(uid) for _ in range(LIMIT + 8)))
         assert got.count(credits.FREE) == LIMIT and got.count(None) == 8
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_refund_gives_the_credit_back():
@@ -71,7 +71,7 @@ def test_refund_gives_the_credit_back():
         await credits.refund(uid, credits.FREE)
         assert (await get_status(uid))["remaining"] == 1
         assert await credits.reserve(uid) == credits.FREE
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_spend_refunds_when_the_block_fails_or_is_cancelled():
@@ -102,7 +102,7 @@ def test_spend_refunds_when_the_block_fails_or_is_cancelled():
                 async with credits.spend(s, uid):
                     pytest.fail("ran without a credit")
             assert e.value.credits["remaining"] == 0
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_window_rolls_after_30_days():
@@ -117,7 +117,7 @@ def test_window_rolls_after_30_days():
         from datetime import datetime
         back = datetime.fromisoformat(st["next_free_at"].rstrip("Z")) - credits._now()
         assert timedelta(hours=23) < back < timedelta(hours=25)
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_voucher_credits_are_used_after_the_free_ones():
@@ -129,7 +129,7 @@ def test_voucher_credits_are_used_after_the_free_ones():
         assert got == [credits.FREE] * LIMIT + [credits.BONUS] * 3 + [None]
         await credits.refund(uid, credits.BONUS)
         assert (await get_status(uid))["bonus"] == 1
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_unlimited_voucher_switches_the_limit_off():
@@ -142,7 +142,7 @@ def test_unlimited_voucher_switches_the_limit_off():
         assert st["unlimited"] is True and st["remaining"] is None
         async with async_session_factory() as s:
             assert await s.scalar(select(func.count()).select_from(ScanCreditEvent).where(ScanCreditEvent.user_id == uid)) == 0
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_timed_unlimited_vouchers_stack_and_lapse():
@@ -170,7 +170,7 @@ def test_timed_unlimited_vouchers_stack_and_lapse():
             await redeem(other, await make_voucher(unlimited=True, unlimited_days=2_000_000_000))
         async with async_session_factory() as s:
             assert credits.FOREVER - timedelta(days=1) < (await s.get(User, other)).unlimited_scans_until <= credits.FOREVER
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_voucher_rejections():
@@ -195,7 +195,7 @@ def test_voucher_rejections():
         await redeem(b, shared)
         assert (await get_status(b))["bonus"] == 5
         assert (await get_status(a))["bonus"] == 10
-    run(_dispose_then(go()))
+    run(go())
 
 
 def test_owner_testing_pair_toggles_between_unlimited_and_a_fresh_limit():
@@ -223,14 +223,13 @@ def test_owner_testing_pair_toggles_between_unlimited_and_a_fresh_limit():
                 await redeem(other, code)
             assert e.value.code == "invalid"
         assert (await get_status(other))["unlimited"] is False
-    run(_dispose_then(go()))
+    run(go())
 
 
 # ---------- /api/scan ----------
 
 def test_scan_spends_a_credit_and_refuses_when_out(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
+    uid = run(new_user())
     token = issue_session_token(uid)
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -255,9 +254,8 @@ def test_scan_spends_a_credit_and_refuses_when_out(client):
 
 
 def test_local_scan_is_free_even_when_out_of_credits(client, monkeypatch):
-    uid = run(_dispose_then(new_user()))
-    run(_dispose_then(add_events(uid, days_ago=1, n=LIMIT)))
-    run(engine.dispose())
+    uid = run(new_user())
+    run(add_events(uid, days_ago=1, n=LIMIT))
     token = issue_session_token(uid)
 
     async def fake_local(pil):
@@ -271,8 +269,7 @@ def test_local_scan_is_free_even_when_out_of_credits(client, monkeypatch):
 
 
 def test_failed_scan_costs_nothing(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
+    uid = run(new_user())
     token = issue_session_token(uid)
     client.calls["fail"] = True
     assert _scan(client, token).status_code == 500
@@ -283,9 +280,8 @@ def test_failed_scan_costs_nothing(client):
 
 
 def test_redeem_endpoint(client):
-    uid = run(_dispose_then(new_user()))
-    code = run(_dispose_then(make_voucher(unlimited=True)))
-    run(engine.dispose())
+    uid = run(new_user())
+    code = run(make_voucher(unlimited=True))
     headers = {"Authorization": f"Bearer {issue_session_token(uid)}"}
 
     wrong = client.post("/api/vouchers/redeem", json={"code": "MTG-XXXX-XXXX-XXXX"}, headers=headers)
@@ -299,8 +295,7 @@ def test_redeem_endpoint(client):
 
 def test_rate_limits_are_per_user_and_bad_refresh_tokens_do_not_count(client, monkeypatch):
     monkeypatch.setattr(main.limiter, "enabled", True)
-    a, b = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
+    a, b = run(new_user()), run(new_user())
     redeem_as = lambda uid: client.post("/api/vouchers/redeem", json={"code": "MTG-XXXX-XXXX-XXXX"},
                                         headers={"Authorization": f"Bearer {issue_session_token(uid)}"})
     assert [redeem_as(a).status_code for _ in range(11)] == [400] * 10 + [429]
