@@ -53,64 +53,6 @@
   .bar-status { display: none; }
 }
 
-/* ---------- Segmented control ----------
-   Selection state for closely related choices: gray track, raised thumb. */
-.segmented, .lang-toggle {
-  display: flex; padding: 2px; gap: 0;
-  background: var(--fill); border: 0; border-radius: 9px;
-}
-.segmented button, .lang-toggle button {
-  flex: 1 1 0; min-height: 32px; padding: 0 12px;
-  background: transparent; border: 0; border-radius: 7px;
-  font-size: 13px; font-weight: 500; color: var(--ink); cursor: pointer;
-  transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease);
-  white-space: nowrap;
-}
-.segmented button.active, .lang-toggle button.active {
-  background: var(--seg-thumb); box-shadow: var(--seg-shadow); font-weight: 600;
-}
-
 /* ---------- Auth UI ---------- */
 .auth-bootstrap { position: fixed; inset: 0; background: var(--bg); }
 
-/* ---------- Panels ----------
-   A grouped section: plain header above, content on a rounded card. */
-.panel {
-  background: var(--paper); border: 0;
-  padding: 20px; margin-bottom: 28px;
-  border-radius: var(--radius-lg); box-shadow: var(--shadow);
-}
-.panel h2 {
-  margin: 0 0 16px; padding: 0; border: 0;
-  font-size: 20px; font-weight: 700; color: var(--ink);
-  display: flex; align-items: baseline; gap: 8px;
-}
-@media (max-width: 767px) {
-  .panel { padding: 16px; margin-bottom: 24px; }
-}
-
-/* ---------- Drop zone ---------- */
-.drop {
-  border: 1.5px dashed var(--rule-strong); padding: 40px 24px; text-align: center;
-  background: var(--surface-2); cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-  user-select: none; border-radius: var(--radius-lg);
-}
-.drop:hover { border-color: var(--accent); }
-.drop.dragover { background: var(--accent-soft); border-color: var(--accent); }
-.drop p { margin: 0; font-size: 15px; color: var(--ink-soft); pointer-events: none; }
-.drop-icon { margin: 0 auto 10px; color: var(--accent); pointer-events: none; }
-.drop strong { color: var(--accent); font-size: 17px; font-weight: 600; display: block; margin-bottom: 4px; pointer-events: none; }
-.drop .drop-photo-tip { margin-top: 8px; font-size: 13px; color: var(--ink-soft); }
-/* Out of scans: same footprint, but it explains instead of inviting a drop. */
-.drop.is-empty { cursor: default; border-style: solid; border-color: transparent; }
-.drop.is-empty:hover { border-color: transparent; }
-.drop.is-empty strong { color: var(--ink); }
-.drop.is-empty p { max-width: 36ch; margin: 0 auto; pointer-events: auto; }
-.drop.is-empty button { margin-top: 16px; min-height: var(--tap); }
-.credits-line { margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); text-align: center; }
-.checkbox-row {
-  display: flex; align-items: center; gap: 10px; min-height: var(--tap);
-  font-size: 15px; color: var(--ink); cursor: pointer;
-}
-.checkbox-row input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
