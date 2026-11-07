@@ -60,7 +60,7 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
     const cw = Math.round(Math.min(w, h) * 0.18), ch = Math.round(cw * 1.395);
     const x = Math.round((w - cw) / 2), y = Math.round((h - ch) / 2);
     try {
-      const card = await frameCard(batch.scanId, [[x, y], [x + cw, y], [x + cw, y + ch], [x, y + ch]], true);
+      const card = await frameCard(batch.scanId, [[x, y], [x + cw, y], [x + cw, y + ch], [x, y + ch]]);
       const idx = batch.response.cards.length;
       scanner.appendFramedCard(batch.id, card);
       await scanner.relookupByName(batch.id, idx, name, t);

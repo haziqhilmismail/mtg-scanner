@@ -24,7 +24,7 @@ from .cardkingdom_prices import get_index as get_ck_index
 from .scryfall_lookup import lookup_all
 
 if TYPE_CHECKING:
-    from .card_scanner import CardScanner, ScannedCard
+    from .card_scanner import CardScanner
 
 MODEL_NAME = "yolo11n-obb + dinov3-vits16 + pp-ocr"
 
@@ -122,10 +122,3 @@ async def scan_cards(
             "candidates": [sf],
         })
     return cards_out
-
-
-async def identify_quad(pil: Image.Image, quad: list[list[int]]) -> "ScannedCard | None":
-    """Identify the card inside a user-drawn quad (TL, TR, BR, BL), or None."""
-    scanner = _require()
-    async with _lock:
-        return await asyncio.to_thread(scanner.identify_quad, pil, quad)

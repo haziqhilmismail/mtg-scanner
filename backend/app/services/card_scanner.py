@@ -258,11 +258,6 @@ class CardScanner:
         cards = self._identify(img, [_candidate_quads(d.quad) for d in detections])
         return _merge_duplicates([c for c in cards if c is not None])
 
-    def identify_quad(self, img: Image.Image, quad: list[list[int]]) -> ScannedCard | None:
-        """Identify the card inside a user-drawn quad (TL, TR, BR, BL)."""
-        q = np.asarray(quad, dtype=float)
-        return self._identify(img, [[q, q[[2, 3, 0, 1]]]])[0]
-
     def _identify(
         self, img: Image.Image, hypotheses: list[list[np.ndarray]],
     ) -> list[ScannedCard | None]:
