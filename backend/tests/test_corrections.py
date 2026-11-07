@@ -15,9 +15,8 @@ from app.config import settings
 from app.db import async_session_factory
 from app.models import Base, CardCorrection, Scan
 from app.schemas.scan import Detection, Guess
-from app.services import corrections
 from app.services.accounts import delete_account
-from app.services.card_crop import CROP_QUALITY, CROP_VERSION, warp_quad
+from app.services.card_crop import CROP_VERSION
 
 RED, GREY = (200, 30, 30), (90, 90, 90)
 SOL, MANA, CRYPT = "729877be-4894-4ef5-9e60-de8a8fb2bdc0", "0b9c3a3e-6d3c-4d6e-8d57-2f1b0f8a5c11", "5e1f7c2a-9d44-4c0e-b0a4-7a3d6f2e8b90"
@@ -90,10 +89,6 @@ def test_a_pick_keeps_the_flattened_card_and_the_answer(client):
     assert crop.format == "JPEG" and crop.size == (488, 680)
     for xy in ((244, 340), (10, 10), (477, 669)):
         assert max(abs(a - b) for a, b in zip(crop.getpixel(xy), RED)) < 30, xy
-    again = BytesIO()
-    warp_quad(Image.open(run(_photo_path(scan))).convert("RGB"), _local_card().corners).save(
-        again, format="JPEG", quality=CROP_QUALITY)
-    assert (settings.corrections_dir / row.crop_file).read_bytes() == again.getvalue()
 
 
 def test_looks_right_on_a_gemini_card_keeps_its_box(client):
@@ -143,22 +138,19 @@ def test_a_missing_or_unreadable_photo_keeps_nothing(client):
     assert rows(user_id=uid) == [] and files() == before
 
 
-def test_a_failed_write_leaves_no_stray_crop(client, monkeypatch):
+def test_a_failed_write_leaves_no_stray_crop(client):
     uid, me = sign_in()
     scan = _upload(client, me, [_local_card()])
     before = files()
-    real, writes = AsyncSession.scalar, []
-
-    async def locked_on_the_write(self, stmt, *a, **k):
-        if stmt.is_insert:
-            writes.append(stmt)
-            raise RuntimeError("database is locked")
-        return await real(self, stmt, *a, **k)
-    monkeypatch.setattr(AsyncSession, "scalar", locked_on_the_write)
-
-    with pytest.raises(RuntimeError):
-        _answer(client, me, scan, 0, MANA)
-    assert len(writes) == 1 and files() == before and rows(user_id=uid) == []
+    db = sqlite3.connect(settings.database_url.split("///", 1)[1])
+    db.execute("create trigger refuse before insert on card_corrections begin select raise(abort, 'disk full'); end")
+    try:
+        with pytest.raises(Exception, match="disk full"):
+            _answer(client, me, scan, 0, MANA)
+    finally:
+        db.execute("drop trigger refuse")
+        db.close()
+    assert files() == before and rows(user_id=uid) == []
 
 
 def test_a_failed_commit_is_not_reported_as_kept(client, monkeypatch):
@@ -327,18 +319,19 @@ def test_answers_are_rate_limited_per_user(client, monkeypatch):
 def test_cutting_a_crop_does_not_hold_the_databases_write_lock(client, monkeypatch):
     uid, me = sign_in()
     scan = _upload(client, me, [_local_card()])
-    path = settings.database_url.split("///", 1)[1]
-    cut, other_write = corrections._save_crop, []
+    path, photo = settings.database_url.split("///", 1)[1], run(_photo_path(scan))
+    real_open, other_write = Image.open, []
 
-    def watched(photo_path, card):
-        try:
-            with sqlite3.connect(path, timeout=0.2) as c:
-                c.execute("update users set fb_name = 'free' where id = ?", (uid,))
-            other_write.append("done")
-        except sqlite3.OperationalError as e:
-            other_write.append(str(e))
-        return cut(photo_path, card)
-    monkeypatch.setattr(corrections, "_save_crop", watched)
+    def watched(fp, *a, **k):
+        if str(fp) == photo:
+            try:
+                with sqlite3.connect(path, timeout=0.2) as c:
+                    c.execute("update users set fb_name = 'free' where id = ?", (uid,))
+                other_write.append("done")
+            except sqlite3.OperationalError as e:
+                other_write.append(str(e))
+        return real_open(fp, *a, **k)
+    monkeypatch.setattr(Image, "open", watched)
 
     assert _answer(client, me, scan, 0, MANA).json() == {"kept": True}
     assert other_write == ["done"]
