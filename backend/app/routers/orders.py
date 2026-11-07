@@ -95,24 +95,6 @@ async def unsend_prices(order_id: Id, db: DbSession, user_id: CurrentUserId) -> 
     return await _load_order(db, order.id, user_id)
 
 
-@router.post("/{order_id}/mark-paid", response_model=OrderRead)
-async def mark_paid(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
-    order = await _load_order(db, order_id, user_id)
-    if order.paid_at is None:
-        order.paid_at = datetime.now(timezone.utc)
-        await db.flush()
-    return await _load_order(db, order.id, user_id)
-
-
-@router.post("/{order_id}/mark-delivered", response_model=OrderRead)
-async def mark_delivered(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
-    order = await _load_order(db, order_id, user_id)
-    if order.delivered_at is None:
-        order.delivered_at = datetime.now(timezone.utc)
-        await db.flush()
-    return await _load_order(db, order.id, user_id)
-
-
 @router.post("/{order_id}/cancel", response_model=OrderRead)
 async def cancel_order(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     order = await _load_order(db, order_id, user_id)

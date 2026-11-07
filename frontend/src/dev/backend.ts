@@ -282,8 +282,6 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       const order = find(f.orders, id);
       if (!order) return notFound('Order not found');
       const changes: Record<string, Partial<Order>> = {
-        'mark-paid': { paid_at: order.paid_at ?? ago(0) },
-        'mark-delivered': { delivered_at: order.delivered_at ?? ago(0) },
         cancel: { status: 'cancelled' },
         restore: { status: 'claimed' },
       };

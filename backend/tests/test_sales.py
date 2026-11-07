@@ -86,7 +86,7 @@ def test_cancelled_orders_and_others_lines_are_not_kept(client, monkeypatch):
     assert client.post("/api/sales", headers=me, json={"channel": "fax", "lines": [line]}).status_code == 422
     assert client.post("/api/sales", headers=me, json={"channel": "copy", "lines": []}).status_code == 422
 
-    client.patch(f"/api/orders/{order['id']}", headers=me, json={"status": "cancelled"})
+    assert client.post(f"/api/orders/{order['id']}/cancel", headers=me).status_code == 200
     assert client.post("/api/sales", headers=me, json={"channel": "copy", "lines": [line]}).json() == {"recorded": 0}
 
 

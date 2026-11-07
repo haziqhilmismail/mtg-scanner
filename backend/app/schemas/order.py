@@ -22,7 +22,6 @@ class OrderItemRead(BaseModel):
 class OrderUpdate(BaseModel):
     """PATCH update — drives the paid/delivered transitions.
     Pass an ISO timestamp to mark, or null to unmark."""
-    status: OrderStatus | MISSING = MISSING
     paid_at: datetime | None = None
     delivered_at: datetime | None = None
     dropoff_method: str | None = None
