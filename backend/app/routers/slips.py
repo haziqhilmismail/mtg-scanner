@@ -26,7 +26,6 @@ class SlipsRequest(BaseModel):
 @limiter.limit("20/minute")
 async def slips_pdf(request: Request, body: SlipsRequest, user: CurrentUser) -> Response:
     rows = [(s.buyer.strip(), s.phone.strip()) for s in body.slips]
-    # About a second a page: off the event loop.
     pdf = await asyncio.to_thread(slips.render, rows, user.seller_name)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="drop-off-slips.pdf"'})

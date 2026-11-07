@@ -1,4 +1,4 @@
-"""A single uploaded photo + the raw Gemini response. Listings can reference a scan."""
+"""An uploaded photo and its scan result. Listings can reference a scan."""
 
 from typing import TYPE_CHECKING, Any
 
@@ -36,10 +36,12 @@ class Scan(Base, TimestampMixin):
     width: Mapped[int]
     height: Mapped[int]
 
-    # Full Gemini response (detections, bboxes, foil guesses, etc.) for replay/debug
+    # The /api/scan response (cards and the photo preview, see schemas/scan.py),
+    # so GET /api/scans can serve it again without scanning.
     gemini_raw: Mapped[dict[str, Any] | None] = mapped_column(JSON)
-    # The seller's per-card edits (foil, price overrides, removed cards...),
-    # opaque to the backend: the frontend owns the shape. See PATCH .../state.
+    # The seller's per-card edits (foil, price overrides, removed cards...).
+    # The frontend owns the shape; the backend reads only `rev` and the lock
+    # (`lockedAt`, `locked`). See PATCH .../state.
     ui_state: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
     user: Mapped["User"] = relationship(back_populates="scans")

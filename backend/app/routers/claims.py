@@ -39,7 +39,6 @@ async def read_screenshots(
     photos = {}
     if ids:
         rows = (await db.scalars(select(Scan).where(Scan.id.in_(ids), Scan.user_id == user_id))).all()
-        # Up to 60 previews to decode: off the event loop.
         photos = await asyncio.to_thread(
             claims.decode_photos, {s.id: (s.gemini_raw or {}).get("image_b64", "") for s in rows})
     pages = []
@@ -48,7 +47,6 @@ async def read_screenshots(
         if len(raw) > MAX_SCREENSHOT_BYTES:
             raise HTTPException(413, "Screenshot too large (max 15 MB)")
         try:
-            # Matching + Tesseract take a few seconds per screenshot; keep the loop free.
             text, scan_id, sure = await asyncio.to_thread(claims.read_screenshot, raw, photos)
         except ValueError as e:
             raise HTTPException(400, str(e))

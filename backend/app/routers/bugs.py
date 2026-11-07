@@ -1,10 +1,6 @@
-"""Bug capture endpoints.
-
-POST /api/bug   — frontend → record an unexpected JS error / React crash.
-                  Optional auth: if a JWT is present the user_id is attached,
-                  otherwise the report is anonymous. Rate limited.
-
-Reports are read from the bug_events table or the Telegram push, never over the API.
+"""Bug capture endpoint: the frontend reports an unexpected JS error or React
+crash. Reports are read from the bug_events table or the Telegram push, never
+over the API.
 """
 
 from fastapi import APIRouter, Request

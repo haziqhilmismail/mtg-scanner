@@ -27,8 +27,7 @@ router = APIRouter(prefix="/api/listings", tags=["listings"])
 
 
 def _serialize_listing(listing: Listing) -> dict:
-    """ORM instance → dict ready for ListingRead.model_validate. Pulls
-    post_ids out of the .posts relationship since the column was removed."""
+    """ORM listing → dict for ListingRead, with post_ids from the .posts relationship."""
     return {
         **{c.name: getattr(listing, c.name) for c in Listing.__table__.columns},
         "post_ids": sorted(p.id for p in listing.posts),
@@ -80,7 +79,6 @@ async def list_listings(
 ) -> list[ListingReadWithAvailability]:
     """Each listing is annotated with qty_committed (sum of qty across non-cancelled
     order items) and qty_available (qty_total − committed)."""
-    # Subquery: per-listing committed qty across active orders
     committed_subq = (
         select(
             OrderItem.listing_id.label("lid"),
@@ -103,7 +101,6 @@ async def list_listings(
         q = q.where(Listing.status == status)
     if post_id is not None:
         if post_id == 0:
-            # listings with no post link at all
             q = q.where(~Listing.id.in_(select(listing_post_links.c.listing_id)))
         else:
             q = q.where(Listing.id.in_(
@@ -154,8 +151,6 @@ async def update_listing(
 
 @router.delete("/{listing_id}", status_code=204)
 async def remove_listing(listing_id: Id, db: DbSession, user_id: CurrentUserId) -> None:
-    """Remove listing (see drop_listing). Either way the row stops appearing
-    in the active stock view; this matters only for users digging into
-    archived inventory."""
+    """Remove a listing (see drop_listing)."""
     listing = await owned(db, Listing, listing_id, user_id)
     await drop_listing(db, listing)

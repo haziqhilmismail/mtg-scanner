@@ -33,7 +33,6 @@ class OrderItem(Base, TimestampMixin):
     unit_price_myr: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     line_total_myr: Mapped[Decimal] = mapped_column(Numeric(10, 2))
 
-    # Snapshots so the order is readable even if the listing is later edited/removed
     name_snapshot: Mapped[str] = mapped_column(String(255))
     set_snapshot: Mapped[str | None] = mapped_column(String(64))
 
