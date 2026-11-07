@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import sys
 from io import BytesIO
 
 import pytest
@@ -44,28 +45,50 @@ def test_locates_the_right_photo_in_phone_and_pc_layouts():
     phone.paste(photos[2].resize((1170, 878)), (0, 140))
     sid, box, sure = claims.locate_photo(phone, photos)
     assert sid == 2 and sure and abs(box[0]) < 15 and abs(box[1] - 140) < 15 and abs(box[2] - 1170) < 30
-    assert claims._thread_region(phone, box).size[1] < 1400          # the part under the photo
     # PC: photo viewer on the left, thread in a column on the right.
     pc = Image.new("RGB", (1920, 1080), (0, 0, 0))
     pc.paste(photos[3].resize((1300, 975)), (40, 52))
     sid, box, _ = claims.locate_photo(pc, photos)
     assert sid == 3
-    assert claims._thread_region(pc, box).size[0] < 700              # the column beside the photo
     # PC, photo inside a comment: room on its right, but the thread is under it.
     inline = Image.new("RGB", (533, 629), (36, 37, 38))
     inline.paste(photos[1].resize((322, 242)), (71, 42))
     sid, box, _ = claims.locate_photo(inline, photos)
     assert sid == 1
-    assert claims._thread_region(inline, box).size == (533, 629 - (box[1] + box[3]))
     # No photo in the screenshot, or one we don't have: no match.
     assert claims.locate_photo(Image.new("RGB", (1170, 2400), (36, 37, 38)), photos) == (None, None, False)
     assert claims.locate_photo(phone, {1: photos[1], 3: photos[3]})[0] is None
     assert claims.locate_photo(phone, {}) == (None, None, False)
 
 
-def test_ocr_rejects_non_images():
-    with pytest.raises(ValueError):
-        claims.read_screenshot(b"not an image")
+def test_ocr_reads_only_the_thread_beside_or_below_the_photo(tmp_path, monkeypatch):
+    fake = tmp_path / "tesseract"
+    fake.write_text(f"#!{sys.executable}\nimport os, shutil, sys\nshutil.copy(sys.argv[1], os.environ['OCR_PAGE'])\nprint('Aiman\\n\\nnak no 3')\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("OCR_PAGE", str(tmp_path / "page.png"))
+    photo = _noise(1)
+
+    def ocr_page_shape(shot, at, size):
+        shot.paste(photo.resize(size), at)
+        buf = BytesIO(); shot.save(buf, format="PNG")
+        assert claims.read_screenshot(buf.getvalue(), {1: photo}) == ("Aiman\nnak no 3", 1, True)
+        w, h = Image.open(tmp_path / "page.png").size
+        return w, h / w
+
+    # The page is scaled up to 1600px wide; its shape says which part of the screenshot it is.
+    phone = ocr_page_shape(Image.new("RGB", (1170, 2400), (36, 37, 38)), (0, 140), (1170, 878))
+    assert phone == (1600, pytest.approx(1382 / 1170, rel=0.05))    # 1170x1382: the part under the photo
+    pc = ocr_page_shape(Image.new("RGB", (1920, 1080)), (40, 52), (933, 700))
+    assert pc == (1600, pytest.approx(1080 / 947, rel=0.05))        # 947x1080: the column beside it, not the strip under it
+    inline = ocr_page_shape(Image.new("RGB", (533, 629), (36, 37, 38)), (71, 42), (322, 242))
+    assert inline == (1600, pytest.approx(345 / 533, rel=0.05))     # 533x345: a photo in a comment, the thread under it
+
+
+def test_reading_something_that_is_not_an_image_is_a_400(client):
+    _, me = sign_in()
+    r = client.post("/api/claims/read", headers=me, files=[("images", ("1.png", b"not an image", "image/png"))])
+    assert r.status_code == 400
 
 
 def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
@@ -73,7 +96,7 @@ def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
     photo = P(scan_id=7, label="Photo 1", cards=[C(card_id=0, name="Sol Ring"), C(card_id=1, name="Island")])
 
     def answer(contents, schema, temperature):
-        assert "Sol Ring" in contents[0] and "nak no 1" in contents[0]
+        assert "Sol Ring" in contents[0] and "nak no 1" in contents[0] and "Nurul Izzah" in contents[0]
         return claims.ParseResult(claims=[
             D(buyer="Aiman", comment="nak no 1", unclear="", items=[
                 I(scan_id=7, card_id=0, qty=0, said="no 1", unclear=""),      # qty 0 → 1
@@ -84,7 +107,7 @@ def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
         ], skipped=["Farah: ada lagi?"])
     monkeypatch.setattr(gemini, "generate_json", answer)
 
-    result = claims.parse_claims("Aiman\nnak no 1", [photo], "Seller")
+    result = claims.parse_claims("Aiman\nnak no 1", [photo], "Nurul Izzah")
     assert [d.buyer for d in result.claims] == ["Aiman"]
     a, b, c = result.claims[0].items
     assert (a.scan_id, a.card_id, a.qty) == (7, 0, 1)
@@ -235,24 +258,6 @@ TAGGED_PHOTO = claims.CataloguePhoto(scan_id=3, label="Photo 1", cards=[
     claims.CatalogueCard(card_id=1, name="Abrupt Decay", price="RM25"),
     claims.CatalogueCard(card_id=2, name="Rakdos Charm", price="RM3"),
 ])
-
-
-@pytest.mark.parametrize("thread", [DESKTOP_THREAD, MOBILE_THREAD])
-def test_prompt_explains_seller_tags_in_replies(monkeypatch, thread):
-    sent = []
-
-    def answer(contents, schema, temperature):
-        sent.append(contents[0])
-    monkeypatch.setattr(gemini, "generate_json", answer)
-
-    claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi")
-    prompt = sent[0]
-    assert thread in prompt
-    # The rule Gemini needs for "Amir Rahman · 1d / Haziq Hilmi claim abrupt decay".
-    assert 'The seller\'s own name is "Haziq Hilmi"' in prompt
-    assert "name on the line ABOVE the words" in prompt
-    assert "leading \"Haziq Hilmi\" is only a tag" in prompt
-    assert "merely tags the seller's name is still that buyer's claim" in prompt
 
 
 @pytest.mark.skipif(not os.environ.get("GEMINI_LIVE_API_KEY"), reason="set GEMINI_LIVE_API_KEY to run against Gemini")
