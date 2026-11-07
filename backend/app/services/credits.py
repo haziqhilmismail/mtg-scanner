@@ -15,6 +15,7 @@ holding SQLite's write lock that long would stall every other writer.
 import asyncio
 import secrets
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import DateTime, delete, func, insert, literal, select, update
@@ -28,8 +29,15 @@ from ..models import ScanCreditEvent, User, Voucher, VoucherRedemption
 WINDOW = timedelta(days=30)
 FOREVER = datetime(9999, 12, 31)
 
-# What reserve() hands back and refund() takes.
 UNLIMITED, FREE, BONUS = "unlimited", "free", "bonus"
+
+
+@dataclass(frozen=True)
+class Credit:
+    """What reserve() took and refund() hands back. A FREE credit is one
+    credit event row; `event_id` names it so a refund deletes that row."""
+    source: str
+    event_id: int | None = None
 
 # No 0/O or 1/I/L: codes get read off a screen and typed on a phone.
 _CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -64,51 +72,45 @@ def _free_used(user_id: int, now: datetime):
     )
 
 
-async def reserve(user_id: int) -> str | None:
-    """Take one credit for `user_id`. Returns where it came from, or None when
-    the user has none left."""
+async def reserve(user_id: int) -> Credit | None:
+    """Take one credit for `user_id`, or return None when the user has none left."""
     if not settings.auth_enabled:
-        return UNLIMITED  # solo mode: there is nobody to limit
+        return Credit(UNLIMITED)  # solo mode: there is nobody to limit
     now = _now()
     async with async_session_factory() as s:
         user = await s.get(User, user_id)
         if user is None:
             return None
         if user.unlimited_scans_until and user.unlimited_scans_until > now:
-            return UNLIMITED
+            return Credit(UNLIMITED)
         # One statement, so the check and the insert can't be split by a
         # parallel scan from the same user.
-        took_free = await s.execute(
+        event_id = await s.scalar(
             insert(ScanCreditEvent).from_select(
                 ["user_id", "created_at"],
                 select(literal(user_id), literal(now, DateTime())).where(
                     _free_used(user_id, now) < settings.free_scans_per_window
                 ),
-            )
+            ).returning(ScanCreditEvent.id)
         )
-        if took_free.rowcount:
+        if event_id is not None:
             await s.commit()
-            return FREE
+            return Credit(FREE, event_id)
         took_bonus = await s.execute(
             update(User)
             .where(User.id == user_id, User.bonus_scan_credits > 0)
             .values(bonus_scan_credits=User.bonus_scan_credits - 1)
         )
         await s.commit()
-        return BONUS if took_bonus.rowcount else None
+        return Credit(BONUS) if took_bonus.rowcount else None
 
 
-async def refund(user_id: int, source: str) -> None:
+async def refund(user_id: int, credit: Credit) -> None:
     """Hand back a credit taken by reserve() — the scan it paid for failed."""
     async with async_session_factory() as s:
-        if source == FREE:
-            newest = (
-                select(func.max(ScanCreditEvent.id))
-                .where(ScanCreditEvent.user_id == user_id)
-                .scalar_subquery()
-            )
-            await s.execute(delete(ScanCreditEvent).where(ScanCreditEvent.id == newest))
-        elif source == BONUS:
+        if credit.source == FREE:
+            await s.execute(delete(ScanCreditEvent).where(ScanCreditEvent.id == credit.event_id))
+        elif credit.source == BONUS:
             await s.execute(
                 update(User)
                 .where(User.id == user_id)
@@ -122,14 +124,14 @@ async def spend(db: AsyncSession, user_id: int):
     """Pay one credit for the block: taken before it runs (so parallel scans
     can't overshoot), handed back if it raises or is cancelled. Raises
     OutOfCredits when there is none."""
-    source = await reserve(user_id)
-    if source is None:
+    credit = await reserve(user_id)
+    if credit is None:
         raise OutOfCredits(await status(db, user_id))
     try:
         yield
     except BaseException:
         # Shielded: a request cancelled mid-call must still get its credit back.
-        await asyncio.shield(refund(user_id, source))
+        await asyncio.shield(refund(user_id, credit))
         raise
 
 

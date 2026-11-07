@@ -32,6 +32,10 @@ async def redeem(user_id: int, code: str):
         return v
 
 
+def source(credit: credits.Credit | None) -> str | None:
+    return credit and credit.source
+
+
 async def get_status(user_id: int) -> dict:
     async with async_session_factory() as s:
         return await credits.status(s, user_id)
@@ -47,7 +51,7 @@ async def add_events(user_id: int, days_ago: float, n: int):
 def test_free_allowance_stops_at_the_limit():
     async def go():
         uid = await new_user()
-        got = [await credits.reserve(uid) for _ in range(LIMIT + 2)]
+        got = [source(await credits.reserve(uid)) for _ in range(LIMIT + 2)]
         assert got == [credits.FREE] * LIMIT + [None, None]
         st = await get_status(uid)
         assert (st["used"], st["remaining"], st["unlimited"]) == (LIMIT, 0, False)
@@ -57,7 +61,7 @@ def test_free_allowance_stops_at_the_limit():
 def test_parallel_scans_cannot_overshoot():
     async def go():
         uid = await new_user()
-        got = await asyncio.gather(*(credits.reserve(uid) for _ in range(LIMIT + 8)))
+        got = [source(c) for c in await asyncio.gather(*(credits.reserve(uid) for _ in range(LIMIT + 8)))]
         assert got.count(credits.FREE) == LIMIT and got.count(None) == 8
     run(go())
 
@@ -65,12 +69,28 @@ def test_parallel_scans_cannot_overshoot():
 def test_refund_gives_the_credit_back():
     async def go():
         uid = await new_user()
-        for _ in range(LIMIT):
-            await credits.reserve(uid)
+        taken = [await credits.reserve(uid) for _ in range(LIMIT)]
         assert await credits.reserve(uid) is None
-        await credits.refund(uid, credits.FREE)
+        await credits.refund(uid, taken[-1])
         assert (await get_status(uid))["remaining"] == 1
-        assert await credits.reserve(uid) == credits.FREE
+        assert source(await credits.reserve(uid)) == credits.FREE
+    run(go())
+
+
+def test_refund_hands_back_its_own_credit_not_a_parallel_scans():
+    async def go():
+        uid = await new_user()
+        first = await credits.reserve(uid)        # two scans in flight at once
+        second = await credits.reserve(uid)
+        async with async_session_factory() as s:
+            ids = (await s.scalars(select(ScanCreditEvent.id).where(ScanCreditEvent.user_id == uid)
+                                   .order_by(ScanCreditEvent.id))).all()
+        await credits.refund(uid, first)          # the first one failed
+        async with async_session_factory() as s:
+            left = (await s.scalars(select(ScanCreditEvent.id).where(ScanCreditEvent.user_id == uid))).all()
+        assert left == [ids[1]], "the second scan's credit event must survive"
+        await credits.refund(uid, second)
+        assert (await get_status(uid))["used"] == 0
     run(go())
 
 
@@ -125,9 +145,9 @@ def test_voucher_credits_are_used_after_the_free_ones():
         uid = await new_user()
         await redeem(uid, await make_voucher(credits=3))
         assert (await get_status(uid))["remaining"] == LIMIT + 3
-        got = [await credits.reserve(uid) for _ in range(LIMIT + 4)]
+        got = [source(await credits.reserve(uid)) for _ in range(LIMIT + 4)]
         assert got == [credits.FREE] * LIMIT + [credits.BONUS] * 3 + [None]
-        await credits.refund(uid, credits.BONUS)
+        await credits.refund(uid, credits.Credit(credits.BONUS))
         assert (await get_status(uid))["bonus"] == 1
     run(go())
 
@@ -136,7 +156,7 @@ def test_unlimited_voucher_switches_the_limit_off():
     async def go():
         uid = await new_user()
         await redeem(uid, await make_voucher(unlimited=True))
-        got = [await credits.reserve(uid) for _ in range(LIMIT * 3)]
+        got = [source(await credits.reserve(uid)) for _ in range(LIMIT * 3)]
         assert set(got) == {credits.UNLIMITED}
         st = await get_status(uid)
         assert st["unlimited"] is True and st["remaining"] is None
@@ -156,7 +176,7 @@ def test_timed_unlimited_vouchers_stack_and_lapse():
             assert timedelta(days=59) < left < timedelta(days=61)
             u.unlimited_scans_until = credits._now() - timedelta(seconds=1)   # lapsed
             await s.commit()
-        assert await credits.reserve(uid) == credits.FREE
+        assert source(await credits.reserve(uid)) == credits.FREE
 
         # Already unlimited for good: a timed voucher leaves that alone.
         await redeem(uid, await make_voucher(unlimited=True))
@@ -214,7 +234,7 @@ def test_owner_testing_pair_toggles_between_unlimited_and_a_fresh_limit():
             await redeem(me, off)
             st = await get_status(me)
             assert (st["unlimited"], st["used"], st["bonus"], st["remaining"]) == (False, 0, 0, LIMIT)
-            got = [await credits.reserve(me) for _ in range(LIMIT + 1)]
+            got = [source(await credits.reserve(me)) for _ in range(LIMIT + 1)]
             assert got == [credits.FREE] * LIMIT + [None]
 
         # Bound to one account: to anyone else the codes don't exist.
