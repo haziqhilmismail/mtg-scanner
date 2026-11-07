@@ -327,20 +327,9 @@ async def relookup_scan_prices(
 
     payload = scan_row.gemini_raw or {}
     updated = refresh_prices(payload, await catalogue.ck_index())
-    cards = payload["cards"]
     scan_row.gemini_raw = payload
     # JSON column needs an explicit mark — SQLAlchemy doesn't detect
     # in-place dict mutation.
     flag_modified(scan_row, "gemini_raw")
     await db.commit()
-
-    return {
-        "image_id": str(scan_row.id),
-        "scan_id": scan_row.id,
-        "filename": scan_row.filename,
-        "image_b64": payload.get("image_b64", ""),
-        "width": scan_row.width,
-        "height": scan_row.height,
-        "cards": cards,
-        "updated": updated,
-    }
+    return {**scan_out(scan_row, [], lite=False), "updated": updated}
