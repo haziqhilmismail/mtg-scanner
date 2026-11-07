@@ -52,7 +52,6 @@ class LocalScanner:
         return None
 
     async def detect(self, pil: Image.Image, jpeg: bytes) -> list[Detection]:
-        assert self._scanner is not None, "ready() first"
         async with self._lock:
             t0 = time.perf_counter()
             found = await asyncio.to_thread(self._scanner.scan, pil)

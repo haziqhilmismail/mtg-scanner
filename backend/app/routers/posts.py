@@ -29,7 +29,7 @@ from ..models import (
 )
 from ..schemas import PostReadWithStats, PostUpdate
 from ..services.cardkingdom_prices import get_index as get_ck_index
-from .scans import apply_picks, refresh_prices, scan_out, split_state
+from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
