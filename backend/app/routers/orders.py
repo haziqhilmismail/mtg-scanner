@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..config import DATA_DIR
+from ..config import settings
 from ..deps import CurrentUserId, DbSession, ImageUserId
 from ..models import Buyer, Listing, Order, OrderItem, OrderStatus
 from ..schemas import OrderCreate, OrderRead, OrderUpdate
@@ -22,8 +22,6 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 # without rewriting rows. The image bytes are served at GET .../delivery-photo
 # behind a ?token=<image token> query param (browsers don't send Authorization on <img>).
 
-ORDERS_PHOTO_DIR = DATA_DIR / "orders"
-ORDERS_PHOTO_DIR.mkdir(exist_ok=True)
 
 ALLOWED_PHOTO_MIME = {
     "image/jpeg", "image/jpg", "image/png", "image/webp",
@@ -33,7 +31,7 @@ MAX_PHOTO_BYTES = 8 * 1024 * 1024  # 8 MiB
 
 
 def _order_photo_path(order_id: int) -> Path:
-    return ORDERS_PHOTO_DIR / f"{order_id}.bin"
+    return settings.orders_dir / f"{order_id}.bin"
 
 
 async def _load_order(db, order_id: int, user_id: int) -> Order:

@@ -4,15 +4,10 @@ import json
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent  # mtg-scanner/backend
-DATA_DIR = BACKEND_ROOT / "data"
-DATA_DIR.mkdir(exist_ok=True)
-# Each scan's photo, as <scan id>.bin.
-SCANS_DIR = DATA_DIR / "scans"
-SCANS_DIR.mkdir(exist_ok=True)
 
 
 class Settings(BaseSettings):
@@ -21,6 +16,9 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    # Everything the server keeps on disk lives under this one folder.
+    data_dir: Path = BACKEND_ROOT / "data"
 
     # Which pipeline /api/scan runs:
     #   "gemini" — cloud model locates + names the cards (classical bbox
@@ -32,9 +30,9 @@ class Settings(BaseSettings):
     scanner_backend: str = "gemini"
     # Local scanner files. Not in the repo or the image — they live in data/.
     # README "Local scanner" covers how to produce them.
-    detector_model_path: str = str(DATA_DIR / "models" / "card_detector.onnx")
-    embedder_model_path: str = str(DATA_DIR / "models" / "card_embedder.onnx")
-    card_index_path: str = str(DATA_DIR / "card_index.npz")
+    detector_model_path: Path | None = None
+    embedder_model_path: Path | None = None
+    card_index_path: Path | None = None
 
     # Gemini
     gemini_api_key: str = ""
@@ -54,10 +52,10 @@ class Settings(BaseSettings):
     # Falls back to Gemini's bbox on noisy photos.
     use_classical_bbox: bool = True
 
-    corrections_dir: Path = DATA_DIR / "corrections"
+    corrections_dir: Path | None = None
 
     # Database — SQLite, one file in data/
-    database_url: str = f"sqlite+aiosqlite:///{DATA_DIR / 'app.db'}"
+    database_url: str = ""
 
     # Solo-mode owner: when google_client_id is empty every API call is attributed
     # to this user_id (no login required). Once google_client_id is set, the
@@ -118,6 +116,56 @@ class Settings(BaseSettings):
     # are still written every time so the audit log stays complete; only the
     # Telegram push is throttled.
     bug_notify_window_minutes: int = 10
+
+    @model_validator(mode="after")
+    def _paths_under_data_dir(self):
+        d = self.data_dir
+        self.detector_model_path = self.detector_model_path or d / "models" / "card_detector.onnx"
+        self.embedder_model_path = self.embedder_model_path or d / "models" / "card_embedder.onnx"
+        self.card_index_path = self.card_index_path or d / "card_index.npz"
+        self.corrections_dir = self.corrections_dir or d / "corrections"
+        self.database_url = self.database_url or f"sqlite+aiosqlite:///{d / 'app.db'}"
+        return self
+
+    # Upload folders: each file is named by its row id. deploy/backup.sh,
+    # .gitignore and .dockerignore list these too (tests/test_data_folders.py).
+    @property
+    def scans_dir(self) -> Path:
+        return self.data_dir / "scans"
+
+    @property
+    def posts_dir(self) -> Path:
+        return self.data_dir / "posts"
+
+    @property
+    def orders_dir(self) -> Path:
+        return self.data_dir / "orders"
+
+    @property
+    def payment_qr_dir(self) -> Path:
+        return self.data_dir / "payment_qr"
+
+    @property
+    def ck_db_file(self) -> Path:
+        return self.data_dir / "ck_index.db"
+
+    @property
+    def jwt_secret_file(self) -> Path:
+        return self.data_dir / "jwt_secret.txt"
+
+    # The QR on Profile's "Support this app". It lives on the server only, as
+    # the repo is public; without it the sheet says the QR is coming soon.
+    @property
+    def support_qr(self) -> Path:
+        return self.data_dir / "support_qr.png"
+
+    @property
+    def upload_dirs(self) -> list[Path]:
+        return [self.scans_dir, self.posts_dir, self.orders_dir, self.payment_qr_dir, self.corrections_dir]
+
+    def make_data_dirs(self) -> None:
+        for folder in self.upload_dirs:
+            folder.mkdir(parents=True, exist_ok=True)
 
     @property
     def use_local_scanner(self) -> bool:

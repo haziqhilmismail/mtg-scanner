@@ -1,13 +1,9 @@
 import re
 
 import app.main as main
-from app.config import DATA_DIR, Settings
-from app.routers import orders, payment, posts
+from app.config import settings
 
-UPLOAD_FOLDERS = {folder.relative_to(DATA_DIR).as_posix() for folder in (
-    main.SCANS_DIR, posts.POSTS_DIR, orders.ORDERS_PHOTO_DIR, payment.QR_DIR,
-    Settings.model_fields["corrections_dir"].default,
-)}
+UPLOAD_FOLDERS = {folder.relative_to(settings.data_dir).as_posix() for folder in settings.upload_dirs}
 
 
 def test_every_upload_folder_is_ignored_and_backed_up():

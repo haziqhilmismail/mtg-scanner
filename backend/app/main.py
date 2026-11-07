@@ -49,7 +49,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select
 
-from .config import DATA_DIR, SCANS_DIR, settings
+from .config import settings
 from .db import async_session_factory
 from .deps import CurrentUserId, DbSession, limiter
 
@@ -69,7 +69,6 @@ from .routers import slips as slips_router
 from .services import bug_reporter
 from .services import credits
 from .services import local_scan
-from .services.cardkingdom_prices import DB_FILE as CK_DB_FILE
 from .services.cardkingdom_prices import enrich as enrich_with_ck
 from .services.cardkingdom_prices import get_index as get_ck_index
 from .services.classical_detector import detect_card_quads, iou_xywh
@@ -86,6 +85,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    settings.make_data_dirs()
     # 1) Run any pending migrations. Alembic is sync, so dispatch to a thread.
     alembic_cfg = AlembicConfig(str(BASE_DIR.parent / "alembic.ini"))
     await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
@@ -146,16 +146,13 @@ app.add_middleware(
 )
 
 
-# The QR on Profile's "Support this app". It lives on the server only, as the
-# repo is public; without it the sheet says the QR is coming soon.
-SUPPORT_QR = DATA_DIR / "support_qr.png"
 
 
 @app.get("/api/support-qr")
 async def support_qr():
-    if not SUPPORT_QR.exists():
+    if not settings.support_qr.exists():
         raise HTTPException(404, "No support QR on this server")
-    return FileResponse(SUPPORT_QR, media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
+    return FileResponse(settings.support_qr, media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/api/health")
@@ -179,8 +176,8 @@ async def health():
         # written" timestamp — the refresh job atomic-renames a fresh build
         # onto DB_FILE, so its mtime advances with each successful refresh.
         # Returned as Unix epoch seconds; the frontend formats relative time.
-        if CK_DB_FILE.exists():
-            out["cardkingdom_refreshed_at"] = CK_DB_FILE.stat().st_mtime
+        if settings.ck_db_file.exists():
+            out["cardkingdom_refreshed_at"] = settings.ck_db_file.stat().st_mtime
     except Exception as e:
         out["cardkingdom_error"] = str(e)
     return out
@@ -506,7 +503,7 @@ async def _store_scan(
     # coords returned by /api/scan, so frontend rendering and /api/export stay
     # consistent; (2) export decodes a small JPEG instead of re-decoding HEIC
     # every time.
-    image_path = SCANS_DIR / f"{scan_row.id}.bin"
+    image_path = settings.scans_dir / f"{scan_row.id}.bin"
     image_path.write_bytes(norm_bytes)
     scan_row.image_path = str(image_path)
     await db.flush()

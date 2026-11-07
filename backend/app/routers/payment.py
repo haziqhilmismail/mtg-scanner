@@ -8,14 +8,12 @@ from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 
-from ..config import DATA_DIR
+from ..config import settings
 from ..deps import CurrentUserId, DbSession, ImageUserId
 from ..models import User
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
 
-QR_DIR = DATA_DIR / "payment_qr"
-QR_DIR.mkdir(exist_ok=True)
 MAX_QR_BYTES = 8 * 1024 * 1024
 
 
@@ -90,7 +88,7 @@ async def upload_qr(db: DbSession, user_id: CurrentUserId, image: UploadFile = F
     left = (img.width - side) // 2
     img = img.crop((left, 0, left + side, side))
     user = await _user(db, user_id)
-    path = QR_DIR / f"{user.id}.png"
+    path = settings.payment_qr_dir / f"{user.id}.png"
     img.save(path, format="PNG")
     user.qr_image_path = str(path)
     await db.flush()

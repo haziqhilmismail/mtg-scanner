@@ -55,12 +55,12 @@ from PIL import Image
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_ROOT))
 
+from app.config import settings  # noqa: E402
 from app.services.card_embedder import FINISH_BITS, Embedder, is_promo  # noqa: E402
 
-DATA_DIR = BACKEND_ROOT / "data"
-DEFAULT_OUT = DATA_DIR / "card_index.npz"
-DEFAULT_MODEL = DATA_DIR / "models" / "card_embedder.onnx"
-DEFAULT_CACHE = DATA_DIR / "index_build_cache"
+DEFAULT_OUT = settings.card_index_path
+DEFAULT_MODEL = settings.embedder_model_path
+DEFAULT_CACHE = settings.data_dir / "index_build_cache"
 
 SCRYFALL_BULK_URL = "https://api.scryfall.com/bulk-data"
 USER_AGENT = "MTGPasarMalamScanner-IndexBuilder/2.0"

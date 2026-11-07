@@ -5,11 +5,10 @@ test modules share: the schema, the `client` fixture and a few helpers."""
 import os
 import tempfile
 
-# A throwaway database, and Google auth switched on (credits are only
-# enforced when it is).
+# A throwaway data folder (database and uploads), and Google auth switched
+# on (credits are only enforced when it is).
 os.environ.update(
-    DATABASE_URL=f"sqlite+aiosqlite:///{tempfile.mkdtemp()}/test.db",
-    CORRECTIONS_DIR=tempfile.mkdtemp(),
+    DATA_DIR=tempfile.mkdtemp(),
     GOOGLE_CLIENT_ID="test-client-id",
     JWT_SECRET="test-secret",
     GEMINI_API_KEY="x",
@@ -53,6 +52,7 @@ def schema():
     from alembic import command
     from alembic.config import Config
     command.upgrade(Config(str(main.BASE_DIR.parent / "alembic.ini")), "head")
+    main.settings.make_data_dirs()
     run(engine.dispose())
 
 
