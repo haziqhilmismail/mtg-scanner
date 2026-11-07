@@ -2,9 +2,9 @@
 
 import re
 
-from conftest import _dispose_then, new_user, run
+from conftest import run, sign_in
 
-from app.db import async_session_factory, engine
+from app.db import async_session_factory
 from app.models import User
 from app.services import slips
 from app.services.auth_service import issue_session_token
@@ -17,9 +17,7 @@ def _pages(pdf: bytes) -> int:
 
 
 def test_slips_fill_whole_a4_pages(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    _, me = sign_in()
 
     eleven = [{"buyer": f"Buyer {n}", "phone": "012-345 6789" if n % 2 else ""} for n in range(11)]
     r = client.post("/api/slips", headers=me, json={"slips": eleven})
@@ -82,8 +80,7 @@ async def _google_user(name: str) -> int:
 
 
 def test_the_seller_name_set_on_profile_prints_on_the_slips(client, monkeypatch):
-    uid = run(_dispose_then(_google_user("Aiman Google")))
-    run(engine.dispose())
+    uid = run(_google_user("Aiman Google"))
     me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
     seller = lambda: client.get("/api/auth/me", headers=me).json()["seller_name"]
     set_seller = lambda name: client.put("/api/auth/me/seller-name", headers=me, json={"seller_name": name})

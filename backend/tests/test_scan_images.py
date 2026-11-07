@@ -7,17 +7,15 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
 import jwt
-from conftest import _dispose_then, _scan, new_user, run
+from conftest import _scan, new_user, run, sign_in
 from PIL import Image
 
-from app.db import engine
 from app.services.auth_service import issue_image_token, issue_session_token
 
 
 def test_lite_list_drops_embedded_pictures_and_serves_them_by_url(client):
-    uid = run(_dispose_then(new_user()))
-    other = run(_dispose_then(new_user()))
-    run(engine.dispose())
+    uid = run(new_user())
+    other = run(new_user())
     session = issue_session_token(uid)
     headers = {"Authorization": f"Bearer {session}"}
     token = client.get("/api/auth/me", headers=headers).json()["image_token"]
@@ -53,8 +51,7 @@ def test_lite_list_drops_embedded_pictures_and_serves_them_by_url(client):
 
 
 def test_image_tokens_and_session_tokens_are_not_interchangeable(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
+    uid = run(new_user())
     session = issue_session_token(uid)
     image = client.get("/api/auth/me", headers={"Authorization": f"Bearer {session}"}).json()["image_token"]
     sid = _scan(client, session).json()["scan_id"]
@@ -69,8 +66,7 @@ def test_image_tokens_and_session_tokens_are_not_interchangeable(client):
 
 
 def test_image_token_is_the_same_all_week(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
+    uid = run(new_user())
     me = lambda: client.get("/api/auth/me", headers={"Authorization": f"Bearer {issue_session_token(uid)}"}).json()["image_token"]
     first = me()
     time.sleep(1.1)                          # iat/exp are whole seconds
@@ -81,10 +77,8 @@ def test_image_token_is_the_same_all_week(client):
 
 
 def test_ui_state_round_trip(client):
-    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
-    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    uid, me = sign_in()
+    _, them = sign_in()
     sid = _scan(client, issue_session_token(uid)).json()["scan_id"]
     state_of = lambda: next(s["ui_state"] for s in client.get("/api/scans?lite=1", headers=me).json() if s["scan_id"] == sid)
 
@@ -108,10 +102,8 @@ def test_ui_state_round_trip(client):
 
 
 def test_a_picked_printing_replaces_the_cards_guess(client):
-    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
-    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    uid, me = sign_in()
+    _, them = sign_in()
     sid = _scan(client, issue_session_token(uid)).json()["scan_id"]
     saved = lambda: next(s for s in client.get("/api/scans?lite=1", headers=me).json() if s["scan_id"] == sid)
     save = lambda state, who=me: client.patch(f"/api/scans/{sid}/state", json={"state": state}, headers=who).status_code
@@ -142,11 +134,8 @@ def test_a_picked_printing_replaces_the_cards_guess(client):
 def test_ui_state_concurrent_saves_keep_the_newest(client):
     import httpx
 
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    uid, me = sign_in()
     sid = _scan(client, issue_session_token(uid)).json()["scan_id"]
-    run(engine.dispose())
 
     async def race():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=client.app), base_url="http://t") as c:
@@ -156,13 +145,12 @@ def test_ui_state_concurrent_saves_keep_the_newest(client):
                                        for r in (2 * i, 2 * i + 1)))
             return (await c.get("/api/scans?lite=1", headers=me)).json()
         
-    scans = run(_dispose_then(race()))
+    scans = run(race())
     assert next(s["ui_state"] for s in scans if s["scan_id"] == sid) == {"rev": 81}
 
 
 def test_before_pages_back_through_scans(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
+    uid = run(new_user())
     token = issue_session_token(uid)
     me = {"Authorization": f"Bearer {token}"}
     ids = [_scan(client, token).json()["scan_id"] for _ in range(5)]
