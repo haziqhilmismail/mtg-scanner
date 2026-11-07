@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession, limiter
-from ..models import Listing, ListingStatus, Post, Scan, User
+from ..deps import CurrentUser, CurrentUserId, DbSession, limiter
+from ..models import Listing, ListingStatus, Post, Scan
 from ..schemas import OrderCreate, OrderItemCreate, OrderRead
 from ..services import claims, credits
 from ..services.listings import locked_prices
@@ -66,20 +66,18 @@ class ParseRequest(BaseModel):
 
 @router.post("/parse")
 @limiter.limit("20/minute")
-async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user_id: CurrentUserId):
+async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user: CurrentUser):
     """Draft claims from thread text (typed, pasted or OCR'd) against the cards
     the client says are on sale, and list the comments read as no claim.
     Saves nothing. Costs one scan credit (it is a Gemini call), handed back if
     the call fails."""
-    user = await db.get(User, user_id)
-    seller = user.seller_name if user else ""
-    async with credits.spend(db, user_id):
+    async with credits.spend(db, user.id):
         try:
-            result = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, seller)
+            result = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, user.seller_name)
         except Exception as e:
             raise HTTPException(502, f"Could not work out the claims: {e}")
     return {"claims": [d.model_dump() for d in result.claims], "skipped": result.skipped,
-            "credits": await credits.status(db, user_id)}
+            "credits": await credits.status(db, user.id)}
 
 
 class ConfirmItem(BaseModel):

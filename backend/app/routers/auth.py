@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession, check_pricing_size
+from ..deps import CurrentUser, DbSession, check_pricing_size
 from ..models import User
 from ..services.auth_service import (
     issue_image_token,
@@ -134,10 +134,7 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
 
 
 @router.get("/me", response_model=Me)
-async def me(db: DbSession, user_id: CurrentUserId):
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(401, "User no longer exists")
+async def me(user: CurrentUser):
     return Me(
         id=user.id, email=user.email, name=user.name, avatar_url=user.avatar_url,
         image_token=_image_token(user.id), pricing=user.pricing, seller_name=user.seller_name,
@@ -145,18 +142,12 @@ async def me(db: DbSession, user_id: CurrentUserId):
 
 
 @router.put("/me/pricing", status_code=204)
-async def set_default_pricing(body: PricingBody, db: DbSession, user_id: CurrentUserId):
+async def set_default_pricing(body: PricingBody, user: CurrentUser):
     check_pricing_size(body.pricing)
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(401, "User no longer exists")
     user.pricing = body.pricing
 
 
 @router.put("/me/seller-name", response_model=SellerName)
-async def set_seller_name(body: SellerName, db: DbSession, user_id: CurrentUserId) -> SellerName:
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(401, "User no longer exists")
+async def set_seller_name(body: SellerName, user: CurrentUser) -> SellerName:
     user.fb_name = body.seller_name.strip() or None
     return SellerName(seller_name=user.seller_name)

@@ -53,13 +53,11 @@ def get_optional_user_id(authorization: str | None = Header(default=None)) -> in
 OptionalUserId = Annotated[int | None, Depends(get_optional_user_id)]
 
 
-async def get_current_user_id(user_id: OptionalUserId, db: DbSession) -> int:
-    """The signed-in user (an `Authorization: Bearer <jwt>` header issued by
-    `/api/auth/google`); 401 without one. Solo user when auth is off."""
+async def get_current_user(user_id: OptionalUserId, db: DbSession) -> User:
+    """The signed-in user's row (an `Authorization: Bearer <jwt>` header issued
+    by `/api/auth/google`); 401 without one. Solo user when auth is off."""
     if user_id is None:
         raise HTTPException(401, "Missing, invalid or expired token")
-    if not settings.auth_enabled:
-        return user_id
     user = await db.get(User, user_id)
     # A deleted account's token stays valid for days; its user row is gone.
     if user is None:
@@ -71,7 +69,14 @@ async def get_current_user_id(user_id: OptionalUserId, db: DbSession) -> int:
     if user.last_seen_at is None or now - user.last_seen_at > timedelta(hours=1):
         await db.execute(update(User).where(User.id == user_id).values(last_seen_at=now, updated_at=User.updated_at))
         await db.commit()
-    return user_id
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_current_user_id(user: CurrentUser) -> int:
+    return user.id
 
 
 CurrentUserId = Annotated[int, Depends(get_current_user_id)]

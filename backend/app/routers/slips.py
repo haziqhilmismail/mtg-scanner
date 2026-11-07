@@ -5,8 +5,7 @@ import asyncio
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field
 
-from ..deps import CurrentUserId, DbSession, limiter
-from ..models import User
+from ..deps import CurrentUser, limiter
 from ..services import slips
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
@@ -25,10 +24,9 @@ class SlipsRequest(BaseModel):
 
 @router.post("")
 @limiter.limit("20/minute")
-async def slips_pdf(request: Request, body: SlipsRequest, db: DbSession, user_id: CurrentUserId) -> Response:
+async def slips_pdf(request: Request, body: SlipsRequest, user: CurrentUser) -> Response:
     rows = [(s.buyer.strip(), s.phone.strip()) for s in body.slips]
-    user = await db.get(User, user_id)
     # About a second a page: off the event loop.
-    pdf = await asyncio.to_thread(slips.render, rows, user.seller_name if user else "")
+    pdf = await asyncio.to_thread(slips.render, rows, user.seller_name)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="drop-off-slips.pdf"'})
