@@ -6,9 +6,6 @@ PATCH bodies (*Update): a field left out keeps its value. A field typed
 from .bug import BugReportCreate
 from .buyer import BuyerRead, BuyerReadWithStats, BuyerUpdate
 from .listing import (
-    BulkImportLine,
-    BulkImportPayload,
-    BulkImportResult,
     ListingCreate,
     ListingRead,
     ListingReadWithAvailability,
@@ -26,7 +23,6 @@ from .post import PostRead, PostReadWithStats, PostUpdate
 __all__ = [
     "BugReportCreate",
     "BuyerRead", "BuyerReadWithStats", "BuyerUpdate",
-    "BulkImportLine", "BulkImportPayload", "BulkImportResult",
     "ListingCreate", "ListingRead", "ListingReadWithAvailability", "ListingUpdate",
     "OrderCreate", "OrderRead", "OrderUpdate",
     "OrderItemCreate", "OrderItemRead",
