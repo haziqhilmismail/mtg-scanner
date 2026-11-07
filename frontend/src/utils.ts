@@ -190,11 +190,11 @@ export function smallScryfallImage(url: string): string {
 export const matchThumbs = (batch: Batch): string[] =>
   (batch.response?.cards ?? []).map(c => c.candidates[0]?.image_url).filter((u): u is string => !!u).map(smallScryfallImage);
 
-// The images in a paste (Ctrl/⌘+V), named for when they were pasted.
 // Whether a popup is open over the page: a paste then belongs to it, not
 // to the page's drop area behind it.
-export const popupOpen = () => !!document.querySelector('.feedback-overlay, .modal-shade, .dlg-shade, .modal.open, dialog[open], .ui-menu');
+export const popupOpen = () => !!document.querySelector('dialog[open], [role="menu"]');
 
+// The images in a paste (Ctrl/⌘+V), named for when they were pasted.
 export function pastedImages(e: ClipboardEvent): File[] {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   return Array.from(e.clipboardData?.items ?? [])
