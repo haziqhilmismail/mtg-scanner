@@ -57,7 +57,9 @@ class ScannedCard(BaseModel):
     candidates: list[dict]  # Scryfall summaries with CK prices; the first is the card as shown
 
     def to_payload(self) -> dict:
-        d = self.model_dump()
+        # The stored guess never carried the local scanner's index match, and
+        # Gemini and hand-framed cards never carried `version_source`.
+        d = self.model_dump(exclude={"gemini": {"scryfall_id"}})
         if d["version_source"] is None:
-            del d["version_source"]  # Gemini and hand-framed cards never carried the key
+            del d["version_source"]
         return d

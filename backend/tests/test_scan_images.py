@@ -178,3 +178,4 @@ def test_a_card_scryfall_does_not_know_keeps_the_scanners_guess_unpriced(client)
     # A Gemini card never carried `version_source`; the local scanner's cards do.
     assert "version_source" not in unknown and unknown["name_confidence"] is None
     assert (known["version_source"], known["name_confidence"], known["candidates"][0]["usd"]) == ("ocr", 0.912, 1.0)
+    assert known["gemini"] == {"name": "Sol Ring", "set_code": "cmm", "collector_number": "1", "is_foil": False, "quantity": 1}
