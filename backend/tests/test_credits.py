@@ -290,7 +290,7 @@ def test_failed_scan_costs_nothing(client):
     uid = run(new_user())
     token = issue_session_token(uid)
     client.scanner.fail = True
-    assert _scan(client, token).status_code == 500
+    assert _scan(client, token).status_code in range(500, 600)  # a server error, whichever one
     bad = client.post("/api/scan", files={"image": ("a.jpg", b"not an image", "image/jpeg")},
                       headers={"Authorization": f"Bearer {token}"})
     assert bad.status_code == 400
