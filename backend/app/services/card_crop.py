@@ -3,9 +3,8 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
-# Scryfall's "normal" card image: the size the index builder embeds and the
-# scanner warps every detection to.
-CARD_SIZE = (488, 680)
+from .card_geometry import CARD_SIZE
+
 MIN_SIDE = 16
 CROP_VERSION = 1
 CROP_QUALITY = 95

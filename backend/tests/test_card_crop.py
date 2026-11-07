@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageDraw
 
-from app.services.card_crop import CARD_SIZE, card_crop
+from app.services.card_crop import card_crop
+from app.services.card_geometry import CARD_SIZE
 
 RED, GREY = (200, 30, 30), (90, 90, 90)
 

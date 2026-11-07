@@ -13,6 +13,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+from .card_geometry import CARD_ASPECT
+
 FONT_PATH_CANDIDATES = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
@@ -159,7 +161,6 @@ def render_overlay(
     # the card on one axis (extra table/background or a sliver of a neighbor). We derive
     # a "card-shaped" subbox centered on the bbox center for label placement, so the pill
     # sits at the actual card area instead of wherever the loose bbox happens to be.
-    CARD_W_OVER_H = 488.0 / 680.0  # ≈ 0.7176
 
     for c in cards:
         raw_x, raw_y, raw_w, raw_h = c["bbox"]
@@ -180,15 +181,15 @@ def render_overlay(
         # In nearly all cases the card is portrait (h > w), so width is more reliable.
         cx = raw_x + raw_w / 2
         cy = raw_y + raw_h / 2
-        cur_aspect = (raw_w / raw_h) if raw_h > 0 else CARD_W_OVER_H
-        if cur_aspect < CARD_W_OVER_H:
+        cur_aspect = (raw_w / raw_h) if raw_h > 0 else CARD_ASPECT
+        if cur_aspect < CARD_ASPECT:
             # bbox is too tall — trust width
             card_w = float(raw_w)
-            card_h = card_w / CARD_W_OVER_H
+            card_h = card_w / CARD_ASPECT
         else:
             # bbox is too wide — trust height
             card_h = float(raw_h)
-            card_w = card_h * CARD_W_OVER_H
+            card_w = card_h * CARD_ASPECT
         x = int(cx - card_w / 2)
         y = int(cy - card_h / 2)
         w = int(card_w)
