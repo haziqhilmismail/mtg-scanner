@@ -24,13 +24,7 @@ async def report_bug(
 ) -> dict:
     """Frontend bug report. Returns 202 (accepted) with the persisted event id."""
     event = await bug_reporter.report_frontend(
-        message=payload.message,
-        exception_type=payload.exception_type,
-        stack=payload.stack,
-        route=payload.route,
-        user_agent=request.headers.get("user-agent"),
-        user_id=user_id,
-        db=db,
+        payload, user_agent=request.headers.get("user-agent"), user_id=user_id, db=db,
     )
     return {"id": event.id}
 
