@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import async_session_factory
 from ..models import BugEvent
+from ..schemas import BugReportCreate
 
 if TYPE_CHECKING:
     from fastapi import Request
@@ -190,29 +191,26 @@ async def report_exception(
 
 
 async def report_frontend(
+    report: BugReportCreate,
     *,
-    message: str,
-    exception_type: str,
-    stack: str | None,
-    route: str | None,
     user_agent: str | None,
     user_id: int | None,
     db: AsyncSession | None = None,
 ) -> BugEvent:
     """Capture a frontend report. Returns the stored event."""
-    head = _top_frame(stack)
-    fp = _fingerprint("frontend", route, exception_type, head)
+    head = _top_frame(report.stack)
+    fp = _fingerprint("frontend", report.route, report.exception_type, head)
 
     event = BugEvent(
         user_id=user_id,
         source="frontend",
         fingerprint=fp,
-        route=_truncate(route, 512),
+        route=_truncate(report.route, 512),
         method=None,
         status_code=None,
-        exception_type=exception_type[:128] or "Error",
-        message=message[:2000] or exception_type or "Error",
-        stack=_truncate(stack, 20_000),
+        exception_type=report.exception_type[:128] or "Error",
+        message=report.message[:2000] or report.exception_type or "Error",
+        stack=_truncate(report.stack, 20_000),
         user_agent=_truncate(user_agent, 512) if user_agent else None,
     )
     await _persist(db, event)

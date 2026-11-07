@@ -112,8 +112,6 @@ app.add_middleware(
 )
 
 
-
-
 @app.get("/api/support-qr")
 async def support_qr():
     if not settings.support_qr.exists():
