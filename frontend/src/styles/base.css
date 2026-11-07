@@ -41,25 +41,24 @@ img { max-width: 100%; }
   .wrap { padding: 12px 16px calc(28px + env(safe-area-inset-bottom)); }
 }
 
-/* ---------- Form fields ---------- */
-/* :where() keeps these at zero specificity so any class can restyle a field. */
-:where(input[type="text"], input[type="number"], input[type="tel"], input[type="url"],
-input[type="search"], input[type="email"], input[type="password"], input:not([type]), select, textarea) {
-  min-height: 36px; padding: 6px 12px;
-  background: var(--fill); color: var(--ink);
-  border: 1px solid transparent; border-radius: 10px;
-  font-size: 17px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+/* Every button: no text selection, a press that gives, a dimmed disabled
+   state. :where() keeps these at zero specificity, so any class restyles them. */
+:where(button) {
+  position: relative; cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: background 0.15s ease, opacity 0.15s ease, transform 0.15s var(--ease);
+}
+:where(button:active) { transform: scale(0.97); }
+:where(button:disabled) { opacity: 0.38; cursor: not-allowed; transform: none; }
+/* Touch: a small button answers to a 44pt area. */
+@media (pointer: coarse) {
+  button::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: max(100%, var(--tap)); height: max(100%, var(--tap));
+    transform: translate(-50%, -50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 input::placeholder, textarea::placeholder { color: var(--ink-faint); opacity: 1; }
-:where(input, select, textarea):focus {
-  outline: none; border-color: var(--accent-fill);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-select {
-  appearance: none; -webkit-appearance: none;
-  padding-right: 34px; cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='16' viewBox='0 0 12 16' fill='none' stroke='%238e8e93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6l3-3 3 3M3 10l3 3 3-3'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 12px center;
-}
 input[type="checkbox"] { accent-color: var(--accent-fill); }

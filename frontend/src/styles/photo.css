@@ -42,7 +42,7 @@
 .photo-expand {
   position: absolute; top: 6px; right: 6px;
   display: flex; align-items: center; justify-content: center;
-  width: var(--tap); height: var(--tap); min-height: 0; padding: 4px; border: 0; border-radius: 50%;
+  width: var(--tap); height: var(--tap); padding: 4px; border: 0; border-radius: 50%;
   background: rgba(0, 0, 0, 0.6); background-clip: content-box; color: #fff;
 }
 .photo-expand:hover { background-color: rgba(0, 0, 0, 0.72); }
@@ -79,9 +79,8 @@
 .photo-tile-img {
   position: relative; flex: 1 1 0; min-width: 0; min-height: 0; aspect-ratio: 63 / 88;
   display: block; padding: 0; border: 0; border-radius: var(--radius-sm); overflow: hidden;
-  background: var(--fill); color: var(--ink-soft); cursor: zoom-in;
+  background: var(--fill); color: var(--ink-soft); line-height: 1.2; cursor: zoom-in;
 }
-.photo-tile-img:hover { background: var(--fill); }
 .photo-tile-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .photo-tile-num {
   position: absolute; top: 6px; left: 6px;
@@ -109,8 +108,11 @@
   border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 600; line-height: 1.25;
 }
 .photo-tile-check > span { flex: 1; min-width: 0; }
-.photo-tile-ok { flex: none; min-height: 36px; padding: 0 14px; background: var(--fill-strong); color: var(--ink); font-size: 13px; }
-.photo-tile-ok:hover { background: var(--fill-strong); }
+.photo-tile-ok {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 36px; padding: 0 15px; border: 0; border-radius: var(--radius-pill);
+  background: var(--fill-strong); color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.2;
+}
 
 .photo-tile-title { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; }
 .photo-tile-name {
@@ -122,10 +124,9 @@
 .photo-tile-name .photo-tile-ext { display: inline-block; margin-left: 4px; vertical-align: -1px; color: var(--ink-soft); }
 .photo-tile-add {
   flex: none; display: flex; align-items: center; justify-content: center;
-  width: var(--tap); height: var(--tap); min-height: 0; margin: -7px -7px -7px 0; padding: 0;
+  width: var(--tap); height: var(--tap); margin: -7px -7px -7px 0; padding: 0;
   border: 0; border-radius: 50%; background: transparent;
 }
-.photo-tile-add:hover { background: transparent; }
 .photo-tile-add > span {
   display: flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: 50%; background: var(--fill); color: var(--accent);
@@ -181,10 +182,11 @@
 /* Previous and next photo under the panel, so a long list needn't scroll back up. */
 .photo-steps { display: flex; justify-content: space-between; gap: 10px; margin: 18px 0 0; }
 .photo-step {
-  flex: 1 1 0; max-width: 260px; min-height: 56px; padding: 8px 14px; gap: 8px; justify-content: flex-start;
-  border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); color: var(--accent); text-align: left;
+  flex: 1 1 0; max-width: 260px; min-height: 56px; padding: 9px 15px;
+  display: inline-flex; align-items: center; justify-content: flex-start; gap: 8px;
+  border: 0; border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); color: var(--accent);
+  font-size: 15px; font-weight: 600; line-height: 1.2; text-align: left;
 }
-.photo-step:hover { background: var(--paper); }
 .photo-step.is-next { justify-content: flex-end; margin-left: auto; text-align: right; }
 .photo-step-text { display: flex; flex-direction: column; min-width: 0; }
 .photo-step-dir { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
@@ -245,11 +247,10 @@
   margin: 0; padding: 0; list-style: none;
 }
 .cc-printing {
-  position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0;
-  width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; border-radius: 14px; overflow: hidden;
-  background: var(--surface-2); color: var(--ink); font-weight: 400; text-align: left;
+  position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 0;
+  width: 100%; height: 100%; padding: 0; border: 0; border-radius: 14px; overflow: hidden;
+  background: var(--surface-2); color: var(--ink); font-size: 15px; line-height: 1.2; text-align: left;
 }
-.cc-printing:hover { background: var(--surface-2); }
 @media (hover: hover) { .cc-printing:hover { box-shadow: 0 0 0 2px var(--rule-strong); } }
 .cc-printing.is-current, .cc-printing.is-current:hover { box-shadow: 0 0 0 2px var(--accent-fill); }
 .cc-printing-img { position: relative; display: block; aspect-ratio: 63 / 88; background: var(--fill); }
