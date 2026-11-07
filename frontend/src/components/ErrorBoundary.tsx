@@ -40,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <h2>Something broke.</h2>
         <p>{this.state.message}</p>
         <p className="hint">The error has been reported. Reloading usually clears it.</p>
-        <button type="button" className="btn" onClick={this.handleReload}>
+        <button type="button" className="ui-btn" onClick={this.handleReload}>
           Reload
         </button>
       </div>

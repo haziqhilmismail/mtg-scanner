@@ -59,7 +59,6 @@
 }
 .posts-note { margin: 10px 4px 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
 .posts-archived { margin-top: 28px; }
-.posts-archived-toggle { margin: 0 0 10px -10px; }
 .posts-empty {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: 36px 20px; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow);
@@ -267,7 +266,7 @@ label.photorow.is-selected { --ui-bg: var(--accent-soft); --ui-bg-hover: var(--a
 .pricing-caption-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-soft); }
 .pricing-caption-text strong { font-size: 15px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
 .pricing-caption .ui-btn { flex: none; }
-.pricing-caption .ui-btn.is-copied { color: var(--green); }
+.pricing-caption .is-copied { color: var(--green); }
 
 /* Under 300px (a phone at 200% zoom) a row stacks: the picture, then its text. */
 @media (max-width: 299px) {

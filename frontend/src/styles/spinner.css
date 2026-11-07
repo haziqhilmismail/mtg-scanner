@@ -1,0 +1,15 @@
+/* Loading wheel — centred spinner + optional caption for section-level fetches */
+.loading-wheel {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 48px 0; color: var(--ink-soft);
+}
+.spinner {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid var(--rule); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+.loading-wheel-label {
+  font-size: 13px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }

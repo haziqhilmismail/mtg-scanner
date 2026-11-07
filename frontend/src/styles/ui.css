@@ -1,21 +1,18 @@
-/* Every class starts with "ui-", so none of them collides with the older
-   rules in styles.css while both exist. These rules also out-rank the bare
-   element rules there (button, button:hover, button:active, button:disabled,
-   select, :where(input, select, textarea):focus, :focus-visible), so the order
-   the two files load in does not matter. */
+/* The shared components in components/ui/. Every class starts with "ui-".
+   This file loads before the page files, so a page class on the same element
+   (class="ui-btn claims-copy") wins at equal specificity. */
 
 html:has(dialog[open]) { overflow: hidden; }
 
 :is(.ui-btn, .ui-icon-btn, .ui-stepper-btn, .ui-menu-item, .ui-row, .ui-viewer-media, .ui-viewer-close) {
   --ui-bg: transparent;
   --ui-bg-hover: var(--ui-bg);
-  margin: 0; border: 0; min-height: 0;
+  margin: 0; border: 0;
   background-color: var(--ui-bg);
   color: inherit; font: inherit; text-decoration: none;
   cursor: pointer;
   transition: transform 150ms var(--ease), background-color 150ms ease, opacity 150ms ease, filter 150ms ease;
 }
-:is(.ui-btn, .ui-icon-btn, .ui-stepper-btn, .ui-menu-item, .ui-row, .ui-viewer-media, .ui-viewer-close):hover { background-color: var(--ui-bg); }
 @media (hover: hover) {
   :is(.ui-btn, .ui-icon-btn, .ui-stepper-btn, .ui-menu-item, .ui-row, .ui-viewer-media, .ui-viewer-close):hover { background-color: var(--ui-bg-hover); }
 }
@@ -51,7 +48,6 @@ html:has(dialog[open]) { overflow: hidden; }
   border-radius: 50%; background-clip: content-box;
   color: var(--accent);
 }
-.ui-icon-btn:hover { background-clip: content-box; }
 .ui-icon-btn--sm { padding: 6px; color: var(--ink-soft); }
 
 :is(.ui-btn, .ui-icon-btn, .ui-stepper-btn):disabled,
@@ -240,7 +236,6 @@ dialog .ui-toasts { bottom: calc(24px + env(safe-area-inset-bottom)); }
 }
 .ui-input-el:focus, .ui-input-el:focus-visible,
 .ui-textarea:focus-visible, .ui-select > select:focus-visible { outline: none; }
-.ui-input-el:focus { box-shadow: none; }
 .ui-affix { flex: none; font-size: 17px; color: var(--ink-soft); white-space: nowrap; }
 .ui-input-el:disabled, .ui-textarea:disabled, .ui-select > select:disabled { cursor: not-allowed; opacity: 0.4; }
 
@@ -261,7 +256,6 @@ dialog .ui-toasts { bottom: calc(24px + env(safe-area-inset-bottom)); }
 
 .ui-check { display: flex; align-items: flex-start; gap: 12px; min-height: var(--tap); padding: 11px 0; cursor: pointer; }
 .ui-check > input { flex: none; width: 22px; height: 22px; margin: 0; accent-color: var(--accent-fill); cursor: pointer; }
-.ui-check > input:focus { box-shadow: none; }
 .ui-check > input:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 .ui-check-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ui-check-label { font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; }
@@ -284,7 +278,6 @@ dialog .ui-toasts { bottom: calc(24px + env(safe-area-inset-bottom)); }
   cursor: pointer;
 }
 .ui-radio::before { content: ''; width: 8px; height: 8px; border-radius: 50%; }
-.ui-radio:focus { outline: none; box-shadow: none; border-color: var(--ink-faint); }
 .ui-radio:checked { border-color: var(--accent-fill); background: var(--accent-fill); }
 .ui-radio:checked::before { background: var(--on-accent); }
 .ui-radio-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }

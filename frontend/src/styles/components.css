@@ -51,7 +51,8 @@
   position: fixed; z-index: var(--z-sticky);
   right: clamp(12px, 3vw, 24px);
   bottom: calc(20px + env(safe-area-inset-bottom));
-  width: var(--tap); height: var(--tap); min-height: 0; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--tap); height: var(--tap); padding: 0;
   background: var(--paper); color: var(--ink);
   border: 1px solid var(--rule); border-radius: 50%;
   box-shadow: var(--shadow-lg);
