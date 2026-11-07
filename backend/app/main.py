@@ -3,9 +3,6 @@ FastAPI app entry point.
 
 Routes:
   GET  /api/health        -> scanner + CK index status
-  POST /api/relookup      -> Scryfall fuzzy + search fallback, CK-enriched
-  POST /api/printings     -> all printings of a name, CK-enriched
-  POST /api/refresh-ck    -> force-refresh the CK pricelist
   POST /api/export        -> render the priced overlay JPEG
   POST /api/export-all    -> render every batch's overlay, stream as one zip
 
@@ -21,10 +18,9 @@ from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
 
-import aiohttp
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image
@@ -51,6 +47,7 @@ from .deps import CurrentUserId, DbSession, json_payload, limiter
 from .models import Scan, User
 from .routers import auth as auth_router
 from .routers import bugs as bugs_router
+from .routers import catalogue as catalogue_router
 from .routers import buyers as buyers_router
 from .routers import claims as claims_router
 from .routers import credits as credits_router
@@ -62,13 +59,10 @@ from .routers import sales as sales_router
 from .routers import scans as scans_router
 from .routers import slips as slips_router
 from .services import bug_reporter
+from .services import catalogue
 from .services import credits
 from .services import scans
-from .services.cardkingdom_prices import enrich as enrich_with_ck
-from .services.cardkingdom_prices import get_index as get_ck_index
 from .services.price_overlay import render_overlay
-from .services.scryfall_lookup import HEADERS as SCRYFALL_HEADERS
-from .services.scryfall_lookup import to_card_summary
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -94,7 +88,7 @@ async def lifespan(_app: FastAPI):
 
     # 3) Kick off CK pricelist load
     try:
-        idx = await get_ck_index()
+        idx = await catalogue.ck_index()
         print(f"[startup] CK index ready: {idx.matched_scryfall_count} cards", flush=True)
     except Exception as e:
         print(f"[startup] WARNING — CK index failed to load: {e}", flush=True)
@@ -146,146 +140,14 @@ async def health():
         out["ok"] = False
         out["scanner_error"] = problem
     try:
-        idx = await get_ck_index()
+        idx = await catalogue.ck_index()
         out["cardkingdom_cards"] = idx.matched_scryfall_count
-        # File mtime is the authoritative "when did this index actually get
-        # written" timestamp — the refresh job atomic-renames a fresh build
-        # onto DB_FILE, so its mtime advances with each successful refresh.
-        # Returned as Unix epoch seconds; the frontend formats relative time.
-        if settings.ck_db_file.exists():
-            out["cardkingdom_refreshed_at"] = settings.ck_db_file.stat().st_mtime
+        # Unix epoch seconds; the frontend formats relative time.
+        if idx.fetched_at:
+            out["cardkingdom_refreshed_at"] = idx.fetched_at.timestamp()
     except Exception as e:
         out["cardkingdom_error"] = str(e)
     return out
-
-
-def _check_refresh_token(x_refresh_token: str | None = Header(default=None)):
-    if settings.refresh_ck_token and x_refresh_token != settings.refresh_ck_token:
-        raise HTTPException(403, "Invalid or missing refresh token")
-
-
-# The token is a dependency so a wrong one is refused before the limiter
-# counts it; otherwise 3 bad calls would 429 the nightly refresh.
-@app.post("/api/refresh-ck", dependencies=[Depends(_check_refresh_token)])
-@limiter.limit("3/hour")  # CK pricelist is ~50MB; don't hammer their CDN
-async def refresh_ck(request: Request):
-    """Force a refresh from CK. 200 only when the download actually ran end
-    to end; 502 if CK couldn't be reached. The previous fire-and-forget
-    behaviour returned 200 even when the underlying download silently
-    failed and the rebuild ran from a week-old cache — see
-    cardkingdom_prices.py for the new contract.
-
-    Guarded by `refresh_ck_token` when configured: the API's URL is public, so
-    anyone could otherwise trigger a 50 MB rebuild. The scheduled GitHub Action
-    sends the matching X-Refresh-Token header."""
-    idx = await get_ck_index()
-    try:
-        await idx.refresh(force=True)
-    except Exception as e:
-        return JSONResponse(
-            status_code=502,
-            content={
-                "ok": False,
-                "download_succeeded": False,
-                "error": str(e),
-                "indexed_cards": idx.matched_scryfall_count,
-            },
-        )
-    return {
-        "ok": True,
-        "download_succeeded": True,
-        "indexed_cards": idx.matched_scryfall_count,
-    }
-
-
-@app.post("/api/relookup")
-@limiter.limit("60/minute")  # Scryfall asks ~10 req/sec max — keep well below
-async def relookup(request: Request, _: CurrentUserId, payload: str = Form(...)):
-    """Fuzzy lookup → search fallback → 404. Result is CK-enriched."""
-    data = json_payload(payload)
-
-    name = (data.get("name") or "").strip()
-    if not name:
-        raise HTTPException(400, "Missing 'name'")
-    set_code = (data.get("set") or "").strip().lower()
-
-    params = {"fuzzy": name}
-    if set_code:
-        params["set"] = set_code
-
-    timeout = aiohttp.ClientTimeout(total=15)
-    sf = None
-    async with aiohttp.ClientSession(headers=SCRYFALL_HEADERS, timeout=timeout) as session:
-        async with session.get("https://api.scryfall.com/cards/named", params=params) as resp:
-            if resp.status == 200:
-                sf = await resp.json()
-        if sf is None:
-            search_q = name
-            if set_code:
-                search_q = f'{name} set:{set_code}'
-            async with session.get(
-                "https://api.scryfall.com/cards/search",
-                params={"q": search_q, "order": "released", "unique": "cards"},
-            ) as resp:
-                if resp.status == 200:
-                    body = await resp.json()
-                    cards = body.get("data") or []
-                    if cards:
-                        sf = cards[0]
-
-    if sf is None:
-        raise HTTPException(404, "Card not found on Scryfall")
-
-    summary = to_card_summary(sf, fallback_name=name)
-    ck_index = await get_ck_index()
-    return enrich_with_ck(summary, ck_index)
-
-
-@app.post("/api/printings")
-@limiter.limit("20/minute")  # Each call paginates Scryfall up to 4 pages
-async def printings(request: Request, _: CurrentUserId, payload: str = Form(...)):
-    """Every printing of a card name, paginated and CK-enriched."""
-    data = json_payload(payload)
-
-    name = (data.get("name") or "").strip()
-    if not name:
-        raise HTTPException(400, "Missing 'name'")
-
-    timeout = aiohttp.ClientTimeout(total=20)
-    cards: list[dict] = []
-    async with aiohttp.ClientSession(headers=SCRYFALL_HEADERS, timeout=timeout) as session:
-        url = "https://api.scryfall.com/cards/search"
-        params = {
-            "q": f'!"{name}"',
-            "unique": "prints",
-            "order": "released",
-            "dir": "desc",
-        }
-        for _ in range(4):
-            async with session.get(url, params=params) as resp:
-                if resp.status != 200:
-                    break
-                body = await resp.json()
-                page = body.get("data") or []
-                cards.extend(page)
-                if not body.get("has_more"):
-                    break
-                next_url = body.get("next_page")
-                if not next_url:
-                    break
-                url = next_url
-                params = None
-
-    if not cards:
-        raise HTTPException(404, "No printings found for that name")
-
-    ck_index = await get_ck_index()
-    out: list[dict] = []
-    for card in cards:
-        s = to_card_summary(card)
-        if s:
-            out.append(enrich_with_ck(s, ck_index))
-    return {"name": name, "printings": out}
 
 
 async def _resolve_export_image(db: DbSession, user_id: int, image_id: str) -> bytes:
@@ -437,6 +299,7 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
 # Auth + checklist routers
 app.include_router(auth_router.router)
 app.include_router(bugs_router.router)
+app.include_router(catalogue_router.router)
 app.include_router(buyers_router.router)
 app.include_router(claims_router.router)
 app.include_router(credits_router.router)

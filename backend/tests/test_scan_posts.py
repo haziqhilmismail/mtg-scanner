@@ -2,7 +2,8 @@
 
 from conftest import _FakeCK, _photo, sign_in
 
-from app.routers import posts
+from app.services import catalogue
+from app.services.cardkingdom_prices import CKPrice
 
 
 def _upload(client, headers, post_id=None):
@@ -124,12 +125,12 @@ def test_a_repost_copies_the_photos_into_a_new_post_with_the_same_pricing(client
     pick = {"scryfall_id": "abc", "name": "Sol Ring", "set": "c21"}
 
     class NextDay(_FakeCK):
-        def lookup(self, sid):
-            return {**super().lookup(sid), "retail_normal": 3.0}
+        def price(self, sid, foil):
+            return CKPrice(retail=2.0 if foil else 3.0)
 
     async def next_day():
         return NextDay()
-    monkeypatch.setattr(posts, "get_ck_index", next_day)
+    monkeypatch.setattr(catalogue, "ck_index", next_day)
 
     r = client.post(f"/api/posts/{friday}/repost", headers=me, json={
         "title": " Friday (repost) ", "photos": [{"scan_id": a["scan_id"], "state": {**state, "picks": [pick]}}]})

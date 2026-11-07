@@ -32,7 +32,8 @@ import app.main as main  # noqa: E402
 from app.db import async_session_factory  # noqa: E402
 from app.models import User  # noqa: E402
 from app.schemas.scan import Detection, Guess  # noqa: E402
-from app.services import scans  # noqa: E402
+from app.services import catalogue, scans  # noqa: E402
+from app.services.cardkingdom_prices import CKPrice  # noqa: E402
 from app.services.auth_service import issue_session_token  # noqa: E402
 
 LIMIT = 10
@@ -78,10 +79,10 @@ def _photo() -> bytes:
 
 
 class _FakeCK:
-    matched_scryfall_count = 1
-    def lookup(self, sid):
-        return {"retail_normal": 1.0, "retail_foil": 2.0, "buy_normal": None, "buy_foil": None,
-                "url_normal": "", "url_foil": ""}
+    matched_scryfall_count, fetched_at = 1, None
+
+    def price(self, sid, foil):
+        return CKPrice(retail=2.0 if foil else 1.0)
 
 
 def sol_ring(**over) -> Detection:
@@ -126,9 +127,8 @@ def client(monkeypatch):
 
     scanner = FakeScanner()
     monkeypatch.setattr(scans, "scanner", scanner)
-    monkeypatch.setattr(scans, "lookup_all", fake_lookup)
-    monkeypatch.setattr(scans, "get_ck_index", fake_ck)
-    monkeypatch.setattr(main, "get_ck_index", fake_ck)
+    monkeypatch.setattr(catalogue, "scryfall_cards", fake_lookup)
+    monkeypatch.setattr(catalogue, "ck_index", fake_ck)
     monkeypatch.setattr(main.limiter, "enabled", False)
     with TestClient(main.app) as c:
         c.scanner = scanner

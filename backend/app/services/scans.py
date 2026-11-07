@@ -18,10 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..models import Scan
 from ..schemas.scan import Detection, Guess, ScannedCard
-from . import gemini_scanner, local_scan
-from .cardkingdom_prices import enrich as enrich_with_ck
-from .cardkingdom_prices import get_index as get_ck_index
-from .scryfall_lookup import lookup_all
+from . import catalogue, gemini_scanner, local_scan
+from .cardkingdom_prices import CKPriceIndex
 
 
 class Scanner(Protocol):
@@ -136,12 +134,8 @@ def _record(i: int, d: Detection, candidate: dict | None, width: int, height: in
 async def identify(found: list[Detection], width: int, height: int) -> list[ScannedCard]:
     """Look every detection up on Scryfall, price it with Card Kingdom, and
     make the card records, boxes clamped to the photo."""
-    summaries = await lookup_all([d.guess for d in found])
-    ck_index = await get_ck_index()
-    return [
-        _record(i, d, enrich_with_ck(s, ck_index), width, height)
-        for i, (d, s) in enumerate(zip(found, summaries))
-    ]
+    cards = await catalogue.look_up([d.guess for d in found])
+    return [_record(i, d, c, width, height) for i, (d, c) in enumerate(zip(found, cards))]
 
 
 async def manual_card(pil: Image.Image, existing: list[dict], corners: list[list[int]]) -> ScannedCard:
@@ -263,7 +257,7 @@ def apply_picks(payload: dict, picks: list | None) -> None:
             card["candidates"] = [pick, *(card.get("candidates") or [])[1:]]
 
 
-def refresh_prices(payload: dict, ck_index) -> int:
+def refresh_prices(payload: dict, ck: CKPriceIndex) -> int:
     """Today's CK prices on every candidate of a scan's payload, in place.
     Returns how many candidates got a price row."""
     cards = payload.get("cards", []) or []
@@ -273,7 +267,7 @@ def refresh_prices(payload: dict, ck_index) -> int:
         for i, cand in enumerate(cands):
             if not cand:
                 continue
-            new_cand = enrich_with_ck(cand, ck_index)
+            new_cand = catalogue.priced(cand, ck)
             if new_cand:
                 cands[i] = new_cand
                 updated += 1

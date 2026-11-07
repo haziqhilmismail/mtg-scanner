@@ -21,8 +21,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter
 from ..models import Listing, ListingStatus, Order, OrderItem, OrderStatus, Post, Scan
 from ..models.card_correction import CorrectionKind
-from ..services import corrections, credits, scans
-from ..services.cardkingdom_prices import get_index as get_ck_index
+from ..services import catalogue, corrections, credits, scans
 from ..services.listings import drop_listing, locked_prices
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
@@ -347,7 +346,7 @@ async def relookup_scan_prices(
     scan_row = await _own_scan(db, scan_id, user_id)
 
     payload = scan_row.gemini_raw or {}
-    updated = refresh_prices(payload, await get_ck_index())
+    updated = refresh_prices(payload, await catalogue.ck_index())
     cards = payload["cards"]
     scan_row.gemini_raw = payload
     # JSON column needs an explicit mark — SQLAlchemy doesn't detect

@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUserId, DbSession, limiter
 from ..models import Order, OrderItem, OrderStatus, Post, SaleRecord
-from ..services import cardkingdom_prices
+from ..services import catalogue
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
 
@@ -68,16 +68,15 @@ async def record_sales(request: Request, body: SentSummary, db: DbSession, user_
     )).all():
         last[r.order_item_id] = (r.line_seq, r.qty, r.unit_price_myr)
 
-    ck = await cardkingdom_prices.get_index()
+    ck = await catalogue.ck_index()
     rows = []
     for item in items:
         seq, qty, price = last.get(item.id, (0, None, None))
         if item.order.status == OrderStatus.cancelled or (qty, price) == (item.qty, item.unit_price_myr):
             continue
         line, listing = wanted[item.id], item.listing
-        prices = ck.lookup(listing.scryfall_id) if listing.scryfall_id else {}
-        finish = "foil" if listing.is_foil else "normal"
-        retail, buy = _usd(prices.get(f"retail_{finish}")), _usd(prices.get(f"buy_{finish}"))
+        ck_price = ck.price(listing.scryfall_id, listing.is_foil)
+        retail, buy = _usd(ck_price.retail), _usd(ck_price.buy)
         rows.append({
             "channel": body.channel, "user_id": user_id, "post_id": body.post_id,
             "order_item_id": item.id, "line_seq": seq + 1,
@@ -88,7 +87,7 @@ async def record_sales(request: Request, body: SentSummary, db: DbSession, user_
             "post_type": body.post_type, "price_kind": line.price_kind,
             "app_usd": line.app_usd or None, "app_mult": line.app_mult or None,
             "ck_retail_usd": retail, "ck_buy_usd": buy,
-            "ck_as_of": getattr(ck, "fetched_at", None) if retail or buy else None,
+            "ck_as_of": ck.fetched_at if retail or buy else None,
         })
     if not rows:
         return {"recorded": 0}
