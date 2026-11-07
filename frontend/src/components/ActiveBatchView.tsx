@@ -9,6 +9,7 @@ import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow, CardViewer } from './CardRow.tsx';
 import { useDialog } from './DialogProvider.tsx';
 import { Icon } from './Icon.tsx';
+import { Money } from './Money.tsx';
 import { PhotoViewer } from './ui/PhotoViewer.tsx';
 import { useToast } from './ui/Toast.tsx';
 
@@ -268,7 +269,7 @@ export function ActiveBatchView({
           {visible.length ? (
             <div className="photo-total">
               <span className="photo-total-label">{t('total')} · {cardsLabel(totalQty)}</span>
-              <span className="photo-total-amount" aria-live="polite">{approxTotal ? <span className="photo-approx">≈</span> : null}{formatMyr(total, settings)}</span>
+              <span className="photo-total-amount" aria-live="polite"><Money live={approxTotal}>{formatMyr(total, settings)}</Money></span>
               {unpriced ? <span className="photo-total-note">{plural(t, 'photo_total_unpriced', unpriced)}</span> : null}
             </div>
           ) : null}

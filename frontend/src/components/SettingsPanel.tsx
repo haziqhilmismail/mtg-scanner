@@ -3,9 +3,10 @@ import type { Key, T } from '../hooks/useLang.ts';
 import { pricingSummary } from '../lib/pricing.ts';
 import type { Route } from '../routes.ts';
 import type { Settings } from '../types.ts';
-import { applyRounding, formatMyr, pillLabel } from '../utils.ts';
+import { applyRounding, fmt2, formatMyr, pillLabel } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { Link } from './Link.tsx';
+import { approxText } from './Money.tsx';
 
 interface RowProps {
   title: string;
@@ -44,7 +45,6 @@ export function PricingExample({ settings, t, caption: showCaption = true }: { s
     const timer = setTimeout(() => setCopied(false), 1800);
     return () => clearTimeout(timer);
   }, [copied]);
-  const cur = settings.currencyLabel.trim() || 'RM';
   const rows = [
     { foil: false, usd: SAMPLE.usd, mult: settings.multNormal },
     { foil: true, usd: SAMPLE.usdFoil, mult: settings.multFoil },
@@ -59,7 +59,7 @@ export function PricingExample({ settings, t, caption: showCaption = true }: { s
           <div className="pricing-example-row" key={r.label}>
             <span className="pricing-example-text">
               <span className={r.foil ? 'pricing-example-kind is-foil' : 'pricing-example-kind'}>{r.label}</span>
-              <span>USD {r.usd.toFixed(2)} × {r.mult} = {cur} {(r.usd * r.mult).toFixed(2)}</span>
+              <span>USD {fmt2(r.usd)} × {r.mult} = {formatMyr(r.usd * r.mult, { ...settings, showCents: true })}</span>
             </span>
             <span className={r.foil ? 'price-pill is-foil' : 'price-pill'} style={{ fontSize: `${15 * settings.labelFontScale}px` }}>
               {pillLabel({ unitPrice: r.price, isFoil: r.foil, qty: 1 }, settings)}
@@ -71,8 +71,8 @@ export function PricingExample({ settings, t, caption: showCaption = true }: { s
   }
 
   const today = (r: typeof rows[number]) => {
-    const [before, after] = t('pricing_live_today', { price: '\u0000', usd: r.usd.toFixed(2) }).split('\u0000');
-    return <>{before}<strong>≈{formatMyr(r.price, settings)}</strong>{after}</>;
+    const [before, after] = t('pricing_live_today', { price: '\u0000', usd: fmt2(r.usd) }).split('\u0000');
+    return <>{before}<strong>{approxText(formatMyr(r.price, settings), true)}</strong>{after}</>;
   };
   const steps: Array<[Key, Key]> = [['pricing_step_post', 'pricing_step_post_sub'], ['pricing_step_claim', 'pricing_step_claim_sub'], ['pricing_step_send', 'pricing_step_send_sub']];
   return (

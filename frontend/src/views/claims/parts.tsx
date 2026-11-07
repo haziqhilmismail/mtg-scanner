@@ -3,15 +3,12 @@
 import { hideBroken } from '../../components/ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { useImageZoom } from '../../components/ImageZoomProvider.tsx';
+import { Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import { formulaText, rm, type BuyerGroup, type Line } from './model.ts';
 
-// An amount in RM; a live price not sent yet carries ≈ (DESIGN.md section 7).
-export function Money({ value, live = false, cents }: { value: number; live?: boolean; cents: boolean }) {
-  return <>{live ? <span className="claims-approx">≈</span> : null}{rm(value, cents)}</>;
-}
 
 // "● Unpaid · dropped off · 3 cards": the dot marks the status, the label names it.
 export function StatusLine({ group }: { group: BuyerGroup }) {
@@ -50,11 +47,11 @@ export function ClaimLines({ lines, cents, showPhotos }: { lines: Line[]; cents:
               {l.formula || many ? (
                 <span className="claims-line-working">
                   {l.formula ? formulaText(l.formula) : null}
-                  {many ? <>{l.formula ? ' → ' : ''}<Money value={l.each} live={l.live} cents={cents} /> {t('claims_copy_each')}</> : null}
+                  {many ? <>{l.formula ? ' → ' : ''}<Money live={l.live}>{rm(l.each, cents)}</Money> {t('claims_copy_each')}</> : null}
                 </span>
               ) : null}
             </span>
-            <span className="claims-line-total"><Money value={l.each * l.qty} live={l.live} cents={cents} /></span>
+            <span className="claims-line-total"><Money live={l.live}>{rm(l.each * l.qty, cents)}</Money></span>
           </li>
         );
       })}

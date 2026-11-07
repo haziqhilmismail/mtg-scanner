@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
-import { hideBroken, Money, thumbOf, type BatchSummary } from '../../components/ScanGallery.tsx';
+import { Money } from '../../components/Money.tsx';
+import { hideBroken, thumbOf, type BatchSummary } from '../../components/ScanGallery.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Route } from '../../routes.ts';
 import type { Settings } from '../../types.ts';
-import { canRetry } from '../../utils.ts';
+import { canRetry, formatMyr } from '../../utils.ts';
 
 // What a row of the list does: open its photo, be ticked, or move up and down.
 export type PhotoListMode =
@@ -56,7 +57,7 @@ export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute, 
         if (b.status === 'scanning') meta = t('posts_scanning');
         else if (b.outOfCredits) meta = t('photo_no_credits');
         else if (b.status === 'error') meta = t('photo_failed');
-        else meta = <>{plural(t, 'cards', s.cards)}{s.total > 0 ? <> · <Money amount={s.total} settings={settings} /></> : null}</>;
+        else meta = <>{plural(t, 'cards', s.cards)}{s.total > 0 ? <> · <Money live={settings.priceMode === 'live'}>{formatMyr(s.total, settings)}</Money></> : null}</>;
         const src = thumbOf(b);
         const body = (
           <>

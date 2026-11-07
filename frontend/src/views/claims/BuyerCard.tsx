@@ -1,8 +1,9 @@
 import { Icon } from '../../components/Icon.tsx';
+import { Money } from '../../components/Money.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
-import type { BuyerGroup, StatusMove } from './model.ts';
-import { ClaimLines, Money, StatusLine } from './parts.tsx';
+import { rm, type BuyerGroup, type StatusMove } from './model.ts';
+import { ClaimLines, StatusLine } from './parts.tsx';
 
 // Cards shown on a buyer card; the rest open with the buyer, so no buyer card
 // grows past two rows.
@@ -36,7 +37,7 @@ export function BuyerCard({ group: g, isNew, copied, cents, showPhotos, qrLabel,
           </span>
           <StatusLine group={g} />
         </button>
-        <span className="claims-buyer-total"><Money value={g.total} live={g.live} cents={cents} /></span>
+        <span className="claims-buyer-total"><Money live={g.live}>{rm(g.total, cents)}</Money></span>
       </div>
       <ClaimLines lines={g.lines.slice(0, SHOWN)} cents={cents} showPhotos={showPhotos} />
       {more > 0 ? (

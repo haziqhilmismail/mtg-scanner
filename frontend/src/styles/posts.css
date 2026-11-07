@@ -12,8 +12,6 @@
 .posts-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 4px 0 16px; }
 .posts-head .ui-btn { flex: none; }
 
-/* In a list or a card, an amount carries "≈" when it is a live price. */
-.approx { margin-right: 2px; font-weight: 400; color: var(--ink-soft); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 
 /* A post's first photos in a 76px square; the fourth cell says how many more. */

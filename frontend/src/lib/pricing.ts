@@ -1,4 +1,5 @@
 import type { T } from '../i18n/index.ts';
+import { currencyOf } from '../utils.ts';
 import { DEFAULT_SETTINGS, type RoundDirection, type RoundStep, type Settings } from '../types.ts';
 
 // Pricing is the Settings object. The server keeps it as opaque JSON: one per
@@ -92,7 +93,7 @@ export const ROUNDINGS: Rounding[] = [
 export const roundingKey = (r: Rounding) => (r.roundDirection === 'none' ? 'none' : `${r.roundDirection} ${r.roundStep}`);
 
 // An amount of the pricing's currency, as settings show it: "RM 1", "RM 0.50".
-const money = (n: number, s: Settings) => `${s.currencyLabel.trim() || 'RM'} ${Number.isInteger(n) ? n : n.toFixed(2)}`;
+const money = (n: number, s: Settings) => `${currencyOf(s)} ${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 // A rounding in words: as a summary ("Round up to RM 1"), a dropdown option
 // ("Up to RM 1"), or a clause of the formula ("rounded up to the nearest RM 1").

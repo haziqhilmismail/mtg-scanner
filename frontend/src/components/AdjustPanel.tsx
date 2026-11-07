@@ -1,7 +1,8 @@
 import { useId, useState } from 'react';
 import type { T } from '../hooks/useLang.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { computeCardData, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../utils.ts';
+import { computeCardData, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../utils.ts';
+import { approxText, Money } from './Money.tsx';
 import { Dialog } from './ui/Dialog.tsx';
 import { TextField } from './ui/Field.tsx';
 import { Segmented } from './ui/Segmented.tsx';
@@ -78,7 +79,7 @@ export function AdjustPanel({ open, batch, idx, live, settings, t, onClose, onSa
   let summary: string;
   if (cd.needsPrice) summary = cd.isManual ? t('ep_manual') : t('ep_no_ck');
   else if (cd.ownUsd != null) summary = `${t('ep_yours_usd')} ${working(cd, cd.ownUsd, settings, t)}`;
-  else if (cd.hasOverride) summary = cd.autoPrice > 0 ? t('ep_yours_rm', { auto: `${live ? '≈' : ''}${formatMyr(cd.autoPrice, settings)}` }) : t('ep_yours_rm_no_ck');
+  else if (cd.hasOverride) summary = cd.autoPrice > 0 ? t('ep_yours_rm', { auto: approxText(formatMyr(cd.autoPrice, settings), live) }) : t('ep_yours_rm_no_ck');
   else summary = working(cd, cd.usd, settings, t) + (live ? ` ${t('ep_live')}` : '');
 
   const placeholder = draft.unit === 'usd'
@@ -100,7 +101,7 @@ export function AdjustPanel({ open, batch, idx, live, settings, t, onClose, onSa
       <div className="ep-summary" aria-live="polite">
         {cd.needsPrice ? <span className="ep-price is-needed">{t('photo_set_price')}</span> : (
           <span className={`ep-price${cd.isFoil ? ' is-foil' : ''}`}>
-            {live && !cd.hasOverride ? <span className="photo-approx">≈</span> : null}{formatMyr(cd.unitPrice, settings)}
+            <Money live={live && !cd.hasOverride}>{formatMyr(cd.unitPrice, settings)}</Money>
           </span>
         )}
         <p className="ep-working">{summary}</p>
@@ -143,7 +144,7 @@ export function AdjustPanel({ open, batch, idx, live, settings, t, onClose, onSa
           />
           <TextField
             aria-labelledby={`${ids}-own`} className="ep-own-field"
-            prefix={draft.unit === 'usd' ? 'USD' : settings.currencyLabel || 'RM'}
+            prefix={draft.unit === 'usd' ? 'USD' : currencyOf(settings)}
             inputMode="decimal" autoComplete="off" placeholder={placeholder}
             value={draft.text} onChange={e => setDraft(d => ({ ...d, text: e.target.value }))}
             error={price === 'invalid' ? t('ep_price_error') : undefined}

@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import { CardPicker, hideBroken, type CardRef, type CardStatus, type Photo } from '../../components/ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
+import { approxText } from '../../components/Money.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { Stepper } from '../../components/ui/Stepper.tsx';
 import { useT } from '../../hooks/useLang.ts';
@@ -87,7 +88,7 @@ export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, ce
     const parts = [taken?.names.join(', '), taken && left > 0 && c.cd.qty > 1 ? t('claims_inv_left', { n: left, total: c.cd.qty }) : '', fresh ? t('claims_inv_new', { names: fresh.join(', ') }) : ''];
     return { text: parts.filter(Boolean).join(' · '), kind: taken && left <= 0 ? 'taken' : 'part' };
   };
-  const priceOf = (c: CardRef) => (Number.isFinite(c.cd.unitPrice) ? `${live ? '≈' : ''}${rm(c.cd.unitPrice, cents)}` : '');
+  const priceOf = (c: CardRef) => (Number.isFinite(c.cd.unitPrice) ? approxText(rm(c.cd.unitPrice, cents), live) : '');
 
   return (
     <>
