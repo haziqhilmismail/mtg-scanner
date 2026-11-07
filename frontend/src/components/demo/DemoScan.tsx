@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DEMO_CARDS, DEMO_CROP, DEMO_IMAGE_URL, type DemoCard } from '../../data/demoScan.ts';
 import { useT } from '../../hooks/useLang.ts';
 import { Icon } from '../Icon.tsx';
+import { VersionLine } from '../VersionLine.tsx';
 
 // When each step starts after play, its status line, the progress bar, and
 // what the photo shows: the outlines, then the price labels (the top row
@@ -104,10 +105,7 @@ export function DemoScan({ onNext }: { onNext: () => void }) {
                   <span className="demo-card-num">{c.id}</span>
                   <span className="demo-card-main">
                     <span className="demo-card-name">{c.name}</span>
-                    <span className="version-line">
-                      <span className="set-badge"><span className={`rarity ${c.rarity}`} />{c.setCode}<span className="cn">#{c.collectorNumber}</span></span>
-                      <span className="set-name">{c.setName}</span>
-                    </span>
+                    <VersionLine p={{ set: c.setCode, collector_number: c.collectorNumber, set_name: c.setName }} rarity={c.rarity} />
                     <span className="demo-card-formula">USD {c.ckRetailUsd.toFixed(2)} × {c.multiplier}</span>
                   </span>
                   <span className="demo-card-price">RM{c.rmPrice}</span>

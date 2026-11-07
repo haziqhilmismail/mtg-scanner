@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import type { T } from '../hooks/useLang.ts';
 import type { CardRowData, Settings } from '../types.ts';
-import { ckSearchUrl, fmt2, formatMyr, rarityKey, smallScryfallImage } from '../utils.ts';
+import { cardName, ckSearchUrl, fmt2, formatMyr, rarityKey, smallScryfallImage } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { approxText, Money } from './Money.tsx';
 import { PhotoViewer } from './ui/PhotoViewer.tsx';
 import { Stepper } from './ui/Stepper.tsx';
+import { printingText, VersionLine } from './VersionLine.tsx';
 
 interface Props {
   cd: CardRowData;
@@ -72,7 +73,7 @@ export function CardRow({
   cd, added, adding, locked, live, unsure, settings, t,
   onView, onLooksRight, onToggleAdded, onEditPrice, onChangeCard, onQuantity, onRemove, onRestore,
 }: Props) {
-  const name = cd.sel.name || t('unknown_card');
+  const name = cardName(cd, t);
   const num = cd.origIdx + 1;
   if (cd.removed) {
     return (
@@ -105,7 +106,7 @@ export function CardRow({
         <button type="button" className="photo-tile-img" aria-label={t('photo_view_match', { name })} onClick={() => onView(1)}>
           <Picture
             src={matchSrc && smallScryfallImage(matchSrc)}
-            fallback={<span className="photo-tile-none"><Icon name="photo" size={24} />{set ? `${set} · #${cd.sel.collector_number || '?'}` : t('photo_no_match')}</span>}
+            fallback={<span className="photo-tile-none"><Icon name="photo" size={24} />{set ? printingText(cd.sel) : t('photo_no_match')}</span>}
           />
           <span className="photo-tile-zoom"><Icon name="expand" size={12} /></span>
         </button>
@@ -130,13 +131,7 @@ export function CardRow({
         ><span><Icon name={added ? 'check' : 'plus'} size={16} /></span></button>
       </div>
 
-      <div className="version-line photo-tile-version">
-        <span className="set-badge">
-          {rarity ? <span className={`rarity ${rarity}`} /> : null}
-          {set ? <>{set}<span className="cn">#{cd.sel.collector_number || '?'}</span></> : t('photo_no_printing')}
-        </span>
-        {set && cd.sel.set_name ? <span className="set-name">{cd.sel.set_name}</span> : null}
-      </div>
+      <VersionLine p={set ? cd.sel : {}} rarity={rarity} none={t('photo_no_printing')} className="photo-tile-version" />
 
       <p className="photo-tile-formula">{formula(cd, live, settings, t)}</p>
 
@@ -185,14 +180,13 @@ interface ViewerProps {
 // Your card and the matched card full screen; a click on the picture flips
 // between them. With no matched picture, your card alone.
 export function CardViewer({ cd, open, start, locked, t, onClose, onChangeCard }: ViewerProps) {
-  const name = cd.sel.name || t('unknown_card');
+  const name = cardName(cd, t);
   const set = cd.isManual ? '' : cd.sel.set?.toUpperCase() ?? '';
-  const printing = set ? [set, `#${cd.sel.collector_number || '?'}`, cd.sel.set_name] : [t('photo_no_printing')];
   const yours = { src: cd.card.crop_b64, alt: t('photo_alt_yours', { name }), label: t('tile_your_card') };
   const caption = (
     <div className="ui-viewer-caption photo-viewer-caption is-card">
       <strong>{name}</strong>
-      <span>{[...printing, t(cd.isFoil ? 'foil_on' : 'foil_off')].filter(Boolean).join(' · ')}</span>
+      <span>{[set ? printingText(cd.sel, true) : t('photo_no_printing'), t(cd.isFoil ? 'foil_on' : 'foil_off')].join(' · ')}</span>
       {cd.sel.image_url ? <span className="photo-viewer-hint">{t('photo_viewer_hint')}</span> : null}
       {locked ? null : (
         <button type="button" className="ui-btn" onClick={onChangeCard}><Icon name="swap" size={16} />{t('tile_change_card')}</button>
