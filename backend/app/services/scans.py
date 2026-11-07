@@ -203,13 +203,8 @@ async def store(
     image_path.write_bytes(jpeg)
     scan_row.image_path = str(image_path)
     await db.flush()
-
-    return {
-        "image_id": str(scan_row.id),
-        "scan_id": scan_row.id,
-        "post_id": post_id,
-        **payload,
-    }
+    await db.refresh(scan_row)  # created_at is set by the database
+    return scan_out(scan_row, [], lite=False)
 
 
 def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:
