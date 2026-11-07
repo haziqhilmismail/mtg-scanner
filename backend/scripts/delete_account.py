@@ -1,7 +1,4 @@
-"""
-delete_account.py
------------------
-Delete a user's account when they ask (PRIVACY.md: done within 30 days).
+"""Delete a user's account when they ask (PRIVACY.md: done within 30 days).
 Everything of theirs goes; their sales records and card corrections stay with
 no link back to them.
 Run it where the app's database is: on the home server, inside the container.

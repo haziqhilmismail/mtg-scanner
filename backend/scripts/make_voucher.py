@@ -1,7 +1,4 @@
-"""
-make_voucher.py
----------------
-Create a voucher code. Run it where the app's database is — on the home
+"""Create a voucher code. Run it where the app's database is — on the home
 server that means inside the container:
 
     docker exec mtg-scanner-backend python scripts/make_voucher.py --credits 20
