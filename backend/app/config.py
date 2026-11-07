@@ -34,7 +34,6 @@ class Settings(BaseSettings):
     embedder_model_path: Path | None = None
     card_index_path: Path | None = None
 
-    # Gemini
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3-flash-preview"
     # Gemini 3 Flash bills "thinking" tokens at the output rate ($3/M), and for

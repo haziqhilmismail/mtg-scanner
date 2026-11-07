@@ -1,6 +1,6 @@
 """CRUD for Facebook post groups. A post is a tiny container: FB URL +
-free-form note. The N cards listed under the post are stored
-as regular Listing rows with `post_id` set.
+free-form note. Its cards are listings linked through listing_post_links
+(a card can be in several posts).
 
 We never query Facebook. The URL is reference-only."""
 
@@ -103,7 +103,6 @@ def _read_with_stats(post: Post, stats: dict, claims: dict[int, tuple[int, int, 
 
 
 async def _build_read_with_stats(db, post: Post) -> PostReadWithStats:
-    """Build the read schema with computed stats (listing counts, total qty, value)."""
     return _read_with_stats(post, await _stats_by_post(db, [post.id]), await _claims_by_post(db, [post.id]))
 
 
@@ -244,10 +243,8 @@ async def update_post(
     updates = payload.model_dump(exclude_unset=True)
     for k, v in updates.items():
         if k == "status":
-            # status is an enum — never empty-string-coerced
             setattr(post, k, v)
         else:
-            # Normalise empty strings to NULL so the UI doesn't have to
             setattr(post, k, v.strip() if isinstance(v, str) and v.strip() else (v if not isinstance(v, str) else None))
     await db.flush()
     await db.refresh(post)

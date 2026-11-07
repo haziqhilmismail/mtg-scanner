@@ -1,12 +1,5 @@
-"""Google sign-in + session endpoints.
-
-POST /api/auth/google  — exchange a Google ID token for one of our session JWTs.
-GET  /api/auth/me      — return the current user (or 401 if not signed in).
-PUT  /api/auth/me/pricing — set the user's default pricing settings.
-PUT  /api/auth/me/seller-name — set the seller name; empty means the Google name.
-Both also hand out an image-only token for <img src> URLs ("" in solo mode).
-GET  /api/auth/config  — exposes auth_enabled so the frontend can render the
-                         login page vs. solo mode without a separate env var.
+"""Google sign-in and session endpoints. The sign-in and /me answers also hand
+out an image-only token for <img src> URLs ("" in solo mode).
 """
 
 from __future__ import annotations
@@ -95,7 +88,6 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
     if not sub or not email:
         raise HTTPException(401, "Google token missing required claims")
 
-    # Optional allowlist — empty set means anyone can sign in.
     allowlist = settings.allowed_emails_set
     if allowlist and email not in allowlist:
         raise HTTPException(403, "This email is not allowed to sign in")
@@ -114,7 +106,7 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
             solo.avatar_url = picture or solo.avatar_url
             user = solo
 
-    # 3) Brand-new account — create a fresh user row with default pricing
+    # 3) Brand-new account
     if user is None:
         user = User(
             email=email,

@@ -1,13 +1,6 @@
-"""
-FastAPI app entry point.
-
-Routes:
-  GET  /api/health        -> scanner + CK index status
-  POST /api/export        -> render the priced overlay JPEG
-  POST /api/export-all    -> render every batch's overlay, stream as one zip
-
-DB tables (users, scans, listings, buyers, orders, order_items, payments)
-are created on startup and a solo-mode user row is seeded if missing.
+"""The FastAPI app: startup (migrations, the solo user, the CK price list, the
+scanner), routers, rate limits, the error handler, and the health, support QR
+and export routes.
 """
 
 import asyncio
@@ -32,7 +25,7 @@ from slowapi import _rate_limit_exceeded_handler
 register_heif_opener()
 
 # Decompression-bomb guard. A tiny malicious file can declare a huge canvas
-# and balloon to gigabytes when PIL materialises it, OOM-killing the 1 GB VM.
+# and balloon to gigabytes when PIL materialises it, OOM-killing the server.
 # Every Image.open() in the app inherits this ceiling; PIL raises
 # DecompressionBombError past 2× it. The scan path downscales to 2000 px
 # anyway, so 50 MP (≈ 8660×5773) is far above any real phone photo.
@@ -71,12 +64,11 @@ BASE_DIR = Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     settings.make_data_dirs()
-    # 1) Run any pending migrations. Alembic is sync, so dispatch to a thread.
     alembic_cfg = AlembicConfig(str(BASE_DIR.parent / "alembic.ini"))
     await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
 
-    # 2) Seed solo-mode user if it doesn't exist. Only in solo mode: with
-    #    sign-in on, a re-created id 1 would be claimed by the next new account.
+    # Seed the solo-mode user if it doesn't exist. Only in solo mode: with
+    # sign-in on, a re-created id 1 would be claimed by the next new account.
     async with async_session_factory() as s:
         existing = await s.scalar(select(User).where(User.id == settings.solo_user_id))
         if not existing and not settings.auth_enabled:
@@ -87,7 +79,6 @@ async def lifespan(_app: FastAPI):
             await s.commit()
             print(f"[startup] Seeded solo user id={settings.solo_user_id}", flush=True)
 
-    # 3) Kick off CK pricelist load
     try:
         idx = await catalogue.ck_index()
         print(f"[startup] CK index ready: {idx.matched_scryfall_count} cards", flush=True)
@@ -95,7 +86,7 @@ async def lifespan(_app: FastAPI):
         print(f"[startup] WARNING — CK index failed to load: {e}", flush=True)
         print("[startup] Server will start anyway; cards will be unpriced until CK comes back.", flush=True)
 
-    # 4) The scanner. Missing local models don't crash startup: /api/scan
+    # The scanner. Missing local models don't crash startup: /api/scan
     # answers 503 until the files are in place, everything else keeps working.
     try:
         await asyncio.to_thread(scans.scanner.load)
@@ -270,7 +261,7 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
     buf = BytesIO()
     used: set[str] = set()
     # ZIP_STORED: the entries are already-compressed JPEGs, so deflate would burn
-    # CPU on the 512 MB VM for no size win.
+    # CPU for no size win.
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
         for item in images:
             if not isinstance(item, dict):
@@ -295,7 +286,6 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
     )
 
 
-# Auth + checklist routers
 app.include_router(auth_router.router)
 app.include_router(bugs_router.router)
 app.include_router(catalogue_router.router)

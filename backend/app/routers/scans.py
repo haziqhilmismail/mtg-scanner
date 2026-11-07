@@ -48,7 +48,6 @@ async def scan(
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Image too large (max 25 MB)")
     try:
-        # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
         pil, jpeg = await asyncio.to_thread(scans.normalise_upload, raw)
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -276,7 +275,6 @@ async def scan_preview(
     """The scan's photo preview. `w` caps the longest edge, for the small
     thumbnails in the scan strip."""
     scan_row = await owned(db, Scan, scan_id, user_id)
-    # Resizing for ?w= is a decode + re-encode; a strip of thumbnails is many at once.
     return await asyncio.to_thread(_data_url_jpeg, (scan_row.gemini_raw or {}).get("image_b64", ""), w)
 
 
@@ -323,7 +321,8 @@ async def relookup_scan_prices(
     themselves (names, sets, scryfall_ids, bboxes) are unchanged — only the
     pricing fields (usd/usd_foil/price_source_*/ck_*) are refreshed from
     the current ck_index.db. Cheap (local SQLite lookups, no network).
-    Returns the same shape as GET /api/scans for in-place rehydration."""
+    Returns the scan's picture and repriced cards, and `updated`: how many
+    candidates got a price row."""
     scan_row = await owned(db, Scan, scan_id, user_id)
 
     payload = scan_row.gemini_raw or {}

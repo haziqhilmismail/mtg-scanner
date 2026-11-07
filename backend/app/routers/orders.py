@@ -97,7 +97,6 @@ async def unsend_prices(order_id: Id, db: DbSession, user_id: CurrentUserId) -> 
 
 @router.post("/{order_id}/mark-paid", response_model=OrderRead)
 async def mark_paid(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
-    """Convenience: stamp paid_at to now. Idempotent if already set."""
     order = await _load_order(db, order_id, user_id)
     if order.paid_at is None:
         order.paid_at = datetime.now(timezone.utc)
@@ -107,7 +106,6 @@ async def mark_paid(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Orde
 
 @router.post("/{order_id}/mark-delivered", response_model=OrderRead)
 async def mark_delivered(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
-    """Convenience: stamp delivered_at to now. Idempotent."""
     order = await _load_order(db, order_id, user_id)
     if order.delivered_at is None:
         order.delivered_at = datetime.now(timezone.utc)
