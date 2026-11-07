@@ -77,7 +77,7 @@ def test_stored_qr_uploaded_again_is_the_same_picture(client):
 
 
 def test_the_support_qr_is_served_only_when_the_server_has_one(client, monkeypatch, tmp_path):
-    monkeypatch.setattr(main, "SUPPORT_QR", tmp_path / "support_qr.png")
+    monkeypatch.setattr(main.settings, "data_dir", tmp_path)
     assert client.get("/api/support-qr").status_code == 404
     (tmp_path / "support_qr.png").write_bytes(b"\x89PNG qr")
     r = client.get("/api/support-qr")                   # no sign-in: it is on a public sheet

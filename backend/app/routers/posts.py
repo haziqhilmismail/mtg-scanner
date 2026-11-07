@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, Json
 from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import selectinload
 
-from ..config import DATA_DIR, SCANS_DIR
+from ..config import settings
 from ..deps import CurrentUserId, DbSession, ImageUserId, check_pricing_size
 from ..models import (
     Listing,
@@ -34,8 +34,6 @@ from .scans import apply_picks, refresh_prices, scan_out, split_state
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
-POSTS_DIR = DATA_DIR / "posts"
-POSTS_DIR.mkdir(exist_ok=True)
 
 ALLOWED_IMAGE_MIME = {
     "image/jpeg", "image/jpg", "image/png", "image/webp",
@@ -45,7 +43,7 @@ MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MiB
 
 
 def _post_image_path(post_id: int) -> Path:
-    return POSTS_DIR / f"{post_id}.bin"
+    return settings.posts_dir / f"{post_id}.bin"
 
 
 async def _save_image(post: Post, image: UploadFile) -> None:
@@ -250,7 +248,7 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
             )
             db.add(dup)
             await db.flush()
-            dst = SCANS_DIR / f"{dup.id}.bin"
+            dst = settings.scans_dir / f"{dup.id}.bin"
             # A scan's picture never changes once saved, so a hard link is a
             # full copy that takes no time and no space.
             try:

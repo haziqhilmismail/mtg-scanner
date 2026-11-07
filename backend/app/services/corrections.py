@@ -11,8 +11,6 @@ from ..models import CardCorrection, Scan
 from ..models.card_correction import CorrectionKind
 from .card_crop import CROP_QUALITY, CROP_VERSION, card_crop
 
-settings.corrections_dir.mkdir(parents=True, exist_ok=True)
-
 
 def _save_crop(photo_path: str | None, card: dict) -> str | None:
     if not photo_path:

@@ -15,7 +15,7 @@ import jwt
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
-from ..config import DATA_DIR, settings
+from ..config import settings
 
 # 7-day session window. Long enough to survive a weekend pasar malam without
 # re-logging in, short enough that a stolen token isn't a permanent compromise.
@@ -26,7 +26,6 @@ _WEEK = 7 * 24 * 60 * 60
 IMAGE_TTL_SECONDS = 5 * _WEEK
 _IMAGE_SCOPE = "img"
 
-_SECRET_PATH = DATA_DIR / "jwt_secret.txt"
 _jwt_secret_cache: str | None = None
 
 
@@ -44,12 +43,12 @@ def _jwt_secret() -> str:
     if settings.jwt_secret:
         _jwt_secret_cache = settings.jwt_secret
         return _jwt_secret_cache
-    if _SECRET_PATH.exists():
-        _jwt_secret_cache = _SECRET_PATH.read_text().strip()
+    if settings.jwt_secret_file.exists():
+        _jwt_secret_cache = settings.jwt_secret_file.read_text().strip()
         if _jwt_secret_cache:
             return _jwt_secret_cache
     _jwt_secret_cache = secrets.token_urlsafe(48)
-    _SECRET_PATH.write_text(_jwt_secret_cache)
+    settings.jwt_secret_file.write_text(_jwt_secret_cache)
     return _jwt_secret_cache
 
 

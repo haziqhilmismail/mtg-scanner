@@ -36,11 +36,9 @@ from datetime import datetime, timezone
 import aiohttp
 import ijson
 
-from ..config import DATA_DIR
+from ..config import settings
 
 CK_PRICELIST_URL = "https://api.cardkingdom.com/api/v2/pricelist"
-CACHE_DIR = DATA_DIR
-DB_FILE = CACHE_DIR / "ck_index.db"
 
 # Refresh once per day. Only consulted at startup; once the connection is
 # open this TTL is invisible until the next process restart.
@@ -158,7 +156,7 @@ class CKPriceIndex:
     async def refresh(self, force: bool = False) -> None:
         """
         Reads:  GET CK_PRICELIST_URL (streamed; transient file under data/)
-        Writes: DB_FILE (atomic via .tmp + rename)
+        Writes: settings.ck_db_file (atomic via .tmp + rename)
 
         force=False + recent DB exists → just open it (sub-ms).
         force=True OR no/stale DB     → download + rebuild.
@@ -169,10 +167,10 @@ class CKPriceIndex:
         exception and can surface it to the user, rather than silently
         rebuilding from a stale cache.
         """
-        CACHE_DIR.mkdir(exist_ok=True)
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
 
-        if not force and DB_FILE.exists():
-            age = time.time() - DB_FILE.stat().st_mtime
+        if not force and settings.ck_db_file.exists():
+            age = time.time() - settings.ck_db_file.stat().st_mtime
             if age < CACHE_TTL_SECONDS:
                 opened = await asyncio.to_thread(self._try_open_existing)
                 if opened:
@@ -182,10 +180,10 @@ class CKPriceIndex:
         await self._download_and_build()
 
     def _try_open_existing(self) -> bool:
-        """Open DB_FILE and confirm it's the current schema version.
+        """Open settings.ck_db_file and confirm it's the current schema version.
         Returns True on success; False if the caller should rebuild."""
         try:
-            conn = sqlite3.connect(DB_FILE, check_same_thread=False, isolation_level=None)
+            conn = sqlite3.connect(settings.ck_db_file, check_same_thread=False, isolation_level=None)
             row = conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
             if not row or int(row[0]) != SCHEMA_VERSION:
                 conn.close()
@@ -198,7 +196,7 @@ class CKPriceIndex:
         old = self._conn
         self._conn = conn
         self.matched_scryfall_count = unique
-        self.fetched_at = datetime.fromtimestamp(DB_FILE.stat().st_mtime, timezone.utc)
+        self.fetched_at = datetime.fromtimestamp(settings.ck_db_file.stat().st_mtime, timezone.utc)
         del old  # refcount-close lets in-flight lookups release the old handle
         print(f"[cardkingdom] opened existing cache: {unique} unique scryfall_ids "
               f"({total} rows)", flush=True)
@@ -215,8 +213,8 @@ class CKPriceIndex:
         Raises on HTTP error or parse failure. Does NOT clobber self._conn
         unless the build all the way succeeds.
         """
-        download_path = CACHE_DIR / ".ck_pricelist.download"
-        tmp_db = DB_FILE.with_suffix(".db.tmp")
+        download_path = settings.data_dir / ".ck_pricelist.download"
+        tmp_db = settings.ck_db_file.with_suffix(".db.tmp")
 
         # Step 1 — stream download.
         print(f"[cardkingdom] downloading {CK_PRICELIST_URL} ...", flush=True)
@@ -246,7 +244,7 @@ class CKPriceIndex:
 
     def _build_db_from_file(self, src_json, dest_db_tmp) -> tuple[int, int]:
         """Read src_json (a downloaded JSON file), build a fresh sqlite at
-        dest_db_tmp, atomic-rename onto DB_FILE, swap self._conn. Returns
+        dest_db_tmp, atomic-rename onto settings.ck_db_file, swap self._conn. Returns
         (unique_scryfall_ids, total_products_seen)."""
         if dest_db_tmp.exists():
             dest_db_tmp.unlink()
@@ -295,13 +293,13 @@ class CKPriceIndex:
 
         # POSIX-atomic swap onto the live DB. Touch mtime so the freshness
         # check vs CACHE_TTL_SECONDS is monotonic next boot.
-        dest_db_tmp.replace(DB_FILE)
-        DB_FILE.touch(exist_ok=True)
+        dest_db_tmp.replace(settings.ck_db_file)
+        settings.ck_db_file.touch(exist_ok=True)
 
-        read_conn = sqlite3.connect(DB_FILE, check_same_thread=False, isolation_level=None)
+        read_conn = sqlite3.connect(settings.ck_db_file, check_same_thread=False, isolation_level=None)
         old = self._conn
         self._conn = read_conn
-        self.fetched_at = datetime.fromtimestamp(DB_FILE.stat().st_mtime, timezone.utc)
+        self.fetched_at = datetime.fromtimestamp(settings.ck_db_file.stat().st_mtime, timezone.utc)
         del old  # refcount-close; safe vs. in-flight lookups holding the prior ref
         return unique_count, product_count
 
