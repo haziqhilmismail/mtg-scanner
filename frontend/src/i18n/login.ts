@@ -2,13 +2,6 @@
 // Every key appears in one area file only; index.ts merges them.
 
 export const en = {
-  claims_demo_in: 'Your screenshot of the comments',
-  claims_demo_in_alt: 'A Facebook photo of cards for sale, with comments that claim cards. Names are blurred.',
-  claims_demo_out: 'What the app finds',
-  claims_demo_buyer: 'Buyer {n}',
-  claims_demo_skipped: 'Buyer {n} only tags a friend, so the app skips it.',
-  claims_demo_mobile_note: 'On a phone the comments fill the screen, so the screenshot shows no photo. That is fine: the app puts it under the photo of the screenshot before it.',
-  claims_demo_total: 'Confirm, and they become {n} orders, RM{total} in total.',
   lp_title: 'Snap. Price. Post.',
   lp_tagline: 'Snap your pasar malam stack and every card is found and priced. Post it, then screenshot the comments: each buyer gets their total, and you see who still has to pay.',
   lp_cta_free: 'Free to use.',
@@ -54,13 +47,6 @@ export const en = {
 };
 
 export const ms: Record<keyof typeof en, string> = {
-  claims_demo_in: 'Tangkap layar komen anda',
-  claims_demo_in_alt: 'Foto Facebook kad untuk dijual, dengan komen yang menuntut kad. Nama dikaburkan.',
-  claims_demo_out: 'Apa yang aplikasi jumpa',
-  claims_demo_buyer: 'Pembeli {n}',
-  claims_demo_skipped: 'Pembeli {n} hanya tag kawan, jadi aplikasi abaikan.',
-  claims_demo_mobile_note: 'Di telefon, komen memenuhi skrin, jadi tangkap layar tiada foto. Tidak mengapa: aplikasi letak di bawah foto tangkap layar sebelumnya.',
-  claims_demo_total: 'Sahkan, dan ia menjadi {n} pesanan, jumlah RM{total}.',
   lp_title: 'Snap. Hargakan. Post.',
   lp_tagline: 'Ambil gambar susunan kad pasar malam anda, dan setiap kad dikenal pasti dan dihargakan. Post, kemudian tangkap layar komen: setiap pembeli dapat jumlah mereka, dan anda nampak siapa yang belum bayar.',
   lp_cta_free: 'Percuma.',

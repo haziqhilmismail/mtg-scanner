@@ -129,7 +129,6 @@ export interface ScanResponse {
 export interface RelookupMsg {
   type: 'ok' | 'err' | 'busy';
   text: string;
-  action?: string;
 }
 
 // Per-card draggable pill offset. The pill default position is derived from

@@ -472,7 +472,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
           locked: [...b.locked, null],
           relookupBusy: [...b.relookupBusy, false],
           relookupMsg: [...b.relookupMsg, isManual
-            ? { type: 'err', text: 'no match — type a name to look it up', action: 'use as-is' }
+            ? { type: 'err', text: 'no match — type a name to look it up' }
             : null],
         } satisfies Batch;
       }),
@@ -561,11 +561,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
         updateCardArray(batchId, 'relookupBusy', idx, false);
         const err = e as Error & { status?: number };
         if (err.status === 404) {
-          setRelookupMsg(batchId, idx, {
-            type: 'err',
-            text: t('msg_not_found'),
-            action: t('msg_use_asis_action'),
-          });
+          setRelookupMsg(batchId, idx, { type: 'err', text: t('msg_not_found') });
         } else {
           setRelookupMsg(batchId, idx, { type: 'err', text: t('msg_lookup_failed', { err: err.message }) });
         }
