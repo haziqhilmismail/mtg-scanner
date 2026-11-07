@@ -134,7 +134,7 @@ button.claims-line-pic { cursor: zoom-in; }
 .claims-foot-note a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .claims-foot-note a:hover { text-decoration: underline; }
 @media (pointer: coarse) {
-  /* Touch: the inline link answers to a 44px area, as small buttons do (buttons.css). */
+  /* Touch: the inline link answers to a 44px area, as small buttons do (base.css). */
   .claims-foot-note a { position: relative; }
   .claims-foot-note a::after { content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, var(--tap)); height: var(--tap); transform: translate(-50%, -50%); }
 }
