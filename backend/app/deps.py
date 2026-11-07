@@ -1,7 +1,6 @@
 """Common FastAPI dependencies: DB session + current user."""
 
 import json
-from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -36,12 +35,8 @@ def json_payload(payload: str) -> dict:
         raise HTTPException(400, "Invalid JSON in 'payload'")
 
 
-async def get_db() -> AsyncIterator[AsyncSession]:
-    async for session in get_session():
-        yield session
-
-
-DbSession = Annotated[AsyncSession, Depends(get_db)]
+# scope="function" commits before the reply is sent, so a failed commit is a 500.
+DbSession = Annotated[AsyncSession, Depends(get_session, scope="function")]
 
 
 def bearer_user_id(authorization: str | None) -> int | None:
