@@ -13,13 +13,14 @@ from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUserId, DbSession, limiter, owned
 from ..models import Order, OrderItem, Post, SaleRecord
+from ..schemas.types import Id
 from ..services import catalogue
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
 
 
 class SentLine(BaseModel):
-    order_item_id: int
+    order_item_id: Id
     # How the seller's app priced the card; context only. The price itself is
     # read from the order.
     app_usd: Decimal | None = Field(None, ge=0, le=100_000, decimal_places=2)
@@ -29,7 +30,7 @@ class SentLine(BaseModel):
 
 class SentSummary(BaseModel):
     channel: Literal["copy", "share"]
-    post_id: int | None = None
+    post_id: Id | None = None
     # The post's kind as the app resolves it (its own pricing, or the
     # seller's default); the backend treats pricing as the app's.
     post_type: Literal["photo", "live"] | None = None

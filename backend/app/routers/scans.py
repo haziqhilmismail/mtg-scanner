@@ -7,11 +7,9 @@ import base64
 from contextlib import nullcontext
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi import Path as PathParam
 from fastapi.responses import Response
 from PIL import Image
 from pydantic import BaseModel, Field
@@ -21,16 +19,12 @@ from sqlalchemy.orm.attributes import flag_modified
 from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter, owned
 from ..models import Listing, ListingStatus, Order, OrderItem, Post, Scan
 from ..models.card_correction import CorrectionKind
+from ..schemas.types import Id
 from ..services import catalogue, corrections, credits, scans
 from ..services.listings import drop_listing, locked_prices
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
 router = APIRouter(tags=["scans"])
-
-# A scan id SQLite can hold. A bigger one names no scan, and the driver raises
-# OverflowError on it, which is a 500.
-ScanId = Annotated[int, PathParam(ge=1, le=2**63 - 1)]
-
 
 @router.post("/api/scan")
 @limiter.limit("10/minute;100/hour")  # local scans load the home server's CPU; Gemini scans cost money
@@ -39,7 +33,7 @@ async def scan(
     db: DbSession,
     user_id: CurrentUserId,
     image: UploadFile = File(...),
-    post_id: int | None = Form(default=None),
+    post_id: Id | None = Form(default=None),
 ):
     # Which post to file the photo under. Checked before anything costly.
     if post_id is not None:
@@ -75,7 +69,7 @@ async def scan(
 @limiter.limit("30/minute")
 async def frame_card(
     request: Request,
-    scan_id: int,
+    scan_id: Id,
     db: DbSession,
     user_id: CurrentUserId,
     payload: str = Form(...),
@@ -119,7 +113,7 @@ async def frame_card(
 async def list_scans(
     db: DbSession, user_id: CurrentUserId,
     limit: int = Query(default=30, ge=1, le=500), lite: bool = False,
-    before: int | None = None,
+    before: Id | None = None,
 ):
     """Most-recent-first list of saved scans, with the full response baked in.
     Frontend uses this to rehydrate batches after a page refresh.
@@ -159,7 +153,7 @@ class ScanState(BaseModel):
 
 
 @router.patch("/api/scans/{scan_id}/state", status_code=204)
-async def save_scan_state(scan_id: ScanId, body: ScanState, db: DbSession, user_id: CurrentUserId):
+async def save_scan_state(scan_id: Id, body: ScanState, db: DbSession, user_id: CurrentUserId):
     """Store the seller's per-card edits for this scan. Last write wins, except
     a state whose integer rev is below the stored one is ignored (late arrival).
 
@@ -204,7 +198,7 @@ class Answer(BaseModel):
 @router.put("/api/scans/{scan_id}/cards/{card_id}/correction")
 @limiter.limit("120/minute")
 async def correct_card(
-    request: Request, scan_id: ScanId, card_id: int, body: Answer, db: DbSession, user_id: CurrentUserId,
+    request: Request, scan_id: Id, card_id: int, body: Answer, db: DbSession, user_id: CurrentUserId,
 ) -> dict:
     """The seller says this card is the printing `scryfall_id`: they picked it
     (`kind` "pick"), or tapped "Looks right" on the one it shows ("confirm").
@@ -220,8 +214,8 @@ async def correct_card(
 
 
 class MoveScans(BaseModel):
-    scan_ids: list[int]
-    post_id: int | None = None  # None = unfile
+    scan_ids: list[Id]
+    post_id: Id | None = None  # None = unfile
 
 
 @router.post("/api/scans/move", status_code=204)
@@ -239,7 +233,7 @@ async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
 
 
 class ScanOrder(BaseModel):
-    scan_ids: list[int] = Field(..., max_length=500)
+    scan_ids: list[Id] = Field(..., max_length=500)
 
 
 @router.put("/api/scans/order", status_code=204)
@@ -274,7 +268,7 @@ def _data_url_jpeg(data_url: str, max_edge: int | None = None) -> Response:
 
 @router.get("/api/scans/{scan_id}/preview")
 async def scan_preview(
-    scan_id: ScanId,
+    scan_id: Id,
     db: DbSession,
     user_id: ImageUserId,
     w: int | None = Query(default=None, ge=32, le=1400),
@@ -288,7 +282,7 @@ async def scan_preview(
 
 @router.get("/api/scans/{scan_id}/crops/{card_id}")
 async def scan_card_crop(
-    scan_id: ScanId, card_id: int, db: DbSession, user_id: ImageUserId,
+    scan_id: Id, card_id: int, db: DbSession, user_id: ImageUserId,
 ):
     """One detected card's thumbnail, cut from the photo at scan time."""
     scan_row = await owned(db, Scan, scan_id, user_id)
@@ -298,7 +292,7 @@ async def scan_card_crop(
 
 
 @router.delete("/api/scans/{scan_id}", status_code=204)
-async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
+async def delete_scan(scan_id: Id, db: DbSession, user_id: CurrentUserId):
     """Drop a scan from the dashboard. Removes the DB row, the image bytes on
     disk, and the checklist cards added from it. A card in an open order
     stays (unlinked from the scan), so no buyer's claim is lost."""
@@ -323,7 +317,7 @@ async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
 @router.post("/api/scans/{scan_id}/relookup-prices")
 @limiter.limit("30/minute")
 async def relookup_scan_prices(
-    request: Request, scan_id: ScanId, db: DbSession, user_id: CurrentUserId,
+    request: Request, scan_id: Id, db: DbSession, user_id: CurrentUserId,
 ):
     """Re-run CK price enrichment for every candidate in a saved scan. Cards
     themselves (names, sets, scryfall_ids, bboxes) are unchanged — only the

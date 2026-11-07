@@ -16,8 +16,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from ..config import settings
-from ..deps import CurrentUser, DbSession, check_pricing_size
+from ..deps import CurrentUser, DbSession
 from ..models import User
+from ..schemas.types import Pricing
 from ..services.auth_service import (
     issue_image_token,
     issue_session_token,
@@ -50,7 +51,7 @@ class SellerName(BaseModel):
 
 
 class PricingBody(BaseModel):
-    pricing: dict
+    pricing: Pricing
 
 
 class AuthResponse(BaseModel):
@@ -143,7 +144,6 @@ async def me(user: CurrentUser):
 
 @router.put("/me/pricing", status_code=204)
 async def set_default_pricing(body: PricingBody, user: CurrentUser):
-    check_pricing_size(body.pricing)
     user.pricing = body.pricing
 
 

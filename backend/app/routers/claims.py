@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from ..deps import CurrentUser, CurrentUserId, DbSession, limiter, owned
 from ..models import Listing, ListingStatus, Post, Scan
 from ..schemas import OrderRead
+from ..schemas.types import Id, as_id
 from ..services import claims, credits, orders
 from ..services.listings import locked_prices
 
@@ -34,7 +35,7 @@ async def read_screenshots(
     seller checks both first."""
     if len(images) > MAX_SCREENSHOTS:
         raise HTTPException(400, f"Too many screenshots (max {MAX_SCREENSHOTS})")
-    ids = [int(x) for x in scan_ids.split(",") if x.strip().isdigit()][:MAX_PHOTOS]
+    ids = [i for x in scan_ids.split(",") if (i := as_id(x.strip())) is not None][:MAX_PHOTOS]
     photos = {}
     if ids:
         rows = (await db.scalars(select(Scan).where(Scan.id.in_(ids), Scan.user_id == user_id))).all()
@@ -80,7 +81,7 @@ async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user
 
 
 class ConfirmItem(BaseModel):
-    scan_id: int
+    scan_id: Id
     card_id: int
     bbox: list[int] = Field(..., min_length=4, max_length=4)
     name: str
@@ -105,7 +106,7 @@ class ConfirmClaim(BaseModel):
 
 
 class ConfirmRequest(BaseModel):
-    post_id: int | None = None
+    post_id: Id | None = None
     claims: list[ConfirmClaim] = Field(..., min_length=1, max_length=200)
 
 

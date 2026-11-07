@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, Json
 from sqlalchemy import case, func, select, update
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession, check_pricing_size, owned
+from ..deps import CurrentUserId, DbSession, owned
 from ..models import (
     Listing,
     ListingStatus,
@@ -27,6 +27,7 @@ from ..models import (
     Scan,
 )
 from ..schemas import PostReadWithStats, PostUpdate
+from ..schemas.types import Id, Pricing
 from ..services import catalogue
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
@@ -135,11 +136,10 @@ async def create_post(
     title: str | None = Form(None),
     fb_url: str | None = Form(None),
     note: str | None = Form(None),
-    pricing: Json[dict] | None = Form(None),
+    pricing: Json[Pricing] | None = Form(None),
 ) -> PostReadWithStats:
     """Create a post. Empty strings become NULL. `pricing` is a JSON object as
     a string."""
-    check_pricing_size(pricing)
     post = Post(
         user_id=user_id,
         title=(title or None) and title.strip() or None,
@@ -158,7 +158,7 @@ async def create_post(
 
 
 class RepostPhoto(BaseModel):
-    scan_id: int
+    scan_id: Id
     # The copy's per-card edits, built by the client, which owns their shape:
     # the sold cards removed and marked sold, so the photo covers them.
     state: dict
@@ -172,7 +172,7 @@ class Repost(BaseModel):
 
 
 @router.post("/{post_id}/repost", status_code=201)
-async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUserId) -> dict:
+async def repost(post_id: Id, body: Repost, db: DbSession, user_id: CurrentUserId) -> dict:
     """A new post of this post's photos, for the cards still unsold: each photo
     copied (its picture on disk too) with the edits the client sends, checked
     as PATCH /api/scans/{id}/state checks them. The new post takes this post's
@@ -238,11 +238,10 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
 
 @router.patch("/{post_id}", response_model=PostReadWithStats)
 async def update_post(
-    post_id: int, payload: PostUpdate, db: DbSession, user_id: CurrentUserId,
+    post_id: Id, payload: PostUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> PostReadWithStats:
     post = await owned(db, Post, post_id, user_id)
     updates = payload.model_dump(exclude_unset=True)
-    check_pricing_size(updates.get("pricing"))
     for k, v in updates.items():
         if k == "status":
             # status is an enum — never empty-string-coerced
@@ -256,7 +255,7 @@ async def update_post(
 
 
 @router.delete("/{post_id}", status_code=204)
-async def delete_post(post_id: int, db: DbSession, user_id: CurrentUserId) -> None:
+async def delete_post(post_id: Id, db: DbSession, user_id: CurrentUserId) -> None:
     """Delete the post. The join table rows are dropped
     via CASCADE, but the underlying listings stay intact (and may still be
     linked to other posts). Refuses delete if any of the listings are

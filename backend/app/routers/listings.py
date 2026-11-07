@@ -20,6 +20,7 @@ from ..schemas import (
     ListingReadWithAvailability,
     ListingUpdate,
 )
+from ..schemas.types import Id
 from ..services.listings import drop_listing
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
@@ -75,7 +76,7 @@ async def list_listings(
     db: DbSession,
     user_id: CurrentUserId,
     status: ListingStatus | None = Query(None, description="Filter by listing status"),
-    post_id: int | None = Query(None, description="Filter to one post; pass 0 for unlinked listings"),
+    post_id: int | None = Query(None, ge=0, le=2**63 - 1, description="Filter to one post (an Id); pass 0 for unlinked listings"),
 ) -> list[ListingReadWithAvailability]:
     """Each listing is annotated with qty_committed (sum of qty across non-cancelled
     order items) and qty_available (qty_total − committed)."""
@@ -133,7 +134,7 @@ async def create_listing(
 
 @router.patch("/{listing_id}", response_model=ListingRead)
 async def update_listing(
-    listing_id: int, payload: ListingUpdate, db: DbSession, user_id: CurrentUserId,
+    listing_id: Id, payload: ListingUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> ListingRead:
     listing = await owned(db, Listing, listing_id, user_id, selectinload(Listing.posts))
 
@@ -152,7 +153,7 @@ async def update_listing(
 
 
 @router.delete("/{listing_id}", status_code=204)
-async def remove_listing(listing_id: int, db: DbSession, user_id: CurrentUserId) -> None:
+async def remove_listing(listing_id: Id, db: DbSession, user_id: CurrentUserId) -> None:
     """Remove listing (see drop_listing). Either way the row stops appearing
     in the active stock view; this matters only for users digging into
     archived inventory."""

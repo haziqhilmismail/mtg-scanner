@@ -4,6 +4,7 @@ from decimal import Decimal
 from pydantic import MISSING, BaseModel, ConfigDict, Field
 
 from ..models.listing import ListingStatus
+from .types import Id
 
 
 class ListingBase(BaseModel):
@@ -25,8 +26,8 @@ class ListingCreate(ListingBase):
     """Used by both manual creation and scan-derived creation.
     `scan_id` and `bbox` are optional and only set when listing comes from a scan.
     `post_ids` ties the listing to N Facebook post groups (often just one)."""
-    scan_id: int | None = None
-    post_ids: list[int] = Field(default_factory=list)
+    scan_id: Id | None = None
+    post_ids: list[Id] = Field(default_factory=list)
     bbox: list[int] | None = Field(None, min_length=4, max_length=4)  # [x, y, w, h]
     status: ListingStatus = ListingStatus.active
 
@@ -45,10 +46,10 @@ class ListingUpdate(BaseModel):
     unit_price_myr: Decimal | MISSING = Field(MISSING, ge=0, decimal_places=2)
     qty_total: int | MISSING = Field(MISSING, ge=1)
     status: ListingStatus | MISSING = MISSING
-    post_ids: list[int] | None = None
+    post_ids: list[Id] | None = None
     notes: str | None = None
     # Ties a card added before listings recorded their scan to its photo.
-    scan_id: int | None = None
+    scan_id: Id | None = None
     bbox: list[int] | None = Field(None, min_length=4, max_length=4)
 
 
