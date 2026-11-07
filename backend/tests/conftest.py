@@ -74,7 +74,7 @@ class _FakeCK:
     matched_scryfall_count = 1
     def lookup(self, sid):
         return {"retail_normal": 1.0, "retail_foil": 2.0, "buy_normal": None, "buy_foil": None,
-                "in_stock_normal": True, "in_stock_foil": False, "url_normal": "", "url_foil": ""}
+                "url_normal": "", "url_foil": ""}
 
 
 @pytest.fixture()

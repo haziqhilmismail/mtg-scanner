@@ -141,7 +141,6 @@ ON CONFLICT(scryfall_id, is_foil) DO UPDATE SET
 _EMPTY_LOOKUP = {
     "retail_normal": None, "retail_foil": None,
     "buy_normal": None, "buy_foil": None,
-    "in_stock_normal": False, "in_stock_foil": False,
     "url_normal": "", "url_foil": "",
 }
 
@@ -311,8 +310,6 @@ class CKPriceIndex:
             "retail_foil":   float | None,
             "buy_normal":    float | None,
             "buy_foil":      float | None,
-            "in_stock_normal": bool,
-            "in_stock_foil":   bool,
             "url_normal":    str,
             "url_foil":      str,
           }
@@ -320,18 +317,17 @@ class CKPriceIndex:
         if not scryfall_id or self._conn is None:
             return dict(_EMPTY_LOOKUP)
         rows = self._conn.execute(
-            "SELECT is_foil, price_retail, price_buy, qty_retail, url "
+            "SELECT is_foil, price_retail, price_buy, url "
             "FROM ck_prices WHERE scryfall_id = ?",
             (scryfall_id,),
         ).fetchall()
         if not rows:
             return dict(_EMPTY_LOOKUP)
         result = dict(_EMPTY_LOOKUP)
-        for is_foil, price, buy, qty, url in rows:
+        for is_foil, price, buy, url in rows:
             side = "foil" if is_foil else "normal"
             result[f"retail_{side}"] = price if price and price > 0 else None
             result[f"buy_{side}"] = buy if buy and buy > 0 else None
-            result[f"in_stock_{side}"] = (qty or 0) > 0
             result[f"url_{side}"] = url or ""
         return result
 
@@ -374,12 +370,7 @@ def enrich(summary: dict | None, ck_index: CKPriceIndex) -> dict | None:
     if not summary:
         return None
     sid = summary.get("scryfall_id", "")
-    ck = ck_index.lookup(sid) if sid else {
-        "retail_normal": None, "retail_foil": None,
-        "buy_normal": None, "buy_foil": None,
-        "in_stock_normal": False, "in_stock_foil": False,
-        "url_normal": "", "url_foil": "",
-    }
+    ck = ck_index.lookup(sid) if sid else _EMPTY_LOOKUP
 
     def _ck_full_url(path: str) -> str:
         if not path:
@@ -393,10 +384,6 @@ def enrich(summary: dict | None, ck_index: CKPriceIndex) -> dict | None:
     summary["price_source_foil"] = "cardkingdom" if ck["retail_foil"] else "none"
     summary["ck_retail_normal"] = ck["retail_normal"]
     summary["ck_retail_foil"] = ck["retail_foil"]
-    summary["ck_buy_normal"] = ck["buy_normal"]
-    summary["ck_buy_foil"] = ck["buy_foil"]
-    summary["ck_in_stock_normal"] = ck["in_stock_normal"]
-    summary["ck_in_stock_foil"] = ck["in_stock_foil"]
     summary["ck_url_normal"] = _ck_full_url(ck.get("url_normal", ""))
     summary["ck_url_foil"] = _ck_full_url(ck.get("url_foil", ""))
     return summary

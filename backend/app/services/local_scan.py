@@ -109,7 +109,6 @@ async def scan_cards(
             # Cosine similarity of the embedding match, 0..1. Higher = better.
             "name_confidence": round(card.score, 3),
             "version_source": card.version_source,
-            "foil_source": card.foil_source,
             # Key name is shared with the Gemini path — the frontend reads its
             # foil / quantity defaults from here.
             "gemini": {

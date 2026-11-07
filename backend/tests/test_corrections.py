@@ -35,7 +35,7 @@ def _local_card(i=0, **over) -> dict:
     return {
         "id": i, "bbox": [100, 150, 301, 421], "corners": [[100, 150], [400, 150], [400, 570], [100, 570]],
         "crop_b64": "", "bbox_source": "detector", "name_source": "embedding", "name_confidence": 0.7,
-        "version_source": "embedding", "foil_source": "default",
+        "version_source": "embedding",
         "gemini": {"name": "Sol Ring", "set_code": "cmm", "collector_number": "1", "is_foil": False, "quantity": 1},
         "candidates": [{"scryfall_id": SOL, "name": "Sol Ring", "set": "CMM"}],
         **over,
