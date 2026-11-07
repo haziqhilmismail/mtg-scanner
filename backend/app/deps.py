@@ -8,13 +8,24 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
 from .db import get_session
 from .models import User
 from .services.auth_service import decode_image_token, decode_session_token
+
+
+async def owned[T](db: AsyncSession, model: type[T], row_id: int, user_id: int, *options) -> T:
+    """This user's row of `model`; 404 when it does not exist or is someone
+    else's, so a stranger learns nothing about other users' ids."""
+    row = await db.scalar(
+        select(model).where(model.id == row_id, model.user_id == user_id).options(*options)
+    )
+    if row is None:
+        raise HTTPException(404, f"{model.__name__} not found")
+    return row
 
 
 def json_payload(payload: str) -> dict:

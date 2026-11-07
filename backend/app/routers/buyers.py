@@ -1,9 +1,9 @@
 """CRUD for Facebook buyer profiles."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from sqlalchemy import case, func, select
 
-from ..deps import CurrentUserId, DbSession
+from ..deps import CurrentUserId, DbSession, owned
 from ..models import Buyer, Order, OrderStatus
 from ..schemas import BuyerRead, BuyerReadWithStats, BuyerUpdate
 
@@ -51,9 +51,7 @@ async def list_buyers(db: DbSession, user_id: CurrentUserId) -> list[BuyerReadWi
 async def update_buyer(
     buyer_id: int, payload: BuyerUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> Buyer:
-    buyer = await db.get(Buyer, buyer_id)
-    if not buyer or buyer.user_id != user_id:
-        raise HTTPException(404, "Buyer not found")
+    buyer = await owned(db, Buyer, buyer_id, user_id)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(buyer, k, v)
     await db.flush()

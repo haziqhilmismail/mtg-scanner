@@ -8,23 +8,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession
+from ..deps import CurrentUserId, DbSession, owned
 from ..models import Buyer, Listing, Order, OrderItem, OrderStatus
 from ..schemas import OrderCreate, OrderRead, OrderUpdate
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 async def _load_order(db, order_id: int, user_id: int) -> Order:
-    """Fetch an order with items eagerly loaded; 404 if not found or not owned."""
-    q = (
-        select(Order)
-        .where(Order.id == order_id, Order.user_id == user_id)
-        .options(selectinload(Order.items))
-    )
-    order = (await db.execute(q)).scalar_one_or_none()
-    if not order:
-        raise HTTPException(404, "Order not found")
-    return order
+    """This user's order with its items loaded; 404 otherwise."""
+    return await owned(db, Order, order_id, user_id, selectinload(Order.items))
 
 
 @router.get("", response_model=list[OrderRead])

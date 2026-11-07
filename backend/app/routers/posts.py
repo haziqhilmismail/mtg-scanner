@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, Json
 from sqlalchemy import case, func, select, update
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession, check_pricing_size
+from ..deps import CurrentUserId, DbSession, check_pricing_size, owned
 from ..models import (
     Listing,
     ListingStatus,
@@ -180,9 +180,7 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
     pricing, and its cards today's CK prices unless `new_prices` is off. The copies have no cards on the post yet: the seller finishes
     them, as on any new post. Returns the new post and its photos as
     GET /api/scans lists them (lite)."""
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
+    post = await owned(db, Post, post_id, user_id)
     ids = [p.scan_id for p in body.photos]
     if len(set(ids)) != len(ids):
         raise HTTPException(400, "A photo is listed twice")
@@ -243,9 +241,7 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
 async def update_post(
     post_id: int, payload: PostUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> PostReadWithStats:
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
+    post = await owned(db, Post, post_id, user_id)
     updates = payload.model_dump(exclude_unset=True)
     check_pricing_size(updates.get("pricing"))
     for k, v in updates.items():
@@ -266,9 +262,7 @@ async def delete_post(post_id: int, db: DbSession, user_id: CurrentUserId) -> No
     via CASCADE, but the underlying listings stay intact (and may still be
     linked to other posts). Refuses delete if any of the listings are
     currently committed to an open order — caller should cancel those first."""
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
+    post = await owned(db, Post, post_id, user_id)
 
     open_commit = await db.scalar(
         select(func.count(OrderItem.id))
