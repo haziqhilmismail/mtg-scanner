@@ -4,7 +4,6 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from ..models import Buyer, Listing, Order, OrderItem
 
@@ -52,8 +51,4 @@ async def create_order(
     recompute_total(order)
     db.add(order)
     await db.flush()
-    # The flush expired the server-set timestamps; read them back with the items.
-    return await db.scalar(
-        select(Order).where(Order.id == order.id)
-        .options(selectinload(Order.items)).execution_options(populate_existing=True)
-    )
+    return order

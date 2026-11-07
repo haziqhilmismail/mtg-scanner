@@ -41,5 +41,4 @@ async def update_buyer(
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(buyer, k, v)
     await db.flush()
-    await db.refresh(buyer)
     return buyer

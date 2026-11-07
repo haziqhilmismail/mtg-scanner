@@ -52,7 +52,7 @@ async def update_order(
     for k, v in updates.items():
         setattr(order, k, v)
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order
 
 
 class ItemPrice(BaseModel):
@@ -83,7 +83,7 @@ async def set_prices(order_id: Id, body: OrderPrices, db: DbSession, user_id: Cu
     if body.sent:
         order.prices_sent_at = datetime.now(timezone.utc)
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order
 
 
 @router.delete("/{order_id}/prices-sent", response_model=OrderRead)
@@ -92,7 +92,7 @@ async def unsend_prices(order_id: Id, db: DbSession, user_id: CurrentUserId) -> 
     order = await _load_order(db, order_id, user_id)
     order.prices_sent_at = None
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order
 
 
 @router.post("/{order_id}/cancel", response_model=OrderRead)
@@ -100,7 +100,7 @@ async def cancel_order(order_id: Id, db: DbSession, user_id: CurrentUserId) -> O
     order = await _load_order(db, order_id, user_id)
     order.status = OrderStatus.cancelled
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order
 
 
 @router.post("/{order_id}/restore", response_model=OrderRead)
@@ -110,7 +110,7 @@ async def restore_order(order_id: Id, db: DbSession, user_id: CurrentUserId) -> 
     kanban column (unpaid/paid/credit/done) on its own."""
     order = await _load_order(db, order_id, user_id)
     if order.status != OrderStatus.cancelled:
-        return await _load_order(db, order.id, user_id)
+        return order
     order.status = OrderStatus.claimed
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order

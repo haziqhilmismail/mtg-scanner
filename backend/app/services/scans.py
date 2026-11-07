@@ -203,7 +203,6 @@ async def store(
     image_path.write_bytes(jpeg)
     scan_row.image_path = str(image_path)
     await db.flush()
-    await db.refresh(scan_row)  # created_at is set by the database
     return scan_out(scan_row, [], lite=False)
 
 
