@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { PhotoDrop } from '../../components/PhotoDrop.tsx';
-import { countText, Mosaic, PostRow, thumbOf } from '../../components/ScanGallery.tsx';
+import { Mosaic, PostRow, thumbOf } from '../../components/ScanGallery.tsx';
 import { Spinner } from '../../components/Spinner.tsx';
+import { plural } from '../../i18n/index.ts';
 import { ScanProgress, type Area, type Folder } from './area.tsx';
 import { NewPostDialog } from './NewPostDialog.tsx';
 
@@ -55,7 +56,7 @@ export function PostsPage({ area }: { area: Area }) {
                   <span className="ui-row-main">
                     <span className="ui-row-title">{t('posts_unfiled')}</span>
                     <span className="ui-row-meta">
-                      {countText(t, 'post_photos_count', unfiledFolder.items.length)} · {t('posts_unfiled_meta')}
+                      {plural(t, 'post_photos_count', unfiledFolder.items.length)} · {t('posts_unfiled_meta')}
                     </span>
                   </span>
                 </Link>

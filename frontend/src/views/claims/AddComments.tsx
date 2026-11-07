@@ -3,6 +3,7 @@
 // seller checks both, then Find claims matches comments to cards. Nothing is
 // saved until the seller has checked the claims and pressed Add.
 
+import { plural } from '../../i18n/index.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { confirmClaims, parseClaims, readClaimScreenshots, type CataloguePhoto } from '../../api.ts';
 import { OutOfCreditsError } from '../../api/http.ts';
@@ -14,7 +15,7 @@ import { useT } from '../../hooks/useLang.ts';
 import type { Credits, Settings } from '../../types.ts';
 import { creditsLine, creditsOutText, formatMyrWithFoil, listingFields, sortScreenshots } from '../../utils.ts';
 import { blankDraft, CheckClaims, draftsKind, type Draft } from './CheckClaims.tsx';
-import { counted } from './model.ts';
+
 import { PostPhotos } from './PostPhotos.tsx';
 import { ShotCard, type Shot } from './ShotCard.tsx';
 import { useScreenshotDrop } from './useScreenshotDrop.ts';
@@ -182,18 +183,18 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
       <Dialog
         open={open} onClose={close} variant="picker" className="claims-dialog" closeLabel={t('claims_close')}
         title={step === 'shots' ? t('claims_add_title') : {
-          found: counted(t, 'claims_found', drafts.length),
+          found: plural(t, 'claims_found', drafts.length),
           hand: t(drafts.length > 1 ? 'claims_add_title' : 'claims_hand_title'),
           none: t('claims_found_none'),
         }[draftsKind(drafts)]}
         subtitle={step === 'check' && filled.length
-          ? `${counted(t, 'claims_from_shots', filled.length)} · ${photoText}`
-          : `${postTitle} · ${counted(t, 'claims_photos', photos.length)}`}
+          ? `${plural(t, 'claims_from_shots', filled.length)} · ${photoText}`
+          : `${postTitle} · ${plural(t, 'claims_photos', photos.length)}`}
         footer={step === 'check' ? (
           <>
             <button type="button" className="ui-btn ui-btn--ink" disabled={busy === 'saving'} onClick={() => { setStep('shots'); setError(''); }}>{t('claims_back')}</button>
             <button type="button" className="ui-btn ui-btn--primary" disabled={!!busy || !ready.length || !!problem} onClick={save}>
-              {busy === 'saving' ? t('claims_adding') : counted(t, 'claims_add_n', ready.length)}
+              {busy === 'saving' ? t('claims_adding') : plural(t, 'claims_add_n', ready.length)}
             </button>
           </>
         ) : (

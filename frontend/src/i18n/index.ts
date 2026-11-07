@@ -29,6 +29,10 @@ const STRINGS: Record<Lang, Record<Key, string>> = {
   ms: { ...shell.ms, ...scanner.ms, ...posts.ms, ...photo.ms, ...claims.ms, ...settings.ms, ...profile.ms, ...login.ms },
 };
 
+// A count in words from a key and its "_one" twin: "1 card", "1,240 cards".
+export const plural = (t: T, key: Counted, n: number, vars?: Vars) =>
+  t(n === 1 ? `${key}_one` : key, { ...vars, n: n.toLocaleString('en-MY') });
+
 export function translate(lang: Lang, key: Key, vars?: Vars): string {
   let s: string = STRINGS[lang][key] ?? key;
   if (vars) {

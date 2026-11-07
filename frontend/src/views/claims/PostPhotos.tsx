@@ -2,7 +2,8 @@ import { hideBroken, photoThumb, type Photo } from '../../components/ClaimPicker
 import { Icon } from '../../components/Icon.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import { counted } from './model.ts';
+
+import { plural } from '../../i18n/index.ts';
 import { Money } from './parts.tsx';
 
 interface Props {
@@ -23,7 +24,7 @@ export function PostPhotos({ open, onClose, photos, postTitle, chosen, cents, li
   return (
     <Dialog
       open={open} onClose={onClose} variant="picker" className="claims-dialog" closeLabel={t('claims_close')} title={t('claims_in_post')}
-      subtitle={t('claims_post_photos_sub', { title: postTitle, photos: counted(t, 'claims_photos', photos.length) })}
+      subtitle={t('claims_post_photos_sub', { title: postTitle, photos: plural(t, 'claims_photos', photos.length) })}
     >
       <ul className="claims-post-photos">
         {photos.map(p => {
@@ -36,7 +37,7 @@ export function PostPhotos({ open, onClose, photos, postTitle, chosen, cents, li
               <div className="claims-post-photo-row">
                 <span className="claims-post-photo-text">
                   <strong>{t('claims_photo', { n: p.index })}</strong>
-                  <span>{counted(t, 'claims_cards', cards)} · <Money value={value} live={live} cents={cents} /></span>
+                  <span>{plural(t, 'claims_cards', cards)} · <Money value={value} live={live} cents={cents} /></span>
                 </span>
                 {chosen === scanId ? (
                   <span className="claims-chosen"><Icon name="check" size={16} />{t('claims_chosen')}</span>

@@ -21,13 +21,14 @@ import { SupportSheet } from '../components/SupportSheet.tsx';
 import { Segmented } from '../components/ui/Segmented.tsx';
 import { useToast } from '../components/ui/Toast.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
+import { plural } from '../i18n/index.ts';
 import type { CardRowData, Credits } from '../types.ts';
 import { byPostOrder, computeCardData, dueForSupportAsk, paymentLines, photoNumbers, popupOpen } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
 import { BuyerDialog } from './claims/BuyerDialog.tsx';
 import {
-  buyerGroups, buyerMessage, claimedCounts, claimTotals, CLAIM_SORTS, counted, PAY_STATES, priceFormula, rm, sortGroups, stampsFor,
+  buyerGroups, buyerMessage, claimedCounts, claimTotals, CLAIM_SORTS, PAY_STATES, priceFormula, rm, sortGroups, stampsFor,
   type BuyerGroup, type ClaimSort, type Line, type PayState, type Stamps, type StatusMove,
 } from './claims/model.ts';
 import { ClaimSteps, HowDialog, Money } from './claims/parts.tsx';
@@ -205,7 +206,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
     setAddOpen(false);
     setFilter('all');
     await reload();
-    toast(counted(t, 'claims_toast_added', n));
+    toast(plural(t, 'claims_toast_added', n));
     // The tip-jar ask; see dueForSupportAsk for how often.
     const saves = supportAsk.saves + 1, now = Date.now();
     const ask = dueForSupportAsk(saves, supportAsk.askedAt, now);
@@ -424,7 +425,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
                 </div>
                 <div className="claims-bar" aria-hidden="true"><span style={{ width: `${Math.round(paidShare * 100)}%` }} /></div>
                 <p className="claims-totals-meta">
-                  {[counted(t, 'claims_buyers', groups.length), counted(t, 'claims_cards', totals.cards),
+                  {[plural(t, 'claims_buyers', groups.length), plural(t, 'claims_cards', totals.cards),
                     t('claims_claimed', { amount: `${totals.live.claimed ? '≈' : ''}${rm(totals.claimed, cents)}` })].join(' · ')}
                 </p>
                 {live ? <p className="claims-totals-meta">{t('claims_live_note')}</p> : null}

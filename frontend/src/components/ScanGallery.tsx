@@ -1,13 +1,14 @@
 // Posts as list rows: big enough to tell a post by its pictures, with what is
 // worth knowing before opening it (its total, how many photos, what waits).
 
+import { plural } from '../i18n/index.ts';
 import type { SyntheticEvent } from 'react';
 import type { Route } from '../routes.ts';
 import type { Batch, Settings } from '../types.ts';
 import { computeCardData, formatMyr, notAdded } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { Link } from './Link.tsx';
-import type { Counted, T } from '../hooks/useLang.ts';
+import type { T } from '../hooks/useLang.ts';
 
 export interface BatchSummary {
   batch: Batch;
@@ -54,9 +55,6 @@ export function Money({ amount, settings }: { amount: number; settings: Settings
   );
 }
 
-// A count in words, from a key and its "_one" twin: "1 photo", "3 photos".
-export const countText = (t: T, key: Counted, n: number) => t(n === 1 ? `${key}_one` : key, { n });
-
 // A post's first photos in a square, the fourth cell saying how many more.
 export function Mosaic({ srcs, photos }: { srcs: string[]; photos: number }) {
   const shown = srcs.slice(0, 4);
@@ -94,7 +92,7 @@ export function PostRow({ title, items, total, settings, buyers, unpaid, paid, t
   const scanning = items.filter(s => s.batch.status === 'scanning').length;
   const waiting = items.filter(s => waits(s, live)).length;
   const needs = items.reduce((n, s) => n + s.needs, 0);
-  const meta = [live ? t('kind_live') : '', items.length ? countText(t, 'post_photos_count', items.length) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']
+  const meta = [live ? t('kind_live') : '', items.length ? plural(t, 'post_photos_count', items.length) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']
     .filter(Boolean).join(' · ');
   return (
     <Link className="ui-row postrow" to={to}>
@@ -115,12 +113,12 @@ export function PostRow({ title, items, total, settings, buyers, unpaid, paid, t
             {waiting ? (
               <span className="ui-chip ui-chip--accent">
                 <Icon name="addList" size={13} />
-                {countText(t, live ? 'posts_not_added' : 'posts_not_finished', waiting)}
+                {plural(t, live ? 'posts_not_added' : 'posts_not_finished', waiting)}
               </span>
             ) : null}
             {needs ? <span className="ui-chip ui-chip--warn"><Icon name="warning" size={13} />{t('scans_to_fix', { n: needs })}</span> : null}
-            {unpaid ? <span className="ui-chip ui-chip--warn"><Icon name="chat" size={13} />{countText(t, 'posts_buyers_unpaid', unpaid)}</span>
-              : buyers ? <span className="ui-chip ui-chip--green"><Icon name="check" size={13} />{countText(t, 'posts_buyers_paid', buyers)}</span> : null}
+            {unpaid ? <span className="ui-chip ui-chip--warn"><Icon name="chat" size={13} />{plural(t, 'posts_buyers_unpaid', unpaid)}</span>
+              : buyers ? <span className="ui-chip ui-chip--green"><Icon name="check" size={13} />{plural(t, 'posts_buyers_paid', buyers)}</span> : null}
           </span>
         ) : null}
       </span>

@@ -4,9 +4,10 @@ import { Spinner } from '../../components/Spinner.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { Checkbox } from '../../components/ui/Checkbox.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
+import { plural } from '../../i18n/index.ts';
 import { repostPlan, type RepostPhoto } from '../../lib/repost.ts';
 import { byPostOrder } from '../../utils.ts';
-import { countText, thumbOf } from '../../components/ScanGallery.tsx';
+import { thumbOf } from '../../components/ScanGallery.tsx';
 import type { Area, Folder } from './area.tsx';
 
 interface Props {
@@ -87,8 +88,8 @@ export function RepostDialog({ open, onClose, area, folder }: Props) {
               />
               <p className="repost-summary" aria-live="polite">
                 {!chosen.length ? t('repost_none_chosen')
-                  : [countText(t, 'post_photos_count', chosen.length), countText(t, 'repost_left', total('left')),
-                    total('sold') ? countText(t, 'repost_sold', total('sold')) : ''].filter(Boolean).join(' · ')}
+                  : [plural(t, 'post_photos_count', chosen.length), plural(t, 'repost_left', total('left')),
+                    total('sold') ? plural(t, 'repost_sold', total('sold')) : ''].filter(Boolean).join(' · ')}
               </p>
               <fieldset className="repost-photos">
                 <legend className="ui-label">{t('repost_photos_label')}</legend>
@@ -98,7 +99,7 @@ export function RepostDialog({ open, onClose, area, folder }: Props) {
                     <label key={p.scanId} className="repost-photo">
                       <input type="checkbox" checked={!skipped.has(p.scanId)} onChange={() => toggle(p.scanId)} />
                       <img src={thumbOf(photos[at]) ?? ''} alt={t('photo_n', { n: at + 1 })} loading="lazy" />
-                      <span>{countText(t, 'repost_left', p.left)}</span>
+                      <span>{plural(t, 'repost_left', p.left)}</span>
                     </label>
                   );
                 })}

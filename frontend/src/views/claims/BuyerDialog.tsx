@@ -4,7 +4,8 @@ import { Dialog } from '../../components/ui/Dialog.tsx';
 import { SaveField } from '../../components/ui/SaveField.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import { counted, PAY_STATES, type BuyerGroup, type PayState } from './model.ts';
+import { plural } from '../../i18n/index.ts';
+import { PAY_STATES, type BuyerGroup, type PayState } from './model.ts';
 import { ClaimLines, Money, StatusLine } from './parts.tsx';
 
 interface Props {
@@ -47,7 +48,7 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, showPhoto
     >
       {g ? (
         <>
-          <p className="ui-label">{counted(t, 'claims_cards', g.cards)}</p>
+          <p className="ui-label">{plural(t, 'claims_cards', g.cards)}</p>
           <ClaimLines lines={g.lines} cents={cents} showPhotos={showPhotos} />
           <button type="button" className="ui-btn ui-btn--plain claims-add-for" onClick={onAddCard}>
             <Icon name="plus" size={16} />{t('claims_add_for', { name: g.name.trim() })}

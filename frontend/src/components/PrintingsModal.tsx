@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchPrintings } from '../api.ts';
 import type { T } from '../hooks/useLang.ts';
+import { plural } from '../i18n/index.ts';
 import type { Candidate, RelookupMsg } from '../types.ts';
 import { fmt2, smallScryfallImage } from '../utils.ts';
 import { Icon } from './Icon.tsx';
@@ -60,7 +61,7 @@ function Printings({ cardName, currentSid, onSelect, busy, msg, onFind, onUseAsI
   const status = failed ? t('cc_failed')
     : printings == null ? t('cc_loading')
       : printings.length === 0 ? t('cc_none')
-        : t(printings.length === 1 ? 'cc_count_one' : 'cc_count', { n: printings.length, ck });
+        : plural(t, 'cc_count', printings.length, { ck });
 
   return (
     <>

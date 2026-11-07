@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { relookupScanPrices, repostPost, type ExportPayload, type Health } from '../../api.ts';
 import { listingsApi, postsApi, type Post } from '../../api/checklist.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
-import { countText, summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
+import { summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
 import { readStored, writeStored } from '../../hooks/usePersistedState.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
+import { plural } from '../../i18n/index.ts';
 import { migrateAdded } from '../../lib/addedMarkers.ts';
 import type { RepostPhoto } from '../../lib/repost.ts';
 import { photoFileName } from '../../lib/photoFiles.ts';
@@ -218,7 +219,6 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     return { payload, name: photoFileName(folderTitle(batch.postId), n, count, t) };
   }, [numbers, pricingFor, scanner.batches, folderTitle, t]);
 
-
   const share = useCallback(async () => {
     if (!ready) return;
     try { await navigator.share({ files: ready.files }); setReady(null); } catch { /* cancelled: keep them ready */ }
@@ -423,11 +423,10 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   // Asks first; true once the photos are gone.
   const deletePhotos = useCallback(async (ids: string[]) => {
     if (!ids.length) return false;
-    const one = ids.length === 1;
     const ok = await dialog.confirm({
-      title: one ? t('photos_delete_title_one') : t('photos_delete_title', { n: ids.length }),
+      title: plural(t, 'photos_delete_title', ids.length),
       message: t('scans_delete_msg'),
-      okLabel: one ? t('photos_delete_ok_one') : t('photos_delete_ok', { n: ids.length }),
+      okLabel: plural(t, 'photos_delete_ok', ids.length),
       cancelLabel: t('cancel'),
       destructive: true,
     });
@@ -484,7 +483,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     const ok = await dialog.confirm({
       title: t('delete_post_title', { name: folder.title }),
       message: photos
-        ? t('delete_post_body', { photos: countText(t, 'post_photos_count', photos), cards: countText(t, 'post_cards', cards) })
+        ? t('delete_post_body', { photos: plural(t, 'post_photos_count', photos), cards: plural(t, 'post_cards', cards) })
         : t('delete_post_body_empty'),
       okLabel: t('delete_post'),
       cancelLabel: t('cancel'),
