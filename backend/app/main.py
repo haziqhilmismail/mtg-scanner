@@ -98,9 +98,6 @@ async def lifespan(_app: FastAPI):
             s.add(User(
                 id=settings.solo_user_id,
                 email=f"solo-{settings.solo_user_id}@local",
-                default_currency="RM",
-                default_mult_normal=2.8,
-                default_mult_foil=3.0,
             ))
             await s.commit()
             print(f"[startup] Seeded solo user id={settings.solo_user_id}", flush=True)
