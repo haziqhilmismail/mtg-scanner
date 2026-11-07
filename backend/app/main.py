@@ -18,7 +18,6 @@ import asyncio
 import base64
 import json
 import re
-import time
 import traceback
 import zipfile
 from contextlib import asynccontextmanager, nullcontext
@@ -670,51 +669,6 @@ async def relookup(request: Request, _: CurrentUserId, payload: str = Form(...))
     summary = to_card_summary(sf, fallback_name=name)
     ck_index = await get_ck_index()
     return enrich_with_ck(summary, ck_index)
-
-
-# In-process cache for Scryfall's slow-moving catalogs, keyed by API path.
-# /sets (~800 entries) changes only when new sets release; /catalog/card-names
-# (~30k strings) only when new cards are spoiled — long TTLs are fine.
-_SCRYFALL_CACHE: dict[str, tuple[float, list]] = {}
-
-
-async def _scryfall_data(path: str, ttl: float) -> list:
-    fetched_at, cached = _SCRYFALL_CACHE.get(path, (0.0, []))
-    if cached and time.time() - fetched_at < ttl:
-        return cached
-    timeout = aiohttp.ClientTimeout(total=20)
-    async with aiohttp.ClientSession(headers=SCRYFALL_HEADERS, timeout=timeout) as session:
-        async with session.get("https://api.scryfall.com" + path) as resp:
-            if resp.status != 200:
-                raise HTTPException(502, f"Scryfall {path} failed")
-            data = (await resp.json()).get("data") or []
-    _SCRYFALL_CACHE[path] = (time.time(), data)
-    return data
-
-
-@app.get("/api/sets")
-@limiter.limit("30/minute")
-async def list_scryfall_sets(request: Request):
-    """Return a slim {code, name, released_at, set_type} list for the set picker.
-    Cached aggressively — Scryfall doesn't want this called per keystroke."""
-    return [
-        {
-            "code": (s.get("code") or "").lower(),
-            "name": s.get("name") or "",
-            "released_at": s.get("released_at"),
-            "set_type": s.get("set_type"),
-            "icon_svg_uri": s.get("icon_svg_uri"),
-        }
-        for s in await _scryfall_data("/sets", ttl=6 * 60 * 60)
-    ]
-
-
-@app.get("/api/card-names")
-@limiter.limit("30/minute")
-async def list_card_names(request: Request):
-    """Scryfall's full English card-name catalog. Cached for 24h since this is
-    used by the new-stock form's name autocomplete on every keystroke."""
-    return await _scryfall_data("/catalog/card-names", ttl=24 * 60 * 60)
 
 
 @app.post("/api/printings")
