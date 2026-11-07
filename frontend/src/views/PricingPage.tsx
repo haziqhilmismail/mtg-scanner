@@ -8,7 +8,7 @@ import { Select, TextField } from '../components/ui/Field.tsx';
 import { RadioCards } from '../components/ui/RadioCards.tsx';
 import { StickyBar } from '../components/ui/StickyBar.tsx';
 import { useToast } from '../components/ui/Toast.tsx';
-import type { T } from '../hooks/useLang.ts';
+import type { Key, T } from '../hooks/useLang.ts';
 import { useNavStore } from '../hooks/useNav.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import { formulaLine, priceField, pricingSummary, roundingKey, ROUNDINGS, roundingText, samePricing, type PriceField } from '../lib/pricing.ts';
@@ -43,7 +43,7 @@ export function PricingPage({ postId, postTitle, crumbs, parent, pricing, t }: P
   );
 }
 
-const SIZES = [['0.85', 'font_scale_small'], ['1', 'font_scale_default'], ['1.25', 'font_scale_large'], ['1.5', 'font_scale_xlarge']];
+const SIZES: Array<[string, Key]> = [['0.85', 'font_scale_small'], ['1', 'font_scale_default'], ['1.25', 'font_scale_large'], ['1.5', 'font_scale_xlarge']];
 const TEXT_FIELDS: PriceField[] = ['multNormal', 'multFoil', 'minPrice'];
 
 function PricingForm({ postId, parent, pricing, t }: Omit<Props, 'postTitle' | 'crumbs'>) {

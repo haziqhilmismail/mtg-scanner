@@ -141,7 +141,7 @@ export const en = {
   posts_buyers_paid: 'All {n} buyers paid',
 };
 
-export const ms = {
+export const ms: Record<keyof typeof en, string> = {
   new_post: 'Post baharu',
   new_post_kind: 'Jenis post apa?',
   new_post_how: 'Cara harga dikira',

@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Payment } from '../../api.ts';
 import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
-import { translate } from '../../i18n/index.ts';
+import { translate, type T } from '../../i18n/index.ts';
 import {
   buyerGroups, buyerMessage, claimedCounts, claimTotals, payState, priceFormula, rm, sortGroups, stampsFor,
   type BuyerGroup, type Line,
 } from './model.ts';
 
-const en = (k: string, v?: Record<string, string | number>) => translate('en', k, v);
-const ms = (k: string, v?: Record<string, string | number>) => translate('ms', k, v);
+const en: T = (k, v) => translate('en', k, v);
+const ms: T = (k, v) => translate('ms', k, v);
 const AT = '2026-10-22T08:00:00Z';
 const NOW = '2026-10-24T09:30:00Z';
 

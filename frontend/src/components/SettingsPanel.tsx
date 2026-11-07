@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { T } from '../hooks/useLang.ts';
+import type { Key, T } from '../hooks/useLang.ts';
 import { pricingSummary } from '../lib/pricing.ts';
 import type { Route } from '../routes.ts';
 import type { Settings } from '../types.ts';
@@ -74,7 +74,7 @@ export function PricingExample({ settings, t, caption: showCaption = true }: { s
     const [before, after] = t('pricing_live_today', { price: '\u0000', usd: r.usd.toFixed(2) }).split('\u0000');
     return <>{before}<strong>≈{formatMyr(r.price, settings)}</strong>{after}</>;
   };
-  const steps: Array<[string, string]> = [['pricing_step_post', 'pricing_step_post_sub'], ['pricing_step_claim', 'pricing_step_claim_sub'], ['pricing_step_send', 'pricing_step_send_sub']];
+  const steps: Array<[Key, Key]> = [['pricing_step_post', 'pricing_step_post_sub'], ['pricing_step_claim', 'pricing_step_claim_sub'], ['pricing_step_send', 'pricing_step_send_sub']];
   return (
     <>
       <div className="pricing-example">

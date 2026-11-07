@@ -13,16 +13,24 @@ import * as shell from './shell.ts';
 
 type Vars = Record<string, string | number>;
 
-// A translate function bound to the current language (see useLang).
-export type T = (k: string, vars?: Vars) => string;
+const en = { ...shell.en, ...scanner.en, ...posts.en, ...photo.en, ...claims.en, ...settings.en, ...profile.en, ...login.en };
 
-const STRINGS: Record<Lang, Record<string, string>> = {
-  en: { ...shell.en, ...scanner.en, ...posts.en, ...photo.en, ...claims.en, ...settings.en, ...profile.en, ...login.en },
+// Every message key; a typo or a deleted key is a type error at the call.
+export type Key = keyof typeof en;
+
+// The keys of a count in words, each with its "_one" twin: "3 cards", "1 card".
+export type Counted = { [K in Key]: `${K}_one` extends Key ? K : never }[Key];
+
+// A translate function bound to the current language (see useLang).
+export type T = (k: Key, vars?: Vars) => string;
+
+const STRINGS: Record<Lang, Record<Key, string>> = {
+  en,
   ms: { ...shell.ms, ...scanner.ms, ...posts.ms, ...photo.ms, ...claims.ms, ...settings.ms, ...profile.ms, ...login.ms },
 };
 
-export function translate(lang: Lang, key: string, vars?: Vars): string {
-  let s = STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? key;
+export function translate(lang: Lang, key: Key, vars?: Vars): string {
+  let s: string = STRINGS[lang][key] ?? key;
   if (vars) {
     for (const k of Object.keys(vars)) {
       s = s.split('{' + k + '}').join(String(vars[k]));

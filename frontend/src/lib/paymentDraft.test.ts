@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Payment } from '../api.ts';
-import { translate } from '../i18n/index.ts';
+import { translate, type T } from '../i18n/index.ts';
 import { paymentLines } from '../utils.ts';
 import { changesOf, draftOf, NO_PAYMENT, previewOf, type PaymentDraft } from './paymentDraft.ts';
 
-const t = (k: string, v?: Record<string, string | number>) => translate('en', k, v);
+const t: T = (k, v) => translate('en', k, v);
 const SAVED: Payment = { bank_name: 'Maybank', bank_account_number: '0000 0000 0000', bank_account_holder: 'Your name', payment_note: '', qr_version: '17' };
 const edit = (fields: Partial<Payment>, qr: PaymentDraft['qr'] = { kind: 'saved' }): PaymentDraft => ({ fields: { ...draftOf(SAVED).fields, ...fields }, qr });
 

@@ -125,7 +125,7 @@ export const en = {
   bulk_add_failed: 'Cards not added: {n}. Check your connection and add them again.',
 };
 
-export const ms = {
+export const ms: Record<keyof typeof en, string> = {
   scan_progress: '{done} daripada {total} diimbas',
   scan_no_credits: 'Tidak diimbas: imbasan habis. Masukkan baucar atau tunggu imbasan percuma seterusnya, kemudian cuba lagi.',
   scan_retry: 'Cuba lagi',

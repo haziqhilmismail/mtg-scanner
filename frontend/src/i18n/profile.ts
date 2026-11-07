@@ -36,7 +36,7 @@ export const en = {
   feedback_count: '{n} / 2000',
 };
 
-export const ms = {
+export const ms: Record<keyof typeof en, string> = {
   profile_account: 'Akaun',
   profile_seller_name: 'Nama penjual',
   profile_seller_name_save: 'Simpan nama',

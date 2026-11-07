@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { translate } from '../i18n/index.ts';
+import { translate, type T } from '../i18n/index.ts';
 import { DEFAULT_SETTINGS } from '../types.ts';
 import {
   defaultToUpload, formulaLine, legacyPricing, priceField, pricingKnown, pricingSummary, resolvePricing, ROUNDINGS, roundingKey,
   roundingText, samePricing, savePricing,
 } from './pricing.ts';
 
-const en = (k: string, v?: Record<string, string | number>) => translate('en', k, v);
-const ms = (k: string, v?: Record<string, string | number>) => translate('ms', k, v);
+const en: T = (k, v) => translate('en', k, v);
+const ms: T = (k, v) => translate('ms', k, v);
 
 const userDefault = { ...DEFAULT_SETTINGS, multNormal: 3.5 };
 const post = { ...DEFAULT_SETTINGS, multNormal: 4 };

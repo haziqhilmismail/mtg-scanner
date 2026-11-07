@@ -471,7 +471,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
                     label: <>{t(s === 'all' ? 'claims_filter_all' : `claims_state_${s}`)} <span className="claims-filter-n">{counts[s].toLocaleString('en-MY')}</span></>,
                   }))}
                 />
-                {shown.length ? (
+                {shown.length || filter === 'all' ? (
                   <div className="claims-buyers">
                     {shown.map(g => (
                       <BuyerCard

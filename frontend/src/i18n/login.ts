@@ -53,7 +53,7 @@ export const en = {
   lp_step_collect_body: 'Mark who paid, and print a slip for each buyer to leave with their cards at the drop-off point.',
 };
 
-export const ms = {
+export const ms: Record<keyof typeof en, string> = {
   claims_demo_in: 'Tangkap layar komen anda',
   claims_demo_in_alt: 'Foto Facebook kad untuk dijual, dengan komen yang menuntut kad. Nama dikaburkan.',
   claims_demo_out: 'Apa yang aplikasi jumpa',

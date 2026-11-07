@@ -7,7 +7,7 @@ import type { Batch, Settings } from '../types.ts';
 import { computeCardData, formatMyr, notAdded } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { Link } from './Link.tsx';
-import type { T } from '../hooks/useLang.ts';
+import type { Counted, T } from '../hooks/useLang.ts';
 
 export interface BatchSummary {
   batch: Batch;
@@ -55,7 +55,7 @@ export function Money({ amount, settings }: { amount: number; settings: Settings
 }
 
 // A count in words, from a key and its "_one" twin: "1 photo", "3 photos".
-export const countText = (t: T, key: string, n: number) => t(n === 1 ? `${key}_one` : key, { n });
+export const countText = (t: T, key: Counted, n: number) => t(n === 1 ? `${key}_one` : key, { n });
 
 // A post's first photos in a square, the fourth cell saying how many more.
 export function Mosaic({ srcs, photos }: { srcs: string[]; photos: number }) {

@@ -14,6 +14,10 @@ interface Props {
 }
 
 // One field, one job: type a voucher code, get more claim reads.
+// The reasons the server gives for refusing a code; each has its own message.
+const VOUCHER_ERRORS = ['invalid', 'expired', 'used_up', 'already_redeemed', 'rate_limited'] as const;
+const isVoucherError = (code?: string): code is (typeof VOUCHER_ERRORS)[number] => VOUCHER_ERRORS.includes(code as never);
+
 export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
   const formId = useId();
   const [code, setCode] = useState('');
@@ -38,7 +42,7 @@ export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
       onRedeemed(res.credits);
     } catch (e) {
       const reason = (e as Error & { code?: string }).code;
-      setError(t(reason ? `voucher_err_${reason}` : 'voucher_err_network'));
+      setError(t(isVoucherError(reason) ? `voucher_err_${reason}` : 'voucher_err_network'));
     } finally {
       setSending(false);
     }

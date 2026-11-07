@@ -45,7 +45,7 @@ export const en = {
   alert_error_title: 'Error',
 };
 
-export const ms = {
+export const ms: Record<keyof typeof en, string> = {
   app_title: 'MTG Pasar Malam',
   credits_unlimited: 'Bacaan tuntutan tanpa had',
   credits_free_left: '{n} daripada {limit} bacaan tuntutan percuma tinggal',

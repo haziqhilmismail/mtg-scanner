@@ -1,3 +1,4 @@
+import type { Key } from '../i18n/index.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMe, saveDefaultPricing } from '../api/auth.ts';
 import { postsApi, type PostCreatePayload } from '../api/checklist.ts';
@@ -25,7 +26,7 @@ export function usePricing() {
   const [state, setState] = useState<PricingState>(() => ({ userDefault: readLegacy(), defaultKnown: false, posts: {} }));
   const stateRef = useRef(state);
   const set = useCallback((next: PricingState) => { stateRef.current = next; setState(next); }, []);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Key | null>(null);
 
   // A clock ticked by every request and every save that settles. Per target,
   // the tick since which the server has had what this page shows (Infinity

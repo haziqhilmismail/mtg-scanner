@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import type { T } from '../hooks/useLang.ts';
+import type { Key, T } from '../hooks/useLang.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
 import { bboxKey, canRetry, computeCardData, formatMyr, notAdded } from '../utils.ts';
@@ -108,7 +108,7 @@ export function ActiveBatchView({
 
   // The post's name shown as a name: posts are often called by a date and
   // time, which would read as part of the sentence.
-  const withPost = (key: string, vars: Record<string, string> = {}) => {
+  const withPost = (key: Key, vars: Record<string, string> = {}) => {
     const [before, after = ''] = t(key, { ...vars, post: '\u0000' }).split('\u0000');
     return <>{before}<strong className="photo-post-name">{postTitle ?? t('scans_unfiled')}</strong>{after}</>;
   };

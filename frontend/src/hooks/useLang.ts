@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext } from 'react';
-import { translate, type T } from '../i18n/index.ts';
+import { translate, type Counted, type Key, type T } from '../i18n/index.ts';
 import { usePersistedState } from './usePersistedState.ts';
 import type { Lang } from '../types.ts';
 
-export type { T };
+export type { Counted, Key, T };
 
 export function useLang() {
   const [lang, setLang] = usePersistedState<Lang>('mtg.lang', 'en');

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { translate } from '../i18n/index.ts';
+import { translate, type T } from '../i18n/index.ts';
 import { fileSafe, photoFileName } from './photoFiles.ts';
 
-const en = (k: string, v?: Record<string, string | number>) => translate('en', k, v);
+const en: T = (k, v) => translate('en', k, v);
 
 test('a labelled photo is named for its post and its place in it, padded so the files sort in post order', () => {
   assert.equal(photoFileName('Friday Post', 7, 47, en), 'Friday Post - Photo 07.jpg');
