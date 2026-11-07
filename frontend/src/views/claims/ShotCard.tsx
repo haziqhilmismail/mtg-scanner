@@ -3,9 +3,9 @@ import { hideBroken, photoThumb, type Photo } from '../../components/ClaimPicker
 import { Icon, type IconName } from '../../components/Icon.tsx';
 import { TextArea } from '../../components/ui/Field.tsx';
 import { useT } from '../../hooks/useLang.ts';
+import { plural } from '../../i18n/index.ts';
 import type { SortedBy } from '../../utils.ts';
 import { commentRows } from './comments.ts';
-import { counted } from './model.ts';
 
 // One comment screenshot in Add comments.
 export interface Shot {
@@ -60,7 +60,7 @@ export function ShotCard({ shot, photos, onChange, onRemove, onView, onPostPhoto
             <p className={`claims-shot-status ${TONE[shot.by].tone}`}><Icon name={TONE[shot.by].icon} size={15} />{status}</p>
           ) : null}
           <p className={rows.length ? 'claims-shot-count' : 'claims-shot-count is-check'}>
-            {rows.length ? counted(t, 'claims_read_count', rows.length) : t('claims_read_none')}
+            {rows.length ? plural(t, 'claims_read_count', rows.length) : t('claims_read_none')}
           </p>
         </div>
         <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label={t('claims_remove_shot')} onClick={onRemove}>

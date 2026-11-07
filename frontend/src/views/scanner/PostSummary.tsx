@@ -1,6 +1,6 @@
 import { Icon } from '../../components/Icon.tsx';
-import { countText, Money, waits } from '../../components/ScanGallery.tsx';
-import type { Counted } from '../../i18n/index.ts';
+import { Money, waits } from '../../components/ScanGallery.tsx';
+import { plural, type Counted } from '../../i18n/index.ts';
 import type { Area, Folder } from './area.tsx';
 import type { ExportJob } from './exportFiles.ts';
 import type { usePostExport } from './usePostExport.ts';
@@ -34,7 +34,7 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
   const finish = async () => {
     if (live || await explainFinish()) await runFinishAll(folder.key, waiting.map(s => s.batch), folder.postId);
   };
-  const n = (key: Counted, count: number) => countText(t, key, count);
+  const n = (key: Counted, count: number) => plural(t, key, count);
   const shareLine = !jobs.length ? (!live && saved.length ? t('post_share_none') : '')
     : !live && jobs.length < saved.length ? t('post_share_line_some', { n: jobs.length })
     : n(live ? 'post_share_line_live' : 'post_share_line_photo', jobs.length);

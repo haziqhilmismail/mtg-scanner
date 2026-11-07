@@ -5,7 +5,8 @@ import { Icon } from '../../components/Icon.tsx';
 import { useImageZoom } from '../../components/ImageZoomProvider.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import { counted, formulaText, rm, type BuyerGroup, type Line } from './model.ts';
+import { plural } from '../../i18n/index.ts';
+import { formulaText, rm, type BuyerGroup, type Line } from './model.ts';
 
 // An amount in RM; a live price not sent yet carries ≈ (DESIGN.md section 7).
 export function Money({ value, live = false, cents }: { value: number; live?: boolean; cents: boolean }) {
@@ -18,7 +19,7 @@ export function StatusLine({ group }: { group: BuyerGroup }) {
   const words = [
     t(`claims_state_${group.state}`),
     group.droppedOff ? t('claims_dropped_off') : '',
-    counted(t, 'claims_cards', group.cards),
+    plural(t, 'claims_cards', group.cards),
   ].filter(Boolean).join(' · ');
   return <span className="claims-status"><span className={`claims-dot is-${group.state}`} aria-hidden="true" />{words}</span>;
 }

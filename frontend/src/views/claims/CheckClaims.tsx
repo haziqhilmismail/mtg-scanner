@@ -4,8 +4,9 @@ import { Icon } from '../../components/Icon.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { Stepper } from '../../components/ui/Stepper.tsx';
 import { useT } from '../../hooks/useLang.ts';
+import { plural } from '../../i18n/index.ts';
 import { spelledDifferently } from './comments.ts';
-import { counted, rm } from './model.ts';
+import { rm } from './model.ts';
 
 // hint: the photo the comment is about, when known, so its cards come first.
 export interface DraftItem { key: string | null; qty: number; said: string; unclear: string; hint: number | null }
@@ -168,7 +169,7 @@ export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, ce
         <Icon name="plus" size={18} />{t('claims_add_another')}
       </button>
       <datalist id={namesId}>{buyerNames.map(n => <option key={n} value={n} />)}</datalist>
-      {skipped.length ? <p className="claims-foot-note">{counted(t, 'claims_skipped', skipped.length, { lines: skipped.map(quoteOf).join(', ') })}</p> : null}
+      {skipped.length ? <p className="claims-foot-note">{plural(t, 'claims_skipped', skipped.length, { lines: skipped.map(quoteOf).join(', ') })}</p> : null}
       {problem ? <p className="claims-note">{t(problem === 'unresolved' ? 'claims_unresolved' : 'claims_unpriced')}</p> : null}
     </>
   );

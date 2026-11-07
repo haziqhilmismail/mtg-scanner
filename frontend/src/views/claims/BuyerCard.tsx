@@ -1,6 +1,7 @@
 import { Icon } from '../../components/Icon.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import { counted, type BuyerGroup, type StatusMove } from './model.ts';
+import { plural } from '../../i18n/index.ts';
+import type { BuyerGroup, StatusMove } from './model.ts';
 import { ClaimLines, Money, StatusLine } from './parts.tsx';
 
 // Cards shown on a buyer card; the rest open with the buyer, so no buyer card
@@ -39,7 +40,7 @@ export function BuyerCard({ group: g, isNew, copied, cents, showPhotos, qrLabel,
       </div>
       <ClaimLines lines={g.lines.slice(0, SHOWN)} cents={cents} showPhotos={showPhotos} />
       {more > 0 ? (
-        <button type="button" className="ui-btn ui-btn--plain claims-buyer-more" aria-haspopup="dialog" onClick={onOpen}>{counted(t, 'claims_see_more', more)}</button>
+        <button type="button" className="ui-btn ui-btn--plain claims-buyer-more" aria-haspopup="dialog" onClick={onOpen}>{plural(t, 'claims_see_more', more)}</button>
       ) : null}
       {g.state === 'done' ? (
         <div className="claims-buyer-actions claims-buyer-done">

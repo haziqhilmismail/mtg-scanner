@@ -1,8 +1,9 @@
 import { useId, useState } from 'react';
 import { dropoffSlipsPdf } from '../api.ts';
 import { useT } from '../hooks/useLang.ts';
+import { plural } from '../i18n/index.ts';
 import { downloadBlob } from '../utils.ts';
-import { counted } from '../views/claims/model.ts';
+
 import { Icon } from './Icon.tsx';
 import { Dialog } from './ui/Dialog.tsx';
 import { useToast } from './ui/Toast.tsx';
@@ -35,7 +36,7 @@ export function SlipsSheet({ open, onClose, buyers, postTitle }: Props) {
   const allOn = chosen.length === buyers.length;
   const pages = Math.ceil(Math.max(1, chosen.length) / 10);
   const label = chosen.length === 0 ? t('slips_make_blank')
-    : pages > 1 ? t('slips_make_pages', { n: chosen.length, pages }) : counted(t, 'slips_make', chosen.length);
+    : pages > 1 ? t('slips_make_pages', { n: chosen.length, pages }) : plural(t, 'slips_make', chosen.length);
   const toggle = (id: number, on: boolean) => setPicked(prev => {
     const next = new Set(prev);
     if (on) next.add(id); else next.delete(id);

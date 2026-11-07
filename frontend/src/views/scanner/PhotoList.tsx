@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
-import { countText, hideBroken, Money, thumbOf, type BatchSummary } from '../../components/ScanGallery.tsx';
+import { hideBroken, Money, thumbOf, type BatchSummary } from '../../components/ScanGallery.tsx';
 import type { T } from '../../hooks/useLang.ts';
+import { plural } from '../../i18n/index.ts';
 import type { Route } from '../../routes.ts';
 import type { Settings } from '../../types.ts';
 import { canRetry } from '../../utils.ts';
@@ -55,7 +56,7 @@ export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute, 
         if (b.status === 'scanning') meta = t('posts_scanning');
         else if (b.outOfCredits) meta = t('photo_no_credits');
         else if (b.status === 'error') meta = t('photo_failed');
-        else meta = <>{countText(t, 'post_cards', s.cards)}{s.total > 0 ? <> · <Money amount={s.total} settings={settings} /></> : null}</>;
+        else meta = <>{plural(t, 'post_cards', s.cards)}{s.total > 0 ? <> · <Money amount={s.total} settings={settings} /></> : null}</>;
         const src = thumbOf(b);
         const body = (
           <>

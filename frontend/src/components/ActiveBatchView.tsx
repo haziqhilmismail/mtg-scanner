@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { Key, T } from '../hooks/useLang.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
+import { plural } from '../i18n/index.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
 import { bboxKey, canRetry, computeCardData, formatMyr, notAdded } from '../utils.ts';
 import { AdjustPanel, type PriceEdit } from './AdjustPanel.tsx';
@@ -58,7 +59,7 @@ export function ActiveBatchView({
   // card null: the whole photo.
   const [view, setView] = useState<{ card: number | null; side: 0 | 1; open: boolean } | null>(null);
   const cardData = useMemo(() => computeCardData(batch, settings), [batch, settings]);
-  const cardsLabel = (n: number) => (n === 1 ? t('photo_card_one') : t('photo_cards', { n }));
+  const cardsLabel = (n: number) => plural(t, 'photo_cards', n);
 
   if (batch.status === 'scanning' || batch.status === 'error' || !batch.response) {
     const failed = scanner.batches.filter(canRetry);
@@ -173,9 +174,9 @@ export function ActiveBatchView({
           <Icon name="addList" size={18} />{busy ? t('finish_busy') : t('live_add_all')}
         </button>
       ) : visible.length === 0 ? null : unpricedOut > 0 ? (
-        <p className="photo-actions-note">{t(unpricedOut === 1 ? 'photo_unpriced_out_one' : 'photo_unpriced_out', { n: unpricedOut })}</p>
+        <p className="photo-actions-note">{plural(t, 'photo_unpriced_out', unpricedOut)}</p>
       ) : (
-        <p className="photo-done" role={top ? 'status' : undefined}><Icon name="check" size={18} />{t(inPost === 1 ? 'photo_all_in_one' : 'photo_all_in', { n: inPost })}</p>
+        <p className="photo-done" role={top ? 'status' : undefined}><Icon name="check" size={18} />{plural(t, 'photo_all_in', inPost)}</p>
       );
       row = <>{add}{download(pending === 0)}{refreshButton}</>;
     } else if (locked) {
@@ -268,7 +269,7 @@ export function ActiveBatchView({
             <div className="photo-total">
               <span className="photo-total-label">{t('total')} · {cardsLabel(totalQty)}</span>
               <span className="photo-total-amount" aria-live="polite">{approxTotal ? <span className="photo-approx">≈</span> : null}{formatMyr(total, settings)}</span>
-              {unpriced ? <span className="photo-total-note">{t(unpriced === 1 ? 'photo_total_unpriced_one' : 'photo_total_unpriced', { n: unpriced })}</span> : null}
+              {unpriced ? <span className="photo-total-note">{plural(t, 'photo_total_unpriced', unpriced)}</span> : null}
             </div>
           ) : null}
           {locked || visible.length === 0 ? null : (
