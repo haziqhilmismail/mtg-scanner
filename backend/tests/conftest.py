@@ -31,8 +31,9 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 import app.main as main  # noqa: E402
 from app.db import async_session_factory  # noqa: E402
 from app.models import User  # noqa: E402
+from app.schemas.scan import Detection, Guess  # noqa: E402
+from app.services import scans  # noqa: E402
 from app.services.auth_service import issue_session_token  # noqa: E402
-from app.services.gemini_scanner import CardDetection  # noqa: E402
 
 LIMIT = 10
 _emails = iter(f"user{i}@example.com" for i in range(1000))
@@ -83,29 +84,54 @@ class _FakeCK:
                 "url_normal": "", "url_foil": ""}
 
 
+def sol_ring(**over) -> Detection:
+    """A Gemini-style detection of Sol Ring, boxed in the 400x300 test photo."""
+    return Detection(**{
+        "guess": Guess(name="Sol Ring", set_code="cmm", collector_number="1"),
+        "bbox": (40, 30, 120, 120), "corners": [[40, 30], [160, 30], [160, 150], [40, 150]],
+        "bbox_source": "gemini", "name_source": "gemini", **over,
+    })
+
+
+class FakeScanner:
+    """Stands in for the scanner behind /api/scan (`client.scanner`). A test
+    sets `cards`, `fail` or `costs_credit`; `calls` counts the scans run."""
+    model = "fake"
+
+    def __init__(self):
+        self.calls, self.fail, self.costs_credit = 0, False, True
+        self.cards = [sol_ring()]
+
+    def load(self):
+        pass
+
+    def ready(self):
+        return None
+
+    async def detect(self, pil, jpeg):
+        self.calls += 1
+        if self.fail:
+            raise RuntimeError("gemini is down")
+        return self.cards
+
+
 @pytest.fixture()
 def client(monkeypatch):
-    calls = {"gemini": 0, "fail": False}
-
-    def fake_scan(image_bytes, *a, **k):
-        calls["gemini"] += 1
-        if calls["fail"]:
-            raise RuntimeError("gemini is down")
-        return [CardDetection(name="Sol Ring", set_code="cmm", collector_number="1",
-                              is_foil=False, quantity=1, box_2d=[100, 100, 500, 400])]
-
-    async def fake_lookup(dets):
-        return [{"scryfall_id": "abc", "name": d.name, "set": d.set_code} for d in dets]
+    async def fake_lookup(guesses):
+        # Scryfall knows every named card; a nameless guess gets the "no match" candidate.
+        return [{"scryfall_id": "abc", "name": g.name, "set": g.set_code} if g.name else None for g in guesses]
 
     async def fake_ck():
         return _FakeCK()
 
-    monkeypatch.setattr(main, "scan_image", fake_scan)
-    monkeypatch.setattr(main, "lookup_all", fake_lookup)
+    scanner = FakeScanner()
+    monkeypatch.setattr(scans, "scanner", scanner)
+    monkeypatch.setattr(scans, "lookup_all", fake_lookup)
+    monkeypatch.setattr(scans, "get_ck_index", fake_ck)
     monkeypatch.setattr(main, "get_ck_index", fake_ck)
     monkeypatch.setattr(main.limiter, "enabled", False)
     with TestClient(main.app) as c:
-        c.calls = calls
+        c.scanner = scanner
         yield c
 
 

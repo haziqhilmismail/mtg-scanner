@@ -21,14 +21,13 @@ local_scan.py for the FastAPI glue); the code default is Gemini.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from pydantic import BaseModel
 
+from ..schemas.scan import Detection, Guess
 from .card_crop import warp_quad
 from .card_detector import CardDetector
 from .card_embedder import CardIndex, Embedder, Printing, normalize_name
@@ -64,33 +63,26 @@ TITLE_MAX_SCORE_GAP = 0.35
 PRINTING_TIE_MARGIN = 0.04
 
 
-class CardDetection(BaseModel):
-    """One identified card. Field names are the contract with the frontend
-    (which reads this under each card's `gemini` key) and with
-    scryfall_lookup.lookup_all — empty string means "unknown"."""
-
-    name: str
-    set_code: str  # Scryfall set code, lowercase
-    collector_number: str
-    is_foil: bool
-    quantity: int  # always 1 from the scanner; the seller sets stacks in the UI
-    scryfall_id: str = ""
-
-
-@dataclass
-class ScannedCard:
-    det: CardDetection
-    quad: np.ndarray  # (4, 2) TL, TR, BR, BL of the upright card, image pixels
-    score: float  # cosine similarity of the embedding match
-    name_source: str  # "title" (OCR'd name agreed or overruled) | "embedding"
-    version_source: str  # "ocr" | "embedding"
-
-    @property
-    def bbox(self) -> tuple[int, int, int, int]:
-        """Axis-aligned (x, y, w, h) around the quad."""
-        x0, y0 = np.floor(self.quad.min(axis=0))
-        x1, y1 = np.ceil(self.quad.max(axis=0))
-        return int(x0), int(y0), int(x1 - x0), int(y1 - y0)
+def _detection(printing, quad: np.ndarray, is_foil: bool, name_source: str, version_source: str) -> Detection:
+    """A `Detection` for an upright card quad (TL, TR, BR, BL, image pixels)."""
+    x0, y0 = np.floor(quad.min(axis=0))
+    x1, y1 = np.ceil(quad.max(axis=0))
+    return Detection(
+        guess=Guess(
+            name=printing.name,
+            set_code=printing.set,
+            collector_number=printing.collector_number,
+            is_foil=is_foil,
+            quantity=1,
+            scryfall_id=printing.scryfall_id,
+        ),
+        bbox=(int(x0), int(y0), int(x1 - x0), int(y1 - y0)),
+        corners=[[int(round(px)), int(round(py))] for px, py in quad],
+        bbox_source="detector",
+        name_source=name_source,
+        confidence=printing.score,
+        version_source=version_source,
+    )
 
 
 def _candidate_quads(quad: np.ndarray) -> list[np.ndarray]:
@@ -226,17 +218,17 @@ def _overlap_of_smaller(a: tuple[int, int, int, int], b: tuple[int, int, int, in
     return iw * ih / max(1, min(a[2] * a[3], b[2] * b[3]))
 
 
-def _merge_duplicates(cards: list[ScannedCard]) -> list[ScannedCard]:
+def _merge_duplicates(cards: list[Detection]) -> list[Detection]:
     """Collapse same-name detections that overlap by more than half of the
     smaller box — the detector occasionally boxes a stack and the card on top
     of it separately. The better match survives with the larger quantity."""
-    out: list[ScannedCard] = []
+    out: list[Detection] = []
     for card in cards:
         for i, kept in enumerate(out):
-            if (kept.det.name == card.det.name
+            if (kept.guess.name == card.guess.name
                     and _overlap_of_smaller(kept.bbox, card.bbox) >= 0.5):
-                winner, loser = (kept, card) if kept.score >= card.score else (card, kept)
-                winner.det.quantity = max(winner.det.quantity, loser.det.quantity)
+                winner, loser = (kept, card) if kept.confidence >= card.confidence else (card, kept)
+                winner.guess.quantity = max(winner.guess.quantity, loser.guess.quantity)
                 out[i] = winner
                 break
         else:
@@ -251,7 +243,7 @@ class CardScanner:
         self.index = CardIndex(index_path)
         self.reader = CollectorReader()
 
-    def scan(self, img: Image.Image) -> list[ScannedCard]:
+    def scan(self, img: Image.Image) -> list[Detection]:
         """Find and identify every card in an RGB photo, in reading order."""
         detections = self.detector.detect(img)
         cards = self._identify(img, [_candidate_quads(d.quad) for d in detections])
@@ -259,14 +251,14 @@ class CardScanner:
 
     def _identify(
         self, img: Image.Image, hypotheses: list[list[np.ndarray]],
-    ) -> list[ScannedCard | None]:
+    ) -> list[Detection | None]:
         flat = [q for group in hypotheses for q in group]
         if not flat:
             return []
         vectors = self.embedder.embed_images([warp_quad(img, q) for q in flat])
         scores = self.index.scores(vectors)
 
-        out: list[ScannedCard | None] = []
+        out: list[Detection | None] = []
         start = 0
         for group in hypotheses:
             group_scores = scores[start:start + len(group)]
@@ -314,18 +306,5 @@ class CardScanner:
             else:
                 is_foil = False
 
-            out.append(ScannedCard(
-                det=CardDetection(
-                    name=printing.name,
-                    set_code=printing.set,
-                    collector_number=printing.collector_number,
-                    is_foil=is_foil,
-                    quantity=1,
-                    scryfall_id=printing.scryfall_id,
-                ),
-                quad=quad,
-                score=printing.score,
-                name_source=name_source,
-                version_source=version_source,
-            ))
+            out.append(_detection(printing, quad, is_foil, name_source, version_source))
         return out

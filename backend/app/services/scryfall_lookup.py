@@ -19,6 +19,8 @@ import urllib.parse
 
 import aiohttp
 
+from ..schemas.scan import Guess
+
 USER_AGENT = "MTGPasarMalamScanner/2.0"
 HEADERS = {
     "User-Agent": USER_AGENT,
@@ -69,7 +71,7 @@ async def _fetch_json(session, url, params=None):
     return None
 
 
-async def _lookup_one(session, sem, detection):
+async def _lookup_one(session, sem, detection: Guess):
     async with sem:
         await asyncio.sleep(DELAY)
         name = (detection.name or "").strip()
@@ -79,7 +81,7 @@ async def _lookup_one(session, sem, detection):
         # Strategy 0: the scanner matched a specific printing in its index, so
         # fetch exactly that card. The strategies below only run if the id is
         # missing or Scryfall no longer knows it (stale index).
-        scryfall_id = (getattr(detection, "scryfall_id", "") or "").strip()
+        scryfall_id = detection.scryfall_id.strip()
         if scryfall_id:
             url = f"https://api.scryfall.com/cards/{urllib.parse.quote(scryfall_id)}"
             data = await _fetch_json(session, url)
@@ -129,7 +131,7 @@ async def _lookup_one(session, sem, detection):
         return None
 
 
-async def lookup_all(detections) -> list[dict | None]:
+async def lookup_all(detections: list[Guess]) -> list[dict | None]:
     """Look up every detection. Returns a list of summaries (or None) aligned with input."""
     if not detections:
         return []

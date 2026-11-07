@@ -239,39 +239,35 @@ def test_scan_spends_a_credit_and_refuses_when_out(client):
 
     for _ in range(LIMIT - 1):
         assert _scan(client, token).status_code == 200
-    gemini_calls = client.calls["gemini"]
+    scans_run = client.scanner.calls
 
     refused = _scan(client, token)
     assert refused.status_code == 402
     status = client.get("/api/credits", headers=headers).json()
     assert refused.json() == {"detail": {"code": "out_of_credits", "credits": status}}
     assert status["remaining"] == 0
-    assert client.calls["gemini"] == gemini_calls        # refused before any Gemini call
+    assert client.scanner.calls == scans_run        # refused before the scanner ran
 
     # Deleting a scan does not hand the credit back.
     client.delete(f"/api/scans/{first.json()['scan_id']}", headers=headers)
     assert _scan(client, token).status_code == 402
 
 
-def test_local_scan_is_free_even_when_out_of_credits(client, monkeypatch):
+def test_a_free_scanner_scans_even_when_out_of_credits(client):
     uid = run(new_user())
     run(add_events(uid, days_ago=1, n=LIMIT))
     token = issue_session_token(uid)
-
-    async def fake_local(pil):
-        return []
-    monkeypatch.setattr(main.settings, "scanner_backend", "local")
-    monkeypatch.setattr(main.local_scan, "scan_cards", fake_local)
+    client.scanner.costs_credit = False  # the local scanner
 
     ok = _scan(client, token)
     assert ok.status_code == 200 and ok.json()["credits"]["remaining"] == 0
-    assert client.calls["gemini"] == 0
+    assert client.scanner.calls == 1
 
 
 def test_failed_scan_costs_nothing(client):
     uid = run(new_user())
     token = issue_session_token(uid)
-    client.calls["fail"] = True
+    client.scanner.fail = True
     assert _scan(client, token).status_code == 500
     bad = client.post("/api/scan", files={"image": ("a.jpg", b"not an image", "image/jpeg")},
                       headers={"Authorization": f"Bearer {token}"})

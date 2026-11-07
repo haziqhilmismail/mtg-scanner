@@ -7,9 +7,10 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
 import jwt
-from conftest import _scan, new_user, run, sign_in
+from conftest import _scan, new_user, run, sign_in, sol_ring
 from PIL import Image
 
+from app.schemas.scan import Guess
 from app.services.auth_service import issue_image_token, issue_session_token
 
 
@@ -160,3 +161,20 @@ def test_before_pages_back_through_scans(client):
     assert page(f"limit=2&before={ids[3]}") == [ids[2], ids[1]]
     assert page(f"limit=2&before={ids[1]}") == [ids[0]]
     assert page(f"limit=2&before={ids[0]}") == []
+
+
+def test_a_card_scryfall_does_not_know_keeps_the_scanners_guess_unpriced(client):
+    uid = run(new_user())
+    client.scanner.cards = [
+        sol_ring(guess=Guess(name="", set_code="tdm", collector_number="7")),
+        sol_ring(bbox_source="detector", name_source="title", confidence=0.91234, version_source="ocr"),
+    ]
+    unknown, known = _scan(client, issue_session_token(uid)).json()["cards"]
+    assert unknown["candidates"] == [{
+        "scryfall_id": "", "name": "(unknown)", "set": "TDM", "set_name": "", "collector_number": "7", "rarity": "",
+        "usd": 0.0, "usd_foil": 0.0, "image_url": "", "scryfall_uri": "",
+        "_lookup_failed": True, "price_source_normal": "none", "price_source_foil": "none",
+    }]
+    # A Gemini card never carried `version_source`; the local scanner's cards do.
+    assert "version_source" not in unknown and unknown["name_confidence"] is None
+    assert (known["version_source"], known["name_confidence"], known["candidates"][0]["usd"]) == ("ocr", 0.912, 1.0)
