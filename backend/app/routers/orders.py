@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from ..deps import CurrentUserId, DbSession, owned
 from ..models import Order, OrderStatus
 from ..schemas import OrderRead, OrderUpdate
+from ..schemas.types import Id
 from ..services.orders import recompute_total
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
@@ -42,7 +43,7 @@ async def list_orders(
 
 @router.patch("/{order_id}", response_model=OrderRead)
 async def update_order(
-    order_id: int, payload: OrderUpdate, db: DbSession, user_id: CurrentUserId,
+    order_id: Id, payload: OrderUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> Order:
     """Update top-level order fields. Paid/delivered timestamps can be set, cleared,
     or left as-is — they're independent so 'took on credit' (delivered without paid) is valid."""
@@ -55,7 +56,7 @@ async def update_order(
 
 
 class ItemPrice(BaseModel):
-    id: int
+    id: Id
     unit_price_myr: Decimal = Field(..., ge=0, decimal_places=2)
 
 
@@ -66,7 +67,7 @@ class OrderPrices(BaseModel):
 
 
 @router.put("/{order_id}/prices", response_model=OrderRead)
-async def set_prices(order_id: int, body: OrderPrices, db: DbSession, user_id: CurrentUserId) -> Order:
+async def set_prices(order_id: Id, body: OrderPrices, db: DbSession, user_id: CurrentUserId) -> Order:
     """Live-price posts: put today's prices on an order whose prices were not
     sent yet (Refresh prices), and optionally mark them sent (the seller just
     copied or shared the buyer's total). 409 once sent: the buyer was told."""
@@ -86,7 +87,7 @@ async def set_prices(order_id: int, body: OrderPrices, db: DbSession, user_id: C
 
 
 @router.delete("/{order_id}/prices-sent", response_model=OrderRead)
-async def unsend_prices(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+async def unsend_prices(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     """Resend at today's price: the prices are an estimate again."""
     order = await _load_order(db, order_id, user_id)
     order.prices_sent_at = None
@@ -95,7 +96,7 @@ async def unsend_prices(order_id: int, db: DbSession, user_id: CurrentUserId) ->
 
 
 @router.post("/{order_id}/mark-paid", response_model=OrderRead)
-async def mark_paid(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+async def mark_paid(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     """Convenience: stamp paid_at to now. Idempotent if already set."""
     order = await _load_order(db, order_id, user_id)
     if order.paid_at is None:
@@ -105,7 +106,7 @@ async def mark_paid(order_id: int, db: DbSession, user_id: CurrentUserId) -> Ord
 
 
 @router.post("/{order_id}/mark-delivered", response_model=OrderRead)
-async def mark_delivered(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+async def mark_delivered(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     """Convenience: stamp delivered_at to now. Idempotent."""
     order = await _load_order(db, order_id, user_id)
     if order.delivered_at is None:
@@ -115,7 +116,7 @@ async def mark_delivered(order_id: int, db: DbSession, user_id: CurrentUserId) -
 
 
 @router.post("/{order_id}/cancel", response_model=OrderRead)
-async def cancel_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+async def cancel_order(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     order = await _load_order(db, order_id, user_id)
     order.status = OrderStatus.cancelled
     await db.flush()
@@ -123,7 +124,7 @@ async def cancel_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> 
 
 
 @router.post("/{order_id}/restore", response_model=OrderRead)
-async def restore_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+async def restore_order(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     """Un-cancel a cancelled order. Items return to the active claim; paid_at and
     delivered_at timestamps are preserved so the order lands back in its previous
     kanban column (unpaid/paid/credit/done) on its own."""

@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from ..deps import CurrentUserId, DbSession, owned
 from ..models import Buyer, Order
 from ..schemas import BuyerRead, BuyerReadWithStats, BuyerUpdate
+from ..schemas.types import Id
 
 router = APIRouter(prefix="/api/buyers", tags=["buyers"])
 
@@ -34,7 +35,7 @@ async def list_buyers(db: DbSession, user_id: CurrentUserId) -> list[BuyerReadWi
 
 @router.patch("/{buyer_id}", response_model=BuyerRead)
 async def update_buyer(
-    buyer_id: int, payload: BuyerUpdate, db: DbSession, user_id: CurrentUserId,
+    buyer_id: Id, payload: BuyerUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> Buyer:
     buyer = await owned(db, Buyer, buyer_id, user_id)
     for k, v in payload.model_dump(exclude_unset=True).items():

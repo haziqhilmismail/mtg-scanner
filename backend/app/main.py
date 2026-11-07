@@ -58,6 +58,7 @@ from .routers import posts as posts_router
 from .routers import sales as sales_router
 from .routers import scans as scans_router
 from .routers import slips as slips_router
+from .schemas.types import as_id
 from .services import bug_reporter
 from .services import catalogue
 from .services import credits
@@ -153,10 +154,8 @@ async def health():
 async def _resolve_export_image(db: DbSession, user_id: int, image_id: str) -> bytes:
     """Return the source photo bytes for an export `image_id` (a scan id),
     from disk and only for the scan's owner. Raises 404 otherwise."""
-    try:
-        scan_row = await db.get(Scan, int(image_id))
-    except (ValueError, TypeError, OverflowError):
-        scan_row = None
+    scan_id = as_id(image_id)
+    scan_row = await db.get(Scan, scan_id) if scan_id else None
     if scan_row and scan_row.user_id == user_id and scan_row.image_path:
         p = Path(scan_row.image_path)
         if p.exists():

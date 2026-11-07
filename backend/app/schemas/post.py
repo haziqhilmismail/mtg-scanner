@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import MISSING, BaseModel, ConfigDict
 
 from ..models.post import PostStatus
+from .types import Pricing
 
 
 class PostBase(BaseModel):
@@ -17,7 +18,7 @@ class PostUpdate(BaseModel):
     fb_url: str | None = None
     note: str | None = None
     status: PostStatus | MISSING = MISSING
-    pricing: dict | None = None  # null clears: the post follows the user's default
+    pricing: Pricing | None = None  # null clears: the post follows the user's default
 
 
 class PostRead(PostBase):
