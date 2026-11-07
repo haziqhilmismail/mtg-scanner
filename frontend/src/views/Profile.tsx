@@ -12,7 +12,7 @@ import { useToast } from '../components/ui/Toast.tsx';
 import { useT } from '../hooks/useLang.ts';
 import type { PaymentStore } from '../hooks/usePayment.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
-import { pricingSummary } from '../lib/pricingSummary.ts';
+import { pricingSummary } from '../lib/pricing.ts';
 import type { Appearance, Credits, Lang } from '../types.ts';
 import { creditsLine } from '../utils.ts';
 
