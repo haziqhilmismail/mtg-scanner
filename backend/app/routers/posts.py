@@ -28,7 +28,7 @@ from ..models import (
     Scan,
 )
 from ..schemas import PostReadWithStats, PostUpdate
-from ..services.cardkingdom_prices import get_index as get_ck_index
+from ..services import catalogue
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
@@ -197,7 +197,7 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
     new_post = Post(user_id=user_id, title=body.title.strip(), pricing=copy.deepcopy(post.pricing))
     db.add(new_post)
     await db.flush()
-    ck_index = await get_ck_index() if body.new_prices else None
+    ck_index = await catalogue.ck_index() if body.new_prices else None
     copies: list[Scan] = []
     written: list[Path] = []
     try:

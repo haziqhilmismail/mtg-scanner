@@ -8,16 +8,16 @@ from sqlalchemy import func, select
 
 from app.db import async_session_factory
 from app.models import Base, SaleRecord
-from app.services import cardkingdom_prices
+from app.services import catalogue
+from app.services.cardkingdom_prices import CKPrice
 from app.services.accounts import delete_account
 
 
 class _CK:
     fetched_at = None
 
-    def lookup(self, sid):
-        return {"retail_normal": 4.49, "retail_foil": 9.99, "buy_normal": 2.5, "buy_foil": None,
-                "in_stock_normal": True, "in_stock_foil": False, "url_normal": "", "url_foil": ""}
+    def price(self, sid, foil):
+        return CKPrice(retail=9.99) if foil else CKPrice(retail=4.49, buy=2.5)
 
 
 async def _records(order_item_id: int) -> list[SaleRecord]:
@@ -30,7 +30,7 @@ def _sold_order(client, monkeypatch):
     """A user with a post, one scanned photo and an order for 2 x Sol Ring at RM12."""
     async def ck():
         return _CK()
-    monkeypatch.setattr(cardkingdom_prices, "get_index", ck)
+    monkeypatch.setattr(catalogue, "ck_index", ck)
     uid, me = sign_in()
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")},
