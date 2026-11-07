@@ -44,7 +44,7 @@ _CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
 
 class OutOfCredits(Exception):
-    """No credit left. main.py turns it into the 402 the frontend knows."""
+    """No credit left: the app answers 402 with `credits`, which the frontend knows."""
 
     def __init__(self, credits: dict):
         super().__init__("out_of_credits")
@@ -59,7 +59,8 @@ class VoucherError(Exception):
         self.code = code
 
 
-def _now() -> datetime:
+def utcnow() -> datetime:
+    """UTC now, naive, as the credit tables store it."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
@@ -76,7 +77,7 @@ async def reserve(user_id: int) -> Credit | None:
     """Take one credit for `user_id`, or return None when the user has none left."""
     if not settings.auth_enabled:
         return Credit(UNLIMITED)  # solo mode: there is nobody to limit
-    now = _now()
+    now = utcnow()
     async with async_session_factory() as s:
         user = await s.get(User, user_id)
         if user is None:
@@ -141,7 +142,7 @@ async def status(db: AsyncSession, user_id: int) -> dict:
     if not settings.auth_enabled:
         return {"enforced": False, "unlimited": True, "limit": limit, "used": 0,
                 "bonus": 0, "remaining": None, "next_free_at": None}
-    now = _now()
+    now = utcnow()
     user = await db.get(User, user_id)
     in_window = (
         await db.scalars(
@@ -183,10 +184,34 @@ def new_code() -> str:
     return "MTG-" + "-".join(groups)
 
 
+async def create_voucher(
+    db: AsyncSession, *, credits: int = 0, unlimited: bool = False, unlimited_days: int | None = None,
+    resets: bool = False, reusable: bool = False, only_user_id: int | None = None, max_uses: int = 1,
+    expires_in_days: int | None = None, note: str | None = None,
+) -> str:
+    """Add a voucher to the session and return its code as people type it.
+    Raises ValueError when the options make no sense."""
+    if not credits and not unlimited and not resets:
+        raise ValueError("a voucher must give extra credits, unlimited scans and/or a reset")
+    if unlimited_days is not None and not unlimited:
+        raise ValueError("unlimited days only apply to an unlimited voucher")
+    if reusable and only_user_id is None:
+        raise ValueError("a reusable voucher must be bound to one user (anyone else could use it forever)")
+    now = utcnow()
+    code = new_code()
+    db.add(Voucher(
+        code=normalise_code(code), credits=credits, unlimited=unlimited, unlimited_days=unlimited_days,
+        resets=resets, reusable=reusable, only_user_id=only_user_id, max_uses=max_uses,
+        expires_at=now + timedelta(days=expires_in_days) if expires_in_days else None,
+        note=note, created_at=now,
+    ))
+    await db.flush()
+    return code
+
+
 async def grant(db: AsyncSession, user_id: int, *, credits: int = 0,
                 unlimited: bool = False, unlimited_days: int | None = None) -> None:
-    """Add extra credits and/or unlimited scanning to a user. Vouchers call
-    this; a payment will too."""
+    """Add extra credits and/or unlimited scanning to a user."""
     user = await db.get(User, user_id)
     if credits:
         user.bonus_scan_credits += credits
@@ -196,13 +221,13 @@ async def grant(db: AsyncSession, user_id: int, *, credits: int = 0,
         else:
             # Extend from whatever is left, so two 30-day vouchers make 60;
             # capped in days so a huge --days can't overflow past FOREVER.
-            start = max(user.unlimited_scans_until or _now(), _now())
+            start = max(user.unlimited_scans_until or utcnow(), utcnow())
             user.unlimited_scans_until = start + timedelta(days=min(unlimited_days, (FOREVER - start).days))
 
 
 async def redeem(db: AsyncSession, user_id: int, code: str) -> Voucher:
     """Apply a voucher to `user_id`. Raises VoucherError when it can't be."""
-    now = _now()
+    now = utcnow()
     voucher = await db.scalar(select(Voucher).where(Voucher.code == normalise_code(code)))
     # A code bound to someone else looks exactly like a code that doesn't exist.
     if voucher is None or (voucher.only_user_id and voucher.only_user_id != user_id):

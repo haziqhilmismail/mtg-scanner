@@ -12,15 +12,14 @@ from sqlalchemy import func, select
 
 import app.main as main
 from app.db import async_session_factory
-from app.models import ScanCreditEvent, User, Voucher
+from app.models import ScanCreditEvent, User
 from app.services import credits
 from app.services.auth_service import issue_session_token
 
 
 async def make_voucher(**kw) -> str:
-    code = credits.new_code()
     async with async_session_factory() as s:
-        s.add(Voucher(code=credits.normalise_code(code), created_at=credits._now(), **kw))
+        code = await credits.create_voucher(s, **kw)
         await s.commit()
     return code
 
@@ -43,7 +42,7 @@ async def get_status(user_id: int) -> dict:
 
 async def add_events(user_id: int, days_ago: float, n: int):
     async with async_session_factory() as s:
-        when = credits._now() - timedelta(days=days_ago)
+        when = credits.utcnow() - timedelta(days=days_ago)
         s.add_all(ScanCreditEvent(user_id=user_id, created_at=when) for _ in range(n))
         await s.commit()
 
@@ -135,7 +134,7 @@ def test_window_rolls_after_30_days():
         assert st["remaining"] == 0 and await credits.reserve(uid) is None
         # The first of those comes back in about a day.
         from datetime import datetime
-        back = datetime.fromisoformat(st["next_free_at"].rstrip("Z")) - credits._now()
+        back = datetime.fromisoformat(st["next_free_at"].rstrip("Z")) - credits.utcnow()
         assert timedelta(hours=23) < back < timedelta(hours=25)
     run(go())
 
@@ -172,9 +171,9 @@ def test_timed_unlimited_vouchers_stack_and_lapse():
         await redeem(uid, await make_voucher(unlimited=True, unlimited_days=30))
         async with async_session_factory() as s:
             u = await s.get(User, uid)
-            left = u.unlimited_scans_until - credits._now()
+            left = u.unlimited_scans_until - credits.utcnow()
             assert timedelta(days=59) < left < timedelta(days=61)
-            u.unlimited_scans_until = credits._now() - timedelta(seconds=1)   # lapsed
+            u.unlimited_scans_until = credits.utcnow() - timedelta(seconds=1)   # lapsed
             await s.commit()
         assert source(await credits.reserve(uid)) == credits.FREE
 
@@ -203,7 +202,7 @@ def test_voucher_rejections():
             return e.value.code
 
         assert await reason(a, "MTG-NOPE-NOPE-NOPE") == "invalid"
-        assert await reason(a, await make_voucher(credits=5, expires_at=credits._now() - timedelta(days=1))) == "expired"
+        assert await reason(a, await make_voucher(credits=5, expires_in_days=-1)) == "expired"
 
         single = await make_voucher(credits=5)                       # max_uses defaults to 1
         await redeem(a, single.lower().replace("-", " "))            # typed loosely: still matches
@@ -215,6 +214,14 @@ def test_voucher_rejections():
         await redeem(b, shared)
         assert (await get_status(b))["bonus"] == 5
         assert (await get_status(a))["bonus"] == 10
+    run(go())
+
+
+def test_voucher_options_that_make_no_sense_are_refused():
+    async def go():
+        for kw in ({}, {"credits": 1, "unlimited_days": 30}, {"unlimited": True, "reusable": True}):
+            with pytest.raises(ValueError):
+                await make_voucher(**kw)
     run(go())
 
 
