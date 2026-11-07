@@ -42,13 +42,6 @@ MAX_ASPECT = 0.95
 class Detection:
     quad: np.ndarray  # (4, 2) float corners, clockwise, short edge first
 
-    @property
-    def bbox(self) -> tuple[int, int, int, int]:
-        """Axis-aligned (x, y, w, h) around the quad."""
-        x0, y0 = self.quad.min(axis=0)
-        x1, y1 = self.quad.max(axis=0)
-        return int(x0), int(y0), int(round(x1 - x0)), int(round(y1 - y0))
-
 
 def _covariance(boxes: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Gaussian covariance terms (a, b, c) of [cx, cy, w, h, angle] boxes."""
@@ -136,7 +129,7 @@ class CardDetector:
         # centres sit within half a card height of each other share a row.
         if out:
             centres = np.array([d.quad.mean(axis=0) for d in out])
-            row_h = float(np.median([d.bbox[3] for d in out])) * 0.5
+            row_h = float(np.median([round(np.ptp(d.quad[:, 1])) for d in out])) * 0.5
             rows = np.round(centres[:, 1] / max(row_h, 1.0))
             out = [out[i] for i in np.lexsort((centres[:, 0], rows))]
         return out

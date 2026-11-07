@@ -29,10 +29,10 @@ from PIL import Image, ImageFilter
 from scipy import ndimage as ndi
 from scipy.spatial import ConvexHull, QhullError
 
-# MTG card pixel aspect: 488 wide / 680 tall ≈ 0.7176. Accept boxes within
-# ±0.25 of this (covers slight perspective skew) and treat rotated cards
-# (aspect ≈ 1/0.7176 = 1.39) as valid too.
-CARD_W_OVER_H = 488.0 / 680.0
+from .card_geometry import CARD_ASPECT, iou
+
+# Accept boxes within ±0.25 of the card aspect (covers slight perspective
+# skew) and treat rotated cards (aspect ≈ 1/0.7176 = 1.39) as valid too.
 AR_TOLERANCE = 0.25
 
 # Minimum blob area as a fraction of the image — anything smaller is noise
@@ -111,7 +111,7 @@ def detect_card_quads(
         if area < min_area:
             continue
         ar = w / h
-        ar_score = min(abs(ar - CARD_W_OVER_H), abs(ar - 1.0 / CARD_W_OVER_H))
+        ar_score = min(abs(ar - CARD_ASPECT), abs(ar - 1.0 / CARD_ASPECT))
         if ar_score > AR_TOLERANCE:
             continue
         pixel_count = int((labels[sl] == i).sum())
@@ -124,7 +124,7 @@ def detect_card_quads(
     raw.sort(key=lambda b: -b[4])
     kept: list[tuple[int, int, int, int, int, tuple[slice, slice], int]] = []
     for b in raw:
-        if any(_iou_xyxy(b[:4], k[:4]) > 0.3 for k in kept):
+        if any(iou(b[:4], k[:4]) > 0.3 for k in kept):
             continue
         kept.append(b)
 
@@ -141,34 +141,6 @@ def detect_card_quads(
         out.append((bbox, quad))
 
     return out
-
-
-def _iou_xyxy(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
-    """IoU between two (x1, y1, x2, y2) boxes."""
-    ix1 = max(a[0], b[0]); iy1 = max(a[1], b[1])
-    ix2 = min(a[2], b[2]); iy2 = min(a[3], b[3])
-    iw = max(0, ix2 - ix1); ih = max(0, iy2 - iy1)
-    inter = iw * ih
-    if inter == 0:
-        return 0.0
-    ua = (a[2] - a[0]) * (a[3] - a[1])
-    ub = (b[2] - b[0]) * (b[3] - b[1])
-    return inter / (ua + ub - inter)
-
-
-def iou_xywh(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
-    """IoU between two (x, y, w, h) boxes. Used by the box matcher in gemini_scanner.py."""
-    ax1, ay1, aw, ah = a
-    bx1, by1, bw, bh = b
-    ax2, ay2 = ax1 + aw, ay1 + ah
-    bx2, by2 = bx1 + bw, by1 + bh
-    ix1 = max(ax1, bx1); iy1 = max(ay1, by1)
-    ix2 = min(ax2, bx2); iy2 = min(ay2, by2)
-    iw = max(0, ix2 - ix1); ih = max(0, iy2 - iy1)
-    inter = iw * ih
-    if inter == 0:
-        return 0.0
-    return inter / (aw * ah + bw * bh - inter)
 
 
 # ---------- min-area quadrilateral helpers ----------
