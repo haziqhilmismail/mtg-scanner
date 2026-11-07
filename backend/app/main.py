@@ -2,8 +2,7 @@
 FastAPI app entry point.
 
 Routes:
-  GET  /api/health        -> Gemini key + CK index status
-  POST /api/scan          -> upload image, return detected cards
+  GET  /api/health        -> scanner + CK index status
   POST /api/relookup      -> Scryfall fuzzy + search fallback, CK-enriched
   POST /api/printings     -> all printings of a name, CK-enriched
   POST /api/refresh-ck    -> force-refresh the CK pricelist
@@ -15,18 +14,17 @@ are created on startup and a solo-mode user row is seeded if missing.
 """
 
 import asyncio
-import json
 import re
 import traceback
 import zipfile
-from contextlib import asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
 
 import aiohttp
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image
@@ -48,9 +46,9 @@ from sqlalchemy import select
 
 from .config import settings
 from .db import async_session_factory
-from .deps import CurrentUserId, DbSession, limiter
+from .deps import CurrentUserId, DbSession, json_payload, limiter
 
-from .models import Post, Scan, User
+from .models import Scan, User
 from .routers import auth as auth_router
 from .routers import bugs as bugs_router
 from .routers import buyers as buyers_router
@@ -200,105 +198,11 @@ async def refresh_ck(request: Request):
     }
 
 
-def _json_payload(payload: str) -> dict:
-    try:
-        return json.loads(payload)
-    except Exception:
-        raise HTTPException(400, "Invalid JSON in 'payload'")
-
-
-@app.post("/api/scan")
-@limiter.limit("10/minute;100/hour")  # local scans load the home server's CPU; Gemini scans cost money
-async def scan(
-    request: Request,
-    db: DbSession,
-    user_id: CurrentUserId,
-    image: UploadFile = File(...),
-    post_id: int | None = Form(default=None),
-):
-    # Which post to file the photo under. Checked before anything costly.
-    if post_id is not None:
-        post = await db.get(Post, post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
-    if problem := scans.scanner.ready():
-        raise HTTPException(503, problem)
-    raw = await image.read()
-    # Reject oversized uploads before the expensive decode. 25 MB is generous
-    # for a phone photo (even a 48 MP HEIC is a few MB); anything bigger is
-    # either a mistake or an attempt to exhaust memory on the box.
-    MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Image too large (max 25 MB)")
-    try:
-        # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
-        pil, jpeg = await asyncio.to_thread(scans.normalise_upload, raw)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-    # A scan that costs a credit hands it back if anything below fails.
-    async with credits.spend(db, user_id) if scans.scanner.costs_credit else nullcontext():
-        try:
-            found = await scans.scanner.detect(pil, jpeg)
-        except Exception as e:
-            raise HTTPException(500, f"Scan failed: {e}")
-        cards = await scans.identify(found, *pil.size)
-        result = await scans.store(db, user_id, image.filename, pil, jpeg, cards, post_id)
-    result["credits"] = await credits.status(db, user_id)
-    return result
-
-
-@app.post("/api/scans/{scan_id}/frame-card")
-@limiter.limit("30/minute")
-async def frame_card(
-    request: Request,
-    scan_id: int,
-    db: DbSession,
-    user_id: CurrentUserId,
-    payload: str = Form(...),
-):
-    """User-drawn frame around a card the detector missed (typically two
-    cards merged into one bbox). Body: {corners: [[x,y]*4]} in source-image
-    pixels, TL/TR/BR/BL order. Returns a "manual" card the user fills in via
-    the row's edit controls. Appended to the scan's stored cards JSON so it
-    survives refresh."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
-
-    corners = _json_payload(payload).get("corners")
-    if not (isinstance(corners, list) and len(corners) == 4
-            and all(isinstance(p, list) and len(p) == 2 for p in corners)):
-        raise HTTPException(400, "Missing/invalid 'corners' — need 4 [x,y] points")
-    try:
-        corners_int = [[int(round(p[0])), int(round(p[1]))] for p in corners]
-    except (TypeError, ValueError):
-        raise HTTPException(400, "Corners must be numeric")
-
-    photo = Path(scan_row.image_path) if scan_row.image_path else None
-    if not photo or not photo.exists():
-        raise HTTPException(404, "image_id not found (re-upload the image)")
-    pil = await asyncio.to_thread(scans.decode_upright, photo.read_bytes())
-
-    payload_json = dict(scan_row.gemini_raw or {})
-    cards = list(payload_json.get("cards") or [])
-    try:
-        new_card = (await scans.manual_card(pil, cards, corners_int)).to_payload()
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    payload_json["cards"] = [*cards, new_card]
-    # JSON column — reassign to mark the field dirty (SQLAlchemy doesn't
-    # detect in-place dict mutations).
-    scan_row.gemini_raw = payload_json
-    await db.flush()
-    return new_card
-
-
 @app.post("/api/relookup")
 @limiter.limit("60/minute")  # Scryfall asks ~10 req/sec max — keep well below
 async def relookup(request: Request, _: CurrentUserId, payload: str = Form(...)):
     """Fuzzy lookup → search fallback → 404. Result is CK-enriched."""
-    data = _json_payload(payload)
+    data = json_payload(payload)
 
     name = (data.get("name") or "").strip()
     if not name:
@@ -341,7 +245,7 @@ async def relookup(request: Request, _: CurrentUserId, payload: str = Form(...))
 @limiter.limit("20/minute")  # Each call paginates Scryfall up to 4 pages
 async def printings(request: Request, _: CurrentUserId, payload: str = Form(...)):
     """Every printing of a card name, paginated and CK-enriched."""
-    data = _json_payload(payload)
+    data = json_payload(payload)
 
     name = (data.get("name") or "").strip()
     if not name:
@@ -469,7 +373,7 @@ def _zip_entry_name(filename: str | None, used: set[str]) -> str:
 @app.post("/api/export")
 @limiter.limit("60/minute")  # Pillow render is CPU-bound; cap to prevent runaway
 async def export_overlay(request: Request, db: DbSession, user_id: CurrentUserId, payload: str = Form(...)):
-    data = _json_payload(payload)
+    data = json_payload(payload)
 
     image_id = data.get("image_id")
     if not image_id:
@@ -494,7 +398,7 @@ async def export_all_overlays(request: Request, db: DbSession, user_id: CurrentU
     Images whose source bytes can't be found are skipped rather than failing
     the whole archive; a 404 is only returned when nothing renders at all.
     """
-    data = _json_payload(payload)
+    data = json_payload(payload)
 
     images = data.get("images")
     if not isinstance(images, list) or not images:

@@ -7,9 +7,11 @@ card record itself is `schemas.scan.ScannedCard`."""
 
 import asyncio
 import base64
+import json
 from io import BytesIO
 from typing import Protocol
 
+from fastapi import HTTPException
 from PIL import Image, ImageOps
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,8 +40,6 @@ class Scanner(Protocol):
 
 scanner: Scanner = local_scan.LocalScanner() if settings.use_local_scanner else gemini_scanner.GeminiScanner()
 
-
-# ---------- the photo ----------
 
 # A 12 MP PIL RGB bitmap is ~36 MB, plus Sobel + base64 + thumbnail buffers;
 # a couple of scans at once on a small box blow the memory budget. The client
@@ -97,8 +97,6 @@ def _pictures(pil: Image.Image, cards: list[ScannedCard]) -> tuple[str, list[str
     preview.thumbnail((1400, 1400))
     return _jpeg_data_url(preview), [thumb_b64(pil, x, y, x + w, y + h) for x, y, w, h in (c.bbox for c in cards)]
 
-
-# ---------- the cards ----------
 
 def unknown_candidate(guess: Guess) -> dict:
     """The candidate shown when Scryfall has no match: the guess, unpriced."""
@@ -176,8 +174,6 @@ async def manual_card(pil: Image.Image, existing: list[dict], corners: list[list
     )
 
 
-# ---------- the saved scan ----------
-
 async def store(
     db: AsyncSession, user_id: int, filename: str | None,
     pil: Image.Image, jpeg: bytes, cards: list[ScannedCard], post_id: int | None,
@@ -220,3 +216,67 @@ async def store(
         "post_id": post_id,
         **payload,
     }
+
+
+def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:
+    """A saved scan as the client rehydrates it (see list_scans)."""
+    payload = s.gemini_raw or {}
+    cards = payload.get("cards", [])
+    if lite:
+        cards = [{**c, "crop_b64": ""} for c in cards]
+    return {
+        "image_id": str(s.id),
+        "scan_id": s.id,
+        "post_id": s.post_id,
+        "filename": s.filename,
+        "image_b64": "" if lite else payload.get("image_b64", ""),
+        "width": s.width,
+        "height": s.height,
+        "cards": cards,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+        "position": s.position,
+        "ui_state": s.ui_state,
+        "listed": listed,
+    }
+
+
+def split_state(raw: dict, n_cards: int) -> tuple[dict, list | None]:
+    """A client's per-card edits, checked: the state to store, and the picks
+    taken out of it (see save_scan_state)."""
+    if len(json.dumps(raw)) > 64 * 1024:
+        raise HTTPException(413, "State too large (max 64 KB)")
+    state = dict(raw)
+    picks = state.pop("picks", None)
+    if picks is not None and not (
+        isinstance(picks, list)
+        and len(picks) <= n_cards
+        and all(p is None or (isinstance(p, dict) and isinstance(p.get("name"), str)) for p in picks)
+    ):
+        raise HTTPException(400, "picks must be a list of null or a candidate with a name, one per card")
+    return state, picks
+
+
+def apply_picks(payload: dict, picks: list | None) -> None:
+    """Each pick becomes its card's first candidate in the saved scan."""
+    for card, pick in zip(payload["cards"], picks or []):
+        if pick is not None:
+            card["candidates"] = [pick, *(card.get("candidates") or [])[1:]]
+
+
+def refresh_prices(payload: dict, ck_index) -> int:
+    """Today's CK prices on every candidate of a scan's payload, in place.
+    Returns how many candidates got a price row."""
+    cards = payload.get("cards", []) or []
+    updated = 0
+    for card in cards:
+        cands = card.get("candidates", []) or []
+        for i, cand in enumerate(cands):
+            if not cand:
+                continue
+            new_cand = enrich_with_ck(cand, ck_index)
+            if new_cand:
+                cands[i] = new_cand
+                updated += 1
+        card["candidates"] = cands
+    payload["cards"] = cards
+    return updated
