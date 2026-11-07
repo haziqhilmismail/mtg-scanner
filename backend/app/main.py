@@ -15,13 +15,11 @@ are created on startup and a solo-mode user row is seeded if missing.
 """
 
 import asyncio
-import base64
 import json
 import re
 import traceback
 import zipfile
 from contextlib import asynccontextmanager, nullcontext
-from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 
@@ -31,7 +29,7 @@ from alembic.config import Config as AlembicConfig
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
-from PIL import Image, ImageOps
+from PIL import Image
 from pillow_heif import register_heif_opener
 from slowapi import _rate_limit_exceeded_handler
 
@@ -67,17 +65,12 @@ from .routers import scans as scans_router
 from .routers import slips as slips_router
 from .services import bug_reporter
 from .services import credits
-from .services import local_scan
+from .services import scans
 from .services.cardkingdom_prices import enrich as enrich_with_ck
 from .services.cardkingdom_prices import get_index as get_ck_index
-from .services.classical_detector import detect_card_quads, iou_xywh
-from .services.gemini_scanner import CardDetection, get_client, scan_image
 from .services.price_overlay import render_overlay
-from .services.scryfall_lookup import (
-    HEADERS as SCRYFALL_HEADERS,
-    lookup_all,
-    to_card_summary,
-)
+from .services.scryfall_lookup import HEADERS as SCRYFALL_HEADERS
+from .services.scryfall_lookup import to_card_summary
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -109,15 +102,12 @@ async def lifespan(_app: FastAPI):
         print(f"[startup] WARNING — CK index failed to load: {e}", flush=True)
         print("[startup] Server will start anyway; cards will be unpriced until CK comes back.", flush=True)
 
-    # 4) Optional: the local scanner (SCANNER_BACKEND=local). Missing models
-    # don't crash startup — /api/scan answers 503 until the files are in
-    # place, everything else keeps working.
-    if settings.use_local_scanner:
-        try:
-            n = await asyncio.to_thread(local_scan.load)
-            print(f"[startup] local scanner ready: {n} printings indexed", flush=True)
-        except Exception as e:
-            print(f"[startup] WARNING — local scanner failed to load: {e}", flush=True)
+    # 4) The scanner. Missing local models don't crash startup: /api/scan
+    # answers 503 until the files are in place, everything else keeps working.
+    try:
+        await asyncio.to_thread(scans.scanner.load)
+    except Exception as e:
+        print(f"[startup] WARNING — scanner failed to load: {e}", flush=True)
     yield
 
 
@@ -153,18 +143,10 @@ async def support_qr():
 
 @app.get("/api/health")
 async def health():
-    out: dict = {"ok": True, "model": settings.gemini_model}
-    if settings.use_local_scanner:
-        out["model"] = local_scan.MODEL_NAME
-        out["ok"] = local_scan.is_loaded()
-        if not out["ok"]:
-            out["scanner_error"] = "local scanner models or card index not loaded"
-    else:
-        try:
-            get_client()
-        except Exception as e:
-            out["ok"] = False
-            out["gemini_error"] = str(e)
+    out: dict = {"ok": True, "model": scans.scanner.model}
+    if problem := scans.scanner.ready():
+        out["ok"] = False
+        out["scanner_error"] = problem
     try:
         idx = await get_ck_index()
         out["cardkingdom_cards"] = idx.matched_scryfall_count
@@ -218,76 +200,11 @@ async def refresh_ck(request: Request):
     }
 
 
-def _jpeg_data_url(pil: Image.Image) -> str:
-    buf = BytesIO()
-    pil.convert("RGB").save(buf, format="JPEG", quality=85)
-    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
-
-
-def _make_thumb_b64(pil: Image.Image, x: int, y: int, x2: int, y2: int) -> str:
-    crop = pil.crop((max(0, x), max(0, y), min(pil.width, x2), min(pil.height, y2)))
-    if crop.width == 0 or crop.height == 0:
-        return ""
-    # 700px wide gives plenty of detail when zoomed (the zoom modal caps at 900px).
-    # The row thumbnail in the React UI renders this at ~78px wide, so we're paying
-    # extra bytes once and reusing them for click-to-zoom — no extra round-trip needed.
-    crop.thumbnail((700, 980))
-    return _jpeg_data_url(crop)
-
-
-def _preview_b64(pil: Image.Image) -> str:
-    p = pil.copy()
-    p.thumbnail((1400, 1400))  # no-op when already smaller
-    return _jpeg_data_url(p)
-
-
-def _scan_pictures(pil: Image.Image, bboxes: list[list[int]]) -> tuple[str, list[str]]:
-    """A scan's preview and one thumbnail per [x, y, w, h] box, as data URLs."""
-    return _preview_b64(pil), [_make_thumb_b64(pil, x, y, x + w, y + h) for x, y, w, h in bboxes]
-
-
 def _json_payload(payload: str) -> dict:
     try:
         return json.loads(payload)
     except Exception:
         raise HTTPException(400, "Invalid JSON in 'payload'")
-
-
-def _decode_upright(raw: bytes) -> Image.Image:
-    """Decode a photo and turn it the right way up (EXIF); 400 if it can't be read."""
-    try:
-        pil = Image.open(BytesIO(raw))
-        pil.load()
-    except Exception:
-        raise HTTPException(400, "Could not decode image")
-    try:
-        pil = ImageOps.exif_transpose(pil)
-    except Exception:
-        pass
-    return pil
-
-
-def _normalise_upload(raw: bytes) -> tuple[Image.Image, bytes]:
-    """Decode an uploaded photo, upright it, cap its size; returns the RGB
-    image and the JPEG bytes that get stored and sent to Gemini."""
-    pil = _decode_upright(raw)
-
-    # Cap working resolution. The client-side downscale (api.ts) handles JPEG /
-    # PNG / WebP but silently falls through on HEIC because non-Safari browsers
-    # can't decode it via createImageBitmap — Chrome uploads land here at the
-    # full 12 MP. A 12 MP PIL RGB bitmap is ~36 MB, plus Sobel + base64-for-
-    # Gemini + thumbnail buffers, and a couple of sequential scans on a small
-    # box blow the memory budget. Thumbnailing here bounds peak memory regardless
-    # of what the client sent.
-    SCAN_MAX_EDGE = 2000
-    if max(pil.size) > SCAN_MAX_EDGE:
-        pil.thumbnail((SCAN_MAX_EDGE, SCAN_MAX_EDGE), Image.LANCZOS)
-
-    pil = pil.convert("RGB")
-    norm_buf = BytesIO()
-    pil.save(norm_buf, format="JPEG", quality=92)
-    norm_bytes = norm_buf.getvalue()
-    return pil, norm_bytes
 
 
 @app.post("/api/scan")
@@ -304,6 +221,8 @@ async def scan(
         post = await db.get(Post, post_id)
         if not post or post.user_id != user_id:
             raise HTTPException(404, "Post not found")
+    if problem := scans.scanner.ready():
+        raise HTTPException(503, problem)
     raw = await image.read()
     # Reject oversized uploads before the expensive decode. 25 MB is generous
     # for a phone photo (even a 48 MP HEIC is a few MB); anything bigger is
@@ -311,205 +230,22 @@ async def scan(
     MAX_UPLOAD_BYTES = 25 * 1024 * 1024
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Image too large (max 25 MB)")
-    # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
-    pil, norm_bytes = await asyncio.to_thread(_normalise_upload, raw)
+    try:
+        # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
+        pil, jpeg = await asyncio.to_thread(scans.normalise_upload, raw)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
-    # A Gemini scan costs one credit, handed back if anything below fails. A
-    # local scan is free: the rate limit and local_scan's lock guard the CPU.
-    async with nullcontext() if settings.use_local_scanner else credits.spend(db, user_id):
-        result = await _scan_pipeline(db, user_id, image.filename, pil, norm_bytes, post_id)
+    # A scan that costs a credit hands it back if anything below fails.
+    async with credits.spend(db, user_id) if scans.scanner.costs_credit else nullcontext():
+        try:
+            found = await scans.scanner.detect(pil, jpeg)
+        except Exception as e:
+            raise HTTPException(500, f"Scan failed: {e}")
+        cards = await scans.identify(found, *pil.size)
+        result = await scans.store(db, user_id, image.filename, pil, jpeg, cards, post_id)
     result["credits"] = await credits.status(db, user_id)
     return result
-
-
-async def _scan_pipeline(
-    db: DbSession, user_id: int, filename: str | None, pil: Image.Image, norm_bytes: bytes,
-    post_id: int | None = None,
-) -> dict:
-    """Everything /api/scan does once it has a decoded photo and a credit."""
-    W, H = pil.size
-
-    if settings.use_local_scanner:
-        # Offline pipeline — replaces steps 1-5 below wholesale.
-        cards_out = await local_scan.scan_cards(pil)
-        return await _store_scan(db, user_id, filename, pil, norm_bytes, cards_out, post_id)
-
-    # ---------- Step 1: classical bbox + quad detection (cheap, no API call) ----------
-    # The classical detector finds tight, card-shaped blobs in the photo and
-    # returns both the axis-aligned bbox (for IoU matching against Gemini)
-    # and a 4-corner quad following the card edges (for the polygon outline).
-    classical_boxes: list[tuple[int, int, int, int]] = []
-    classical_quads: list[list[list[int]]] = []
-    if settings.use_classical_bbox:
-        try:
-            for bbox, quad in await asyncio.to_thread(detect_card_quads, norm_bytes):
-                classical_boxes.append(bbox)
-                classical_quads.append(quad)
-        except Exception as e:
-            print(f"[scan] classical detector failed: {e}", flush=True)
-
-    # ---------- Step 2: Gemini locates + names the cards ----------
-    try:
-        # The Gemini SDK call is synchronous and takes several seconds; run it
-        # in a worker thread so the event loop keeps serving other requests
-        # (and other scans) while this one waits.
-        gemini_detections: list[CardDetection] = await asyncio.to_thread(scan_image, norm_bytes)
-    except Exception as e:
-        raise HTTPException(500, f"Gemini call failed: {e}")
-
-    # ---------- Step 3: tighten each Gemini box with a classical one ----------
-    @dataclass
-    class _Resolved:
-        det: CardDetection
-        bbox_px: tuple[int, int, int, int]  # (x, y, w, h)
-        corners: list[list[int]] | None  # 4-point quad (TL,TR,BR,BL), None for Gemini-only
-        bbox_source: str
-
-    resolved: list[_Resolved] = []
-    classical_consumed = [False] * len(classical_boxes)
-    for det in gemini_detections:
-        try:
-            ymin, xmin, ymax, xmax = det.box_2d
-        except (ValueError, TypeError):
-            ymin, xmin, ymax, xmax = 0, 0, 1000, 1000
-
-        x = int(xmin / 1000 * W)
-        y = int(ymin / 1000 * H)
-        x2 = int(xmax / 1000 * W)
-        y2 = int(ymax / 1000 * H)
-        x, y = max(0, x), max(0, y)
-        x2, y2 = min(W, x2), min(H, y2)
-        if x2 <= x or y2 <= y:
-            x, y, x2, y2 = 0, 0, W, H
-
-        bbox_source = "gemini"
-        matched_quad: list[list[int]] | None = None
-        if classical_boxes:
-            gemini_xywh = (x, y, x2 - x, y2 - y)
-            # Match against ALL classical boxes. If the best one was already
-            # taken by an earlier Gemini detection, this one is a duplicate of
-            # the same card; otherwise refine to it and mark it taken.
-            best_iou, best_idx = 0.0, -1
-            for ci, cb in enumerate(classical_boxes):
-                cur = iou_xywh(gemini_xywh, cb)
-                if cur > best_iou:
-                    best_iou, best_idx = cur, ci
-            if best_idx >= 0 and best_iou >= 0.4:
-                if classical_consumed[best_idx]:
-                    continue
-                cx, cy, cw, ch = classical_boxes[best_idx]
-                x, y = cx, cy
-                x2, y2 = cx + cw, cy + ch
-                classical_consumed[best_idx] = True
-                bbox_source = "classical"
-                matched_quad = classical_quads[best_idx]
-
-        resolved.append(_Resolved(
-            det=det,
-            bbox_px=(x, y, x2 - x, y2 - y),
-            corners=matched_quad,
-            bbox_source=bbox_source,
-        ))
-
-    # ---------- Step 4: Scryfall lookup + CK enrichment ----------
-    summaries = await lookup_all([r.det for r in resolved])
-    ck_index = await get_ck_index()
-    summaries = [enrich_with_ck(s, ck_index) for s in summaries]
-
-    # ---------- Step 5: pack output ----------
-    cards_out = []
-    for i, (r, sf) in enumerate(zip(resolved, summaries)):
-        x, y, w, h = r.bbox_px
-        x2, y2 = x + w, y + h
-
-        if sf is None:
-            sf = {
-                "scryfall_id": "",
-                "name": r.det.name or "(unknown)",
-                "set": (r.det.set_code or "").upper(),
-                "set_name": "",
-                "collector_number": r.det.collector_number or "",
-                "rarity": "",
-                "usd": 0.0, "usd_foil": 0.0,
-                "image_url": "",
-                "scryfall_uri": "",
-                "_lookup_failed": True,
-                "price_source_normal": "none",
-                "price_source_foil": "none",
-            }
-
-        # Real min-area-quad when the classical detector matched this card;
-        # otherwise an axis-aligned rectangle as a graceful fallback so the
-        # frontend can always treat `corners` as a 4-point polygon.
-        corners = r.corners or [[x, y], [x2, y], [x2, y2], [x, y2]]
-
-        cards_out.append({
-            "id": i,
-            "bbox": [x, y, w, h],
-            "corners": corners,
-            "crop_b64": "",  # filled in by _store_scan
-            "bbox_source": r.bbox_source,
-            "name_source": "gemini",
-            "name_confidence": None,
-            "gemini": {
-                "name": r.det.name,
-                "set_code": r.det.set_code,
-                "collector_number": r.det.collector_number,
-                "is_foil": r.det.is_foil,
-                "quantity": r.det.quantity,
-            },
-            "candidates": [sf],
-        })
-
-    return await _store_scan(db, user_id, filename, pil, norm_bytes, cards_out, post_id)
-
-
-async def _store_scan(
-    db: DbSession, user_id: int, filename: str | None,
-    pil: Image.Image, norm_bytes: bytes, cards_out: list[dict],
-    post_id: int | None = None,
-) -> dict:
-    """Persist a finished scan (photo + cards) and build the /api/scan response."""
-    W, H = pil.size
-    preview_b64, thumbs = await asyncio.to_thread(_scan_pictures, pil, [c["bbox"] for c in cards_out])
-    for card, thumb in zip(cards_out, thumbs):
-        card["crop_b64"] = thumb
-
-    # Persist: write the original image to disk and record a Scan row.
-    # We stash the full response payload (cards + preview) inside gemini_raw so
-    # GET /api/scans can rehydrate the frontend on refresh without re-running Gemini.
-    response_payload = {
-        "image_b64": preview_b64,
-        "width": W,
-        "height": H,
-        "cards": cards_out,
-    }
-    scan_row = Scan(
-        user_id=user_id,
-        post_id=post_id,
-        filename=filename or "upload.jpg",
-        width=W,
-        height=H,
-        gemini_raw=response_payload,
-    )
-    db.add(scan_row)
-    await db.flush()  # need id before writing file path
-    # Save the normalized JPEG (downscaled + EXIF-corrected) rather than the
-    # raw upload. Three reasons: (1) saved bytes now match the W/H + polygon
-    # coords returned by /api/scan, so frontend rendering and /api/export stay
-    # consistent; (2) export decodes a small JPEG instead of re-decoding HEIC
-    # every time.
-    image_path = settings.scans_dir / f"{scan_row.id}.bin"
-    image_path.write_bytes(norm_bytes)
-    scan_row.image_path = str(image_path)
-    await db.flush()
-
-    return {
-        "image_id": str(scan_row.id),
-        "scan_id": scan_row.id,
-        "post_id": post_id,
-        **response_payload,
-    }
 
 
 @app.post("/api/scans/{scan_id}/frame-card")
@@ -530,9 +266,7 @@ async def frame_card(
     if not scan_row or scan_row.user_id != user_id:
         raise HTTPException(404, "Scan not found")
 
-    data = _json_payload(payload)
-
-    corners = data.get("corners")
+    corners = _json_payload(payload).get("corners")
     if not (isinstance(corners, list) and len(corners) == 4
             and all(isinstance(p, list) and len(p) == 2 for p in corners)):
         raise HTTPException(400, "Missing/invalid 'corners' — need 4 [x,y] points")
@@ -541,59 +275,22 @@ async def frame_card(
     except (TypeError, ValueError):
         raise HTTPException(400, "Corners must be numeric")
 
-    raw = await _resolve_export_image(db, user_id, str(scan_id))
+    photo = Path(scan_row.image_path) if scan_row.image_path else None
+    if not photo or not photo.exists():
+        raise HTTPException(404, "image_id not found (re-upload the image)")
+    pil = await asyncio.to_thread(scans.decode_upright, photo.read_bytes())
 
-    pil = await asyncio.to_thread(_decode_upright, raw)
-
-    W, H = pil.size
-    # Clamp corners inside the image and compute an axis-aligned bbox for
-    # thumbnail + storage.
-    clamped = [
-        [max(0, min(W, x)), max(0, min(H, y))]
-        for x, y in corners_int
-    ]
-    xs = [p[0] for p in clamped]
-    ys = [p[1] for p in clamped]
-    x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
-    if x1 - x0 < 16 or y1 - y0 < 16:
-        raise HTTPException(400, "Frame is too small")
-
-    crop_b64 = await asyncio.to_thread(_make_thumb_b64, pil, x0, y0, x1, y1)
-
-    sf = {
-        "scryfall_id": "",
-        "name": "",
-        "set": "", "set_name": "", "collector_number": "", "rarity": "",
-        "usd": 0.0, "usd_foil": 0.0,
-        "image_url": "", "scryfall_uri": "",
-        "_lookup_failed": True,
-        "_manual": True,
-        "price_source_normal": "manual",
-        "price_source_foil": "manual",
-    }
-
-    existing_payload = dict(scan_row.gemini_raw or {})
-    existing_cards = list(existing_payload.get("cards") or [])
-    new_id = (max((c.get("id", -1) for c in existing_cards), default=-1) + 1)
-
-    new_card = {
-        "id": new_id,
-        "bbox": [x0, y0, x1 - x0, y1 - y0],
-        "corners": clamped,
-        "crop_b64": crop_b64,
-        "bbox_source": "user",
-        "name_source": "gemini",  # nothing named it; UI shows the manual banner
-        "name_confidence": None,
-        "gemini": {"name": "", "set_code": "", "collector_number": "", "is_foil": False, "quantity": 1},
-        "candidates": [sf],
-    }
-    existing_cards.append(new_card)
-    existing_payload["cards"] = existing_cards
+    payload_json = dict(scan_row.gemini_raw or {})
+    cards = list(payload_json.get("cards") or [])
+    try:
+        new_card = (await scans.manual_card(pil, cards, corners_int)).to_payload()
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    payload_json["cards"] = [*cards, new_card]
     # JSON column — reassign to mark the field dirty (SQLAlchemy doesn't
     # detect in-place dict mutations).
-    scan_row.gemini_raw = existing_payload
+    scan_row.gemini_raw = payload_json
     await db.flush()
-
     return new_card
 
 
