@@ -144,11 +144,6 @@ async def create_post(
     post = Post(user_id=user_id, **text.model_dump(), pricing=pricing)
     db.add(post)
     await db.flush()
-
-    # Refresh through the async session so subsequent attribute access
-    # (in _build_read_with_stats) doesn't trigger a sync lazy-load outside
-    # the greenlet bridge.
-    await db.refresh(post)
     return await _build_read_with_stats(db, post)
 
 
@@ -222,9 +217,6 @@ async def repost(post_id: Id, body: Repost, db: DbSession, user_id: CurrentUserI
         for path in written:
             path.unlink(missing_ok=True)
         raise
-    await db.refresh(new_post)
-    for dup in copies:
-        await db.refresh(dup)
     return {
         "post": await _build_read_with_stats(db, new_post),
         "scans": [scan_out(dup, [], lite=True) for dup in copies],
@@ -240,7 +232,6 @@ async def update_post(
     for k, v in updates.items():
         setattr(post, k, v)
     await db.flush()
-    await db.refresh(post)
     return await _build_read_with_stats(db, post)
 
 

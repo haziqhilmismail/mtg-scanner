@@ -7,7 +7,9 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
-    pass
+    # INSERT/UPDATE read server-set columns (created_at, updated_at) back with
+    # RETURNING, so a flushed row is usable without a refresh.
+    __mapper_args__ = {"eager_defaults": True}
 
 
 class TimestampMixin:

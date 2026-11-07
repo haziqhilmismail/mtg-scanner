@@ -117,7 +117,6 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
         db.add(user)
 
     await db.commit()
-    await db.refresh(user)
 
     return AuthResponse(
         token=issue_session_token(user.id),

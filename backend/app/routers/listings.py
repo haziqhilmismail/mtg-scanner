@@ -125,7 +125,6 @@ async def create_listing(
     listing.posts = posts
     db.add(listing)
     await db.flush()
-    await db.refresh(listing)
     return _read(listing)
 
 
@@ -145,7 +144,6 @@ async def update_listing(
         listing.posts = await _resolve_posts(db, user_id, post_ids)
 
     await db.flush()
-    await db.refresh(listing)
     return _read(listing)
 
 
