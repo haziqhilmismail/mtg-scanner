@@ -1,4 +1,5 @@
 import { createContext, useContext, useId, useMemo, useState, type ReactNode } from 'react';
+import { useT } from '../hooks/useLang.ts';
 import { Dialog } from './ui/Dialog.tsx';
 import { TextField } from './ui/Field.tsx';
 import { ToastProvider } from './ui/Toast.tsx';
@@ -91,9 +92,10 @@ interface RequestDialogProps {
 }
 
 function RequestDialog({ request, open, onAnswer, onExited }: RequestDialogProps) {
+  const t = useT();
   const formId = useId();
-  const okLabel = request.opts.okLabel ?? 'OK';
-  const cancelLabel = (request.kind !== 'alert' && request.opts.cancelLabel) || 'Cancel';
+  const okLabel = request.opts.okLabel ?? t('ok');
+  const cancelLabel = (request.kind !== 'alert' && request.opts.cancelLabel) || t('cancel');
   const cancel = <button type="button" className="ui-btn ui-btn--ink" onClick={() => onAnswer(false)}>{cancelLabel}</button>;
 
   if (request.kind === 'prompt') {

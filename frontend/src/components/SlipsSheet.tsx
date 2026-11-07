@@ -58,10 +58,10 @@ export function SlipsSheet({ open, onClose, buyers, postTitle }: Props) {
 
   return (
     <Dialog
-      open={open} onClose={onClose} className="claims-dialog" title={t('slips_title')} subtitle={postTitle} closeLabel={t('claims_close')}
+      open={open} onClose={onClose} className="claims-dialog" title={t('slips_title')} subtitle={postTitle}
       footer={(
         <>
-          <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('claims_cancel')}</button>
+          <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('cancel')}</button>
           <button type="button" className="ui-btn ui-btn--primary" disabled={busy} onClick={make}>
             <Icon name="download" size={18} />{busy ? t('slips_making') : label}
           </button>

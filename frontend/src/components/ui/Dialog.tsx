@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react';
+import { useT } from '../../hooks/useLang.ts';
 import { Icon } from '../Icon.tsx';
 import { Modal } from './Modal.tsx';
 
@@ -16,13 +17,15 @@ interface Common {
 }
 
 export type DialogProps = Common & (
-  | { variant?: 'default' | 'picker'; closeLabel: string }
+  // closeLabel names the × button; Close unless the footer says Cancel.
+  | { variant?: 'default' | 'picker'; closeLabel?: string }
   | { variant: 'alert'; closeLabel?: never }
 );
 
 // Render it always and switch `open`: its content mounts only while it is
 // open, and stays through the exit transition.
 export function Dialog({ open, onClose, onExited, title, subtitle, footer, children, className, variant = 'default', closeLabel }: DialogProps) {
+  const t = useT();
   const id = useId();
   const alert = variant === 'alert';
   return (
@@ -40,11 +43,11 @@ export function Dialog({ open, onClose, onExited, title, subtitle, footer, child
           <h2 id={`${id}-title`} className="ui-dialog-title">{title}</h2>
           {subtitle ? <p id={`${id}-sub`} className="ui-dialog-sub">{subtitle}</p> : null}
         </div>
-        {closeLabel ? (
-          <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label={closeLabel} onClick={onClose}>
+        {alert ? null : (
+          <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label={closeLabel ?? t('close')} onClick={onClose}>
             <Icon name="close" size={16} />
           </button>
-        ) : null}
+        )}
       </header>
       <div id={`${id}-body`} className="ui-dialog-body">{children}</div>
       {footer ? <footer className="ui-dialog-foot">{footer}</footer> : null}

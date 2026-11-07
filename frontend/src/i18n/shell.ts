@@ -2,6 +2,9 @@
 // Every key appears in one area file only; index.ts merges them.
 
 export const en = {
+  close: 'Close',
+  cancel: 'Cancel',
+  ok: 'OK',
   app_title: 'Pasar Malam MTG',
   credits_unlimited: 'Unlimited claim reads',
   credits_free_left: '{n} of {limit} free claim reads left',
@@ -9,7 +12,6 @@ export const en = {
   credits_next_back: 'next one returns {date}',
   credits_out_body: 'You get {limit} free claim reads every 30 days. Your next one returns on {date}.',
   credits_out_body_plain: 'You get {limit} free claim reads every 30 days.',
-  voucher_close: 'Close',
   scans_unfiled: 'Unfiled',
   nav_claims: 'Claims',
   nav_profile: 'Profile',
@@ -44,6 +46,9 @@ export const en = {
 };
 
 export const ms: Record<keyof typeof en, string> = {
+  close: 'Tutup',
+  cancel: 'Batal',
+  ok: 'OK',
   app_title: 'MTG Pasar Malam',
   credits_unlimited: 'Bacaan tuntutan tanpa had',
   credits_free_left: '{n} daripada {limit} bacaan tuntutan percuma tinggal',
@@ -51,7 +56,6 @@ export const ms: Record<keyof typeof en, string> = {
   credits_next_back: 'satu lagi kembali pada {date}',
   credits_out_body: 'Anda dapat {limit} bacaan tuntutan percuma setiap 30 hari. Bacaan seterusnya kembali pada {date}.',
   credits_out_body_plain: 'Anda dapat {limit} bacaan tuntutan percuma setiap 30 hari.',
-  voucher_close: 'Tutup',
   scans_unfiled: 'Belum difailkan',
   nav_claims: 'Tuntutan',
   nav_profile: 'Profil',

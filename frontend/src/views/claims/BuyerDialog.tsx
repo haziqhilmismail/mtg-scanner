@@ -36,7 +36,7 @@ export function BuyerDialog({ open, onClose, group: g, message, cents, showPhoto
   const t = useT();
   return (
     <Dialog
-      open={open && !!g} onClose={onClose} className="claims-dialog claims-buyer-dialog" closeLabel={t('claims_close')}
+      open={open && !!g} onClose={onClose} className="claims-dialog claims-buyer-dialog"
       title={g?.name ?? ''}
       subtitle={g ? <><StatusLine group={g} /> · <Money value={g.total} live={g.live} cents={cents} /></> : null}
       footer={(

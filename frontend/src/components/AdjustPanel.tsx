@@ -87,7 +87,7 @@ export function AdjustPanel({ open, batch, idx, live, settings, t, onClose, onSa
 
   return (
     <Dialog
-      open={open} onClose={onClose} closeLabel={t('voucher_close')}
+      open={open} onClose={onClose}
       title={name} subtitle={set || undefined}
       className="edit-price"
       footer={(

@@ -120,7 +120,7 @@ export function ActiveBatchView({
     try { if (await onRefreshPrices()) toast(t('photo_refreshed')); } finally { setRefreshing(false); }
   };
 
-  const listFailed = () => dialog.alert({ title: t('alert_error_title'), message: t('photo_list_failed'), okLabel: t('photo_ok') });
+  const listFailed = () => dialog.alert({ title: t('alert_error_title'), message: t('photo_list_failed') });
   const toggleAdded = async (cd: CardRowData) => {
     const name = nameOf(cd);
     if (!isAdded(cd) && !(cd.unitPrice > 0)) { toast(t('photo_price_first', { name })); return; }
@@ -128,7 +128,7 @@ export function ActiveBatchView({
     try {
       if (!isAdded(cd)) await onAddToPost(cd);
       else if (await onTakeOut(cd) === 'claimed') {
-        await dialog.alert({ title: t('photo_claimed_title'), message: t('photo_claimed_msg', { name }), okLabel: t('photo_ok') });
+        await dialog.alert({ title: t('photo_claimed_title'), message: t('photo_claimed_msg', { name }) });
       } else {
         toast(t('photo_taken_out', { name }), { undoLabel: t('photo_undo'), onUndo: () => { onAddToPost(cd).catch(listFailed); } });
       }
@@ -282,7 +282,7 @@ export function ActiveBatchView({
       {view?.card === null ? (
         <PhotoViewer
           open={view.open} onClose={() => setView(v => (v ? { ...v, open: false } : v))}
-          label={t('photo_expand', { name: photoName })} closeLabel={t('voucher_close')}
+          label={t('photo_expand', { name: photoName })}
           media={<BatchPreview src={data.image_b64} width={data.width} height={data.height} cards={visible} covers={covered} settings={settings} label={t('photo_alt', { name: photoName })} className="is-full" />}
         >
           <p className="ui-viewer-caption photo-viewer-caption"><strong>{photoName}</strong>{photoNumber != null ? <span>{batch.filename}</span> : null}</p>

@@ -54,9 +54,9 @@ export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
       onClose={onClose}
       onExited={() => { setCode(''); setError(''); setGranted(''); }}
       title={t('voucher_title')}
-      closeLabel={t('voucher_close')}
+     
       footer={granted ? (
-        <button type="button" className="ui-btn ui-btn--primary" onClick={onClose}>{t('voucher_close')}</button>
+        <button type="button" className="ui-btn ui-btn--primary" onClick={onClose}>{t('close')}</button>
       ) : (
         <>
           <button type="button" className="ui-btn ui-btn--ink" onClick={onClose}>{t('cancel')}</button>

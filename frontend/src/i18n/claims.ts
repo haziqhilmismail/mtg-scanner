@@ -74,7 +74,6 @@ export const en = {
   claims_sent: 'Prices sent {date}',
   claims_resend: 'Use today\'s price',
   claims_live_estimate: 'Copying the message sets these prices.',
-  claims_close: 'Close',
 
   claims_step1_title: 'Screenshot the comments',
   claims_step1: 'Include the post\'s photo if it fits, so the app can tell which photo the comments are for. If not, you pick it.',
@@ -114,7 +113,6 @@ export const en = {
   claims_text_label: 'Text read from the screenshot. Fix a name here and the claim uses it.',
   claims_find: 'Find claims',
   claims_finding: 'Finding claims…',
-  claims_cancel: 'Cancel',
   credits_out_title: 'No claim reads left',
   voucher_enter: 'Enter a voucher',
 
@@ -257,7 +255,6 @@ export const ms: Record<keyof typeof en, string> = {
   claims_sent: 'Harga dihantar {date}',
   claims_resend: 'Guna harga hari ini',
   claims_live_estimate: 'Menyalin mesej menetapkan harga ini.',
-  claims_close: 'Tutup',
 
   claims_step1_title: 'Tangkap layar komen',
   claims_step1: 'Masukkan foto post jika muat, supaya aplikasi tahu komen itu untuk foto yang mana. Jika tidak, anda pilih sendiri.',
@@ -297,7 +294,6 @@ export const ms: Record<keyof typeof en, string> = {
   claims_text_label: 'Teks yang dibaca daripada tangkap layar. Betulkan nama di sini dan tuntutan menggunakannya.',
   claims_find: 'Cari tuntutan',
   claims_finding: 'Mencari tuntutan…',
-  claims_cancel: 'Batal',
   credits_out_title: 'Bacaan tuntutan habis',
   voucher_enter: 'Masukkan baucar',
 

@@ -198,7 +198,7 @@ export function CardViewer({ cd, open, start, locked, t, onClose, onChangeCard }
       )}
     </div>
   );
-  const common = { open, onClose, label: name, closeLabel: t('voucher_close') };
+  const common = { open, onClose, label: name };
   return cd.sel.image_url ? (
     <PhotoViewer
       {...common} start={start} flipLabel={t('photo_flip')}
