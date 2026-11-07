@@ -1,7 +1,4 @@
-"""
-card_scanner.py
----------------
-The local scan pipeline: photo in, identified cards out, with no cloud model
+"""The local scan pipeline: photo in, identified cards out, with no cloud model
 involved. Enabled with SCANNER_BACKEND=local, which production runs (see
 local_scan.py for the FastAPI glue); the code default is Gemini.
 

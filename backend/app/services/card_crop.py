@@ -48,7 +48,7 @@ def _boxed(photo: Image.Image, card: dict) -> Image.Image | None:
 
 
 # By `bbox_source`. A source that is not here has no crop: "user" boxes are a
-# placeholder in the middle of the photo (Scanner.tsx addMissingCard), so a
+# placeholder in the middle of the photo (PhotoPage.tsx addMissingCard), so a
 # crop of one shows no card.
 _CUTS = {"detector": _warped, "classical": _boxed, "gemini": _boxed}
 

@@ -1,7 +1,4 @@
-"""
-card_detector.py
-----------------
-Locate every card in a photo with a YOLO11n oriented-bounding-box model
+"""Locate every card in a photo with a YOLO11n oriented-bounding-box model
 (ONNX, CPU). Each detection is a rotated rectangle, so tilted cards get a
 tight 4-corner quad instead of a loose axis-aligned box.
 
@@ -27,7 +24,6 @@ from PIL import Image
 INPUT_SIZE = 640
 PAD_VALUE = 114
 
-# Minimum class score to keep a detection.
 CONF_THRESHOLD = 0.35
 # Rotated-box overlap (probabilistic IoU) above which the lower-scoring box is
 # treated as a duplicate of the same card.
@@ -84,7 +80,7 @@ def _nms(boxes: np.ndarray, scores: np.ndarray) -> list[int]:
 def _to_quad(cx: float, cy: float, w: float, h: float, angle: float) -> np.ndarray:
     """Rotated rect → 4 corners, clockwise in image space, starting so that
     edge 0→1 is a SHORT edge (a candidate for the card's top edge)."""
-    if w > h:  # make `w` the short side by turning the box a quarter turn
+    if w > h:
         w, h, angle = h, w, angle + np.pi / 2
     cos, sin = np.cos(angle), np.sin(angle)
     ux, uy = np.array([cos, sin]) * w / 2, np.array([-sin, cos]) * h / 2
@@ -122,11 +118,9 @@ class CardDetector:
             if long <= 0 or not MIN_ASPECT <= short / long <= MAX_ASPECT:
                 continue
             quad = _to_quad(cx, cy, w, h, angle)
-            quad = (quad - [px, py]) / scale  # undo the letterbox
+            quad = (quad - [px, py]) / scale
             out.append(Detection(quad=quad))
 
-        # Reading order: rows top-to-bottom, then left-to-right. Cards whose
-        # centres sit within half a card height of each other share a row.
         if out:
             centres = np.array([d.quad.mean(axis=0) for d in out])
             row_h = float(np.median([round(np.ptp(d.quad[:, 1])) for d in out])) * 0.5

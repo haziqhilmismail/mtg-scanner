@@ -1,7 +1,4 @@
-"""
-claims.py
----------
-Turn a Facebook comment thread into draft claims.
+"""Turn a Facebook comment thread into draft claims.
 
 Facebook offers no way to read a group's or profile's comments, so the seller
 brings them in: screenshots of the thread (or pasted text). Two steps, kept
@@ -33,7 +30,6 @@ from . import gemini
 OCR_LANGS = "eng+msa"
 
 
-# ---------- finding the seller's photo inside a screenshot ----------
 # A screenshot of a Facebook photo usually shows the photo itself as well as
 # the comments: on a phone the photo sits above them, on a PC to their left.
 # Finding it does two jobs: it says *which* photo the comments are about, and
@@ -97,7 +93,6 @@ def locate_photo(
     half hidden behind the comment sheet."""
     if not photos:
         return None, None, False
-    # Rank every candidate cheaply, then look properly at the front-runners.
     coarse = sorted(((_search(shot, img, _COARSE_W, _COARSE_SCALES)[0], sid) for sid, img in photos.items()), reverse=True)
     fine = sorted(((*_search(shot, photos[sid], _FINE_W, _FINE_SCALES), sid) for _, sid in coarse[:3]), key=lambda r: -r[0])
     score, box, sid = fine[0]
@@ -179,8 +174,6 @@ def read_screenshot(
     return "\n".join(ln for ln in lines if ln.strip()), scan_id, sure
 
 
-# ---------- what the client tells us is on sale ----------
-
 class CatalogueCard(BaseModel):
     card_id: int          # the card's id within its scan
     name: str
@@ -196,7 +189,6 @@ class CataloguePhoto(BaseModel):
     cards: list[CatalogueCard]
 
 
-# ---------- what Gemini gives back ----------
 # Gemini structured output has no Optional: 0 / "" stand for "unknown".
 
 class ClaimItemDraft(BaseModel):

@@ -1,7 +1,4 @@
-"""
-local_scan.py
--------------
-The local scanner (SCANNER_BACKEND=local) behind the `Scanner` interface of
+"""The local scanner (SCANNER_BACKEND=local) behind the `Scanner` interface of
 services/scans.py.
 
 Keeps the heavy imports (onnxruntime, rapidocr) out of the default Gemini

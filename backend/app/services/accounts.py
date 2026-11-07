@@ -15,7 +15,6 @@ from ..models import (
 
 
 async def user_by_email(db: AsyncSession, email: str) -> User | None:
-    """Emails match ignoring case and surrounding spaces."""
     return await db.scalar(select(User).where(func.lower(User.email) == email.strip().lower()))
 
 
