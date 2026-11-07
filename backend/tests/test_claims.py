@@ -5,12 +5,10 @@ import shutil
 from io import BytesIO
 
 import pytest
-from conftest import LIMIT, _dispose_then, _photo, new_user, run
+from conftest import LIMIT, _photo, run, sign_in
 from PIL import Image, ImageDraw, ImageFont
 
-from app.db import engine
-from app.services import claims, credits
-from app.services.auth_service import issue_session_token
+from app.services import claims, credits, gemini
 
 
 def _thread_png(lines, dark=False) -> bytes:
@@ -74,18 +72,17 @@ def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
     C, P, D, I = claims.CatalogueCard, claims.CataloguePhoto, claims.ClaimDraft, claims.ClaimItemDraft
     photo = P(scan_id=7, label="Photo 1", cards=[C(card_id=0, name="Sol Ring"), C(card_id=1, name="Island")])
 
-    class _Models:
-        def generate_content(self, **kw):
-            assert "Sol Ring" in kw["contents"][0] and "nak no 1" in kw["contents"][0]
-            return type("R", (), {"parsed": claims.ParseResult(claims=[
-                D(buyer="Aiman", comment="nak no 1", unclear="", items=[
-                    I(scan_id=7, card_id=0, qty=0, said="no 1", unclear=""),      # qty 0 → 1
-                    I(scan_id=0, card_id=1, qty=1, said="island", unclear=""),    # one photo: scan filled in
-                    I(scan_id=7, card_id=9, qty=1, said="bolt", unclear=""),      # not on offer → unclear
-                ]),
-                D(buyer="Nobody", comment="pm", unclear="", items=[]),           # nothing claimed → skipped
-            ], skipped=["Farah: ada lagi?"])})()
-    monkeypatch.setattr(claims, "get_client", lambda: type("Cl", (), {"models": _Models()})())
+    def answer(contents, schema, temperature):
+        assert "Sol Ring" in contents[0] and "nak no 1" in contents[0]
+        return claims.ParseResult(claims=[
+            D(buyer="Aiman", comment="nak no 1", unclear="", items=[
+                I(scan_id=7, card_id=0, qty=0, said="no 1", unclear=""),      # qty 0 → 1
+                I(scan_id=0, card_id=1, qty=1, said="island", unclear=""),    # one photo: scan filled in
+                I(scan_id=7, card_id=9, qty=1, said="bolt", unclear=""),      # not on offer → unclear
+            ]),
+            D(buyer="Nobody", comment="pm", unclear="", items=[]),           # nothing claimed → skipped
+        ], skipped=["Farah: ada lagi?"])
+    monkeypatch.setattr(gemini, "generate_json", answer)
 
     result = claims.parse_claims("Aiman\nnak no 1", [photo], "Seller")
     assert [d.buyer for d in result.claims] == ["Aiman"]
@@ -102,10 +99,8 @@ def _item(scan_id, card_id, name, price, qty=1, qty_total=1, foil=False):
 
 
 def test_confirm_makes_orders_and_reuses_listings(client):
-    uid, other = run(_dispose_then(new_user())), run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
-    them = {"Authorization": f"Bearer {issue_session_token(other)}"}
+    _, me = sign_in()
+    _, them = sign_in()
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, data={"post_id": str(post)}, headers=me).json()["scan_id"]
 
@@ -140,9 +135,7 @@ def test_confirm_makes_orders_and_reuses_listings(client):
 
 
 def test_read_and_parse_endpoints(client, monkeypatch):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    _, me = sign_in()
     seen_photos = []
     def fake_read(raw, photos):
         seen_photos.append(sorted(photos))
@@ -175,9 +168,7 @@ def test_read_and_parse_endpoints(client, monkeypatch):
 
 
 def test_parse_spends_a_credit_and_refuses_when_out(client, monkeypatch):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    uid, me = sign_in()
     body = {"text": "Aiman\nnak 1", "photos": [{"scan_id": 5, "label": "Photo 1", "cards": [{"card_id": 0, "name": "Sol Ring"}]}]}
     calls = []
     def fake_parse(text, photos, seller):
@@ -194,8 +185,7 @@ def test_parse_spends_a_credit_and_refuses_when_out(client, monkeypatch):
     assert remaining() == LIMIT - 1                      # a failed call is handed back
 
     for _ in range(LIMIT - 1):
-        run(_dispose_then(credits.reserve(uid)))
-    run(engine.dispose())
+        run(credits.reserve(uid))
     calls.clear()
     out = client.post("/api/claims/parse", headers=me, json=body)
     assert out.status_code == 402 and out.json()["detail"]["code"] == "out_of_credits"
@@ -251,11 +241,9 @@ TAGGED_PHOTO = claims.CataloguePhoto(scan_id=3, label="Photo 1", cards=[
 def test_prompt_explains_seller_tags_in_replies(monkeypatch, thread):
     sent = []
 
-    class _Models:
-        def generate_content(self, **kw):
-            sent.append(kw["contents"][0])
-            return type("R", (), {"parsed": None})()
-    monkeypatch.setattr(claims, "get_client", lambda: type("Cl", (), {"models": _Models()})())
+    def answer(contents, schema, temperature):
+        sent.append(contents[0])
+    monkeypatch.setattr(gemini, "generate_json", answer)
 
     claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi")
     prompt = sent[0]
@@ -278,9 +266,7 @@ def test_live_gemini_reads_tagged_replies_as_the_buyers_claims(monkeypatch, thre
 
 
 def test_a_finished_photo_keeps_its_posted_prices(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    _, me = sign_in()
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, data={"post_id": str(post)}, headers=me).json()["scan_id"]
     bbox = client.get("/api/scans?lite=1", headers=me).json()[0]["cards"][0]["bbox"]
@@ -306,9 +292,7 @@ def test_a_finished_photo_keeps_its_posted_prices(client):
 
 
 def test_live_prices_change_until_sent(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    _, me = sign_in()
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, headers=me).json()["scan_id"]
     order = client.post("/api/claims/confirm", headers=me, json={"claims": [
         {"buyer": "Aiman", "items": [_item(scan, 0, "Sol Ring", "9.00", qty=2, qty_total=2)]}]}).json()[0]
@@ -328,9 +312,7 @@ def test_live_prices_change_until_sent(client):
 
 
 def test_each_post_counts_its_buyers_who_still_has_to_pay_and_what_was_paid(client):
-    uid = run(_dispose_then(new_user()))
-    run(engine.dispose())
-    me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
+    _, me = sign_in()
     post = client.post("/api/posts", data={"title": "Friday"}, headers=me).json()["id"]
     quiet = client.post("/api/posts", data={"title": "Sunday"}, headers=me).json()["id"]
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, data={"post_id": str(post)}, headers=me).json()["scan_id"]
@@ -344,5 +326,3 @@ def test_each_post_counts_its_buyers_who_still_has_to_pay_and_what_was_paid(clie
 
     counts = {p["id"]: (p["buyer_count"], p["unpaid_buyer_count"], p["paid_myr"]) for p in client.get("/api/posts", headers=me).json()}
     assert counts == {post: (2, 1, "9.00"), quiet: (0, 0, "0.00")}
-    one = client.get(f"/api/posts/{post}", headers=me).json()
-    assert (one["buyer_count"], one["unpaid_buyer_count"], one["paid_myr"]) == (2, 1, "9.00")

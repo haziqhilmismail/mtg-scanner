@@ -84,15 +84,12 @@ export interface Post {
   fb_url: string | null;
   note: string | null;
   status: PostStatus;
-  image_path: string | null;
-  image_mime: string | null;
   created_at: string;
   updated_at: string;
   listing_count: number;
   active_listing_count: number;
   total_qty: number;
   total_value_myr: string;
-  has_image: boolean;
   // Buyers with claims on the post, and how many still have to pay.
   buyer_count: number;
   unpaid_buyer_count: number;
@@ -105,7 +102,6 @@ export interface PostCreatePayload {
   title?: string | null;
   fb_url?: string | null;
   note?: string | null;
-  image?: File | null;
   pricing?: Settings | null;
 }
 
@@ -143,8 +139,6 @@ export interface Order {
   dropoff_method: string | null;
   dropoff_address: string | null;
   notes: string | null;
-  has_delivery_photo: boolean;
-  delivery_photo_uploaded_at: string | null;
   items: OrderItem[];
   created_at: string;
   updated_at: string;
@@ -229,7 +223,6 @@ export const postsApi = {
       title: payload.title ?? undefined,
       fb_url: payload.fb_url ?? undefined,
       note: payload.note ?? undefined,
-      image: payload.image ?? undefined,
       pricing: payload.pricing ? JSON.stringify(payload.pricing) : undefined,
     }),
   // `keepalive` lets the save finish as the page closes.

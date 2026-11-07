@@ -49,7 +49,8 @@ class Post(Base, TimestampMixin):
         Enum(PostStatus), default=PostStatus.active, server_default="active",
     )
 
-    # On-disk reminder image — saved by the upload endpoint, not the user's hand
+    # Reminder image of a removed feature. Nothing writes these now; deleting
+    # the post or the account still removes an old file.
     image_path: Mapped[str | None] = mapped_column(String(512))
     image_mime: Mapped[str | None] = mapped_column(String(64))
 

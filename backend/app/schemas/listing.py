@@ -64,35 +64,6 @@ class ListingRead(ListingBase):
     updated_at: datetime
 
 
-class BulkImportLine(BaseModel):
-    """Result of parsing one Moxfield-style line."""
-    raw: str
-    ok: bool
-    error: str | None = None
-    listing_id: int | None = None
-    name: str | None = None
-    set_code: str | None = None
-    collector_number: str | None = None
-    is_foil: bool = False
-    qty: int = 1
-    unit_price_myr: str | None = None
-    image_url: str | None = None
-
-
-class BulkImportPayload(BaseModel):
-    """Moxfield-style text dump. Each non-empty line is parsed, looked up on
-    Scryfall, priced via the user's default multiplier, and saved as a listing."""
-    text: str
-    post_id: int | None = None
-    apply_foil_to_all: bool = False
-
-
-class BulkImportResult(BaseModel):
-    created: int
-    skipped: int
-    lines: list[BulkImportLine]
-
-
 class ListingReadWithAvailability(ListingRead):
     """Same as ListingRead but with computed qty fields. Use for list views
     that need to show how much stock remains."""

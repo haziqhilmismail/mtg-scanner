@@ -1,7 +1,8 @@
 """
 gemini_scanner.py
 -----------------
-Send a card photo to Gemini, get back structured detections.
+The Gemini scanner (SCANNER_BACKEND=gemini, the code default) behind the
+`Scanner` interface of services/scans.py.
 
 Gemini does both jobs in one call:
   - Locates each card (returns bounding box in normalized [0,1000] coords)
@@ -10,18 +11,26 @@ Gemini does both jobs in one call:
 
 Output format follows Google's recommended bounding-box convention:
   box_2d = [ymin, xmin, ymax, xmax] in 0-1000 scale
+
+The classical detector (classical_detector.py) then tightens each box to a
+card-shaped blob when one matches, and supplies the card's corner quad.
 """
 
-from pydantic import BaseModel
-from google import genai
+import asyncio
+
 from google.genai import types
+from PIL import Image
+from pydantic import BaseModel
 
 from ..config import settings
+from ..schemas.scan import Detection, Guess
+from . import gemini
+from .classical_detector import detect_card_quads, iou_xywh
 
 
-# Note: Gemini structured outputs don't support Optional/Union types.
-# Use empty strings to mean "unknown" instead of null.
-class CardDetection(BaseModel):
+# Gemini's answer for one card. Structured outputs don't support
+# Optional/Union types, so empty strings mean "unknown" instead of null.
+class GeminiCard(BaseModel):
     name: str          # exact card name as printed (English)
     set_code: str      # 3-letter Scryfall set code, lowercase, or "" if unknown
     collector_number: str  # collector number from card bottom, or "" if unknown
@@ -94,71 +103,15 @@ Order the array in reading order: top-to-bottom, then left-to-right.
 Return ONLY the JSON array. No markdown fences, no explanation, no preamble."""
 
 
-def get_client():
-    api_key = settings.gemini_api_key
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY not set. Get a free key at https://aistudio.google.com/apikey "
-            "and put it in backend/.env or export it as an environment variable."
-        )
-    return genai.Client(api_key=api_key)
-
-
-def scan_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> list[CardDetection]:
+def scan_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> list[GeminiCard]:
     """Send the image to Gemini and parse out card detections."""
-    client = get_client()
-    model = settings.gemini_model
-
-    response = client.models.generate_content(
-        model=model,
-        contents=[
-            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-            PROMPT,
-        ],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=list[CardDetection],
-            temperature=0.1,  # low temp for accuracy
-            thinking_config=types.ThinkingConfig(
-                thinking_budget=settings.gemini_thinking_budget,
-            ),
-        ),
+    parsed = gemini.generate_json(
+        [types.Part.from_bytes(data=image_bytes, mime_type=mime_type), PROMPT],
+        list[GeminiCard],
+        temperature=0.1,  # low temp for accuracy
     )
-
-    # Log per-call token usage so we can see actual cost shape and prove the
-    # thinking-budget cap is working. At $0.50/M input + $3.00/M output (and
-    # thinking is billed at the output rate), the dominant lever is the
-    # thinking token count.
-    usage = getattr(response, "usage_metadata", None)
-    if usage is not None:
-        prompt_t = getattr(usage, "prompt_token_count", 0) or 0
-        output_t = getattr(usage, "candidates_token_count", 0) or 0
-        thinking_t = getattr(usage, "thoughts_token_count", 0) or 0
-        total_t = getattr(usage, "total_token_count", 0) or 0
-        # Rough USD cost estimate at advertised Gemini 3 Flash rates.
-        cost_usd = (prompt_t * 0.5 + (output_t + thinking_t) * 3.0) / 1_000_000
-        print(
-            f"[gemini-usage] prompt={prompt_t} thinking={thinking_t} "
-            f"output={output_t} total={total_t} cost=${cost_usd:.5f}",
-            flush=True,
-        )
-
-    parsed = response.parsed
     if parsed is None:
-        # Fall back to manual JSON parsing if structured output failed
-        import json
-        try:
-            text = response.text or ""
-            # Strip possible markdown fences
-            text = text.strip()
-            if text.startswith("```"):
-                text = text.split("```", 2)[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            data = json.loads(text.strip())
-            parsed = [CardDetection(**item) for item in data]
-        except Exception as e:
-            raise RuntimeError(f"Could not parse Gemini response: {e}\nRaw: {response.text[:500]}")
+        raise RuntimeError("Could not parse Gemini response")
 
     # Post-process: Gemini sometimes ignores the "stacked = one detection with qty=N"
     # instruction and returns two separate detections for stacked-with-offset cards.
@@ -188,7 +141,7 @@ def _bbox_union(a: list[int], b: list[int]) -> list[int]:
     return [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
 
 
-def _merge_stacked_detections(dets: list[CardDetection]) -> list[CardDetection]:
+def _merge_stacked_detections(dets: list[GeminiCard]) -> list[GeminiCard]:
     """Merge same-name detections whose bboxes overlap by >50% of the smaller box.
     Result has summed quantities and the union bbox covering the stack."""
     if len(dets) < 2:
@@ -219,3 +172,87 @@ def _merge_stacked_detections(dets: list[CardDetection]) -> list[CardDetection]:
                     merged_into[j] = i
 
     return [d for i, d in enumerate(dets) if i not in merged_into]
+
+
+class GeminiScanner:
+    model = settings.gemini_model
+    costs_credit = True
+
+    def load(self) -> None:
+        pass
+
+    def ready(self) -> str | None:
+        try:
+            gemini.client()
+        except Exception as e:
+            return str(e)
+        return None
+
+    async def detect(self, pil: Image.Image, jpeg: bytes) -> list[Detection]:
+        W, H = pil.size
+
+        # Card-shaped blobs: a tight axis-aligned bbox (for IoU matching
+        # against Gemini) and a 4-corner quad following the card edges.
+        classical_boxes: list[tuple[int, int, int, int]] = []
+        classical_quads: list[list[list[int]]] = []
+        if settings.use_classical_bbox:
+            try:
+                for bbox, quad in await asyncio.to_thread(detect_card_quads, jpeg):
+                    classical_boxes.append(bbox)
+                    classical_quads.append(quad)
+            except Exception as e:
+                print(f"[scan] classical detector failed: {e}", flush=True)
+
+        # The Gemini SDK call is synchronous and takes several seconds; run it
+        # in a worker thread so the event loop keeps serving other requests.
+        cards = await asyncio.to_thread(scan_image, jpeg)
+
+        out: list[Detection] = []
+        classical_consumed = [False] * len(classical_boxes)
+        for card in cards:
+            try:
+                ymin, xmin, ymax, xmax = card.box_2d
+            except (ValueError, TypeError):
+                ymin, xmin, ymax, xmax = 0, 0, 1000, 1000
+
+            x = int(xmin / 1000 * W)
+            y = int(ymin / 1000 * H)
+            x2 = int(xmax / 1000 * W)
+            y2 = int(ymax / 1000 * H)
+            x, y = max(0, x), max(0, y)
+            x2, y2 = min(W, x2), min(H, y2)
+            if x2 <= x or y2 <= y:
+                x, y, x2, y2 = 0, 0, W, H
+
+            bbox_source = "gemini"
+            matched_quad: list[list[int]] | None = None
+            if classical_boxes:
+                gemini_xywh = (x, y, x2 - x, y2 - y)
+                # Match against ALL classical boxes. If the best one was already
+                # taken by an earlier Gemini detection, this one is a duplicate of
+                # the same card; otherwise refine to it and mark it taken.
+                best_iou, best_idx = 0.0, -1
+                for ci, cb in enumerate(classical_boxes):
+                    cur = iou_xywh(gemini_xywh, cb)
+                    if cur > best_iou:
+                        best_iou, best_idx = cur, ci
+                if best_idx >= 0 and best_iou >= 0.4:
+                    if classical_consumed[best_idx]:
+                        continue
+                    cx, cy, cw, ch = classical_boxes[best_idx]
+                    x, y = cx, cy
+                    x2, y2 = cx + cw, cy + ch
+                    classical_consumed[best_idx] = True
+                    bbox_source = "classical"
+                    matched_quad = classical_quads[best_idx]
+
+            out.append(Detection(
+                guess=Guess(**card.model_dump(exclude={"box_2d"})),
+                bbox=(x, y, x2 - x, y2 - y),
+                # The classical quad when one matched; otherwise the box as a
+                # rectangle, so `corners` is always a 4-point polygon.
+                corners=matched_quad or [[x, y], [x2, y], [x2, y2], [x, y2]],
+                bbox_source=bbox_source,
+                name_source="gemini",
+            ))
+        return out

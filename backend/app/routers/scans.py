@@ -1,15 +1,16 @@
-"""Saved scans: list, per-card edits, filing under posts, pictures, delete, re-pricing.
-POST /api/scan (making one) and frame-card stay in main.py with the scan pipeline."""
+"""Scans: POST /api/scan makes one from a photo; /api/scans/... lists saved
+scans and edits their cards, filing, pictures, prices. The pipeline and the
+card record live in services/scans.py."""
 
 import asyncio
 import base64
-import json
+from contextlib import nullcontext
 from io import BytesIO
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi import Path as PathParam
 from fastapi.responses import Response
 from PIL import Image
@@ -17,15 +18,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.orm.attributes import flag_modified
 
-from ..deps import CurrentUserId, DbSession, ImageUserId, limiter
+from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter
 from ..models import Listing, ListingStatus, Order, OrderItem, OrderStatus, Post, Scan
 from ..models.card_correction import CorrectionKind
-from ..services import corrections
+from ..services import catalogue, corrections, credits, scans
 from ..services.listings import drop_listing, locked_prices
-from ..services.cardkingdom_prices import enrich as enrich_with_ck
-from ..services.cardkingdom_prices import get_index as get_ck_index
+from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
-router = APIRouter(prefix="/api/scans", tags=["scans"])
+router = APIRouter(tags=["scans"])
 
 # A scan id SQLite can hold. A bigger one names no scan, and the driver raises
 # OverflowError on it, which is a 500.
@@ -39,7 +39,94 @@ async def _own_scan(db: DbSession, scan_id: int, user_id: int) -> Scan:
     return scan_row
 
 
-@router.get("")
+@router.post("/api/scan")
+@limiter.limit("10/minute;100/hour")  # local scans load the home server's CPU; Gemini scans cost money
+async def scan(
+    request: Request,
+    db: DbSession,
+    user_id: CurrentUserId,
+    image: UploadFile = File(...),
+    post_id: int | None = Form(default=None),
+):
+    # Which post to file the photo under. Checked before anything costly.
+    if post_id is not None:
+        post = await db.get(Post, post_id)
+        if not post or post.user_id != user_id:
+            raise HTTPException(404, "Post not found")
+    if problem := scans.scanner.ready():
+        raise HTTPException(503, problem)
+    raw = await image.read()
+    # Reject oversized uploads before the expensive decode. 25 MB is generous
+    # for a phone photo (even a 48 MP HEIC is a few MB); anything bigger is
+    # either a mistake or an attempt to exhaust memory on the box.
+    MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Image too large (max 25 MB)")
+    try:
+        # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
+        pil, jpeg = await asyncio.to_thread(scans.normalise_upload, raw)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    # A scan that costs a credit hands it back if anything below fails.
+    async with credits.spend(db, user_id) if scans.scanner.costs_credit else nullcontext():
+        try:
+            found = await scans.scanner.detect(pil, jpeg)
+        except Exception as e:
+            raise HTTPException(500, f"Scan failed: {e}")
+        cards = await scans.identify(found, *pil.size)
+        result = await scans.store(db, user_id, image.filename, pil, jpeg, cards, post_id)
+    result["credits"] = await credits.status(db, user_id)
+    return result
+
+
+@router.post("/api/scans/{scan_id}/frame-card")
+@limiter.limit("30/minute")
+async def frame_card(
+    request: Request,
+    scan_id: int,
+    db: DbSession,
+    user_id: CurrentUserId,
+    payload: str = Form(...),
+):
+    """User-drawn frame around a card the detector missed (typically two
+    cards merged into one bbox). Body: {corners: [[x,y]*4]} in source-image
+    pixels, TL/TR/BR/BL order. Returns a "manual" card the user fills in via
+    the row's edit controls. Appended to the scan's stored cards JSON so it
+    survives refresh."""
+    scan_row = await db.get(Scan, scan_id)
+    if not scan_row or scan_row.user_id != user_id:
+        raise HTTPException(404, "Scan not found")
+
+    corners = json_payload(payload).get("corners")
+    if not (isinstance(corners, list) and len(corners) == 4
+            and all(isinstance(p, list) and len(p) == 2 for p in corners)):
+        raise HTTPException(400, "Missing/invalid 'corners' — need 4 [x,y] points")
+    try:
+        corners_int = [[int(round(p[0])), int(round(p[1]))] for p in corners]
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Corners must be numeric")
+
+    photo = Path(scan_row.image_path) if scan_row.image_path else None
+    if not photo or not photo.exists():
+        raise HTTPException(404, "image_id not found (re-upload the image)")
+    pil = await asyncio.to_thread(scans.decode_upright, photo.read_bytes())
+
+    payload_json = dict(scan_row.gemini_raw or {})
+    cards = list(payload_json.get("cards") or [])
+    try:
+        new_card = (await scans.manual_card(pil, cards, corners_int)).to_payload()
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    payload_json["cards"] = [*cards, new_card]
+    # JSON column — reassign to mark the field dirty (SQLAlchemy doesn't
+    # detect in-place dict mutations).
+    scan_row.gemini_raw = payload_json
+    await db.flush()
+    return new_card
+
+
+@router.get("/api/scans")
 async def list_scans(
     db: DbSession, user_id: CurrentUserId,
     limit: int = Query(default=30, ge=1, le=500), lite: bool = False,
@@ -78,56 +165,11 @@ async def list_scans(
     return [scan_out(s, listed.get(s.id, []), lite) for s in rows]
 
 
-def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:
-    """A saved scan as the client rehydrates it (see list_scans)."""
-    payload = s.gemini_raw or {}
-    cards = payload.get("cards", [])
-    if lite:
-        cards = [{**c, "crop_b64": ""} for c in cards]
-    return {
-        "image_id": str(s.id),
-        "scan_id": s.id,
-        "post_id": s.post_id,
-        "filename": s.filename,
-        "image_b64": "" if lite else payload.get("image_b64", ""),
-        "width": s.width,
-        "height": s.height,
-        "cards": cards,
-        "created_at": s.created_at.isoformat() if s.created_at else None,
-        "position": s.position,
-        "ui_state": s.ui_state,
-        "listed": listed,
-    }
-
-
 class ScanState(BaseModel):
     state: dict
 
 
-def split_state(raw: dict, n_cards: int) -> tuple[dict, list | None]:
-    """A client's per-card edits, checked: the state to store, and the picks
-    taken out of it (see save_scan_state)."""
-    if len(json.dumps(raw)) > 64 * 1024:
-        raise HTTPException(413, "State too large (max 64 KB)")
-    state = dict(raw)
-    picks = state.pop("picks", None)
-    if picks is not None and not (
-        isinstance(picks, list)
-        and len(picks) <= n_cards
-        and all(p is None or (isinstance(p, dict) and isinstance(p.get("name"), str)) for p in picks)
-    ):
-        raise HTTPException(400, "picks must be a list of null or a candidate with a name, one per card")
-    return state, picks
-
-
-def apply_picks(payload: dict, picks: list | None) -> None:
-    """Each pick becomes its card's first candidate in the saved scan."""
-    for card, pick in zip(payload["cards"], picks or []):
-        if pick is not None:
-            card["candidates"] = [pick, *(card.get("candidates") or [])[1:]]
-
-
-@router.patch("/{scan_id}/state", status_code=204)
+@router.patch("/api/scans/{scan_id}/state", status_code=204)
 async def save_scan_state(scan_id: ScanId, body: ScanState, db: DbSession, user_id: CurrentUserId):
     """Store the seller's per-card edits for this scan. Last write wins, except
     a state whose integer rev is below the stored one is ignored (late arrival).
@@ -170,7 +212,7 @@ class Answer(BaseModel):
     kind: CorrectionKind
 
 
-@router.put("/{scan_id}/cards/{card_id}/correction")
+@router.put("/api/scans/{scan_id}/cards/{card_id}/correction")
 @limiter.limit("120/minute")
 async def correct_card(
     request: Request, scan_id: ScanId, card_id: int, body: Answer, db: DbSession, user_id: CurrentUserId,
@@ -193,7 +235,7 @@ class MoveScans(BaseModel):
     post_id: int | None = None  # None = unfile
 
 
-@router.post("/move", status_code=204)
+@router.post("/api/scans/move", status_code=204)
 async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
     """File photos under a post (or unfile them). Other people's scans in
     `scan_ids` are silently left alone."""
@@ -213,7 +255,7 @@ class ScanOrder(BaseModel):
     scan_ids: list[int] = Field(..., max_length=500)
 
 
-@router.put("/order", status_code=204)
+@router.put("/api/scans/order", status_code=204)
 async def order_scans(body: ScanOrder, db: DbSession, user_id: CurrentUserId):
     """Save the order of a post's photos: the first id is Photo 1. Other
     people's scans in `scan_ids` are silently left alone."""
@@ -243,7 +285,7 @@ def _data_url_jpeg(data_url: str, max_edge: int | None = None) -> Response:
     )
 
 
-@router.get("/{scan_id}/preview")
+@router.get("/api/scans/{scan_id}/preview")
 async def scan_preview(
     scan_id: ScanId,
     db: DbSession,
@@ -257,7 +299,7 @@ async def scan_preview(
     return await asyncio.to_thread(_data_url_jpeg, (scan_row.gemini_raw or {}).get("image_b64", ""), w)
 
 
-@router.get("/{scan_id}/crops/{card_id}")
+@router.get("/api/scans/{scan_id}/crops/{card_id}")
 async def scan_card_crop(
     scan_id: ScanId, card_id: int, db: DbSession, user_id: ImageUserId,
 ):
@@ -268,7 +310,7 @@ async def scan_card_crop(
     raise HTTPException(404, "Card not found")
 
 
-@router.delete("/{scan_id}", status_code=204)
+@router.delete("/api/scans/{scan_id}", status_code=204)
 async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
     """Drop a scan from the dashboard. Removes the DB row, the image bytes on
     disk, and the checklist cards added from it. A card in an open order
@@ -291,26 +333,7 @@ async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
     await db.delete(scan_row)
 
 
-def refresh_prices(payload: dict, ck_index) -> int:
-    """Today's CK prices on every candidate of a scan's payload, in place.
-    Returns how many candidates got a price row."""
-    cards = payload.get("cards", []) or []
-    updated = 0
-    for card in cards:
-        cands = card.get("candidates", []) or []
-        for i, cand in enumerate(cands):
-            if not cand:
-                continue
-            new_cand = enrich_with_ck(cand, ck_index)
-            if new_cand:
-                cands[i] = new_cand
-                updated += 1
-        card["candidates"] = cands
-    payload["cards"] = cards
-    return updated
-
-
-@router.post("/{scan_id}/relookup-prices")
+@router.post("/api/scans/{scan_id}/relookup-prices")
 @limiter.limit("30/minute")
 async def relookup_scan_prices(
     request: Request, scan_id: ScanId, db: DbSession, user_id: CurrentUserId,
@@ -323,7 +346,7 @@ async def relookup_scan_prices(
     scan_row = await _own_scan(db, scan_id, user_id)
 
     payload = scan_row.gemini_raw or {}
-    updated = refresh_prices(payload, await get_ck_index())
+    updated = refresh_prices(payload, await catalogue.ck_index())
     cards = payload["cards"]
     scan_row.gemini_raw = payload
     # JSON column needs an explicit mark — SQLAlchemy doesn't detect

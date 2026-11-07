@@ -30,8 +30,8 @@ if TYPE_CHECKING:
     from fastapi import Request
 
 
-# fingerprint → (window_start_utc, suppressed_count_during_window)
-_DEDUP: dict[str, tuple[datetime, int]] = {}
+# fingerprint → start of its window (UTC)
+_DEDUP: dict[str, datetime] = {}
 
 # The event loop only holds weak references to tasks; keep pending pushes
 # here so one can't be garbage-collected before it is sent.
@@ -70,20 +70,18 @@ def _top_frame(stack: str | None) -> str:
     return ""
 
 
-def _should_notify(fingerprint: str) -> tuple[bool, int]:
-    """Returns (should_send_push, count_in_window). Always call this AFTER
-    writing the DB row — the cache is the throttle, not the source of truth."""
+def _should_notify(fingerprint: str) -> bool:
+    """Whether to send a push: once per fingerprint per window. Always call
+    this AFTER writing the DB row — the cache is the throttle, not the source
+    of truth."""
     if not settings.telegram_enabled:
-        return False, 0
+        return False
     now = datetime.now(timezone.utc)
-    window = timedelta(minutes=settings.bug_notify_window_minutes)
-    entry = _DEDUP.get(fingerprint)
-    if entry is None or (now - entry[0]) > window:
-        _DEDUP[fingerprint] = (now, 1)
-        return True, 1
-    start, count = entry
-    _DEDUP[fingerprint] = (start, count + 1)
-    return False, count + 1
+    start = _DEDUP.get(fingerprint)
+    if start is not None and now - start <= timedelta(minutes=settings.bug_notify_window_minutes):
+        return False
+    _DEDUP[fingerprint] = now
+    return True
 
 
 def _truncate(text: str | None, limit: int) -> str | None:
@@ -197,8 +195,7 @@ async def report_exception(
     except Exception as e:
         print(f"[bug-reporter] DB write failed: {e}", flush=True)
 
-    notify, _ = _should_notify(fp)
-    if notify:
+    if _should_notify(fp):
         # Fire-and-forget — never block the response on Telegram I/O.
         _push(event)
 
@@ -232,7 +229,6 @@ async def report_frontend(
     )
     await _persist(db, event)
 
-    notify, _ = _should_notify(fp)
-    if notify:
+    if _should_notify(fp):
         _push(event)
     return event

@@ -251,19 +251,11 @@ export interface ExportPayload {
   font_scale?: number;
 }
 
-// Frame a missed card. User draws a rectangle in BatchPreview expand mode;
-// the backend returns either a card the local scanner named (CK-priced) or a
-// manual stub the user will rename.
-//
-// `skipIdentify=true` is the "just add a blank row" path — skips identifying and
-// returns an empty manual card the user fills in via the row's edit controls.
-export async function frameCard(
-  scanId: number,
-  corners: [number, number][],
-  skipIdentify = false,
-): Promise<DetectedCard> {
+// Frame a missed card: the backend returns an empty manual card the user
+// fills in via the row's edit controls.
+export async function frameCard(scanId: number, corners: [number, number][]): Promise<DetectedCard> {
   const fd = new FormData();
-  fd.append('payload', JSON.stringify({ corners, skip_identify: skipIdentify }));
+  fd.append('payload', JSON.stringify({ corners }));
   return (await request(`/api/scans/${scanId}/frame-card`, { method: 'POST', body: fd })).json();
 }
 

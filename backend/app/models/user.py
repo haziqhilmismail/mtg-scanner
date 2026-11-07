@@ -44,7 +44,7 @@ class User(Base, TimestampMixin):
     # A line added under the payment details, e.g. "Please send your name and phone number."
     payment_note: Mapped[str | None] = mapped_column(String(500))
 
-    # Pricing defaults (mirror the current frontend settings panel)
+    # Read by nothing since bulk import was removed; User.pricing replaced them.
     default_currency: Mapped[str] = mapped_column(String(8), default="RM")
     default_mult_normal: Mapped[float] = mapped_column(Float, default=2.8)
     default_mult_foil: Mapped[float] = mapped_column(Float, default=3.0)

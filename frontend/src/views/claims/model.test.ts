@@ -108,8 +108,8 @@ const item = (id: number, listing_id: number, qty = 1): OrderItem => ({
 });
 const order = (id: number, buyer_id: number, items: OrderItem[], over: Partial<Order> = {}): Order => ({
   id, user_id: 1, buyer_id, status: 'claimed', paid_at: null, delivered_at: null, archived_at: null, prices_sent_at: null,
-  total_myr: '0', dropoff_method: null, dropoff_address: null, notes: null, has_delivery_photo: false,
-  delivery_photo_uploaded_at: null, items: items.map(i => ({ ...i, order_id: id })), created_at: AT, updated_at: AT, ...over,
+  total_myr: '0', dropoff_method: null, dropoff_address: null, notes: null,
+  items: items.map(i => ({ ...i, order_id: id })), created_at: AT, updated_at: AT, ...over,
 });
 const buyer = (id: number, fb_name: string, phone: string | null = null): Buyer => ({
   id, user_id: 1, fb_name, fb_url: null, phone, default_dropoff_method: null, default_dropoff_address: null, notes: null, created_at: AT, updated_at: AT,

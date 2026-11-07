@@ -41,7 +41,6 @@ MAX_ASPECT = 0.95
 @dataclass
 class Detection:
     quad: np.ndarray  # (4, 2) float corners, clockwise, short edge first
-    score: float
 
     @property
     def bbox(self) -> tuple[int, int, int, int]:
@@ -131,7 +130,7 @@ class CardDetector:
                 continue
             quad = _to_quad(cx, cy, w, h, angle)
             quad = (quad - [px, py]) / scale  # undo the letterbox
-            out.append(Detection(quad=quad, score=float(scores[i])))
+            out.append(Detection(quad=quad))
 
         # Reading order: rows top-to-bottom, then left-to-right. Cards whose
         # centres sit within half a card height of each other share a row.

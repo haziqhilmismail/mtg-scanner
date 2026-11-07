@@ -17,6 +17,14 @@ from .models import User
 from .services.auth_service import decode_image_token, decode_session_token
 
 
+def json_payload(payload: str) -> dict:
+    """The JSON in a multipart form's `payload` field; 400 when it is not JSON."""
+    try:
+        return json.loads(payload)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON in 'payload'")
+
+
 async def get_db() -> AsyncIterator[AsyncSession]:
     async for session in get_session():
         yield session

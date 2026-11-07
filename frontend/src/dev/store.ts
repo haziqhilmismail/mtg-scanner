@@ -107,8 +107,8 @@ export function newPost(f: Fixture, fields: { title: string | null; pricing: Set
   const at = fields.created_at ?? ago(0);
   const post: Post = {
     id: nextId(f.posts), user_id: f.me.id, title: fields.title, fb_url: null, note: null,
-    status: fields.status ?? 'active', image_path: null, image_mime: null, created_at: at, updated_at: at,
-    listing_count: 0, active_listing_count: 0, total_qty: 0, total_value_myr: '0.00', has_image: false,
+    status: fields.status ?? 'active', created_at: at, updated_at: at,
+    listing_count: 0, active_listing_count: 0, total_qty: 0, total_value_myr: '0.00',
     buyer_count: 0, unpaid_buyer_count: 0, paid_myr: '0.00', pricing: fields.pricing,
   };
   f.posts.push(post);
@@ -294,8 +294,7 @@ export function newOrder(
     id, user_id: f.me.id, buyer_id: buyer.id, status: 'claimed', paid_at: null, delivered_at: null,
     archived_at: null, prices_sent_at: null,
     total_myr: items.reduce((sum, i) => sum + Number(i.line_total_myr), 0).toFixed(2),
-    dropoff_method: null, dropoff_address: null, notes: null, has_delivery_photo: false,
-    delivery_photo_uploaded_at: null, items, created_at: at, updated_at: at, ...fields,
+    dropoff_method: null, dropoff_address: null, notes: null, items, created_at: at, updated_at: at, ...fields,
   };
   f.orders.push(order);
   return order;

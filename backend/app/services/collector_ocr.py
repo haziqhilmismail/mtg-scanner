@@ -52,14 +52,13 @@ class CollectorLine:
     numbers: list[str] = field(default_factory=list)  # leading zeros stripped
     set_code: str = ""  # lowercase, "" when not read
     foil: bool | None = None  # None = separator glyph not read
-    text: str = ""  # raw OCR, for logs
 
     def __bool__(self) -> bool:
         return bool(self.numbers or self.set_code)
 
 
 def parse(lines: list[str]) -> CollectorLine:
-    out = CollectorLine(text=" | ".join(lines))
+    out = CollectorLine()
     for line in lines:
         upper = line.upper()
         m = _SET_LANG.search(upper)

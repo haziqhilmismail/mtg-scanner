@@ -87,7 +87,6 @@ class Embedder:
 
 @dataclass
 class Printing:
-    row: int  # row in the index
     scryfall_id: str
     name: str
     set: str
@@ -145,7 +144,6 @@ class CardIndex:
 
     def printing(self, row: int, score: float) -> Printing:
         return Printing(
-            row=int(row),
             scryfall_id=self.scryfall_id[row].decode(),
             name=self.name[row].decode("utf-8"),
             set=self.set[row].decode(),
