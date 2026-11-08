@@ -14,7 +14,6 @@ from fastapi.responses import Response
 from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
-from sqlalchemy.orm.attributes import flag_modified
 
 from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter, owned
 from ..models import Listing, ListingStatus, Order, OrderItem, Post, Scan
@@ -93,16 +92,12 @@ async def frame_card(
         raise HTTPException(404, "image_id not found (re-upload the image)")
     pil = await asyncio.to_thread(scans.decode_upright, photo.read_bytes())
 
-    payload_json = dict(scan_row.gemini_raw or {})
-    cards = list(payload_json.get("cards") or [])
     try:
-        new_card = (await scans.manual_card(pil, cards, corners_int)).to_payload()
+        new_card = (await scans.manual_card(pil, scan_row.cards, corners_int)).to_payload()
     except ValueError as e:
         raise HTTPException(400, str(e))
-    payload_json["cards"] = [*cards, new_card]
-    # JSON column — reassign to mark the field dirty (SQLAlchemy doesn't
-    # detect in-place dict mutations).
-    scan_row.gemini_raw = payload_json
+    with scan_row.edit_payload() as payload:
+        payload["cards"] = [*scan_row.cards, new_card]
     await db.flush()
     return new_card
 
@@ -159,7 +154,7 @@ async def save_scan_state(scan_id: Id, body: ScanState, db: DbSession, user_id: 
     chose for a card. They are not kept in ui_state: each one replaces the
     card's first candidate in the saved scan, so every later read sees it."""
     scan_row = await owned(db, Scan, scan_id, user_id)
-    state, picks = split_state(body.state, len((scan_row.gemini_raw or {}).get("cards", [])))
+    state, picks = split_state(body.state, len(scan_row.cards))
     # One conditional UPDATE, so two saves arriving together can't both pass a
     # read-then-compare and leave the older one stored.
     rev = state.get("rev")
@@ -171,21 +166,19 @@ async def save_scan_state(scan_id: Id, body: ScanState, db: DbSession, user_id: 
     if result.rowcount != 1:
         return
     # A finished photo: its stock listings carry the prices it was posted with.
-    if prices := locked_prices(state, scan_row.gemini_raw):
+    if prices := locked_prices(state, scan_row.cards):
         for listing in (await db.scalars(select(Listing).where(
             Listing.scan_id == scan_id, Listing.status != ListingStatus.archived,
         ))).all():
             if listing.bbox and tuple(listing.bbox) in prices:
                 listing.unit_price_myr = prices[tuple(listing.bbox)]
-    if not any(picks or []):  # most saves pick nothing: leave gemini_raw (and its photo) alone
+    if not any(picks or []):  # most saves pick nothing: leave the stored cards (and photo) alone
         return
     # The UPDATE holds SQLite's write lock until the session commits, so this
     # re-read and write can't interleave with another writer of this scan.
     await db.refresh(scan_row, ["gemini_raw"])
-    payload = scan_row.gemini_raw
-    apply_picks(payload, picks)
-    scan_row.gemini_raw = payload
-    flag_modified(scan_row, "gemini_raw")
+    with scan_row.edit_payload() as payload:
+        apply_picks(payload, picks)
 
 
 class Answer(BaseModel):
@@ -274,7 +267,7 @@ async def scan_preview(
     """The scan's photo preview. `w` caps the longest edge, for the small
     thumbnails in the scan strip."""
     scan_row = await owned(db, Scan, scan_id, user_id)
-    return await asyncio.to_thread(_data_url_jpeg, (scan_row.gemini_raw or {}).get("image_b64", ""), w)
+    return await asyncio.to_thread(_data_url_jpeg, scan_row.preview_b64, w)
 
 
 @router.get("/api/scans/{scan_id}/crops/{card_id}")
@@ -324,10 +317,7 @@ async def relookup_scan_prices(
     candidates got a price row."""
     scan_row = await owned(db, Scan, scan_id, user_id)
 
-    payload = scan_row.gemini_raw or {}
-    updated = refresh_prices(payload, await catalogue.ck_index())
-    scan_row.gemini_raw = payload
-    # JSON column needs an explicit mark — SQLAlchemy doesn't detect
-    # in-place dict mutation.
-    flag_modified(scan_row, "gemini_raw")
+    ck = await catalogue.ck_index()
+    with scan_row.edit_payload() as payload:
+        updated = refresh_prices(payload, ck)
     return {**scan_out(scan_row, [], lite=False), "updated": updated}

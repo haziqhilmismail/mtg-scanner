@@ -208,8 +208,7 @@ async def store(
 
 def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:
     """A saved scan as the client rehydrates it (see list_scans)."""
-    payload = s.gemini_raw or {}
-    cards = payload.get("cards", [])
+    cards = s.cards
     if lite:
         cards = [{**c, "crop_b64": ""} for c in cards]
     return {
@@ -217,7 +216,7 @@ def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:
         "scan_id": s.id,
         "post_id": s.post_id,
         "filename": s.filename,
-        "image_b64": "" if lite else payload.get("image_b64", ""),
+        "image_b64": "" if lite else s.preview_b64,
         "width": s.width,
         "height": s.height,
         "cards": cards,
