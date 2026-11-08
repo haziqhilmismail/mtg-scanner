@@ -1,4 +1,3 @@
-/* ---------- Review section heading ---------- */
 .review-head {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
   margin: 4px 0 14px;
@@ -7,7 +6,6 @@
 /* One per page: "Posts · 2", the post's name, "Photo 2 of 2", "Claims". */
 .page-title { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink); }
 
-/* Posts / post / photo: the pages above are links, the last is this page. */
 /* One line: a long post name shortens with "…" (the page title below has it whole). */
 .crumbs { display: flex; align-items: center; gap: 2px; min-width: 0; min-height: var(--tap); font-size: 15px; }
 .crumbs-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
@@ -20,10 +18,8 @@
 .review-title { min-width: 0; }
 .review-title h1, .review-title h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 
-/* A live amount's "≈" (Money.tsx) */
 .approx { margin-right: 2px; font-weight: 400; color: var(--ink-soft); }
 
-/* Version display */
 .version-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .set-badge {
   display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px;
@@ -39,7 +35,6 @@
 .set-badge .rarity.special { background: #af52de; }
 .set-name { font-size: 13px; color: var(--ink-soft); line-height: 1.25; }
 
-/* Footer */
 .foot a { color: inherit; }
 .foot {
   margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule);
@@ -47,9 +42,6 @@
   display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px;
 }
 
-/* ---------- Back to top ----------
-   Floats at the bottom right; appears once the user has scrolled more than
-   a viewport. */
 .float-back-top {
   position: fixed; z-index: var(--z-sticky);
   right: clamp(12px, 3vw, 24px);

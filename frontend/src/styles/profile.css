@@ -1,5 +1,4 @@
-/* ---------- Profile ----------
-   A phone gets one column in the md's order. From 900px the account and the
+/* A phone gets one column in DESIGN.md's order (section 9). From 900px the account and the
    payment form sit on the left, with pricing, preferences and help beside them. */
 .profile { display: flex; flex-direction: column; gap: 16px; max-width: 640px; }
 .profile-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -30,8 +29,7 @@
 .profile-stack { display: flex; flex-direction: column; gap: 14px; }
 .profile-help { display: flex; flex-direction: column; gap: 8px; }
 
-/* ---------- Payment details ----------
-   Fields, then the QR and what buyers see. Two columns once the card is wide
+/* Payment details: two columns once the card is wide
    enough for both. */
 .pay { container-type: inline-size; }
 .pay-sub { margin: 4px 0 0; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
@@ -76,7 +74,6 @@
 .pay-delete { margin-left: -10px; }
 .pay-save { margin-left: auto; }
 
-/* ---------- Help dialogs ---------- */
 .support-body { margin: 0 0 16px; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
 .support-qr { box-sizing: border-box; display: block; width: min(200px, 100%); aspect-ratio: 1; margin: 0 auto; padding: 18px; border-radius: var(--radius-xl); object-fit: contain; background: #fff; }
 .support-save { display: flex; width: min(200px, 100%); margin: 12px auto 0; }

@@ -1,10 +1,7 @@
-/* ==========================================================================
-   Design tokens
-   Apple-style semantic colours: grouped backgrounds, label hierarchy, one
+/* Apple-style semantic colours: grouped backgrounds, label hierarchy, one
    accent. Light values first; [data-theme="dark"] is set by useTheme, which
    follows the system appearance unless the person overrides it.
-   Contrast figures are WCAG ratios against the surface they sit on.
-   ========================================================================== */
+   Contrast figures are WCAG ratios against the surface they sit on. */
 :root {
   color-scheme: light;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
