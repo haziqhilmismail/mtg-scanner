@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { SavedScan } from '../api/scans.ts';
-import type { Buyer, Listing, Order, Post } from '../api/checklist.ts';
+import type { Buyer } from '../api/buyers.ts';
+import type { Listing } from '../api/listings.ts';
+import type { Order } from '../api/orders.ts';
+import type { Post } from '../api/posts.ts';
 import { fakeBackend } from './backend.ts';
 import { buildFixture } from './fixtures.ts';
 import type { TestData } from './mode.ts';

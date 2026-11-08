@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { listingsApi } from '../../api/checklist.ts';
+import { createListing, deleteListing, fetchListings } from '../../api/listings.ts';
 import type { ExportPayload } from '../../api/export.ts';
 import { relookupScanPrices } from '../../api/scans.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
@@ -69,7 +69,7 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
   // One card onto the checklist of a post, tied to its photo so deleting the
   // photo takes it off again.
   const addCard = useCallback(async (batch: Batch, cd: CardRowData, postId = batch.postId) => {
-    await listingsApi.create({
+    await createListing({
       ...listingFields(cd),
       scan_id: batch.scanId,
       bbox: cd.card.bbox,
@@ -81,9 +81,9 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
   const takeOutCard = useCallback(async (batch: Batch, cd: CardRowData): Promise<'claimed' | 'taken out'> => {
     const key = bboxKey(cd.card.bbox);
     // shortcut: reads every listing of the seller to find the card's own; ask the server for one scan's if that grows slow.
-    const its = (await listingsApi.list('active')).filter(l => l.scan_id === batch.scanId && l.bbox && bboxKey(l.bbox) === key);
+    const its = (await fetchListings('active')).filter(l => l.scan_id === batch.scanId && l.bbox && bboxKey(l.bbox) === key);
     if (its.some(l => (l.qty_committed ?? 0) > 0)) return 'claimed';
-    for (const l of its) await listingsApi.remove(l.id);
+    for (const l of its) await deleteListing(l.id);
     scanner.unmarkListed(batch.id, cd.card.bbox);
     return 'taken out';
   }, [scanner.unmarkListed]);

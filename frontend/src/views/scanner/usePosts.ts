@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { postsApi, repostPost, type Post } from '../../api/checklist.ts';
+import { deletePost as apiDeletePost, type Post, repostPost, updatePost } from '../../api/posts.ts';
 import { statusOf } from '../../api/http.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
@@ -178,7 +178,7 @@ export function usePosts({ scanner, nav: { route, go, replace, current }, pricin
     if (folder.postId == null || !title || title === folder.title) return;
     setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, title } : p)));
     try {
-      await postsApi.update(folder.postId, { title });
+      await updatePost(folder.postId, { title });
     } catch (e) {
       await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
@@ -192,7 +192,7 @@ export function usePosts({ scanner, nav: { route, go, replace, current }, pricin
     const status = archived ? 'archived' : 'active';
     setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, status } : p)));
     try {
-      await postsApi.update(folder.postId, { status });
+      await updatePost(folder.postId, { status });
     } catch (e) {
       await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
@@ -221,7 +221,7 @@ export function usePosts({ scanner, nav: { route, go, replace, current }, pricin
     });
     if (!ok) return;
     try {
-      await postsApi.remove(folder.postId);
+      await apiDeletePost(folder.postId);
     } catch (e) {
       if (statusOf(e) !== 409) {
         await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });

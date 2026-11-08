@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { saveDefaultPricing } from '../api/auth.ts';
-import { postsApi, type PostCreatePayload } from '../api/checklist.ts';
+import { createPost as apiCreatePost, fetchPosts, type PostCreatePayload, updatePost } from '../api/posts.ts';
 import type { Key } from '../i18n/index.ts';
 import { forgetLegacyPricing, pricingToUpload } from '../lib/legacy.ts';
 import { pricingKnown, resolvePricing, savePricing, type PricingState } from '../lib/pricing.ts';
@@ -35,7 +35,7 @@ export function usePricing(serverDefault: Settings | null) {
   const saves = useSaveQueue<Target, Settings>(
     (target, pricing, final) => (target === 'default'
       ? saveDefaultPricing(pricing, final)
-      : postsApi.update(target, { pricing }, final).then(() => undefined)),
+      : updatePost(target, { pricing }, final).then(() => undefined)),
     target => { settle(target); if (target === 'default') forgetLegacyPricing(); },
     target => { settle(target); setNotice('pricing_save_failed'); },
     { ordered: true },
@@ -58,7 +58,7 @@ export function usePricing(serverDefault: Settings | null) {
   // unless edited here since it was asked for.
   const listPosts = useCallback(async () => {
     const askedAt = ++clock.current;
-    const list = await postsApi.list(true);
+    const list = await fetchPosts(true);
     const posts = { ...stateRef.current.posts };
     for (const p of list) if (fresh(p.id, askedAt)) posts[p.id] = p.pricing;
     set({ ...stateRef.current, posts });
@@ -69,7 +69,7 @@ export function usePricing(serverDefault: Settings | null) {
   // default later doesn't reprice it.
   const createPost = useCallback(async (payload: Omit<PostCreatePayload, 'pricing'>, priceMode: PriceMode = 'photo') => {
     const pricing = { ...resolvePricing(null, stateRef.current.userDefault), priceMode };
-    const post = await postsApi.create({ ...payload, pricing });
+    const post = await apiCreatePost({ ...payload, pricing });
     set({ ...stateRef.current, posts: { ...stateRef.current.posts, [post.id]: post.pricing } });
     return post;
   }, [set]);

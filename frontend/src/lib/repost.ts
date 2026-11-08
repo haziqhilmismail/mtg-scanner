@@ -3,7 +3,8 @@
 // photo covers it; a card partly claimed keeps the copies left. Pure, so the
 // dialog's counts and what the server is sent come from one rule.
 
-import type { Listing, Order } from '../api/checklist.ts';
+import type { Listing } from '../api/listings.ts';
+import type { Order } from '../api/orders.ts';
 import type { Batch } from '../types.ts';
 import { uiStateOf, type ScanUiState, bboxKey } from './scanState.ts';
 
