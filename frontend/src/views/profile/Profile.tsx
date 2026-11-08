@@ -1,21 +1,21 @@
 import { useState } from 'react';
-import { saveSellerName, type AuthUser } from '../api/auth.ts';
-import { Avatar } from '../components/Avatar.tsx';
-import { FeedbackModal } from '../components/FeedbackModal.tsx';
-import { Icon } from '../components/Icon.tsx';
-import { Link } from '../components/Link.tsx';
-import { PaymentDetails } from '../components/PaymentDetails.tsx';
-import { Preferences } from '../components/Preferences.tsx';
-import { SupportSheet } from '../components/SupportSheet.tsx';
-import { SaveField } from '../components/ui/SaveField.tsx';
-import { useToast } from '../components/ui/Toast.tsx';
-import { useT } from '../hooks/useLang.ts';
-import type { PaymentStore } from '../hooks/usePayment.ts';
-import type { PricingStore } from '../hooks/usePricing.ts';
-import { pricingSummary } from '../lib/pricing.ts';
-import type { Appearance, Lang } from '../types.ts';
-import type { Credits } from '../api/credits.ts';
-import { creditsLine } from '../utils.ts';
+import { saveSellerName, type AuthUser } from '../../api/auth.ts';
+import { Avatar } from '../../components/Avatar.tsx';
+import { FeedbackModal } from './FeedbackModal.tsx';
+import { Icon } from '../../components/Icon.tsx';
+import { Link } from '../../components/Link.tsx';
+import { PaymentDetails } from './PaymentDetails.tsx';
+import { Preferences } from '../../components/Preferences.tsx';
+import { SupportSheet } from '../../components/SupportSheet.tsx';
+import { SaveField } from '../../components/ui/SaveField.tsx';
+import { useToast } from '../../components/ui/Toast.tsx';
+import { useT } from '../../hooks/useLang.ts';
+import type { PaymentStore } from '../../hooks/usePayment.ts';
+import type { PricingStore } from '../../hooks/usePricing.ts';
+import { pricingSummary } from '../../lib/pricing.ts';
+import type { Appearance, Lang } from '../../types.ts';
+import type { Credits } from '../../api/credits.ts';
+import { creditsLine } from '../../utils.ts';
 
 interface Props {
   user: AuthUser | null;  // null in solo mode, where nobody signs in

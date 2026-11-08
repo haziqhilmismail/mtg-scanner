@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
-import { fetchPrintings } from '../api/catalogue.ts';
-import { statusOf } from '../api/http.ts';
-import type { T } from '../hooks/useLang.ts';
-import { plural } from '../i18n/index.ts';
-import type { Candidate, RelookupMsg } from '../types.ts';
-import { fmt2, smallScryfallImage } from '../utils.ts';
-import { Icon } from './Icon.tsx';
-import { Dialog } from './ui/Dialog.tsx';
-import { TextField } from './ui/Field.tsx';
-import { printingText } from './VersionLine.tsx';
+import { fetchPrintings } from '../../api/catalogue.ts';
+import { statusOf } from '../../api/http.ts';
+import type { T } from '../../hooks/useLang.ts';
+import { plural } from '../../i18n/index.ts';
+import type { Candidate, RelookupMsg } from '../../types.ts';
+import { fmt2, smallScryfallImage } from '../../utils.ts';
+import { Icon } from '../../components/Icon.tsx';
+import { Dialog } from '../../components/ui/Dialog.tsx';
+import { TextField } from '../../components/ui/Field.tsx';
+import { printingText } from '../../components/VersionLine.tsx';
 
 interface Props {
   open: boolean;

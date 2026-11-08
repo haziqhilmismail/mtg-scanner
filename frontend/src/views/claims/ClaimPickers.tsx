@@ -2,8 +2,8 @@
 // them, and the picker the seller uses when a comment's card needs changing.
 
 import { useState } from 'react';
-import type { Batch, CardRowData } from '../types.ts';
-import { useT } from '../hooks/useLang.ts';
+import type { Batch, CardRowData } from '../../types.ts';
+import { useT } from '../../hooks/useLang.ts';
 
 // One card that can be claimed: a scanned card in one of the post's photos.
 export interface CardRef {

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { statusOf } from '../api/http.ts';
-import { paymentApi, type Payment } from '../api/payment.ts';
-import { useT } from '../hooks/useLang.ts';
-import type { PaymentStore } from '../hooks/usePayment.ts';
-import { changesOf, draftOf, hasDetails, NO_PAYMENT, previewOf, type PaymentDraft, type PaymentFields } from '../lib/paymentDraft.ts';
-import { paymentLines, pastedImages, popupOpen } from '../utils.ts';
-import { useDialog } from './DialogProvider.tsx';
-import { Icon } from './Icon.tsx';
-import { TextArea, TextField } from './ui/Field.tsx';
-import { useToast } from './ui/Toast.tsx';
+import { statusOf } from '../../api/http.ts';
+import { paymentApi, type Payment } from '../../api/payment.ts';
+import { useT } from '../../hooks/useLang.ts';
+import type { PaymentStore } from '../../hooks/usePayment.ts';
+import { changesOf, draftOf, hasDetails, NO_PAYMENT, previewOf, type PaymentDraft, type PaymentFields } from '../../lib/paymentDraft.ts';
+import { paymentLines, pastedImages, popupOpen } from '../../utils.ts';
+import { useDialog } from '../../components/DialogProvider.tsx';
+import { Icon } from '../../components/Icon.tsx';
+import { TextArea, TextField } from '../../components/ui/Field.tsx';
+import { useToast } from '../../components/ui/Toast.tsx';
 
 const MAX_QR_BYTES = 8 * 1024 * 1024;  // the server's limit
 

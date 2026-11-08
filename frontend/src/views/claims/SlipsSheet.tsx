@@ -1,12 +1,12 @@
 import { useId, useState } from 'react';
-import { dropoffSlipsPdf } from '../api/slips.ts';
-import { useT } from '../hooks/useLang.ts';
-import { plural } from '../i18n/index.ts';
-import { downloadBlob } from '../utils.ts';
+import { dropoffSlipsPdf } from '../../api/slips.ts';
+import { useT } from '../../hooks/useLang.ts';
+import { plural } from '../../i18n/index.ts';
+import { downloadBlob } from '../../utils.ts';
 
-import { Icon } from './Icon.tsx';
-import { Dialog } from './ui/Dialog.tsx';
-import { useToast } from './ui/Toast.tsx';
+import { Icon } from '../../components/Icon.tsx';
+import { Dialog } from '../../components/ui/Dialog.tsx';
+import { useToast } from '../../components/ui/Toast.tsx';
 
 export interface SlipBuyer { id: number; name: string; phone: string }
 

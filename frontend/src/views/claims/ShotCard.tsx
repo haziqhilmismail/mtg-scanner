@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { hideBroken, photoThumb, type Photo } from '../../components/ClaimPickers.tsx';
+import { hideBroken, photoThumb, type Photo } from './ClaimPickers.tsx';
 import { Icon, type IconName } from '../../components/Icon.tsx';
 import { TextArea } from '../../components/ui/Field.tsx';
 import { useT } from '../../hooks/useLang.ts';
