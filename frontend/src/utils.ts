@@ -264,27 +264,27 @@ export function computeCardData(cards: DetectedCard[], batch: ScanUiState, setti
     const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
     // A finished photo keeps the prices buyers saw, whatever CK or the
     // multipliers do since.
-    const lock = batch.lockedAt ? batch.locked[origIdx] : null;
-    if (lock) {
-      return {
-        card: c, sel, origIdx, removed, sold, isFoil, isManual, needsPrice: false,
-        usd: lock.usd, mult: lock.mult, globalMult, hasMultOverride,
-        autoPrice: lock.manual ? autoPrice : lock.price, qty, unitPrice: lock.price,
-        hasOverride: lock.manual, ownUsd: null, lineTotal: lock.price * qty, source: (lock.manual ? 'manual' : 'cardkingdom') as CardRowData['source'],
-        pillOffset: batch.pillOffset?.[origIdx] ?? null,
-      };
-    }
     const source = isManual
       ? 'manual'
       : (isFoil
         ? (sel.price_source_foil || 'none')
         : (sel.price_source_normal || 'none')) as CardRowData['source'];
-    return {
+    const row: CardRowData = {
       card: c, sel, origIdx, removed, sold,
       isFoil, isManual, needsPrice,
       usd, mult, globalMult, hasMultOverride,
       autoPrice, qty, unitPrice, hasOverride, ownUsd, lineTotal, source,
       pillOffset: batch.pillOffset?.[origIdx] ?? null,
+    };
+    // A finished photo keeps the prices buyers saw, whatever CK or the
+    // multipliers do since.
+    const lock = batch.lockedAt ? batch.locked[origIdx] : null;
+    if (!lock) return row;
+    return {
+      ...row, needsPrice: false, usd: lock.usd, mult: lock.mult,
+      autoPrice: lock.manual ? autoPrice : lock.price, unitPrice: lock.price,
+      hasOverride: lock.manual, ownUsd: null, lineTotal: lock.price * qty,
+      source: lock.manual ? 'manual' : 'cardkingdom',
     };
   });
 }
