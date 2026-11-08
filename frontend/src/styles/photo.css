@@ -1,7 +1,4 @@
-/* ---------- Photo page ----------
-   One photo: its panel (the photo with its labels, the actions), a tile per
-   card, and the Change card and Edit price dialogs. Phone first; from 1100px
-   the photo stays on the left while the tiles run two across on the right. */
+/* Phone first; from 1100px the photo stays on the left while the tiles run two across on the right. */
 
 .photo-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 14px; }
 .photo-title-row .page-title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
@@ -70,7 +67,6 @@
 .photo-setall .ui-btn { min-height: 36px; padding: 0 14px; }
 .photo-setall .photo-setall-foil { --ui-bg: var(--gold-soft); --ui-bg-hover: var(--gold-soft); color: var(--gold); }
 
-/* ---------- Card tiles ---------- */
 .photo-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; align-items: start; }
 .photo-tile { display: flex; flex-direction: column; min-width: 0; padding: 12px; border-radius: var(--radius-lg); background: var(--surface-2); }
 .photo-tile.is-foil { box-shadow: inset 0 0 0 1.5px var(--gold); }
@@ -215,7 +211,6 @@
   .photo-panel-photo { position: sticky; top: calc(var(--bar-h) + 16px); }
 }
 
-/* ---------- Edit price ---------- */
 .edit-price .ui-dialog-body { display: flex; flex-direction: column; gap: 20px; }
 .ep-summary { padding: 14px 16px; border-radius: var(--radius); background: var(--surface-2); }
 .ep-price { display: block; font-family: var(--font-display); font-size: 30px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
@@ -233,7 +228,6 @@
 .ep-unit .ui-seg-opt { flex: 1 1 auto; min-height: 44px; padding: 4px 14px; white-space: nowrap; overflow-wrap: normal; }
 .ep-own-field { flex: 1; min-width: 0; }
 
-/* ---------- Change card ---------- */
 .cc-search { display: flex; align-items: flex-start; gap: 8px; }
 .cc-search-field { flex: 1; min-width: 0; }
 .cc-search > .ui-btn { flex: none; min-height: 48px; }

@@ -1,6 +1,3 @@
-/* ---------- Posts, a post, and Pricing settings ---------- */
-
-/* Scan progress: one step per photo finished, shown only while a run is going. */
 .scan-progress { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
 .scan-progress-track { flex: 1; height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
 .scan-progress-fill {
@@ -101,7 +98,6 @@
 .new-post-tip { display: flex; align-items: flex-start; gap: 8px; margin: 6px 2px 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
 .new-post-tip .icon { flex: none; margin-top: 1px; color: var(--accent); }
 
-/* ---------- One post ---------- */
 /* Rename and Manage post follow a short name; a long name takes the line and they go under it. */
 .post-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 4px; margin: 0 0 14px; }
 .post-head .page-title { flex: 0 1 auto; min-width: 0; padding-top: 7px; overflow-wrap: break-word; }
@@ -115,7 +111,6 @@
 .post-note .icon { flex: none; }
 .post-note .ui-btn { flex: none; }
 
-/* Photos | Claims: the parts of a post, as underlined tabs over a 1px rule. */
 .post-tabs { display: flex; gap: 24px; margin: 0 0 20px; border-bottom: 1px solid var(--rule); }
 .post-tab {
   display: flex; align-items: center; min-height: var(--tap);
@@ -150,7 +145,6 @@
 @media (max-width: 359px) { .post-share .icon { display: none; } }
 .post-share-line { margin: 0 4px; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
 
-/* A pricing in one line, linking to its page. */
 .pricing-row {
   display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 12px 14px;
   border-radius: 14px; background: var(--paper); box-shadow: var(--shadow);
@@ -214,7 +208,6 @@ label.photorow.is-selected { --ui-bg: var(--accent-soft); --ui-bg-hover: var(--a
 }
 @media (max-width: 374px) { .select-bar .ui-btn .icon { display: none; } }
 
-/* ---------- Pricing settings ---------- */
 .pricing-sub { margin: 4px 0 16px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); overflow-wrap: anywhere; }
 .pricing-layout { display: flex; flex-direction: column; gap: 16px; }
 .pricing-fields { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -273,7 +266,6 @@ label.photorow.is-selected { --ui-bg: var(--accent-soft); --ui-bg-hover: var(--a
   .chips .ui-chip { flex-shrink: 1; min-width: 0; white-space: normal; }
 }
 
-/* Repost unsold cards */
 .repost-intro { margin: 0 0 12px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
 .repost-summary { margin: 16px 0 12px; font-size: 15px; font-weight: 600; }
 .repost-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin: 0 0 16px; padding: 0; border: 0; min-width: 0; }

@@ -1,4 +1,3 @@
-/* Loading wheel — centred spinner + optional caption for section-level fetches */
 .loading-wheel {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 14px; padding: 48px 0; color: var(--ink-soft);

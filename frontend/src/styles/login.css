@@ -1,6 +1,4 @@
-
-/* ---------- Sign-in ----------
-   A phone gets one column with the Google button on the first screen. From
+/* A phone gets one column with the Google button on the first screen. From
    1024px the pitch, the feature list and the second button sit left of the demo. */
 .signin { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 40px; max-width: 560px; margin: 0 auto; padding-top: 16px; }
 .signin-h2 { margin: 0 0 12px; font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -0.015em; }
@@ -54,14 +52,12 @@
   .signin-cta .signin-note { text-align: left; }
 }
 
-/* ---------- Demos ---------- */
 .demo { margin-top: 12px; }
 .demo:focus { outline: none; }
 @keyframes demo-fade { from { opacity: 0; } }
 @keyframes demo-pulse { 50% { opacity: 0.35; } }
 .demo-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-fill); animation: demo-pulse 0.9s ease-in-out infinite; }
 
-/* The scanner: the photo, its outlines and price labels, then the results. */
 .demo-photo { position: relative; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); line-height: 0; }
 .demo-photo > img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .demo-photo > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -131,7 +127,6 @@
 .demo-card-price { flex: none; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
 .demo-next { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 
-/* Claims: a screenshot of comments, the claims found, each buyer's message. */
 .demo-intro { margin: 0 4px 12px; font-size: 15px; line-height: 1.4; color: var(--ink-soft); }
 .demo-shot { margin: 0; overflow: hidden; border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow); }
 .demo-shot-photo { display: block; width: 100%; height: 112px; object-fit: cover; object-position: center 30%; }
