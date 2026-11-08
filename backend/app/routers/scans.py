@@ -18,7 +18,7 @@ from sqlalchemy import func, select, update
 from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter, owned
 from ..models import Listing, ListingStatus, Order, OrderItem, Post, Scan
 from ..models.card_correction import CorrectionKind
-from ..schemas.types import Id
+from ..schemas.types import CardEdits, Id
 from ..services import catalogue, corrections, credits, scans
 from ..services.listings import drop_listing, locked_prices
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
@@ -142,7 +142,7 @@ async def list_scans(
 
 
 class ScanState(BaseModel):
-    state: dict
+    state: CardEdits
 
 
 @router.patch("/api/scans/{scan_id}/state", status_code=204)
@@ -154,7 +154,10 @@ async def save_scan_state(scan_id: Id, body: ScanState, db: DbSession, user_id: 
     chose for a card. They are not kept in ui_state: each one replaces the
     card's first candidate in the saved scan, so every later read sees it."""
     scan_row = await owned(db, Scan, scan_id, user_id)
-    state, picks = split_state(body.state, len(scan_row.cards))
+    try:
+        state, picks = split_state(body.state, len(scan_row.cards))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     # One conditional UPDATE, so two saves arriving together can't both pass a
     # read-then-compare and leave the older one stored.
     rev = state.get("rev")
