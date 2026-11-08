@@ -77,7 +77,6 @@ export const freshState = (cards: DetectedCard[]): ScanUiState => perField(k => 
 export const withCard = <S extends ScanUiState>(state: S, card: DetectedCard): S =>
   ({ ...state, ...perField(k => [...state[k], fresh(k, card)]) });
 
-// The state with one card's entries changed.
 export function editCardState<S extends ScanUiState>(state: S, idx: number, patch: Partial<CardState>): S {
   const out: Record<string, unknown> = { ...state };
   for (const k of Object.keys(patch) as CardField[]) {

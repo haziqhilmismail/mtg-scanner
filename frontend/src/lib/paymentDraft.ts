@@ -7,7 +7,6 @@ export type PaymentFields = Omit<Payment, 'qr_version'>;
 
 export const NO_PAYMENT: Payment = { bank_name: '', bank_account_number: '', bank_account_holder: '', payment_note: '', qr_version: null };
 
-// Keep the saved QR, upload a new picture, or remove the saved one.
 export type QrDraft = { kind: 'saved' } | { kind: 'new'; file: File; url: string } | { kind: 'removed' };
 
 export interface PaymentDraft {

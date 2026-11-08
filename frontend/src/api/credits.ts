@@ -1,5 +1,3 @@
-// Scan credits and the vouchers that top them up.
-
 import { ApiError, request } from './http.ts';
 
 // The balance, as GET /api/credits answers and as each scan carries it.

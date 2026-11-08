@@ -1,5 +1,3 @@
-// The card catalogue: a card by name, and every printing of one.
-
 import type { Candidate } from '../types.ts';
 import { request } from './http.ts';
 

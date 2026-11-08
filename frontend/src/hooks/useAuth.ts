@@ -1,8 +1,3 @@
-// Auth state hook: resolves the server's auth config once on mount, then
-// keeps the signed-in user in sync. When auth is disabled on the backend
-// (solo mode), the hook reports auth_enabled=false and treats every request
-// as authorized so the rest of the app stays unchanged.
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authToken, imageToken, statusOf } from '../api/http.ts';
 import { fetchAuthConfig, fetchMe, loginWithGoogle, type AuthConfig, type MeResponse } from '../api/auth.ts';
@@ -51,7 +46,6 @@ export function useAuth(): UseAuth {
         setConfig(cfg);
         // Solo mode — /api/auth/me returns the solo user without a token
         if (!cfg.auth_enabled) return await loadMe();
-        // Auth enabled — if we have a stored token, validate it
         if (authToken.get()) {
           try {
             return await loadMe();
@@ -88,7 +82,6 @@ export function useAuth(): UseAuth {
     imageToken.clear();
     setUser(null);
     setStatus('unauthenticated');
-    // Hint to Google to disable auto-select on the next visit
     try { window.google?.accounts.id.disableAutoSelect(); } catch { /* ignore */ }
   }, []);
 

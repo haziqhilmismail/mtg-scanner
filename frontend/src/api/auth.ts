@@ -1,5 +1,3 @@
-// Auth endpoints: config, Google sign-in, and the signed-in user.
-
 import type { Settings } from '../types.ts';
 import { request } from './http.ts';
 
@@ -37,7 +35,6 @@ export async function fetchMe(): Promise<MeResponse> {
   return (await request('/api/auth/me')).json();
 }
 
-// Sets the user's default pricing. `keepalive` lets it finish as the page closes.
 export async function saveDefaultPricing(pricing: Settings, keepalive = false): Promise<void> {
   await request('/api/auth/me/pricing', { method: 'PUT', json: { pricing }, keepalive });
 }

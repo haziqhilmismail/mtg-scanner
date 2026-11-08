@@ -68,7 +68,6 @@ async function runFake(): Promise<Answer[]> {
   return out;
 }
 
-// Where two answers differ in shape, as "path: real … / fake …" lines.
 function shapeDiff(real: unknown, fake: unknown, at = ''): string[] {
   if (real === null || fake === null) return [];
   const kind = (v: unknown) => (Array.isArray(v) ? 'array' : typeof v);

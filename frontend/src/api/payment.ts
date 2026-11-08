@@ -1,5 +1,3 @@
-// How buyers pay this seller: bank details and a QR picture.
-
 import { imageUrl, request } from './http.ts';
 
 // The seller's payment details, added to the summaries copied for buyers.

@@ -12,14 +12,12 @@ export type Route =
 export const POSTS: Route = { page: 'posts' };
 export const UNFILED = 'unfiled';
 
-// The folder of a post, or of the photos with no post.
 export const folderOf = (postId: number | null) => (postId == null ? UNFILED : `p${postId}`);
 
 const segmentOf = (folder: string) => (folder === UNFILED ? UNFILED : folder.slice(1));
 const folderFromSegment = (segment: string) =>
   segment === UNFILED ? UNFILED : /^\d+$/.test(segment) ? 'p' + segment : null;
 
-// The folder a route is about, if any.
 export const routeFolder = (r: Route): string | null => ('folder' in r ? r.folder : null);
 
 // null for a path that is no page of the app.
