@@ -27,14 +27,10 @@ import { KEY } from '../lib/storage.ts';
 import { plural } from '../i18n/index.ts';
 import type { Credits } from '../api/credits.ts';
 import { canShareFiles, dateLocale, fetchQrFile, isPhone, popupOpen, useFileDrop } from '../lib/browser.ts';
-import { dueForSupportAsk, paymentLines } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
 import { BuyerDialog } from './claims/BuyerDialog.tsx';
-import {
-  buyerGroups, buyerMessage, claimedCounts, claimTotals, CLAIM_SORTS, PAY_STATES, priceFormula, rm, sortGroups, stampsFor,
-  type BuyerGroup, type ClaimSort, type Line, type PayState, type Stamps, type StatusMove,
-} from './claims/model.ts';
+import { buyerGroups, buyerMessage, claimedCounts, claimTotals, CLAIM_SORTS, PAY_STATES, priceFormula, rm, sortGroups, stampsFor, type BuyerGroup, type ClaimSort, type Line, type PayState, type Stamps, type StatusMove, dueForSupportAsk } from './claims/model.ts';
 import { ClaimSteps, HowDialog } from './claims/parts.tsx';
 import { useT } from '../hooks/useLang.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
@@ -44,6 +40,7 @@ import { computeCardData, type CardRowData } from '../lib/scanState.ts';
 import { isLive } from '../lib/pricing.ts';
 import { approxText } from '../lib/money.ts';
 import { byPostOrder, photoNumbers } from './scanner/photos.ts';
+import { paymentLines } from '../lib/paymentDraft.ts';
 
 export interface ClaimsProps {
   // The open post, from the URL; null while another page shows. Claims

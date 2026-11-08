@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiUrl } from '../api/http.ts';
 import { useT } from '../hooks/useLang.ts';
-import { canShareFiles, fetchQrFile } from '../lib/browser.ts';
-import { downloadBlob } from '../utils.ts';
+import { canShareFiles, fetchQrFile, downloadBlob } from '../lib/browser.ts';
 import { Icon } from './Icon.tsx';
 import { Dialog } from './ui/Dialog.tsx';
 

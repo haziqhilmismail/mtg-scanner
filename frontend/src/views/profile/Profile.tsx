@@ -15,7 +15,7 @@ import type { PricingStore } from '../../hooks/usePricing.ts';
 import { pricingSummary } from '../../lib/pricing.ts';
 import type { Appearance, Lang } from '../../types.ts';
 import type { Credits } from '../../api/credits.ts';
-import { creditsLine } from '../../utils.ts';
+import { creditsLine } from '../../components/VoucherSheet.tsx';
 
 interface Props {
   user: AuthUser | null;  // null in solo mode, where nobody signs in
