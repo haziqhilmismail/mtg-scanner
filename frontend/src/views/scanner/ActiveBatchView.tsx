@@ -4,7 +4,7 @@ import { dateLocale } from '../../lib/browser.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { bboxKey, canRetry, cardName, formatMyr } from '../../utils.ts';
+import { bboxKey, canRetry, cardName } from '../../utils.ts';
 import { photoStatus } from './status.ts';
 import { AdjustPanel, type PriceEdit } from './AdjustPanel.tsx';
 import { BatchPreview } from './BatchPreview.tsx';
@@ -15,6 +15,7 @@ import { Money } from '../../components/Money.tsx';
 import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import { computeCardData, type CardRowData } from '../../lib/scanState.ts';
+import { formatMyr } from '../../lib/money.ts';
 
 interface Props {
   batch: Batch;

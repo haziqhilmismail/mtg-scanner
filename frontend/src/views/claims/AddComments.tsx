@@ -14,11 +14,13 @@ import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Settings } from '../../types.ts';
 import type { Credits } from '../../api/credits.ts';
-import { creditsLine, creditsOutText, formatMyrWithFoil, isLive, listingFields, sortScreenshots } from '../../utils.ts';
+import { creditsLine, creditsOutText, listingFields, sortScreenshots } from '../../utils.ts';
 import { blankDraft, CheckClaims, draftsKind, type Draft } from './CheckClaims.tsx';
 import { PostPhotos } from './PostPhotos.tsx';
 import { ShotCard, type Shot } from './ShotCard.tsx';
 import { useFileDrop } from '../../lib/browser.ts';
+import { formatMyr } from '../../lib/money.ts';
+import { isLive } from '../../lib/pricing.ts';
 
 interface Props {
   open: boolean;
@@ -102,7 +104,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
     label: `Photo ${p.index} (${p.batch.filename})`,
     cards: p.cards.map(c => ({
       card_id: c.cd.card.id, name: c.cd.sel.name || '', set_code: c.cd.sel.set || '',
-      price: Number.isFinite(c.cd.unitPrice) ? formatMyrWithFoil(c.cd.unitPrice, c.cd.isFoil, settings) : '',
+      price: Number.isFinite(c.cd.unitPrice) ? formatMyr(c.cd.unitPrice, settings, c.cd.isFoil) : '',
       foil: c.cd.isFoil, position: c.position,
     })),
   }));

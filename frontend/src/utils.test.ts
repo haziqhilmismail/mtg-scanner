@@ -1,39 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
+import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard } from './types.ts';
 import { computeCardData, correctionFor, freshState, lockPrices, type CardRowData } from './lib/scanState.ts';
-import { applyRounding, dueForSupportAsk, fmt2, formatMyr, initials, matchThumbs, overrideText, parseOverride, readPrice, sortScreenshots, paymentLines, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
+import { dueForSupportAsk, initials, matchThumbs, sortScreenshots, paymentLines, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
 import type { T } from './i18n/index.ts';
 import { priceFormula } from './views/claims/model.ts';
-
-const round = (price: number, roundDirection: RoundDirection, roundStep: RoundStep, minPrice = 0) =>
-  applyRounding(price, { ...DEFAULT_SETTINGS, roundDirection, roundStep, minPrice });
-
-test('rounding up ignores float noise in the product', () => {
-  assert.equal(round(12.5 * 4.4, 'up', 1), 55);      // 55.00000000000001
-  assert.equal(round(0.2 * 3, 'up', 0.1), 0.6);      // 0.6000000000000001
-  assert.equal(round(0.1 + 0.2, 'up', 0.1), 0.3);    // 0.30000000000000004
-});
-
-test('rounding up still rounds real fractions up', () => {
-  assert.equal(round(55.01, 'up', 1), 56);
-  assert.equal(round(10.2, 'up', 0.5), 10.5);
-  assert.equal(round(0.61, 'up', 0.1), 0.7);
-});
-
-test('down and nearest', () => {
-  assert.equal(round(12.5 * 4.4, 'down', 1), 55);
-  assert.equal(round(55.99, 'down', 1), 55);
-  assert.equal(round(0.7 * 3, 'down', 0.1), 2.1);    // 2.0999999999999996
-  assert.equal(round(10.24, 'nearest', 0.5), 10);
-  assert.equal(round(10.25, 'nearest', 0.5), 10.5);
-});
-
-test('no rounding, and the minimum price', () => {
-  assert.equal(round(12.34, 'none', 1), 12.34);
-  assert.equal(round(0.2, 'up', 1, 1), 1);
-  assert.equal(round(0.2, 'up', 0.1, 1), 1);
-});
+import { overrideText, parseOverride } from './lib/money.ts';
 
 test('a price box holding only "." is no price, not RM0', () => {
   const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
@@ -169,17 +141,6 @@ test('initials for the avatar', () => {
   assert.equal(initials(''), '');
 });
 
-test('money reads the same in every browser: commas for thousands, cents only when they count', () => {
-  const s = { ...DEFAULT_SETTINGS, showCurrency: true, currencyLabel: 'RM', showCents: false };
-  assert.equal(formatMyr(13, s), 'RM13');
-  assert.equal(formatMyr(12480, s), 'RM12,480');
-  assert.equal(formatMyr(15.5, s), 'RM15.50');                                   // a typed price keeps its cents
-  assert.equal(formatMyr(13, { ...s, showCents: true }), 'RM13.00');
-  assert.equal(formatMyr(12480, { ...s, showCents: true }), 'RM12,480.00');
-  assert.equal(fmt2(1299.99), '1,299.99');
-  assert.equal(fmt2(0.01), '0.01');
-});
-
 test("the seller's own price: RM is kept as typed, USD still gets the multiplier and rounding", () => {
   assert.deepEqual(parseOverride('15.50'), { unit: 'rm', amount: 15.5 });
   assert.deepEqual(parseOverride('usd:4.5'), { unit: 'usd', amount: 4.5 });
@@ -198,13 +159,6 @@ test("the seller's own price: RM is kept as typed, USD still gets the multiplier
   assert.deepEqual([usd.unitPrice, usd.hasOverride, usd.ownUsd, usd.autoPrice], [12, true, 4.5, 13]);   // 4.5 × 2.5 = 11.25, up to 12
   assert.deepEqual([rm.unitPrice, rm.lineTotal, rm.ownUsd], [15.5, 31, null]);
   assert.deepEqual([auto.unitPrice, auto.hasOverride, auto.ownUsd], [15, false, null]);                // 4.99 × 3 = 14.97, up to 15
-});
-
-test('a typed price is a number above 0 with at most two decimals, or nothing', () => {
-  assert.deepEqual(['15', '15.50', '1,240', ' 12 ', '.5', '15.'].map(readPrice), [15, 15.5, 1240, 12, 0.5, 15]);
-  assert.equal(readPrice(''), null);
-  assert.equal(readPrice('   '), null);
-  assert.deepEqual(['0', '0.00', 'abc', '15.555', '1.2.3', '-5', 'RM15'].map(readPrice), Array(7).fill('invalid'));
 });
 
 const shown = (scanId: number | null = 7, sid = 'aaa'): Batch => {

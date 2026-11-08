@@ -11,10 +11,10 @@ import { useToast } from '../components/ui/Toast.tsx';
 import { useT, type Key } from '../hooks/useLang.ts';
 import { useNavStore } from '../hooks/useNav.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
-import { formulaLine, priceField, pricingSummary, roundingKey, ROUNDINGS, roundingText, samePricing, type PriceField } from '../lib/pricing.ts';
+import { formulaLine, priceField, pricingSummary, roundingKey, ROUNDINGS, roundingText, samePricing, type PriceField, isLive } from '../lib/pricing.ts';
 import type { Route } from '../routes.ts';
 import type { FoilStyle, LabelPosition, PriceMode, Settings } from '../types.ts';
-import { currencyOf, isLive } from '../utils.ts';
+import { currencyOf } from '../lib/money.ts';
 
 interface Props {
   // The post whose pricing this is; null for the default that new posts start with.
