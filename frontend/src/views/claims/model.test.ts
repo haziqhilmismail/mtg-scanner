@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { Buyer } from '../../api/buyers.ts';
+import type { Order, OrderItem } from '../../api/orders.ts';
 import type { Payment } from '../../api/payment.ts';
-import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
 import { translate, type T } from '../../i18n/index.ts';
 import { computeCardData, freshState, lockPrices } from '../../lib/scanState.ts';
 import { DEFAULT_SETTINGS, type Candidate, type DetectedCard } from '../../types.ts';

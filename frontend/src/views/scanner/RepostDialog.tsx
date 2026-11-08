@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
-import { listingsApi, ordersApi } from '../../api/checklist.ts';
+import { fetchListings } from '../../api/listings.ts';
+import { fetchOrders } from '../../api/orders.ts';
 import { Spinner } from '../../components/Spinner.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { Checkbox } from '../../components/ui/Checkbox.tsx';
@@ -36,7 +37,7 @@ export function RepostDialog({ open, onClose, repost, folder }: Props) {
     setPlan(null); setSkipped(new Set()); setNewPrices(true); setError(''); setBusy(false);
     setName(t('repost_name', { title: folder.title }));
     let current = true;
-    Promise.all([listingsApi.list(), ordersApi.list(true)]).then(
+    Promise.all([fetchListings(), fetchOrders(true)]).then(
       ([listings, orders]) => { if (current) setPlan(repostPlan(photos, listings, orders)); },
       e => { if (current) setError((e as Error).message); },
     );

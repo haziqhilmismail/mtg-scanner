@@ -3,7 +3,7 @@
 // four formats stopped being written on 14 and 15 Oct 2026; a browser that
 // has not opened the app since then still holds them.
 
-import { listingsApi } from '../api/checklist.ts';
+import { updateListing } from '../api/listings.ts';
 import { statusOf } from '../api/http.ts';
 import { DEFAULT_SETTINGS, type Batch, type RoundDirection, type RoundStep, type Settings } from '../types.ts';
 import { readTombstones, storage, writeTombstones } from './storage.ts';
@@ -99,7 +99,7 @@ export async function migrateAdded(batches: Batch[], onListed: (batchId: string,
       const card = batch.response.cards[Number(idx)];
       if (!card || typeof listingId !== 'number') continue;
       try {
-        await listingsApi.update(listingId, { scan_id: scanId, bbox: card.bbox });
+        await updateListing(listingId, { scan_id: scanId, bbox: card.bbox });
         onListed(batch.id, card.bbox);
       } catch (e) {
         if (statusOf(e) !== 404) { keep = true; onListed(batch.id, card.bbox); }

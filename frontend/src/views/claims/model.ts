@@ -2,8 +2,9 @@
 // what they owe, and the message they are sent. Pure, so the page and the
 // tests read the same rules.
 
+import type { Buyer } from '../../api/buyers.ts';
+import type { Order, OrderItem } from '../../api/orders.ts';
 import type { Payment } from '../../api/payment.ts';
-import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
 import type { T } from '../../i18n/index.ts';
 import type { CardRowData } from '../../lib/scanState.ts';
 import { fmt2, formatMyr } from '../../lib/money.ts';

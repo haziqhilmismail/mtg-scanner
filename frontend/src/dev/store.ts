@@ -6,9 +6,12 @@
 
 import type { AuthConfig, MeResponse } from '../api/auth.ts';
 import type { Health } from '../api/health.ts';
+import type { Buyer } from '../api/buyers.ts';
+import type { Listing } from '../api/listings.ts';
+import type { Order } from '../api/orders.ts';
 import type { Payment } from '../api/payment.ts';
+import type { Post, PostStatus } from '../api/posts.ts';
 import type { SavedScan } from '../api/scans.ts';
-import type { Buyer, Listing, Order, Post, PostStatus } from '../api/checklist.ts';
 import { DEMO_CARDS, DEMO_IMAGE_H, DEMO_IMAGE_URL, DEMO_IMAGE_W } from '../data/demoScan.ts';
 import { resolvePricing } from '../lib/pricing.ts';
 import { computeCardData, freshState, lockPrices, type ScanUiState, listingFields } from '../lib/scanState.ts';

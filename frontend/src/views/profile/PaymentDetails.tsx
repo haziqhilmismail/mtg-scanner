@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { statusOf } from '../../api/http.ts';
-import { paymentApi, type Payment } from '../../api/payment.ts';
+import { deletePaymentQr, fetchPayment, type Payment, paymentQrUrl, savePayment, uploadPaymentQr } from '../../api/payment.ts';
 import { useT } from '../../hooks/useLang.ts';
 import type { PaymentStore } from '../../hooks/usePayment.ts';
 import { changesOf, draftOf, hasDetails, NO_PAYMENT, previewOf, type PaymentDraft, type PaymentFields, paymentLines } from '../../lib/paymentDraft.ts';
@@ -101,9 +101,9 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
     setStatus('saving'); setError('');
     try {
       let next = saved;
-      if (changes.fields) setPayment(next = await paymentApi.save(changes.fields));
-      if (changes.qr === 'upload' && sent.qr.kind === 'new') setPayment(next = await paymentApi.uploadQr(sent.qr.file));
-      if (changes.qr === 'delete') setPayment(next = await paymentApi.deleteQr());
+      if (changes.fields) setPayment(next = await savePayment(changes.fields));
+      if (changes.qr === 'upload' && sent.qr.kind === 'new') setPayment(next = await uploadPaymentQr(sent.qr.file));
+      if (changes.qr === 'delete') setPayment(next = await deletePaymentQr());
       setDraft(d => (d === sent ? draftOf(next) : d));
       setStatus('saved');
       toast(t('pay_saved_toast'));
@@ -121,14 +121,14 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
     const before = saved;
     setStatus('deleting'); setError(''); setQrError('');
     try {
-      const qr = before.qr_version ? await fetchQrFile(paymentApi.qrUrl(before.qr_version)) : null;
-      await Promise.all([paymentApi.save(draftOf(NO_PAYMENT).fields), qr ? paymentApi.deleteQr() : null]);
+      const qr = before.qr_version ? await fetchQrFile(paymentQrUrl(before.qr_version)) : null;
+      await Promise.all([savePayment(draftOf(NO_PAYMENT).fields), qr ? deletePaymentQr() : null]);
       setPayment(NO_PAYMENT);
       setDraft(draftOf(NO_PAYMENT));
       toast(t('pay_deleted_toast'), { undoLabel: t('undo'), onUndo: () => restore(before, qr) });
     } catch {
       // Show what the server still has, so a failed delete isn't taken for done.
-      setPayment(await paymentApi.get().catch(() => before));
+      setPayment(await fetchPayment().catch(() => before));
       dialog.alert({ title: t('alert_error_title'), message: t('pay_delete_failed') });
     } finally {
       setStatus('idle');
@@ -138,16 +138,16 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
   // Undo can come after the seller left Profile, so it writes only App's copy.
   const restore = async (before: Payment, qr: File | null) => {
     try {
-      let next = await paymentApi.save(draftOf(before).fields);
-      if (qr) next = await paymentApi.uploadQr(qr);
+      let next = await savePayment(draftOf(before).fields);
+      if (qr) next = await uploadPaymentQr(qr);
       setPayment(next);
     } catch {
-      setPayment(await paymentApi.get().catch(() => NO_PAYMENT));
+      setPayment(await fetchPayment().catch(() => NO_PAYMENT));
       dialog.alert({ title: t('alert_error_title'), message: t('pay_restore_failed') });
     }
   };
 
-  const qrSrc = newQrUrl ?? (draft.qr.kind === 'saved' && saved.qr_version ? paymentApi.qrUrl(saved.qr_version) : null);
+  const qrSrc = newQrUrl ?? (draft.qr.kind === 'saved' && saved.qr_version ? paymentQrUrl(saved.qr_version) : null);
   const preview = paymentLines(previewOf(draft), t);
 
   return (
