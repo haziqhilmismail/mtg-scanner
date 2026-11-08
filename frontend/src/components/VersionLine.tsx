@@ -8,11 +8,9 @@ type Printing = Partial<Pick<Candidate, 'set' | 'collector_number' | 'set_name'>
 const codeOf = (p: Printing) => (p.set || '?').toUpperCase();
 const numberOf = (p: Printing) => `#${p.collector_number || '?'}`;
 
-// As text: "MH3 · #123", or with the set name "MH3 · #123 · Modern Horizons 3".
 export const printingText = (p: Printing, withName = false) =>
   [`${codeOf(p)} · ${numberOf(p)}`, withName ? p.set_name : ''].filter(Boolean).join(' · ');
 
-// As the line under a card's name: a [● CODE #cn] chip, then the set name.
 // `none` stands in for the chip when the card has no printing.
 export function VersionLine({ p, rarity, none, className }: { p: Printing; rarity?: string; none?: string; className?: string }) {
   return (

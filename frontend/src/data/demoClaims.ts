@@ -29,7 +29,6 @@ export const DEMO_PAYMENT: Payment = {
 
 export const totalOf = (c: DemoComment) => c.cards.reduce((sum, d) => sum + demoPrice(d), 0);
 
-// The message Claims copies for a buyer, from Claims' own builder.
 export const demoMessage = (c: DemoComment, t: T) => buyerMessage(c.name, c.cards.map(d => ({
   id: d.id, name: d.name, qty: 1, each: demoPrice(d), formula: { usd: d.ckRetailUsd, mult: DEMO_MULT },
   photo: null, crop: null, live: false,

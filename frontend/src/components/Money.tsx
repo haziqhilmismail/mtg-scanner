@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 // (DESIGN.md section 7). As text, for a sentence: "auto ≈RM13".
 export const approxText = (amount: string, live: boolean) => (live ? `≈${amount}` : amount);
 
-// The same as a node: the ≈ in --ink-soft, weight 400.
 export function Money({ live, children }: { live: boolean; children: ReactNode }) {
   return <>{live ? <span className="approx">≈</span> : null}{children}</>;
 }

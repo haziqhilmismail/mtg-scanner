@@ -7,7 +7,6 @@ export interface RadioCardOption<V extends string> {
   description?: ReactNode;
 }
 
-// Name the group with aria-labelledby (the section's h2) or aria-label.
 export type RadioCardsProps<V extends string> = GroupNamed & Omit<HTMLAttributes<HTMLDivElement>, 'onChange' | NativeName> & {
   value: V;
   onChange: (value: V) => void;

@@ -9,7 +9,6 @@ interface Props {
   setAppearance: (a: Appearance) => void;
 }
 
-// Language and appearance, on Profile and on the sign-in page.
 export function Preferences({ lang, setLang, appearance, setAppearance }: Props) {
   const t = useT();
   return (

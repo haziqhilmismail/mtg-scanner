@@ -78,9 +78,8 @@ function ModalBox({ open, onClose, onExited, children, ...rest }: Omit<ModalProp
     <dialog
       ref={ref}
       aria-modal="true"
-      // Page shortcuts out of this branch's reach (Scanner.tsx's own selector
-      // list, legacy dialogs that close on Esc at document level) must not see
-      // keys typed here, so they stop at the dialog. tabIndex makes a click on
+      // Page shortcuts listen on window and must not see keys typed here, so
+      // they stop at the dialog. tabIndex makes a click on
       // text focus the dialog, not <body>, so later keys still pass through it.
       tabIndex={-1}
       onKeyDown={e => e.stopPropagation()}

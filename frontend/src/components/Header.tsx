@@ -13,7 +13,6 @@ interface Props {
   user: AuthUser | null;
 }
 
-// The bar before sign-in: the mark and the name, with nothing to open yet.
 export function SignedOutHeader() {
   const t = useT();
   return (
@@ -28,9 +27,7 @@ export function SignedOutHeader() {
   );
 }
 
-// The top bar of every page: the mark and name, which open Posts, the
-// prices status on wide screens, and the avatar that opens Profile. Photos
-// and Claims are tabs on each post, not here.
+// Photos and Claims are tabs on each post, not here.
 export function Header({ route, healthLabel, healthState, user }: Props) {
   const t = useT();
   const onProfile = route.page === 'profile' || route.page === 'profile-pricing';

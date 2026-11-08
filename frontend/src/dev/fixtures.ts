@@ -1,7 +1,7 @@
 // The datasets behind the dev data toggle (break-ui): the worst case a real
 // seller can produce, an empty account, one of everything, and many of
-// everything. Values come from /tmp/redesign/worst-case.md: made-up people,
-// example.com links, fake account numbers. The repo is public.
+// everything. The repo is public, so every value is made up: people,
+// example.com links, account numbers.
 
 import type { AuthConfig } from '../api/auth.ts';
 import type { Payment } from '../api/payment.ts';
@@ -73,8 +73,6 @@ const fileName = (k: number) => [
   `pasted-2026-10-23T17-${pad(k % 60)}-37.png`,
 ][k % 3];
 const NO_PAYMENT: Payment = { bank_name: '', bank_account_number: '', bank_account_holder: '', payment_note: '', qr_version: null };
-
-// ---------- worst case ----------
 
 const SITI = 'Siti Nur Aisyah Az-Zahra binti Wan Ahmad Fauzi';
 const AIMAN = 'Muhammad Aiman Hakim bin Mohd Zulkifli';
@@ -192,8 +190,6 @@ function worst(): Fixture {
   return f;
 }
 
-// ---------- one of everything ----------
-
 function one(): Fixture {
   const f = newFixture({
     config: CONFIG,
@@ -208,8 +204,6 @@ function one(): Fixture {
   addClaim(f, { buyer: 'Tan Wei Jie', phone: '0123456789', note: 'Claim Lord Skitter', hoursAgo: 4, lines: [[photo, 0]] });
   return f;
 }
-
-// ---------- many of everything ----------
 
 const THEMES = ['Friday Post', 'Commander staples', 'MH3 🔥 singles', 'Bulk rares RM5 each', 'Foils & bulk rares', 'Precon pulls', 'Sunday clearance'];
 const FIRST_NAMES = ['Ahmad', 'Nur', 'Siti', 'Muhammad', 'Lim', 'Tan', 'Wong', 'Kavitha', 'Arun', 'Farah', 'Hafiz', 'Aina', 'Daniel', 'Mei Ling', 'Raj'];
@@ -247,7 +241,6 @@ function many(): Fixture {
     }
     if (i === 60) for (let k = 0; k < 5; k++) addPhoto(f, null, { file: fileName(200 + k), picture: PICTURES[k % 3], cards: poolCards(k, 2), hoursAgo: 24 * 60 - k });
   }
-  // The newest post: 47 photos, the first with 60 cards, and every buyer's claims.
   const big = Array.from({ length: 47 }, (_, k) => addPhoto(f, posts[0], {
     file: fileName(k), picture: PICTURES[k % 3], hoursAgo: 28 - k * 0.2,
     cards: poolCards(k * 7, k === 0 ? 60 : 12, i => ({ foil: (k + i) % 11 === 0, qty: (k + i) % 13 === 0 ? 4 : 1 })),
@@ -263,8 +256,6 @@ function many(): Fixture {
   }
   return f;
 }
-
-// ---------- empty ----------
 
 const empty = (): Fixture => newFixture({
   config: CONFIG,

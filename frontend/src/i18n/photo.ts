@@ -1,6 +1,3 @@
-// Photo page strings: the photo, its card tiles, Change card and Edit price.
-// Every key appears in one area file only; index.ts merges them.
-
 export const en = {
   photo_of: 'of {total}',
   photo_steps_label: 'Photos in this post',

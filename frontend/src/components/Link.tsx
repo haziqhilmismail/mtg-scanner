@@ -4,7 +4,6 @@ import { formatRoute, type Route } from '../routes.ts';
 
 interface Props extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {
   to: Route;
-  // Change the page in place instead of adding a history entry.
   replace?: boolean;
 }
 

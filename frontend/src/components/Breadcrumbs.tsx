@@ -8,7 +8,6 @@ export interface Crumb {
   to?: Route;
 }
 
-// Posts / Friday Post / Photo 2: the pages above this one, as links.
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
   const t = useT();
   return (

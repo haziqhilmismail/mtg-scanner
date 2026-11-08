@@ -23,7 +23,6 @@ export interface DemoCard {
   ckRetailUsd: number;
 }
 
-// The demos price at the app's default multiplier and rounding.
 export const DEMO_MULT = DEFAULT_SETTINGS.multNormal;
 export const demoPrice = (c: DemoCard) => applyRounding(c.ckRetailUsd * DEMO_MULT, DEFAULT_SETTINGS);
 

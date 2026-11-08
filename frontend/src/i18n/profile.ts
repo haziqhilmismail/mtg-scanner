@@ -1,7 +1,3 @@
-// Profile page strings: the account card, the payment details form, default
-// pricing and the help dialogs. Every key appears in one area file only;
-// index.ts merges them.
-
 export const en = {
   profile_account: 'Account',
   profile_seller_name: 'Seller name',

@@ -1,6 +1,3 @@
-// Posts and Post strings: the posts list, New post, one post's page and its
-// Manage post menu. Every key appears in one area file only; index.ts merges them.
-
 export const en = {
   new_post: 'New post',
   new_post_kind: 'What kind of post?',

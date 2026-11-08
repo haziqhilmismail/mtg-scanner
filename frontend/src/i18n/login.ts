@@ -1,6 +1,3 @@
-// Sign-in page and demo strings.
-// Every key appears in one area file only; index.ts merges them.
-
 export const en = {
   lp_title: 'Snap. Price. Post.',
   lp_tagline: 'Snap your pasar malam stack and every card is found and priced. Post it, then screenshot the comments: each buyer gets their total, and you see who still has to pay.',

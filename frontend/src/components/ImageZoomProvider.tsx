@@ -2,9 +2,6 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 import { useT } from '../hooks/useLang.ts';
 import { PhotoViewer } from './ui/PhotoViewer.tsx';
 
-// One full-screen viewer any page can open with useImageZoom().open(src,
-// caption), without passing it down.
-
 interface ZoomApi {
   open: (src: string, caption?: string) => void;
   close: () => void;
