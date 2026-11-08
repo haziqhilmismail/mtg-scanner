@@ -2,13 +2,19 @@ import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { plural } from '../../i18n/index.ts';
 import { formatMyr, isLive } from '../../utils.ts';
-import type { Area, Folder } from './area.tsx';
+import type { T } from '../../hooks/useLang.ts';
+import type { Settings } from '../../types.ts';
+import type { PhotoActions } from './usePhotoActions.ts';
+import type { Folder } from './usePosts.ts';
 import type { ExportJob } from './exportFiles.ts';
 import { postStatus } from './status.ts';
 import type { usePostExport } from './usePostExport.ts';
 
 interface Props {
-  area: Area;
+  photos: PhotoActions;
+  // The post's pricing.
+  settings: Settings;
+  t: T;
   folder: Folder;
   // Another mode holds the page's one primary button (Save order).
   quiet: boolean;
@@ -19,9 +25,8 @@ interface Props {
 
 // The post's total and its one primary action (Add all to post, or Finish
 // post for a price-on-photo post), then Share photos and Download all.
-export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
-  const { t, pricingFor, finishing, runFinishAll, explainFinish } = area;
-  const settings = pricingFor(folder.postId);
+export function PostSummary({ photos, settings, t, folder, quiet, jobs, exp }: Props) {
+  const { finishing, runFinishAll, explainFinish } = photos;
   const live = isLive(settings);
   const { items } = folder;
   // Cards with no price can't go in the post until they get one.

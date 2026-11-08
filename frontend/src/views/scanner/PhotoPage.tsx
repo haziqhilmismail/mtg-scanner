@@ -6,18 +6,34 @@ import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { PrintingsModal } from './PrintingsModal.tsx';
-import { folderOf, POSTS } from '../../routes.ts';
+import type { T } from '../../hooks/useLang.ts';
+import type { NavStore } from '../../hooks/useNav.ts';
+import type { PricingStore } from '../../hooks/usePricing.ts';
+import type { ScannerStore } from '../../hooks/useScanner.ts';
+import { keyTaken } from '../../lib/browser.ts';
+import { folderOf, POSTS, routeFolder } from '../../routes.ts';
 import type { Batch, Candidate, RelookupMsg } from '../../types.ts';
 import { isLive, matchThumbs } from '../../utils.ts';
-import { keyTaken, type Area } from './area.tsx';
+import type { PhotoActions } from './usePhotoActions.ts';
+import type { Posts } from './usePosts.ts';
 
 // One photo: its cards as tiles, with previous and next through its post.
-export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
-  const {
-    t, lang, scanner, pricingFor, go, openFolder, postsById, postTitle, numbers,
-    finishing, finishPhoto, deliverPhoto, editPrices, refreshScanPrices, addCard, takeOutCard,
-    deletePhotos, liveNavIds, navIndex, step,
-  } = area;
+interface Props {
+  batch: Batch;
+  scanner: ScannerStore;
+  pricingFor: PricingStore['pricingFor'];
+  nav: NavStore;
+  t: T;
+  lang: string;
+  posts: Posts;
+  photos: PhotoActions;
+  // The photos Prev and Next step through, as the post page listed them.
+  navIds: string[];
+}
+
+export function PhotoPage({ batch, scanner, pricingFor, nav: { route, go, replace }, t, lang, posts, photos, navIds }: Props) {
+  const { openFolder, postsById, postTitle, deletePhotos } = posts;
+  const { numbers, finishing, finishPhoto, deliverPhoto, editPrices, refreshScanPrices, addCard, takeOutCard } = photos;
   const dialog = useDialog();
   const folder = folderOf(batch.postId);
   const settings = pricingFor(batch.postId);
@@ -37,6 +53,17 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
       setRelookup({ busy: false, msg: { type: 'err', text: statusOf(e) === 404 ? t('msg_not_found') : t('msg_lookup_failed', { err: (e as Error).message }) } });
     }
   }, [batch.id, scanner, t]);
+
+  // Reached through history (or a reload) rather than from the list, a photo
+  // steps through its post in list order. Only a saved photo has a page of its own.
+  const stepIds = navIds.includes(batch.id) ? navIds : (openFolder?.items.map(s => s.batch.id) ?? []);
+  const liveNavIds = stepIds.filter(id => scanner.batches.some(b => b.id === id && b.scanId != null));
+  const navIndex = liveNavIds.indexOf(batch.id);
+  const folderKey = routeFolder(route);
+  const step = useCallback((delta: number) => {
+    const next = scanner.batches.find(b => b.id === liveNavIds[navIndex + delta]);
+    if (next?.scanId != null && folderKey != null) { replace({ page: 'photo', folder: folderKey, scanId: next.scanId }); window.scrollTo({ top: 0 }); }
+  }, [liveNavIds, navIndex, replace, scanner.batches, folderKey]);
 
   // "Photo 2 of 2": the photo's place in its post, once it is saved.
   const photoNumber = numbers.get(batch.id);

@@ -6,13 +6,17 @@ import { Mosaic, PostRow, thumbOf } from './PostRow.tsx';
 import { Spinner } from '../../components/Spinner.tsx';
 import { plural } from '../../i18n/index.ts';
 import { isLive } from '../../utils.ts';
-import { ScanProgress, type Area, type Folder } from './area.tsx';
+import type { T } from '../../hooks/useLang.ts';
+import type { PricingStore } from '../../hooks/usePricing.ts';
+import type { ScannerStore } from '../../hooks/useScanner.ts';
+import { ScanProgress } from './ScanProgress.tsx';
+import type { Folder, Posts } from './usePosts.ts';
 import { NewPostDialog } from './NewPostDialog.tsx';
 
 // Posts: every post as a row with + New post above, the photos in no post,
 // and the archived posts behind their own heading.
-export function PostsPage({ area }: { area: Area }) {
-  const { t, scanner, pricingFor, loading, liveFolders, archivedFolders, unfiledFolder, startPost, setArchived } = area;
+export function PostsPage({ posts, scanner, pricingFor, t }: { posts: Posts; scanner: ScannerStore; pricingFor: PricingStore['pricingFor']; t: T }) {
+  const { loading, liveFolders, archivedFolders, unfiledFolder, startPost, setArchived } = posts;
   const [newOpen, setNewOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const defaultKind = pricingFor(null).priceMode;

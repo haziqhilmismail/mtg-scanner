@@ -10,7 +10,14 @@ import { photosOf } from '../../lib/photoFiles.ts';
 import { POSTS, UNFILED } from '../../routes.ts';
 import type { Batch } from '../../types.ts';
 import { byPostOrder, isLive, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
-import { keyTaken, ScanProgress, type Area, type Folder } from './area.tsx';
+import type { T } from '../../hooks/useLang.ts';
+import type { NavStore } from '../../hooks/useNav.ts';
+import type { PricingStore } from '../../hooks/usePricing.ts';
+import type { ScannerStore } from '../../hooks/useScanner.ts';
+import { keyTaken } from '../../lib/browser.ts';
+import { ScanProgress } from './ScanProgress.tsx';
+import type { PhotoActions } from './usePhotoActions.ts';
+import type { Folder, Posts } from './usePosts.ts';
 import { PhotoList } from './PhotoList.tsx';
 import { PostSummary } from './PostSummary.tsx';
 import { usePostExport } from './usePostExport.ts';
@@ -25,11 +32,24 @@ const NORMAL: Mode = { kind: 'normal' };
 
 // A post's Photos part: its total and actions, then its photos to search,
 // sort, select and reorder.
-export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
-  const {
-    t, scanner, pricingFor, go, pickerPosts, postTitle, numbers, exportJob,
-    deletePhotos, moveTo, sort, setSort, openPhoto,
-  } = area;
+interface Props {
+  folder: Folder;
+  scanner: ScannerStore;
+  pricing: PricingStore;
+  go: NavStore['go'];
+  t: T;
+  posts: Posts;
+  photos: PhotoActions;
+  sort: PhotoSort;
+  setSort: (sort: PhotoSort) => void;
+  // A photo opened from the list: the order Prev and Next step through.
+  onOpenPhoto: (ids: string[]) => void;
+}
+
+export function PostPage({ folder, scanner, pricing, go, t, posts, photos, sort, setSort, onOpenPhoto }: Props) {
+  const { pickerPosts, postTitle, deletePhotos, moveTo } = posts;
+  const { numbers, exportJob } = photos;
+  const { pricingFor } = pricing;
   const dialog = useDialog();
   const toast = useToast();
   const [query, setQuery] = useState('');
@@ -113,8 +133,8 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
     <>
       <div className="post-layout">
         <div className="post-side">
-          {isPost && count ? <PostSummary area={area} folder={folder} quiet={mode.kind === 'reorder'} jobs={shareJobs} exp={exp} /> : null}
-          <PostPricingRow area={area} folder={folder} />
+          {isPost && count ? <PostSummary photos={photos} settings={settings} t={t} folder={folder} quiet={mode.kind === 'reorder'} jobs={shareJobs} exp={exp} /> : null}
+          <PostPricingRow pricing={pricing} folder={folder} t={t} />
         </div>
 
         <section className="post-main" aria-labelledby={headId}>
@@ -184,7 +204,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
               mode={mode.kind === 'select' ? { kind: 'select', selected, onToggle: toggle }
                 : mode.kind === 'reorder' ? { kind: 'reorder', onMove: move } : {
                 kind: 'normal', query, showFile: sort === 'name',
-                onOpen: () => openPhoto(visible.map(s => s.batch.id)),
+                onOpen: () => onOpenPhoto(visible.map(s => s.batch.id)),
                 onRetry: id => scanner.retryBatches([id]),
               }}
             />
@@ -230,8 +250,8 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
 }
 
 // The post's pricing, or for the unfiled photos the default, once it is known.
-function PostPricingRow({ area, folder }: { area: Area; folder: Folder }) {
-  const { t, pricing, pricingFor } = area;
+function PostPricingRow({ pricing, folder, t }: { pricing: PricingStore; folder: Folder; t: T }) {
+  const { pricingFor } = pricing;
   if (!pricing.pricingKnown(folder.postId)) return null;
   return folder.postId == null
     ? <PricingRow title={t('pricing_row_default')} settings={pricingFor(null)} t={t} to={{ page: 'profile-pricing' }} />
