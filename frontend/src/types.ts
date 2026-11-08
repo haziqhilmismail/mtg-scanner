@@ -1,5 +1,6 @@
 // API + state types shared across components.
 
+import type { ScanPicture } from './api/scans.ts';
 import type { PillOffset, ScanUiState } from './lib/scanState.ts';
 
 export type RoundDirection = 'none' | 'up' | 'down' | 'nearest';
@@ -116,18 +117,6 @@ export interface Correction {
   kind: CorrectionKind;
 }
 
-export interface ScanResponse {
-  image_id: string;
-  // What goes in <img src>: a data: URL straight after a scan, or a
-  // /api/scans/{id}/preview URL for scans loaded from the server.
-  image_b64: string;
-  // Small version of the same picture for the scan strip, when there is one.
-  thumb_url?: string;
-  width: number;
-  height: number;
-  cards: DetectedCard[];
-}
-
 export interface RelookupMsg {
   type: 'ok' | 'err' | 'busy';
   text: string;
@@ -147,19 +136,8 @@ export interface Batch extends ScanUiState {
   // Set with status 'error' when the server refused the scan for lack of
   // credits, so the UI can say that instead of showing a failure.
   outOfCredits?: boolean;
-  response: ScanResponse | null;
+  response: ScanPicture | null;
   error?: string;
-}
-
-// Scan-credit balance, as returned by GET /api/credits and alongside each scan.
-export interface Credits {
-  enforced: boolean;          // false in solo mode: nothing is limited
-  unlimited: boolean;
-  limit: number;              // free scans per rolling 30 days
-  used: number;               // free scans used in the current window
-  bonus: number;              // extra scans from vouchers; don't expire
-  remaining: number | null;   // free + extra left; null when unlimited
-  next_free_at: string | null; // when the oldest free scan drops out of the window
 }
 
 // Computed per-card row data used for rendering

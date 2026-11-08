@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { paymentApi, type Payment } from '../api.ts';
+import { statusOf } from '../api/http.ts';
+import { paymentApi, type Payment } from '../api/payment.ts';
 import { useT } from '../hooks/useLang.ts';
 import type { PaymentStore } from '../hooks/usePayment.ts';
 import { changesOf, draftOf, hasDetails, NO_PAYMENT, previewOf, type PaymentDraft, type PaymentFields } from '../lib/paymentDraft.ts';
@@ -109,7 +110,7 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
       setStatus('saved');
       toast(t('pay_saved_toast'));
     } catch (err) {
-      const code = (err as { status?: number }).status;
+      const code = statusOf(err);
       setStatus('idle');
       setError(t(code === 400 ? 'pay_qr_unreadable' : code === 413 ? 'pay_qr_too_big' : 'pay_save_failed'));
     }

@@ -4,6 +4,8 @@
 // overlap and arrive in any order. Where it doesn't (`ordered`), a key's next
 // save waits for the one in flight.
 
+import { statusOf } from '../api/http.ts';
+
 // One key: the fingerprint of the latest value seen (the first one seen is
 // what the server already has), the rev given to the latest queued value, the
 // latest value the server has not confirmed, how it has been sent (null: not
@@ -90,12 +92,12 @@ export function createSaveQueue<K, V>(
             if (s.unsaved === value) s.unsaved = null;
             saved(key);
           },
-          (e: Error & { status?: number }) => {
+          (e: unknown) => {
             s.inFlight--;
             // Superseded, or forgotten since (deleted, signed out).
             if (s.unsaved !== value || slots.get(key) !== s) return;
             // Refused (gone, too big, signed out): sending it again won't help.
-            const status = e.status ?? 0;
+            const status = statusOf(e);
             if (status >= 400 && status < 500 && status !== 408 && status !== 429) { s.unsaved = null; refused(key); return; }
             s.sentWith = null;
             retry();

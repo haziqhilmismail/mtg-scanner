@@ -1,8 +1,10 @@
 // Typed wrappers for the checklist endpoints (listings, buyers, orders).
 // Decimal values come back as strings (Pydantic Decimal serialization).
 
+import type { ScanUiState } from '../lib/scanState.ts';
 import type { Settings } from '../types.ts';
 import { request } from './http.ts';
+import { withPictureUrls, type SavedScan } from './scans.ts';
 
 export type ListingStatus = 'active' | 'archived';
 export type OrderStatus = 'claimed' | 'cancelled';
@@ -144,13 +146,7 @@ export interface Order {
 }
 
 async function json<T>(method: string, url: string, body?: unknown, keepalive = false): Promise<T> {
-  const r = await request(url, {
-    method,
-    headers: body ? { 'content-type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-    keepalive,
-  });
-  // 204 No Content
+  const r = await request(url, { method, json: body, keepalive });
   if (r.status === 204) return undefined as T;
   return (await r.json()) as T;
 }
@@ -227,3 +223,13 @@ export const postsApi = {
     json<Post>('PATCH', `/api/posts/${id}`, payload, keepalive),
   remove: (id: number) => json<void>('DELETE', `/api/posts/${id}`),
 };
+
+// A new post of a post's photos, for the cards still unsold (see lib/repost.ts).
+export async function repostPost(
+  postId: number, title: string, photos: Array<{ scanId: number; state: ScanUiState }>, newPrices: boolean,
+): Promise<{ post: Post; scans: SavedScan[] }> {
+  const out = await json<{ post: Post; scans: SavedScan[] }>('POST', `/api/posts/${postId}/repost`, {
+    title, new_prices: newPrices, photos: photos.map(p => ({ scan_id: p.scanId, state: p.state })),
+  });
+  return { post: out.post, scans: out.scans.map(withPictureUrls) };
+}

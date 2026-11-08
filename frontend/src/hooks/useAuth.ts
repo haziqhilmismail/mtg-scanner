@@ -4,46 +4,47 @@
 // as authorized so the rest of the app stays unchanged.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { authToken, imageToken } from '../api/http.ts';
-import {
-  fetchAuthConfig,
-  fetchMe,
-  loginWithGoogle,
-  type AuthConfig,
-  type AuthResponse,
-  type AuthUser,
-} from '../api/auth.ts';
+import { authToken, imageToken, statusOf } from '../api/http.ts';
+import { fetchAuthConfig, fetchMe, loginWithGoogle, type AuthConfig, type MeResponse } from '../api/auth.ts';
 
 type Status = 'loading' | 'unauthenticated' | 'authenticated';
+
+// The signed-in user as /api/auth/me answers: who they are, their default
+// pricing (null until one is set) and their seller name. Loaded once here;
+// everything else reads it from this hook.
+export type Me = Omit<MeResponse, 'image_token'>;
 
 interface UseAuth {
   status: Status;
   config: AuthConfig | null;
-  user: AuthUser | null;
+  // Set whenever status is 'authenticated' (the solo user too).
+  user: Me | null;
   error: string | null;
   signInWithCredential: (credential: string) => Promise<void>;
   signOut: () => void;
+  setSellerName: (seller_name: string) => void;
 }
 
 export function useAuth(): UseAuth {
   const [status, setStatus] = useState<Status>('loading');
   const [config, setConfig] = useState<AuthConfig | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Guards against the StrictMode-double-mount firing two /me requests in dev.
   const bootstrapped = useRef(false);
 
+  const loadMe = async () => {
+    const { image_token, ...me } = await fetchMe();
+    // The server hands out the same image token all week, so image URLs
+    // (and the browser's cache of them) stay put between visits.
+    imageToken.set(image_token);
+    setUser(me);
+    setStatus('authenticated');
+  };
+
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
-    const loadMe = async () => {
-      const { image_token, ...me } = await fetchMe();
-      // The server hands out the same image token all week, so image URLs
-      // (and the browser's cache of them) stay put between visits.
-      imageToken.set(image_token);
-      setUser(me);
-      setStatus('authenticated');
-    };
     (async () => {
       try {
         const cfg = await fetchAuthConfig();
@@ -57,7 +58,7 @@ export function useAuth(): UseAuth {
           } catch (e) {
             // Only a refused token signs out; a network error or a server
             // restart shows the error and keeps the session for next time.
-            if ((e as { status?: number }).status !== 401) throw e;
+            if (statusOf(e) !== 401) throw e;
             authToken.clear();
             imageToken.clear();
           }
@@ -73,11 +74,9 @@ export function useAuth(): UseAuth {
   const signInWithCredential = useCallback(async (credential: string) => {
     setError(null);
     try {
-      const resp: AuthResponse = await loginWithGoogle(credential);
+      const resp = await loginWithGoogle(credential);
       authToken.set(resp.token);
-      imageToken.set(resp.image_token);
-      setUser(resp.user);
-      setStatus('authenticated');
+      await loadMe();
     } catch (e) {
       setError((e as Error).message);
       throw e;
@@ -93,7 +92,9 @@ export function useAuth(): UseAuth {
     try { window.google?.accounts.id.disableAutoSelect(); } catch { /* ignore */ }
   }, []);
 
-  return { status, config, user, error, signInWithCredential, signOut };
+  const setSellerName = useCallback((seller_name: string) => setUser(u => u && { ...u, seller_name }), []);
+
+  return { status, config, user, error, signInWithCredential, signOut, setSellerName };
 }
 
 // Minimal ambient declaration for the GIS global. We avoid pulling in

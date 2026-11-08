@@ -60,17 +60,15 @@ export function defaultToUpload(serverDefault: Settings | null | undefined, lega
 // default applies) and each post's own pricing (null = follows the default).
 export interface PricingState {
   userDefault: Settings | null;
-  // Whether /me has said what the default is.
-  defaultKnown: boolean;
   // Posts from the server's post lists (and posts made here).
   posts: Record<number, Settings | null>;
 }
 
 // Whether a post's (or, for null, the default's) pricing is known. Unknown,
 // its prices show the default, but it can't be edited: a save replaces the
-// whole pricing, so it would wipe the fields the server has and this page doesn't.
-export const pricingKnown = (s: PricingState, postId: number | null) =>
-  postId == null ? s.defaultKnown : postId in s.posts;
+// whole pricing, so it would wipe the fields the server has and this page
+// doesn't. The default comes with /me, so it is always known.
+export const pricingKnown = (s: PricingState, postId: number | null) => postId == null || postId in s.posts;
 
 // The state with a post's (or, for null, the default's) whole pricing
 // replaced, and the default too when asked; null while that pricing isn't known.

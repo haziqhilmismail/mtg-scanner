@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Payment } from '../api.ts';
+import type { Payment } from '../api/payment.ts';
 import { translate, type T } from '../i18n/index.ts';
 import { paymentLines } from '../utils.ts';
 import { changesOf, draftOf, NO_PAYMENT, previewOf, type PaymentDraft } from './paymentDraft.ts';

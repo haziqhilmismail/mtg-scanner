@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchCredits, fetchHealth, type Health } from './api.ts';
+import { fetchCredits } from './api/credits.ts';
+import { fetchHealth, type Health } from './api/health.ts';
 import { formatRelativeTime } from './utils.ts';
 import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
@@ -13,7 +14,8 @@ import { usePayment } from './hooks/usePayment.ts';
 import { usePricing } from './hooks/usePricing.ts';
 import { useScanner } from './hooks/useScanner.ts';
 import { useTheme } from './hooks/useTheme.ts';
-import type { Appearance, Credits, Lang } from './types.ts';
+import type { Appearance, Lang } from './types.ts';
+import type { Credits } from './api/credits.ts';
 import { Login } from './views/Login.tsx';
 import { PricingPage } from './views/PricingPage.tsx';
 import { Profile } from './views/Profile.tsx';
@@ -83,8 +85,10 @@ interface WorkspaceProps {
 }
 
 function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: WorkspaceProps) {
-  const pricing = usePricing();
-  const scanner = useScanner(auth.user?.id ?? null, auth.signOut);
+  const pricing = usePricing(auth.user?.pricing ?? null);
+  // Credit balance, shown under Find Claims; each scan answers with the balance after it.
+  const [credits, setCredits] = useState<Credits | null>(null);
+  const scanner = useScanner(auth.user?.id ?? null, auth.signOut, setCredits);
 
   const navStore = useNav();
   const { route } = navStore;
@@ -100,17 +104,13 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
     );
   }, []);
 
-  // Credit balance, shown under Find Claims. Refetched whenever a scan
-  // finishes too: with the Gemini scanner on, a scan costs a credit.
-  const [credits, setCredits] = useState<Credits | null>(null);
   const [voucherOpen, setVoucherOpen] = useState(false);
 
   // How buyers pay this seller: on a failed load, buyer messages go without it.
   const payments = usePayment();
-  const scansDone = scanner.scanProgress?.done ?? -1;
   useEffect(() => {
     fetchCredits().then(setCredits, () => { /* balance line just stays hidden */ });
-  }, [scansDone]);
+  }, []);
 
   const healthLabel = (() => {
     if (!health && !healthErr) return t('ck_checking');
@@ -149,6 +149,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
       {page === 'profile' ? (
         <Profile
           user={auth.config?.auth_enabled ? auth.user : null}
+          sellerName={auth.user?.seller_name ?? ''}
+          onSellerName={auth.setSellerName}
           // Waiting edits go first: request() reads the token before it awaits.
           onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
           status={{ label: healthLabel, state: healthState }}

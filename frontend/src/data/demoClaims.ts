@@ -1,7 +1,7 @@
 // The sign-in page's Claims demo: invented buyers commenting on the sample
 // photo. The page is public, so never real names, accounts or QR codes.
 
-import type { Payment } from '../api.ts';
+import type { Payment } from '../api/payment.ts';
 import type { T } from '../i18n/index.ts';
 import { paymentLines } from '../utils.ts';
 import { DEMO_CARDS, type DemoCard } from './demoScan.ts';

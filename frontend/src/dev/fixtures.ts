@@ -4,7 +4,7 @@
 // example.com links, fake account numbers. The repo is public.
 
 import type { AuthConfig } from '../api/auth.ts';
-import type { Payment } from '../api.ts';
+import type { Payment } from '../api/payment.ts';
 import { DEFAULT_SETTINGS, type Settings } from '../types.ts';
 import type { TestData } from './mode.ts';
 import {

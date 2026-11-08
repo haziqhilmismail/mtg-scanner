@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchMe, saveDefaultPricing } from '../api/auth.ts';
+import { saveDefaultPricing } from '../api/auth.ts';
 import { postsApi, type PostCreatePayload } from '../api/checklist.ts';
 import type { Key } from '../i18n/index.ts';
 import {
   defaultToUpload, LEGACY_KEY, LEGACY_VERSION_KEY, legacyPricing, pricingKnown, resolvePricing, savePricing, type PricingState,
 } from '../lib/pricing.ts';
-import { DEFAULT_SETTINGS, type PriceMode, type Settings } from '../types.ts';
+import type { PriceMode, Settings } from '../types.ts';
 import { useSaveQueue } from './useSaveQueue.ts';
 
 // What gets saved: a post's pricing, or the user's default.
@@ -21,9 +21,13 @@ function forgetLegacy() {
 
 // Pricing per post plus the user's default, kept on the server. A saved
 // pricing shows at once and goes to the server straight after.
-export function usePricing() {
-  // Until /me answers, the browser's old pricing (if any) stands in for the default.
-  const [state, setState] = useState<PricingState>(() => ({ userDefault: readLegacy(), defaultKnown: false, posts: {} }));
+// `serverDefault`: the user's default as /me answered (null: none set yet).
+// If the server has none, the browser's old pricing becomes it, once; the
+// browser's copy goes when the server has one.
+export function usePricing(serverDefault: Settings | null) {
+  const [state, setState] = useState<PricingState>(() => ({
+    userDefault: defaultToUpload(serverDefault, readLegacy()) ?? serverDefault, posts: {},
+  }));
   const stateRef = useRef(state);
   const set = useCallback((next: PricingState) => { stateRef.current = next; setState(next); }, []);
   const [notice, setNotice] = useState<Key | null>(null);
@@ -54,21 +58,10 @@ export function usePricing() {
     saves.later(0);
   }, [saves]);
 
-  // The default from the server. If it has none, the browser's old pricing
-  // becomes it, once; the browser's copy goes when the server has one.
-  // Resolves to whether the default is known.
-  const meAnswer = useRef<Promise<boolean>>(Promise.resolve(false));
   useEffect(() => {
-    const askedAt = ++clock.current;
-    meAnswer.current = fetchMe().then(me => {
-      // Made a post's pricing meanwhile: that becomes the default.
-      if (!fresh('default', askedAt)) { set({ ...stateRef.current, defaultKnown: true }); return true; }
-      const upload = defaultToUpload(me.pricing, readLegacy());
-      set({ ...stateRef.current, userDefault: upload ?? me.pricing, defaultKnown: true });
-      if (upload) send('default', upload);
-      else if (me.pricing != null) forgetLegacy();
-      return true;
-    }, () => false /* offline: the stand-in default stays */);
+    const upload = defaultToUpload(serverDefault, readLegacy());
+    if (upload) send('default', upload);
+    else if (serverDefault != null) forgetLegacy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -83,13 +76,10 @@ export function usePricing() {
     return list;
   }, [set]);
 
-  // Every new post starts with a copy of the default, once it is known, so
-  // changing the default later doesn't reprice it. Not known (offline): the
-  // post follows the default.
+  // Every new post starts with a copy of the default, so changing the
+  // default later doesn't reprice it.
   const createPost = useCallback(async (payload: Omit<PostCreatePayload, 'pricing'>, priceMode: PriceMode = 'photo') => {
-    const known = await meAnswer.current;
-    // The post type always goes with it, even before the default is known.
-    const pricing = { ...(known ? resolvePricing(null, stateRef.current.userDefault) : DEFAULT_SETTINGS), priceMode };
+    const pricing = { ...resolvePricing(null, stateRef.current.userDefault), priceMode };
     const post = await postsApi.create({ ...payload, pricing });
     set({ ...stateRef.current, posts: { ...stateRef.current.posts, [post.id]: post.pricing } });
     return post;

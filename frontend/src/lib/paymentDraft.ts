@@ -1,7 +1,7 @@
 // The seller's payment details as the Profile form edits them: the text
 // fields, and the QR as a choice that Save carries out.
 
-import type { Payment } from '../api.ts';
+import type { Payment } from '../api/payment.ts';
 
 export type PaymentFields = Omit<Payment, 'qr_version'>;
 

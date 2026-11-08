@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordCorrection } from './api.ts';
+import { recordCorrection } from './scans.ts';
 
 const tick = () => new Promise(r => setTimeout(r, 0));
 

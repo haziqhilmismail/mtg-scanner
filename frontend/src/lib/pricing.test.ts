@@ -44,18 +44,17 @@ test("the browser's old pricing is read and brought up to date", () => {
   assert.equal(legacyPricing(JSON.stringify({ rounding: 'none' }), '2')?.roundDirection, 'none');
 });
 
-test("a post's pricing can be saved only once it is known, the default once /me has answered", () => {
-  const s = { userDefault, defaultKnown: false, posts: { 7: post, 8: null } };
+test("a post's pricing can be saved only once it is known; the default always can", () => {
+  const s = { userDefault, posts: { 7: post, 8: null } };
   assert.equal(pricingKnown(s, 9), false);
   assert.equal(pricingKnown(s, 8), true);
-  assert.equal(pricingKnown(s, null), false);
+  assert.equal(pricingKnown(s, null), true);
   const next = { ...post, multFoil: 4.5 };
   assert.equal(savePricing(s, 9, next, false), null);
-  assert.equal(savePricing(s, null, next, false), null);
   assert.deepEqual(savePricing(s, 8, next, false), { ...s, posts: { 7: post, 8: next } });
   // Also for new posts: the default becomes the same pricing.
-  assert.deepEqual(savePricing(s, 7, next, true), { userDefault: next, defaultKnown: false, posts: { 7: next, 8: null } });
-  assert.deepEqual(savePricing({ ...s, defaultKnown: true }, null, next, false)?.userDefault, next);
+  assert.deepEqual(savePricing(s, 7, next, true), { userDefault: next, posts: { 7: next, 8: null } });
+  assert.deepEqual(savePricing(s, null, next, false)?.userDefault, next);
 });
 
 test('the pricing summary and the formula follow the settings, in both languages', () => {

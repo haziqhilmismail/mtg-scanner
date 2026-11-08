@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
-import { redeemVoucher } from '../api.ts';
-import type { Credits } from '../types.ts';
+import { redeemVoucher, type Credits } from '../api/credits.ts';
+import { ApiError } from '../api/http.ts';
 import type { T } from '../hooks/useLang.ts';
 import { TextField } from './ui/Field.tsx';
 import { Dialog } from './ui/Dialog.tsx';
@@ -41,7 +41,7 @@ export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
       );
       onRedeemed(res.credits);
     } catch (e) {
-      const reason = (e as Error & { code?: string }).code;
+      const reason = e instanceof ApiError ? e.code : undefined;
       setError(t(isVoucherError(reason) ? `voucher_err_${reason}` : 'voucher_err_network'));
     } finally {
       setSending(false);
