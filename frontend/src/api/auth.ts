@@ -30,11 +30,7 @@ export async function fetchAuthConfig(): Promise<AuthConfig> {
 }
 
 export async function loginWithGoogle(credential: string): Promise<AuthResponse> {
-  return (await request('/api/auth/google', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ credential }),
-  })).json();
+  return (await request('/api/auth/google', { method: 'POST', json: { credential } })).json();
 }
 
 export async function fetchMe(): Promise<MeResponse> {
@@ -43,20 +39,11 @@ export async function fetchMe(): Promise<MeResponse> {
 
 // Sets the user's default pricing. `keepalive` lets it finish as the page closes.
 export async function saveDefaultPricing(pricing: Settings, keepalive = false): Promise<void> {
-  await request('/api/auth/me/pricing', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ pricing }),
-    keepalive,
-  });
+  await request('/api/auth/me/pricing', { method: 'PUT', json: { pricing }, keepalive });
 }
 
 // Sets the seller name; "" goes back to the Google name. Answers with the name in use.
 export async function saveSellerName(seller_name: string): Promise<string> {
-  const res = await request('/api/auth/me/seller-name', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ seller_name }),
-  });
+  const res = await request('/api/auth/me/seller-name', { method: 'PUT', json: { seller_name } });
   return (await res.json()).seller_name;
 }

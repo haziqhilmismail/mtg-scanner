@@ -2,7 +2,7 @@
 // tokens are read fresh from localStorage each time, so signing out takes
 // effect at once (no in-memory copy to invalidate).
 
-import type { Credits } from '../types.ts';
+import type { Credits } from './credits.ts';
 
 // Where the API lives. The real site calls the Cloudflare Tunnel straight,
 // which skips the hop through the Vercel rewrite. Everywhere else (Vercel
@@ -47,7 +47,6 @@ export function imageUrl(path: string, params: Record<string, string | number | 
   return apiUrl(qs ? `${path}?${qs}` : path);
 }
 
-// Builds a Headers object pre-populated with the session token when present.
 export function authHeaders(extra?: HeadersInit): Headers {
   const h = new Headers(extra);
   const t = authToken.get();
@@ -55,27 +54,50 @@ export function authHeaders(extra?: HeadersInit): Headers {
   return h;
 }
 
-export class OutOfCreditsError extends Error {
-  credits: Credits | null;
-  constructor(credits: Credits | null) {
-    super('Out of scan credits');
-    this.credits = credits;
+// A response the server refused. The message is the server's detail (or
+// "HTTP <status>"), fit to show the user; `detail` is the raw one.
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: unknown;
+  constructor(message: string, status: number, detail: unknown = undefined) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+
+  // The server's error code when its detail carries one, as the voucher route's does.
+  get code(): string | undefined {
+    return (this.detail as { code?: string } | null | undefined)?.code;
   }
 }
 
-// Every API call goes through here. A failed response throws an Error whose
-// message is the server's detail (or "HTTP <status>"), fit to show the user,
-// with `.status` and the raw `.detail` attached for callers that branch on
-// them. 402 is always "out of scan credits".
-export async function request(url: string, init: RequestInit = {}): Promise<Response> {
-  const r = await fetch(apiUrl(url), { ...init, headers: authHeaders(init.headers) });
+// The status the server refused with; 0 for anything else (network, a bug).
+export const statusOf = (e: unknown): number => (e instanceof ApiError ? e.status : 0);
+
+// 402: the scan or claim read costs a credit the user does not have.
+export class OutOfCreditsError extends ApiError {
+  readonly credits: Credits | null;
+  constructor(detail: unknown) {
+    super('Out of scan credits', 402, detail);
+    this.name = 'OutOfCreditsError';
+    this.credits = (detail as { credits?: Credits } | null | undefined)?.credits ?? null;
+  }
+}
+
+// Every API call goes through here. `json` is sent as the JSON body.
+// `keepalive` lets a request finish while the page is closing.
+export async function request(url: string, { json, ...init }: RequestInit & { json?: unknown } = {}): Promise<Response> {
+  const headers = authHeaders(init.headers);
+  if (json !== undefined) {
+    headers.set('content-type', 'application/json');
+    init.body = JSON.stringify(json);
+  }
+  const r = await fetch(apiUrl(url), { ...init, headers });
   if (r.ok) return r;
   const text = await r.text().catch(() => '');
   let detail: unknown;
   try { detail = JSON.parse(text).detail; } catch { /* not JSON (e.g. a proxy's error page) */ }
-  if (r.status === 402) {
-    throw new OutOfCreditsError((detail as { credits?: Credits } | undefined)?.credits ?? null);
-  }
-  const msg = typeof detail === 'string' && detail ? detail : `HTTP ${r.status}`;
-  throw Object.assign(new Error(msg), { status: r.status, detail });
+  if (r.status === 402) throw new OutOfCreditsError(detail);
+  throw new ApiError(typeof detail === 'string' && detail ? detail : `HTTP ${r.status}`, r.status, detail);
 }

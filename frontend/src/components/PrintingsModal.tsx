@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { fetchPrintings } from '../api.ts';
+import { fetchPrintings } from '../api/catalogue.ts';
+import { statusOf } from '../api/http.ts';
 import type { T } from '../hooks/useLang.ts';
 import { plural } from '../i18n/index.ts';
 import type { Candidate, RelookupMsg } from '../types.ts';
@@ -53,7 +54,7 @@ function Printings({ cardName, currentSid, onSelect, busy, msg, onFind, onUseAsI
     setName(cardName); setPrintings(null); setFailed(false); setShown(PAGE_SIZE);
     fetchPrintings(cardName).then(
       data => { if (current) setPrintings(data.printings || []); },
-      (e: Error & { status?: number }) => { if (!current) return; if (e.status === 404) setPrintings([]); else setFailed(true); },
+      (e: unknown) => { if (!current) return; if (statusOf(e) === 404) setPrintings([]); else setFailed(true); },
     );
     return () => { current = false; };
   }, [cardName]);

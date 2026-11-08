@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { frameCard } from '../../api.ts';
+import { statusOf } from '../../api/http.ts';
+import { frameCard } from '../../api/scans.ts';
 import { ActiveBatchView } from '../../components/ActiveBatchView.tsx';
 import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
@@ -33,8 +34,7 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
       setRelookup({ busy: false, msg: { type: 'ok', text: t('msg_updated', { name: found.name }) } });
       setTimeout(() => setRelookup(r => (r.msg?.type === 'ok' ? { ...r, msg: null } : r)), 2500);
     } catch (e) {
-      const err = e as Error & { status?: number };
-      setRelookup({ busy: false, msg: { type: 'err', text: err.status === 404 ? t('msg_not_found') : t('msg_lookup_failed', { err: err.message }) } });
+      setRelookup({ busy: false, msg: { type: 'err', text: statusOf(e) === 404 ? t('msg_not_found') : t('msg_lookup_failed', { err: (e as Error).message }) } });
     }
   }, [batch.id, scanner, t]);
 

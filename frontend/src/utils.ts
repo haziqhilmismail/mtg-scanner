@@ -1,7 +1,8 @@
 import type { LockedPrice, ScanUiState } from './lib/scanState.ts';
-import type { Batch, Candidate, CardRowData, Correction, Credits, DetectedCard, Settings } from './types.ts';
+import type { Batch, Candidate, CardRowData, Correction, DetectedCard, Settings } from './types.ts';
+import type { Credits } from './api/credits.ts';
 import type { T } from './i18n/index.ts';
-import type { Payment } from './api.ts';
+import type { Payment } from './api/payment.ts';
 
 // Amounts read the same in every browser, "1,240.50", whatever its locale.
 const AMOUNT = [0, 2].map(d => new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));

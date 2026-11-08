@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { paymentApi, type Payment } from '../api.ts';
+import { paymentApi, type Payment } from '../api/payment.ts';
 
 // The seller's payment details, loaded once per session: Claims adds them to
 // buyer messages, and Profile edits them.

@@ -4,7 +4,9 @@
 // returning what the real one does (backend/app/routers/, main.py); any other
 // call answers 404 (a read) or 204 (a write) and warns in the console.
 
-import type { CataloguePhoto, ConfirmClaim, Payment, SavedScan } from '../api.ts';
+import type { CataloguePhoto, ConfirmClaim } from '../api/claims.ts';
+import type { Payment } from '../api/payment.ts';
+import type { SavedScan } from '../api/scans.ts';
 import type { Buyer, BuyerCreatePayload, Listing, ListingCreatePayload, Order, Post, PostUpdatePayload } from '../api/checklist.ts';
 import type { ScanUiState } from '../lib/scanState.ts';
 import type { Candidate, DetectedCard, Settings } from '../types.ts';

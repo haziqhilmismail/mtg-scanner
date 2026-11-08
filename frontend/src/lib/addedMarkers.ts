@@ -5,6 +5,7 @@
 // listing to its photo there, then forgets the marker.
 
 import { listingsApi } from '../api/checklist.ts';
+import { statusOf } from '../api/http.ts';
 import type { Batch } from '../types.ts';
 
 const MARKER = /^mtg\.scanner\.added\.(?:[^.]+\.)?(\d+)$/;
@@ -30,7 +31,7 @@ export async function migrateAdded(batches: Batch[], onListed: (batchId: string,
         await listingsApi.update(listingId, { scan_id: scanId, bbox: card.bbox });
         onListed(batch.id, card.bbox);
       } catch (e) {
-        if ((e as { status?: number }).status !== 404) { keep = true; onListed(batch.id, card.bbox); }
+        if (statusOf(e) !== 404) { keep = true; onListed(batch.id, card.bbox); }
       }
     }
     if (!keep) try { localStorage.removeItem(key); } catch { /* storage disabled */ }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { fetchMe, saveSellerName, type AuthUser } from '../api/auth.ts';
+import { useState } from 'react';
+import { saveSellerName, type AuthUser } from '../api/auth.ts';
 import { Avatar } from '../components/Avatar.tsx';
 import { FeedbackModal } from '../components/FeedbackModal.tsx';
 import { Icon } from '../components/Icon.tsx';
@@ -13,11 +13,15 @@ import { useT } from '../hooks/useLang.ts';
 import type { PaymentStore } from '../hooks/usePayment.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import { pricingSummary } from '../lib/pricing.ts';
-import type { Appearance, Credits, Lang } from '../types.ts';
+import type { Appearance, Lang } from '../types.ts';
+import type { Credits } from '../api/credits.ts';
 import { creditsLine } from '../utils.ts';
 
 interface Props {
   user: AuthUser | null;  // null in solo mode, where nobody signs in
+  // The name printed on drop-off slips, and where a new one goes once saved.
+  sellerName: string;
+  onSellerName: (name: string) => void;
   onSignOut?: () => void;
   status: { label: string; state: 'ok' | 'err' | null };
   credits: Credits | null;
@@ -30,7 +34,7 @@ interface Props {
   payments: PaymentStore;
 }
 
-export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lang, setLang, appearance, setAppearance, pricing, payments }: Props) {
+export function Profile({ user, sellerName, onSellerName, onSignOut, status, credits, onRedeemVoucher, lang, setLang, appearance, setAppearance, pricing, payments }: Props) {
   const t = useT();
   const [supportOpen, setSupportOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -71,7 +75,7 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
                 </li>
               ) : null}
             </ul>
-            <SellerName />
+            <SellerName saved={sellerName} onSaved={onSellerName} />
           </section>
 
           <PaymentDetails store={payments} />
@@ -82,7 +86,7 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
             <div className="profile-head">
               <div className="profile-head-text">
                 <h2 id="profile-pricing-title" className="ui-card-title">{t('menu_default_pricing')}</h2>
-                <p className="profile-pricing">{pricing.pricingKnown(null) ? pricingSummary(pricing.pricingFor(null), t) : t('profile_loading')}</p>
+                <p className="profile-pricing">{pricingSummary(pricing.pricingFor(null), t)}</p>
               </div>
               <Link className="ui-btn" to={{ page: 'profile-pricing' }}>{t('edit')}</Link>
             </div>
@@ -110,20 +114,16 @@ export function Profile({ user, onSignOut, status, credits, onRedeemVoucher, lan
   );
 }
 
-// The name printed on drop-off slips. Loaded here, as only Profile shows it.
-function SellerName() {
+function SellerName({ saved, onSaved }: { saved: string; onSaved: (name: string) => void }) {
   const t = useT();
   const toast = useToast();
-  const [saved, setSaved] = useState<string | null>(null);
-  useEffect(() => { fetchMe().then(me => setSaved(me.seller_name), () => {}); }, []);
-  if (saved === null) return null;
   return (
     <div className="profile-seller">
       <SaveField
         saved={saved} required maxLength={255} autoComplete="name"
         label={t('profile_seller_name')} saveLabel={t('save_name')} hint={t('profile_seller_name_hint')}
         onSave={async name => {
-          try { setSaved(await saveSellerName(name)); return true; } catch { toast(t('profile_seller_name_failed')); return false; }
+          try { onSaved(await saveSellerName(name)); return true; } catch { toast(t('profile_seller_name_failed')); return false; }
         }}
       />
     </div>

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ApiError } from '../api/http.ts';
 import { createSaveQueue } from './saveQueue.ts';
 
 // A value told apart by its quantity.
@@ -17,7 +18,7 @@ function harness() {
   const q = createSaveQueue<number, { quantity: number[] }>(
     (scanId, state, final, rev) => new Promise((res, rej) => sends.push({
       scanId, rev, q: state.quantity[0], final,
-      ok: () => res(), fail: status => rej(Object.assign(new Error('x'), { status })),
+      ok: () => res(), fail: status => rej(new ApiError('x', status)),
     })),
     scanId => saved.push(scanId),
     () => { retries++; },
@@ -125,7 +126,7 @@ function pricingHarness() {
   const q = createSaveQueue<string, { mult: number }>(
     (key, value, final) => new Promise((res, rej) => sends.push({
       key, mult: value.mult, final,
-      ok: () => res(), fail: status => rej(Object.assign(new Error('x'), { status })),
+      ok: () => res(), fail: status => rej(new ApiError('x', status)),
     })),
     key => saved.push(key),
     () => { retries++; },

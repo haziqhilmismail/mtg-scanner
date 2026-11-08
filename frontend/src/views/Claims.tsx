@@ -7,7 +7,8 @@
 // Status changes and Remove buyer show at once and offer Undo.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { paymentApi, relookupScanPrices, type Payment } from '../api.ts';
+import { paymentApi, type Payment } from '../api/payment.ts';
+import { relookupScanPrices } from '../api/scans.ts';
 import {
   buyersApi, listingsApi, ordersApi, salesApi,
   type Buyer, type Listing, type Order, type OrderItem, type SentLine,
@@ -23,7 +24,8 @@ import { Segmented } from '../components/ui/Segmented.tsx';
 import { useToast } from '../components/ui/Toast.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import { plural } from '../i18n/index.ts';
-import type { CardRowData, Credits } from '../types.ts';
+import type { CardRowData } from '../types.ts';
+import type { Credits } from '../api/credits.ts';
 import { byPostOrder, computeCardData, dueForSupportAsk, isLive, paymentLines, photoNumbers, popupOpen } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';

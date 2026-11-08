@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { relookupScanPrices, repostPost, type ExportPayload, type Health } from '../../api.ts';
-import { listingsApi, postsApi, type Post } from '../../api/checklist.ts';
+import { listingsApi, postsApi, repostPost, type Post } from '../../api/checklist.ts';
+import type { ExportPayload } from '../../api/export.ts';
+import type { Health } from '../../api/health.ts';
+import { statusOf } from '../../api/http.ts';
+import { relookupScanPrices } from '../../api/scans.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
@@ -491,9 +494,8 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
     try {
       await postsApi.remove(folder.postId);
     } catch (e) {
-      const err = e as Error & { status?: number };
-      if (err.status !== 409) {
-        await dialog.alert({ title: t('alert_error_title'), message: err.message });
+      if (statusOf(e) !== 409) {
+        await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
       } else if (await dialog.confirm({
         title: t('delete_post_claimed_title', { name: folder.title }),
         message: t('delete_post_claimed_body'),

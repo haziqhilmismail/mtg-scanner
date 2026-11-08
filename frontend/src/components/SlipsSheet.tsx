@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { dropoffSlipsPdf } from '../api.ts';
+import { dropoffSlipsPdf } from '../api/slips.ts';
 import { useT } from '../hooks/useLang.ts';
 import { plural } from '../i18n/index.ts';
 import { downloadBlob } from '../utils.ts';

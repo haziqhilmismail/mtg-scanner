@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  deleteScan as apiDeleteScan,
-  fetchScans,
-  SCANS_PAGE,
-  relookup as apiRelookup,
-  saveScanState,
-  scanImage,
-  type SavedScan,
-  moveScans as apiMoveScans,
-  orderScans as apiOrderScans,
-  recordCorrection,
-} from '../api.ts';
-import { OutOfCreditsError } from '../api/http.ts';
+import { relookup as apiRelookup } from '../api/catalogue.ts';
+import { deleteScan as apiDeleteScan, fetchScans, SCANS_PAGE, saveScanState, scanImage, type SavedScan, moveScans as apiMoveScans, orderScans as apiOrderScans, recordCorrection } from '../api/scans.ts';
+import type { Credits } from '../api/credits.ts';
+import { OutOfCreditsError, statusOf } from '../api/http.ts';
 import type { Key } from '../i18n/index.ts';
 import { editCardState, freshState, normalizeUiState, uiStateOf, withCard, type CardState, type LockedPrice, type ScanUiState } from '../lib/scanState.ts';
 import type { Batch, Candidate, DetectedCard } from '../types.ts';
@@ -100,8 +91,9 @@ function batchFromSavedScan(saved: SavedScan): Batch {
   };
 }
 
-// signOut is called if the server no longer knows the session.
-export function useScanner(userId: number | null, signOut: () => void) {
+// signOut is called if the server no longer knows the session. onCredits gets
+// the balance each scan answers with (a scan may cost a credit).
+export function useScanner(userId: number | null, signOut: () => void, onCredits: (credits: Credits) => void) {
   const tombKey = tombstoneKey(userId);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
@@ -151,7 +143,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
         } catch (e) {
           if (cancelled) return;
           // Session gone: only signing in again helps.
-          if ((e as { status?: number }).status === 401) return signOut();
+          if (statusOf(e) === 401) return signOut();
           if (!told) setNotice('scans_load_failed');
           told = true;
           await new Promise(r => setTimeout(r, RETRY_MS));
@@ -244,14 +236,14 @@ export function useScanner(userId: number | null, signOut: () => void) {
       if (!current()) return;
       try {
         const resp = await scanImage(file, postId);
-        // Server-side scan_id is what we'll persist UI state against
-        const scanId = (resp as unknown as { scan_id?: number }).scan_id ?? null;
+        onCredits(resp.credits);
+        const scanId = resp.scan_id;
         const b = current();
         if (!b) {
-          if (scanId != null) deleteSaved(tombKey, scanId);
+          deleteSaved(tombKey, scanId);
           return;
         }
-        if (scanId != null && b.postId !== postId) {
+        if (b.postId !== postId) {
           apiMoveScans([scanId], b.postId).catch(() => {
             patchBatch(id, { postId });
             setNotice('scans_move_failed');
@@ -266,6 +258,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
           ...freshState(resp.cards),
         });
       } catch (e) {
+        if (e instanceof OutOfCreditsError && e.credits) onCredits(e.credits);
         patchBatch(id, {
           status: 'error',
           error: (e as Error).message,
@@ -273,7 +266,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
         });
       }
     });
-  }, [patchBatch, tombKey]);
+  }, [onCredits, patchBatch, tombKey]);
 
   const addFiles = useCallback(async (files: File[], postId: number | null = null) => {
     if (!files.length) return;
