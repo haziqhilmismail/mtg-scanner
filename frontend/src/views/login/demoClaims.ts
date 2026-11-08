@@ -1,10 +1,10 @@
 // The sign-in page's Claims demo: invented buyers commenting on the sample
 // photo. The page is public, so never real names, accounts or QR codes.
 
-import type { Payment } from '../api/payment.ts';
-import type { T } from '../i18n/index.ts';
-import { buyerMessage } from '../views/claims/model.ts';
-import { DEMO_CARDS, DEMO_MULT, demoPrice, type DemoCard } from './demoScan.ts';
+import type { Payment } from '../../api/payment.ts';
+import type { T } from '../../i18n/index.ts';
+import { buyerMessage } from '../claims/model.ts';
+import { DEMO_CARDS, DEMO_MULT, demoPrice, type DemoCard } from '../../data/demoScan.ts';
 
 export interface DemoComment {
   name: string;

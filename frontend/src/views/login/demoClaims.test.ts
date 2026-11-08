@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { translate, type T } from '../i18n/index.ts';
+import { translate, type T } from '../../i18n/index.ts';
 import { DEMO_COMMENTS, demoMessage } from './demoClaims.ts';
-import { DEMO_CARDS, demoPrice } from './demoScan.ts';
+import { DEMO_CARDS, demoPrice } from '../../data/demoScan.ts';
 
 const en: T = (k, v) => translate('en', k, v);
 

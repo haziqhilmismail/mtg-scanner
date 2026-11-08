@@ -4,8 +4,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { DEMO_CARDS, DEMO_CROP, DEMO_IMAGE_URL, DEMO_MULT, demoPrice, type DemoCard } from '../../data/demoScan.ts';
 import { useT } from '../../hooks/useLang.ts';
-import { Icon } from '../Icon.tsx';
-import { VersionLine } from '../VersionLine.tsx';
+import { Icon } from '../../components/Icon.tsx';
+import { VersionLine } from '../../components/VersionLine.tsx';
 
 // When each step starts after play, its status line, the progress bar, and
 // what the photo shows: the outlines, then the price labels (the top row

@@ -4,13 +4,13 @@
 // appearance come from App, so a choice made here carries on after sign-in.
 
 import { useEffect, useRef, useState } from 'react';
-import { DemoFindClaims } from '../components/demo/DemoFindClaims.tsx';
-import { DemoScan } from '../components/demo/DemoScan.tsx';
-import { SignedOutHeader } from '../components/Header.tsx';
-import { Preferences } from '../components/Preferences.tsx';
-import { Segmented } from '../components/ui/Segmented.tsx';
-import type { T } from '../hooks/useLang.ts';
-import type { Appearance, Lang } from '../types.ts';
+import { SignedOutHeader } from '../../components/Header.tsx';
+import { Preferences } from '../../components/Preferences.tsx';
+import { Segmented } from '../../components/ui/Segmented.tsx';
+import type { T } from '../../hooks/useLang.ts';
+import type { Appearance, Lang } from '../../types.ts';
+import { DemoFindClaims } from './DemoFindClaims.tsx';
+import { DemoScan } from './DemoScan.tsx';
 
 interface Props {
   clientId: string;
