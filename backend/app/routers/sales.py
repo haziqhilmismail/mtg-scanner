@@ -5,14 +5,14 @@ See models/sale_record.py for what a record holds and why."""
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession, limiter, owned
-from ..models import Order, OrderItem, Post, SaleRecord
+from ..deps import CurrentUserId, DbSession, limiter, owned, owned_many
+from ..models import OrderItem, Post, SaleRecord
 from ..schemas.types import Id
 from ..services import catalogue
 
@@ -52,13 +52,10 @@ async def record_sales(request: Request, body: SentSummary, db: DbSession, user_
         await owned(db, Post, body.post_id, user_id)
 
     wanted = {line.order_item_id: line for line in body.lines}
-    items = (await db.scalars(
-        select(OrderItem).join(Order)
-        .where(OrderItem.id.in_(wanted), Order.user_id == user_id)
-        .options(selectinload(OrderItem.listing), selectinload(OrderItem.order))
-    )).all()
-    if len(items) != len(wanted):
-        raise HTTPException(404, "Order line not found")
+    items = (await owned_many(
+        db, OrderItem, wanted, user_id, detail="Order line not found",
+        options=(selectinload(OrderItem.listing), selectinload(OrderItem.order)),
+    )).values()
 
     last = {}  # order_item_id -> its latest record's (line_seq, qty, price)
     for r in (await db.execute(

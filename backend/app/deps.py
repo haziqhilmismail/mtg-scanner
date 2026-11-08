@@ -27,6 +27,22 @@ async def owned[T](db: AsyncSession, model: type[T], row_id: int, user_id: int, 
     return row
 
 
+async def owned_many[T](
+    db: AsyncSession, model: type[T], ids, user_id: int, *where, options=(), detail: str | None = None,
+) -> dict[int, T]:
+    """This user's rows of `model` with these ids (and `where`), by id; 404
+    (`detail`, or as owned() says it) when any of them is missing."""
+    if not ids:
+        return {}
+    rows = await db.scalars(
+        select(model).where(model.id.in_(ids), model.user_id == user_id, *where).options(*options)
+    )
+    found = {row.id: row for row in rows}
+    if set(ids) - found.keys():
+        raise HTTPException(404, detail or f"{model.__name__} not found")
+    return found
+
+
 def json_payload(payload: str) -> dict:
     """The JSON in a multipart form's `payload` field; 400 when it is not JSON."""
     try:

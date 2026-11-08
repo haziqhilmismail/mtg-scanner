@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Numeric, String
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
@@ -38,3 +39,6 @@ class OrderItem(Base, TimestampMixin):
 
     order: Mapped["Order"] = relationship(back_populates="items")
     listing: Mapped["Listing"] = relationship(back_populates="order_items")
+    # The owner is the order's, so owned() and owned_many() work on order
+    # lines. For queries: reading it on a row lazy-loads the order.
+    user_id = association_proxy("order", "user_id")
