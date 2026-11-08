@@ -5,12 +5,13 @@ import { Dialog } from '../../components/ui/Dialog.tsx';
 import { RadioCards } from '../../components/ui/RadioCards.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
 import type { T } from '../../hooks/useLang.ts';
+import { isPhone } from '../../lib/browser.ts';
 import { photosOf } from '../../lib/photoFiles.ts';
 import type { PriceMode, Settings } from '../../types.ts';
 
 // A phone opens its camera for Take photo; a computer would only open the
 // same file picker again, so there Choose photos is the one button.
-const hasCamera = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+const hasCamera = isPhone();
 
 interface Props {
   open: boolean;

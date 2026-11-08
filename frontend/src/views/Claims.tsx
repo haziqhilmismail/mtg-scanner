@@ -27,7 +27,8 @@ import { KEY } from '../lib/storage.ts';
 import { plural } from '../i18n/index.ts';
 import type { CardRowData } from '../types.ts';
 import type { Credits } from '../api/credits.ts';
-import { byPostOrder, computeCardData, dueForSupportAsk, isLive, paymentLines, photoNumbers, popupOpen } from '../utils.ts';
+import { canShareFiles, dateLocale, fetchQrFile, isPhone, popupOpen, useFileDrop } from '../lib/browser.ts';
+import { byPostOrder, computeCardData, dueForSupportAsk, isLive, paymentLines, photoNumbers } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
 import { BuyerDialog } from './claims/BuyerDialog.tsx';
@@ -36,7 +37,6 @@ import {
   type BuyerGroup, type ClaimSort, type Line, type PayState, type Stamps, type StatusMove,
 } from './claims/model.ts';
 import { ClaimSteps, HowDialog } from './claims/parts.tsx';
-import { useScreenshotDrop } from './claims/useScreenshotDrop.ts';
 import type { T } from '../hooks/useLang.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
@@ -206,7 +206,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
     setHandFor(hand);
     setAddOpen(true);
   }, []);
-  const pageDragging = useScreenshotDrop(active, () => photos.length > 0 && !popupOpen(), startAdd);
+  const pageDragging = useFileDrop(active, () => photos.length > 0 && !popupOpen(), startAdd);
 
   const closeAdd = (hadWork: boolean) => {
     setAddOpen(false);
@@ -330,13 +330,12 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
     setQrFile(null);
     if (!payment?.qr_version) return;
     let current = true;
-    fetch(paymentApi.qrUrl(payment.qr_version))
-      .then(r => (r.ok ? r.blob() : Promise.reject()))
-      .then(b => { if (current) setQrFile(new File([b], 'duitnow-qr.png', { type: 'image/png' })); }, () => { /* no QR button */ });
+    fetchQrFile(paymentApi.qrUrl(payment.qr_version))
+      .then(file => { if (current) setQrFile(file); }, () => { /* no QR button */ });
     return () => { current = false; };
   }, [payment?.qr_version]);
   // Phones share the image; elsewhere it goes on the clipboard.
-  const shareQr = !!qrFile && matchMedia('(pointer: coarse)').matches && !!navigator.canShare?.({ files: [qrFile] });
+  const shareQr = !!qrFile && isPhone() && canShareFiles([qrFile]);
   const qrAction = shareQr ? 'share' : qrFile && typeof ClipboardItem !== 'undefined' ? 'copy' : null;
   const sendQr = async () => {
     if (!qrFile) return;
@@ -387,7 +386,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
   const counts = { all: groups.length, unpaid: 0, paid: 0, done: 0 };
   for (const g of groups) counts[g.state] += 1;
   const sentOn = (g: BuyerGroup) => (g.orders.every(o => o.prices_sent_at)
-    ? new Date(g.orders.map(o => o.prices_sent_at!).sort().at(-1)!).toLocaleDateString(lang === 'ms' ? 'ms-MY' : 'en-MY', { day: 'numeric', month: 'short' })
+    ? new Date(g.orders.map(o => o.prices_sent_at!).sort().at(-1)!).toLocaleDateString(dateLocale(lang), { day: 'numeric', month: 'short' })
     : null);
   const qrFor = (name: string) => (qrAction ? t(qrAction === 'share' ? 'claims_share_qr_for' : 'claims_copy_qr_for', { name: name.trim() }) : null);
   const paidShare = totals.claimed > 0 ? totals.paid / totals.claimed : 0;

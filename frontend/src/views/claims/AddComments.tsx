@@ -18,7 +18,7 @@ import { creditsLine, creditsOutText, formatMyrWithFoil, isLive, listingFields, 
 import { blankDraft, CheckClaims, draftsKind, type Draft } from './CheckClaims.tsx';
 import { PostPhotos } from './PostPhotos.tsx';
 import { ShotCard, type Shot } from './ShotCard.tsx';
-import { useScreenshotDrop } from './useScreenshotDrop.ts';
+import { useFileDrop } from '../../lib/browser.ts';
 
 interface Props {
   open: boolean;
@@ -96,7 +96,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
     taken.current = incoming.id;
     readFiles(incoming.files);
   }, [incoming, readFiles]);
-  const dragging = useScreenshotDrop(open, () => step === 'shots' && pickerFor == null && !viewing && !busy, readFiles);
+  const dragging = useFileDrop(open, () => step === 'shots' && pickerFor == null && !viewing && !busy, readFiles);
 
   // What Gemini is told is on sale; prices as the photo shows them.
   const catalogue = (subset: Photo[]): CataloguePhoto[] => subset.map(p => ({

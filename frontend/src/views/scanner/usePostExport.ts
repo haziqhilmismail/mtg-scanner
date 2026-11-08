@@ -2,11 +2,11 @@ import { useEffect, useReducer, useState } from 'react';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import type { T } from '../../hooks/useLang.ts';
+import { canShareFiles } from '../../lib/browser.ts';
 import { fileSafe } from '../../lib/photoFiles.ts';
 import { downloadFiles, jobKey, KEEP, renderedFile, renderFile, type ExportJob } from './exportFiles.ts';
 
-const canShareFiles = typeof navigator !== 'undefined'
-  && !!navigator.canShare?.({ files: [new File([''], 'photo.jpg', { type: 'image/jpeg' })] });
+const canSharePhotos = canShareFiles([new File([''], 'photo.jpg', { type: 'image/jpeg' })]);
 // Chromium refuses to share more than 10 files (kMaxSharedFileCount in blink's
 // navigator_share.cc), and only Chromium has userAgentData.
 const SHARE_MAX = typeof navigator !== 'undefined' && 'userAgentData' in navigator ? 10 : KEEP;
@@ -21,7 +21,7 @@ export function usePostExport(jobs: ExportJob[], title: string, t: T) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [, rendered] = useReducer((n: number) => n + 1, 0);
-  const shareable = canShareFiles && jobs.length > 0 && jobs.length <= SHARE_MAX;
+  const shareable = canSharePhotos && jobs.length > 0 && jobs.length <= SHARE_MAX;
   const signature = jobs.map(jobKey).join('\n');
 
   useEffect(() => {
@@ -58,13 +58,13 @@ export function usePostExport(jobs: ExportJob[], title: string, t: T) {
   const share = async () => {
     if (!ready) {
       // Rendering failed, or this browser can't share these: they download instead.
-      const tooMany = canShareFiles && jobs.length > SHARE_MAX;
+      const tooMany = canSharePhotos && jobs.length > SHARE_MAX;
       if (!shareable || failed) await download(jobs, tooMany ? t('post_share_too_many', { n: SHARE_MAX }) : t('post_share_fallback'));
       return;
     }
     const all = files as File[];
     try {
-      if (!navigator.canShare({ files: all })) throw new Error('cannot share');
+      if (!canShareFiles(all)) throw new Error('cannot share');
       await navigator.share({ files: all, title });
     } catch (e) {
       // The person closed the share sheet.

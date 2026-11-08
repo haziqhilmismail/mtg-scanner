@@ -4,7 +4,8 @@ import { paymentApi, type Payment } from '../../api/payment.ts';
 import { useT } from '../../hooks/useLang.ts';
 import type { PaymentStore } from '../../hooks/usePayment.ts';
 import { changesOf, draftOf, hasDetails, NO_PAYMENT, previewOf, type PaymentDraft, type PaymentFields } from '../../lib/paymentDraft.ts';
-import { paymentLines, pastedImages, popupOpen } from '../../utils.ts';
+import { fetchQrFile, pastedImages, popupOpen } from '../../lib/browser.ts';
+import { paymentLines } from '../../utils.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { TextArea, TextField } from '../../components/ui/Field.tsx';
@@ -12,8 +13,6 @@ import { useToast } from '../../components/ui/Toast.tsx';
 
 const MAX_QR_BYTES = 8 * 1024 * 1024;  // the server's limit
 
-const qrBlob = (version: string) =>
-  fetch(paymentApi.qrUrl(version)).then(r => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`))));
 
 export function PaymentDetails({ store }: { store: PaymentStore }) {
   const t = useT();
@@ -123,7 +122,7 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
     const before = saved;
     setStatus('deleting'); setError(''); setQrError('');
     try {
-      const qr = before.qr_version ? await qrBlob(before.qr_version) : null;
+      const qr = before.qr_version ? await fetchQrFile(paymentApi.qrUrl(before.qr_version)) : null;
       await Promise.all([paymentApi.save(draftOf(NO_PAYMENT).fields), qr ? paymentApi.deleteQr() : null]);
       setPayment(NO_PAYMENT);
       setDraft(draftOf(NO_PAYMENT));
@@ -138,10 +137,10 @@ function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payme
   };
 
   // Undo can come after the seller left Profile, so it writes only App's copy.
-  const restore = async (before: Payment, qr: Blob | null) => {
+  const restore = async (before: Payment, qr: File | null) => {
     try {
       let next = await paymentApi.save(draftOf(before).fields);
-      if (qr) next = await paymentApi.uploadQr(new File([qr], 'duitnow-qr.png', { type: 'image/png' }));
+      if (qr) next = await paymentApi.uploadQr(qr);
       setPayment(next);
     } catch {
       setPayment(await paymentApi.get().catch(() => NO_PAYMENT));

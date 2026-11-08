@@ -3,6 +3,7 @@ import type { Batch, Candidate, CardRowData, Correction, DetectedCard, Settings 
 import type { Credits } from './api/credits.ts';
 import type { T } from './i18n/index.ts';
 import type { Payment } from './api/payment.ts';
+import { dateLocale } from './lib/browser.ts';
 
 // Amounts read the same in every browser, "1,240.50", whatever its locale.
 const AMOUNT = [0, 2].map(d => new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));
@@ -201,20 +202,6 @@ export function smallScryfallImage(url: string): string {
 export const matchThumbs = (batch: Batch): string[] =>
   (batch.response?.cards ?? []).map(c => c.candidates[0]?.image_url).filter((u): u is string => !!u).map(smallScryfallImage);
 
-// Whether a popup is open over the page: a paste then belongs to it, not
-// to the page's drop area behind it.
-export const popupOpen = () => !!document.querySelector('dialog[open], [role="menu"]');
-
-// The images in a paste (Ctrl/⌘+V), named for when they were pasted.
-export function pastedImages(e: ClipboardEvent): File[] {
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  return Array.from(e.clipboardData?.items ?? [])
-    .filter(i => i.kind === 'file' && i.type.startsWith('image/'))
-    .map(i => i.getAsFile())
-    .filter((f): f is File => !!f)
-    .map(f => new File([f], `pasted-${stamp}.${(f.type.split('/')[1] || 'png').split('+')[0]}`, { type: f.type }));
-}
-
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -325,7 +312,7 @@ export function lockPrices(cards: CardRowData[]): (LockedPrice | null)[] {
 // When the oldest free scan comes back, as a short date ('' if none is due).
 export function nextFreeDate(credits: Credits | null, lang: string): string {
   return credits?.next_free_at
-    ? new Date(credits.next_free_at).toLocaleDateString(lang === 'ms' ? 'ms-MY' : 'en-MY', { day: 'numeric', month: 'short' })
+    ? new Date(credits.next_free_at).toLocaleDateString(dateLocale(lang), { day: 'numeric', month: 'short' })
     : '';
 }
 
