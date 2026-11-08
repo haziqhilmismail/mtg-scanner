@@ -29,7 +29,7 @@ from ..models import (
 )
 from ..schemas import PostReadWithStats, PostUpdate
 from ..schemas.post import PostBase
-from ..schemas.types import Id, Pricing
+from ..schemas.types import CardEdits, Id, Pricing
 from ..services import catalogue
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
@@ -151,7 +151,7 @@ class RepostPhoto(BaseModel):
     scan_id: Id
     # The copy's per-card edits, built by the client, which owns their shape:
     # the sold cards removed and marked sold, so the photo covers them.
-    state: dict
+    state: CardEdits
 
 
 class Repost(BaseModel):
@@ -190,7 +190,10 @@ async def repost(post_id: Id, body: Repost, db: DbSession, user_id: CurrentUserI
     try:
         for photo in body.photos:
             src = found[photo.scan_id]
-            state, picks = split_state(photo.state, len(src.cards))
+            try:
+                state, picks = split_state(photo.state, len(src.cards))
+            except ValueError as e:
+                raise HTTPException(400, str(e))
             dup = Scan(
                 user_id=user_id, post_id=new_post.id, position=src.position, filename=src.filename,
                 width=src.width, height=src.height, gemini_raw=copy.deepcopy(src.gemini_raw), ui_state=state,

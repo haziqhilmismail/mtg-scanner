@@ -7,17 +7,16 @@ card record itself is `schemas.scan.ScannedCard`."""
 
 import asyncio
 import base64
-import json
 from io import BytesIO
 from typing import Protocol
 
-from fastapi import HTTPException
 from PIL import Image, ImageOps
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..models import Scan
 from ..schemas.scan import Detection, Guess, ScannedCard
+from ..schemas.types import PICKS_ERROR
 from . import catalogue, gemini_scanner, local_scan
 from .catalogue import CKPriceIndex
 
@@ -227,19 +226,14 @@ def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:
     }
 
 
-def split_state(raw: dict, n_cards: int) -> tuple[dict, list | None]:
-    """A client's per-card edits, checked: the state to store, and the picks
-    taken out of it (see save_scan_state)."""
-    if len(json.dumps(raw)) > 64 * 1024:
-        raise HTTPException(413, "State too large (max 64 KB)")
-    state = dict(raw)
+def split_state(state: dict, n_cards: int) -> tuple[dict, list | None]:
+    """A client's per-card edits (`schemas.types.CardEdits`): the state to
+    store, and the picks taken out of it (see save_scan_state). ValueError
+    when there are more picks than cards."""
+    state = dict(state)
     picks = state.pop("picks", None)
-    if picks is not None and not (
-        isinstance(picks, list)
-        and len(picks) <= n_cards
-        and all(p is None or (isinstance(p, dict) and isinstance(p.get("name"), str)) for p in picks)
-    ):
-        raise HTTPException(400, "picks must be a list of null or a candidate with a name, one per card")
+    if picks is not None and len(picks) > n_cards:
+        raise ValueError(PICKS_ERROR)
     return state, picks
 
 
