@@ -1,5 +1,7 @@
 // API + state types shared across components.
 
+import type { PillOffset, ScanUiState } from './lib/scanState.ts';
+
 export type RoundDirection = 'none' | 'up' | 'down' | 'nearest';
 export type RoundStep = 0.1 | 0.5 | 1;
 
@@ -131,49 +133,6 @@ export interface RelookupMsg {
   text: string;
 }
 
-// Per-card draggable pill offset. The pill default position is derived from
-// the bbox + the global label-position setting; this offset (in source image
-// pixels) is added on top so the user can pull the pill onto the card when
-// the detector's bbox drifted. Null means no override (use the default).
-export interface PillOffset {
-  dx: number;
-  dy: number;
-}
-
-// A scan's per-card edits, saved on the server as the scan's ui_state so
-// every device sees the same prices. Parallel arrays, one entry per card.
-// One card's price as a photo was finished. manual: typed in by hand, so it
-// has no "USD × multiplier" working to show a buyer.
-export interface LockedPrice { price: number; usd: number; mult: number; manual: boolean }
-
-export interface ScanUiState {
-  isFoil: boolean[];
-  priceOverride: (string | null)[];
-  quantity: number[];
-  multOverride: (number | null)[];
-  removed: boolean[];
-  // Why a removed card went: it sold on an earlier post, so the photo of a
-  // repost covers it. Only counts while the card is removed (Restore uncovers).
-  sold: boolean[];
-  pillOffset: (PillOffset | null)[];
-  // The seller said an unsure printing guess (see CardRow) is right.
-  versionOk: boolean[];
-  // A card's new first candidate (another printing, a name search, "use as
-  // is") not yet written into the saved scan. The server moves it there and
-  // drops it from the saved state.
-  picks: (Candidate | null)[];
-  // The prices the photo was finished with (added to its post and downloaded
-  // or shared), so what buyers saw on Facebook: one per card, null for a card
-  // with no price. They count only while lockedAt is set.
-  locked: (LockedPrice | null)[];
-  // When the photo was finished. Unset (or null after Edit prices): its prices
-  // follow the seller's edits again.
-  lockedAt?: string | null;
-  // Raised on every save so the server ignores a save that arrives after a
-  // newer one. Not a per-card field.
-  rev?: number;
-}
-
 export interface Batch extends ScanUiState {
   id: string;
   scanId: number | null;          // backend Scan.id once saved — null while scanning
@@ -190,10 +149,6 @@ export interface Batch extends ScanUiState {
   outOfCredits?: boolean;
   response: ScanResponse | null;
   error?: string;
-  // Per-card parallel arrays, like ScanUiState's: length ===
-  // response.cards.length when status === 'done'
-  relookupBusy: boolean[];
-  relookupMsg: (RelookupMsg | null)[];
 }
 
 // Scan-credit balance, as returned by GET /api/credits and alongside each scan.

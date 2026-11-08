@@ -1,4 +1,5 @@
-import type { Batch, Candidate, CardRowData, Correction, Credits, DetectedCard, LockedPrice, PillOffset, ScanUiState, Settings } from './types.ts';
+import type { LockedPrice, ScanUiState } from './lib/scanState.ts';
+import type { Batch, Candidate, CardRowData, Correction, Credits, DetectedCard, Settings } from './types.ts';
 import type { T } from './i18n/index.ts';
 import type { Payment } from './api.ts';
 
@@ -248,12 +249,10 @@ export function rarityKey(rarity: string | undefined | null): string {
   return '';
 }
 
-// Derive per-card pricing/quantity/foil rows for a scanned batch. Pure transform —
-// used by ActiveBatchView's render memo AND by Scanner's bulk handlers (which need
-// to run "add to checklist" / "export" against batches that aren't currently active).
-export function computeCardData(batch: Batch, settings: Settings): CardRowData[] {
-  if (!batch.response) return [];
-  return batch.response.cards.map((c, origIdx) => {
+// Each card's pricing, quantity and foil row from the scan's cards and the
+// seller's per-card edits (a Batch is one).
+export function computeCardData(cards: DetectedCard[], batch: ScanUiState, settings: Settings): CardRowData[] {
+  return cards.map((c, origIdx) => {
     const sel = c.candidates[0] || ({} as never);
     const isManual = !!sel._manual;
     const isFoil = batch.isFoil[origIdx] ?? false;
@@ -320,74 +319,6 @@ export function correctionFor(batch: Batch, idx: number, picked?: Candidate): Co
 export function lockPrices(cards: CardRowData[]): (LockedPrice | null)[] {
   return cards.map(cd => (cd.removed || !(cd.unitPrice > 0) ? null
     : { price: cd.unitPrice, usd: cd.usd, mult: cd.mult, manual: cd.hasOverride }));
-}
-
-// Per-card state for a scan nobody has edited yet: foil and quantity seeded
-// from Gemini's guesses, no overrides.
-export function freshState(cards: DetectedCard[]): ScanUiState {
-  const n = cards.length;
-  return {
-    isFoil: cards.map(c => !!c.gemini?.is_foil),
-    priceOverride: new Array(n).fill(null),
-    quantity: cards.map(c => Math.max(1, c.gemini?.quantity || 1)),
-    multOverride: new Array(n).fill(null),
-    removed: new Array(n).fill(false),
-    sold: new Array(n).fill(false),
-    pillOffset: new Array(n).fill(null),
-    versionOk: new Array(n).fill(false),
-    picks: new Array(n).fill(null),
-    locked: new Array(n).fill(null),
-  };
-}
-
-const VALID: { [K in Exclude<keyof ScanUiState, 'rev' | 'lockedAt'>]: (v: unknown) => boolean } = {
-  isFoil: v => typeof v === 'boolean',
-  priceOverride: v => v === null || typeof v === 'string',
-  quantity: v => Number.isInteger(v) && (v as number) >= 1,
-  multOverride: v => v === null || (Number.isFinite(v) && (v as number) >= 0),
-  removed: v => typeof v === 'boolean',
-  sold: v => typeof v === 'boolean',
-  pillOffset: v => v === null || (Number.isFinite((v as PillOffset)?.dx) && Number.isFinite((v as PillOffset)?.dy)),
-  versionOk: v => typeof v === 'boolean',
-  picks: v => v === null || typeof (v as Candidate)?.name === 'string',
-  locked: v => v === null || (
-    Number.isFinite((v as LockedPrice)?.price) && (v as LockedPrice).price > 0
-    && Number.isFinite((v as LockedPrice).usd) && Number.isFinite((v as LockedPrice).mult)
-    && typeof (v as LockedPrice).manual === 'boolean'),
-};
-
-// What is saved to the server for a batch (its rev is added when queued).
-export function uiStateOf(b: Batch): ScanUiState {
-  return {
-    isFoil: b.isFoil,
-    priceOverride: b.priceOverride,
-    quantity: b.quantity,
-    multOverride: b.multOverride,
-    removed: b.removed,
-    sold: b.sold,
-    pillOffset: b.pillOffset,
-    versionOk: b.versionOk,
-    picks: b.picks,
-    locked: b.locked,
-    lockedAt: b.lockedAt ?? null,
-  };
-}
-
-// A scan's saved per-card state, made safe to use: one entry per card, each
-// valid entry kept and anything missing or malformed (another device saved
-// before a card was framed, an older version, a bad write) taken from
-// freshState. Its rev is kept if it is an integer.
-export function normalizeUiState(raw: unknown, cards: DetectedCard[]): ScanUiState {
-  const saved = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const state = freshState(cards);
-  if (Number.isInteger(saved.rev)) state.rev = saved.rev as number;
-  if (typeof saved.lockedAt === 'string' && saved.lockedAt) state.lockedAt = saved.lockedAt;
-  for (const k of Object.keys(VALID) as (keyof typeof VALID)[]) {
-    const arr = saved[k];
-    if (!Array.isArray(arr)) continue;
-    (state[k] as unknown[]).forEach((_, i, out) => { if (i < arr.length && VALID[k](arr[i])) out[i] = arr[i]; });
-  }
-  return state;
 }
 
 // When the oldest free scan comes back, as a short date ('' if none is due).

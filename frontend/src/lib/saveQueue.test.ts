@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ScanUiState } from '../types.ts';
 import { createSaveQueue } from './saveQueue.ts';
 
-// A state told apart by its quantity.
-const st = (q: number) => ({ isFoil: [], priceOverride: [], quantity: [q], multOverride: [], removed: [], sold: [], pillOffset: [], versionOk: [], picks: [], locked: [] }) as ScanUiState;
+// A value told apart by its quantity.
+const st = (q: number) => ({ quantity: [q] });
 const tick = () => new Promise(r => setTimeout(r, 0));
 // Far past Date.now(), so revs are known values.
 const LOADED = 1e15;
@@ -15,7 +14,7 @@ function harness() {
   const saved: number[] = [];
   const refused: number[] = [];
   let retries = 0;
-  const q = createSaveQueue<number, ScanUiState>(
+  const q = createSaveQueue<number, { quantity: number[] }>(
     (scanId, state, final, rev) => new Promise((res, rej) => sends.push({
       scanId, rev, q: state.quantity[0], final,
       ok: () => res(), fail: status => rej(Object.assign(new Error('x'), { status })),

@@ -13,9 +13,9 @@ import {
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
 import type { Key } from '../i18n/index.ts';
-import type { Batch, Candidate, DetectedCard, LockedPrice, RelookupMsg, ScanUiState } from '../types.ts';
-import { bboxKey, canRetry, correctionFor, freshState, generateBatchId, normalizeUiState, uiStateOf } from '../utils.ts';
-import type { T } from './useLang.ts';
+import { editCardState, freshState, normalizeUiState, uiStateOf, withCard, type CardState, type LockedPrice, type ScanUiState } from '../lib/scanState.ts';
+import type { Batch, Candidate, DetectedCard } from '../types.ts';
+import { bboxKey, canRetry, correctionFor, generateBatchId } from '../utils.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
 
 // Older versions kept per-card UI state in localStorage under this key. A
@@ -80,7 +80,6 @@ async function deleteSaved(key: string, sid: number) {
 }
 
 function batchFromSavedScan(saved: SavedScan): Batch {
-  const n = saved.cards.length;
   return {
     id: `s${saved.scan_id}`,
     scanId: saved.scan_id,
@@ -98,8 +97,6 @@ function batchFromSavedScan(saved: SavedScan): Batch {
       cards: saved.cards,
     },
     ...normalizeUiState(saved.ui_state, saved.cards),
-    relookupBusy: new Array(n).fill(false),
-    relookupMsg: new Array(n).fill(null),
   };
 }
 
@@ -212,19 +209,10 @@ export function useScanner(userId: number | null, signOut: () => void) {
     commit(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)));
   }, []);
 
-  const updateCardArray = useCallback(
-    <K extends keyof Batch, V>(batchId: string, field: K, idx: number, value: V) => {
-      commit(prev =>
-        prev.map(b => {
-          if (b.id !== batchId) return b;
-          const arr = [...(b[field] as unknown as V[])];
-          arr[idx] = value;
-          return { ...b, [field]: arr } as Batch;
-        }),
-      );
-    },
-    [],
-  );
+  // One card's edits: its finish, price, multiplier, quantity, and so on.
+  const editCard = useCallback((batchId: string, idx: number, patch: Partial<CardState>) => {
+    commit(prev => prev.map(b => (b.id === batchId ? editCardState(b, idx, patch) : b)));
+  }, []);
 
   // Scans run a few at a time: each one mostly waits on Gemini (~6 s), so
   // running them side by side cuts a 10-photo drop from ~70 s to ~25 s. Three
@@ -256,7 +244,6 @@ export function useScanner(userId: number | null, signOut: () => void) {
       if (!current()) return;
       try {
         const resp = await scanImage(file, postId);
-        const n = resp.cards.length;
         // Server-side scan_id is what we'll persist UI state against
         const scanId = (resp as unknown as { scan_id?: number }).scan_id ?? null;
         const b = current();
@@ -277,8 +264,6 @@ export function useScanner(userId: number | null, signOut: () => void) {
           scanId,
           response: resp,
           ...freshState(resp.cards),
-          relookupBusy: new Array(n).fill(false),
-          relookupMsg: new Array(n).fill(null),
         });
       } catch (e) {
         patchBatch(id, {
@@ -306,9 +291,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
       file,
       status: 'scanning',
       response: null,
-      isFoil: [], priceOverride: [], quantity: [],
-      multOverride: [], removed: [], sold: [], pillOffset: [], versionOk: [], picks: [], locked: [],
-      relookupBusy: [], relookupMsg: [],
+      ...freshState([]),
     }));
     commit(prev => [...prev, ...stubs]);
 
@@ -330,17 +313,6 @@ export function useScanner(userId: number | null, signOut: () => void) {
     pumpScanQueue();
   }, [commit, pumpScanQueue, queueScan]);
 
-  const toggleFoil = useCallback((batchId: string, idx: number) => {
-    commit(prev =>
-      prev.map(b => {
-        if (b.id !== batchId) return b;
-        const arr = [...b.isFoil];
-        arr[idx] = !arr[idx];
-        return { ...b, isFoil: arr };
-      }),
-    );
-  }, []);
-
   const setAllFoil = useCallback((batchId: string, foil: boolean) => {
     commit(prev =>
       prev.map(b => {
@@ -353,63 +325,12 @@ export function useScanner(userId: number | null, signOut: () => void) {
     );
   }, []);
 
-  const setPriceOverride = useCallback(
-    (batchId: string, idx: number, v: string | null) =>
-      updateCardArray(batchId, 'priceOverride', idx, v),
-    [updateCardArray],
-  );
-
-  const setQuantity = useCallback(
-    (batchId: string, idx: number, qty: number) =>
-      updateCardArray(batchId, 'quantity', idx, Math.max(1, qty | 0)),
-    [updateCardArray],
-  );
-
-  const stepQuantity = useCallback((batchId: string, idx: number, delta: number) => {
-    commit(prev =>
-      prev.map(b => {
-        if (b.id !== batchId) return b;
-        const arr = [...b.quantity];
-        arr[idx] = Math.max(1, (arr[idx] || 1) + delta);
-        return { ...b, quantity: arr };
-      }),
-    );
-  }, []);
-
-  const setMultOverride = useCallback(
-    (batchId: string, idx: number, v: number | null) =>
-      updateCardArray(batchId, 'multOverride', idx, v),
-    [updateCardArray],
-  );
-
-  const stepMult = useCallback(
-    (batchId: string, idx: number, delta: number, globalMult: number) => {
-      commit(prev =>
-        prev.map(b => {
-          if (b.id !== batchId) return b;
-          const arr = [...b.multOverride];
-          const cur = arr[idx] != null ? arr[idx]! : globalMult;
-          const next = Math.max(0, +(cur + delta).toFixed(2));
-          arr[idx] = Math.abs(next - globalMult) < 1e-9 ? null : next;
-          return { ...b, multOverride: arr };
-        }),
-      );
-    },
-    [],
-  );
-
   // Removed or restored by hand: no longer a card sold on an earlier post,
   // so it is never covered on the photo.
   const setRemoved = useCallback(
-    (batchId: string, idx: number, removed: boolean) =>
-      commit(prev => prev.map(b => (b.id !== batchId ? b : {
-        ...b,
-        removed: b.removed.map((r, i) => (i === idx ? removed : r)),
-        sold: b.sold.map((s, i) => (i === idx ? false : s)),
-      }))),
-    [commit],
+    (batchId: string, idx: number, removed: boolean) => editCard(batchId, idx, { removed, sold: false }),
+    [editCard],
   );
-
 
   // The photo is finished (on its post and downloaded or shared): its prices
   // stay what buyers saw until the seller chooses Edit prices.
@@ -433,63 +354,18 @@ export function useScanner(userId: number | null, signOut: () => void) {
     commit(prev => prev.map(b => (b.id === batchId ? { ...b, listed: b.listed.filter(k => k !== key) } : b)));
   }, []);
 
-  const confirmVersion = useCallback(
-    (batchId: string, idx: number) => updateCardArray(batchId, 'versionOk', idx, true),
-    [updateCardArray],
-  );
-
   const looksRight = useCallback((batchId: string, idx: number) => {
-    confirmVersion(batchId, idx);
+    editCard(batchId, idx, { versionOk: true });
     const batch = batchesRef.current.find(b => b.id === batchId);
     const answer = batch && correctionFor(batch, idx);
     if (answer) recordCorrection(answer);
-  }, [confirmVersion]);
+  }, [editCard]);
 
-  // Append a user-framed card (from the framing tool in BatchPreview's expand
-  // mode). Pushes onto every parallel array so indices stay aligned. Seeded
-  // foil=false, qty=1 unless the backend hint says otherwise.
+  // A card the seller framed by hand (see PhotoPage's Add card) joins the photo's cards.
   const appendFramedCard = useCallback((batchId: string, card: DetectedCard) => {
-    commit(prev =>
-      prev.map(b => {
-        if (b.id !== batchId || !b.response) return b;
-        const cards = [...b.response.cards, card];
-        const sel = card.candidates[0];
-        const isManual = !!sel?._manual;
-        return {
-          ...b,
-          response: { ...b.response, cards },
-          isFoil: [...b.isFoil, card.gemini?.is_foil ?? false],
-          // Manual stubs have no auto-price; UI flags via the existing
-          // _manual banner and forces a price override.
-          priceOverride: [...b.priceOverride, null],
-          quantity: [...b.quantity, Math.max(1, card.gemini?.quantity || 1)],
-          multOverride: [...b.multOverride, null],
-          removed: [...b.removed, false],
-          sold: [...b.sold, false],
-          pillOffset: [...b.pillOffset, null],
-          versionOk: [...b.versionOk, false],
-          picks: [...b.picks, null],
-          locked: [...b.locked, null],
-          relookupBusy: [...b.relookupBusy, false],
-          relookupMsg: [...b.relookupMsg, isManual
-            ? { type: 'err', text: 'no match — type a name to look it up' }
-            : null],
-        } satisfies Batch;
-      }),
-    );
+    commit(prev => prev.map(b => (b.id !== batchId || !b.response ? b
+      : withCard({ ...b, response: { ...b.response, cards: [...b.response.cards, card] } }, card))));
   }, []);
-
-  const restoreAll = useCallback((batchId: string) => {
-    commit(prev =>
-      prev.map(b => (b.id === batchId ? { ...b, removed: b.removed.map(() => false), sold: b.sold.map(() => false) } : b)),
-    );
-  }, []);
-
-  const setRelookupMsg = useCallback(
-    (batchId: string, idx: number, msg: RelookupMsg | null) =>
-      updateCardArray(batchId, 'relookupMsg', idx, msg),
-    [updateCardArray],
-  );
 
   // Swap the entire cards array — used by the per-scan "↻ Refresh prices"
   // flow, which gets a fully re-enriched cards[] from the backend. Parent
@@ -515,11 +391,7 @@ export function useScanner(userId: number | null, signOut: () => void) {
         const cards = b.response.cards.map((card, i) =>
           i === idx ? { ...card, candidates: [c, ...card.candidates.slice(1)] } : card,
         );
-        const priceOverride = [...b.priceOverride];
-        priceOverride[idx] = null;
-        const picks = [...b.picks];
-        picks[idx] = c;
-        return { ...b, response: { ...b.response, cards }, priceOverride, picks };
+        return editCardState({ ...b, response: { ...b.response, cards } }, idx, { priceOverride: null, picks: c });
       }),
     );
   }, []);
@@ -529,69 +401,29 @@ export function useScanner(userId: number | null, signOut: () => void) {
     const answer = before && correctionFor(before, idx, printing);
     replaceCandidate(batchId, idx, { ...printing, _lookup_failed: false, _manual: false });
     // The seller chose this printing, so the "check the version" notice is answered.
-    confirmVersion(batchId, idx);
+    editCard(batchId, idx, { versionOk: true });
     if (answer) recordCorrection(answer);
-  }, [confirmVersion, replaceCandidate]);
+  }, [editCard, replaceCandidate]);
 
-  const relookupByName = useCallback(
-    async (batchId: string, idx: number, name: string, t: T) => {
-      const trimmed = name.trim();
-      if (!trimmed) {
-        setRelookupMsg(batchId, idx, { type: 'err', text: t('msg_type_name_first') });
-        return;
-      }
-      updateCardArray(batchId, 'relookupBusy', idx, true);
-      setRelookupMsg(batchId, idx, { type: 'busy', text: t('msg_searching') });
-      try {
-        const summary = await apiRelookup(trimmed);
-        replaceCandidate(batchId, idx, { ...summary, _lookup_failed: false, _manual: false });
-        updateCardArray(batchId, 'relookupBusy', idx, false);
-        setRelookupMsg(batchId, idx, { type: 'ok', text: t('msg_updated', { name: summary.name }) });
-        setTimeout(() => {
-          commit(prev =>
-            prev.map(b => {
-              if (b.id !== batchId) return b;
-              const arr = [...b.relookupMsg];
-              if (arr[idx]?.type === 'ok') arr[idx] = null;
-              return { ...b, relookupMsg: arr };
-            }),
-          );
-        }, 2500);
-      } catch (e) {
-        updateCardArray(batchId, 'relookupBusy', idx, false);
-        const err = e as Error & { status?: number };
-        if (err.status === 404) {
-          setRelookupMsg(batchId, idx, { type: 'err', text: t('msg_not_found') });
-        } else {
-          setRelookupMsg(batchId, idx, { type: 'err', text: t('msg_lookup_failed', { err: err.message }) });
-        }
-      }
-    },
-    [replaceCandidate, setRelookupMsg, updateCardArray],
-  );
+  // Another card by name: the match found becomes the card's; rejects as the lookup does.
+  const relookupByName = useCallback(async (batchId: string, idx: number, name: string) => {
+    const summary = await apiRelookup(name);
+    replaceCandidate(batchId, idx, { ...summary, _lookup_failed: false, _manual: false });
+    return summary;
+  }, [replaceCandidate]);
 
-  const useAsIs = useCallback(
-    (batchId: string, idx: number, name: string, t: T) => {
-      const trimmed = name.trim();
-      if (!trimmed) {
-        setRelookupMsg(batchId, idx, { type: 'err', text: t('msg_type_name_then_asis') });
-        return;
-      }
-      const stub: Candidate = {
-        scryfall_id: '', name: trimmed,
-        set: '', set_name: '', collector_number: '', rarity: '',
-        usd: 0, usd_foil: 0,
-        image_url: '', scryfall_uri: '',
-        price_source_normal: 'manual', price_source_foil: 'manual',
-        ck_url_normal: '', ck_url_foil: '',
-        _lookup_failed: false, _manual: true,
-      };
-      replaceCandidate(batchId, idx, stub);
-      updateCardArray(batchId, 'relookupBusy', idx, false);
-      setRelookupMsg(batchId, idx, { type: 'ok', text: t('msg_now_manual') });
-    },
-    [replaceCandidate, setRelookupMsg, updateCardArray],
-  );
+  // The name as typed, priced by hand.
+  const useAsIs = useCallback((batchId: string, idx: number, name: string) => {
+    replaceCandidate(batchId, idx, {
+      scryfall_id: '', name,
+      set: '', set_name: '', collector_number: '', rarity: '',
+      usd: 0, usd_foil: 0,
+      image_url: '', scryfall_uri: '',
+      price_source_normal: 'manual', price_source_foil: 'manual',
+      ck_url_normal: '', ck_url_foil: '',
+      _lookup_failed: false, _manual: true,
+    });
+  }, [replaceCandidate]);
 
   // File photos under another post (or unfile them). Optimistic: the gallery
   // regroups at once; if the server refuses, they go back where they were.
@@ -657,24 +489,17 @@ export function useScanner(userId: number | null, signOut: () => void) {
     addSaved,
     moveBatches,
     orderBatches,
-    toggleFoil,
+    editCard,
     setAllFoil,
-    setPriceOverride,
-    setQuantity,
-    stepQuantity,
-    setMultOverride,
-    stepMult,
     setRemoved,
     looksRight,
     markListed,
     unmarkListed,
     appendFramedCard,
-    restoreAll,
     relookupByName,
     useAsIs,
     pickPrinting,
     replaceAllCards,
-    setRelookupMsg,
   };
 }
 

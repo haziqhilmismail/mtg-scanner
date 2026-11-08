@@ -6,7 +6,8 @@
 
 import type { CataloguePhoto, ConfirmClaim, Payment, SavedScan } from '../api.ts';
 import type { Buyer, BuyerCreatePayload, Listing, ListingCreatePayload, Order, Post, PostUpdatePayload } from '../api/checklist.ts';
-import type { Candidate, DetectedCard, ScanUiState, Settings } from '../types.ts';
+import type { ScanUiState } from '../lib/scanState.ts';
+import type { Candidate, DetectedCard, Settings } from '../types.ts';
 import {
   addPhoto, ago, buyerFor, drawnCard, newListing, newOrder, newPost, pictureAt, SAMPLE_CARDS, type Fixture,
 } from './store.ts';

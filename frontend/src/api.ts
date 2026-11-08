@@ -3,7 +3,8 @@
 
 import type { Post } from './api/checklist.ts';
 import { imageUrl, request } from './api/http.ts';
-import type { Candidate, Correction, Credits, DetectedCard, ScanResponse, ScanUiState } from './types.ts';
+import type { ScanUiState } from './lib/scanState.ts';
+import type { Candidate, Correction, Credits, DetectedCard, ScanResponse } from './types.ts';
 
 export interface Health {
   ok: boolean;

@@ -6,7 +6,7 @@ import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { PrintingsModal } from '../../components/PrintingsModal.tsx';
 import { folderOf, POSTS } from '../../routes.ts';
-import type { Batch, Candidate } from '../../types.ts';
+import type { Batch, Candidate, RelookupMsg } from '../../types.ts';
 import { isLive, matchThumbs } from '../../utils.ts';
 import { keyTaken, type Area } from './area.tsx';
 
@@ -21,6 +21,22 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
   const folder = folderOf(batch.postId);
   const settings = pricingFor(batch.postId);
   const [printingsCtx, setPrintingsCtx] = useState<{ batchId: string; idx: number } | null>(null);
+  // The Change card dialog's name search: in flight, and how it went.
+  const [relookup, setRelookup] = useState<{ busy: boolean; msg: RelookupMsg | null }>({ busy: false, msg: null });
+  const openPrintings = (idx: number) => { setRelookup({ busy: false, msg: null }); setPrintingsCtx({ batchId: batch.id, idx }); };
+  const findCard = useCallback(async (idx: number, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return setRelookup({ busy: false, msg: { type: 'err', text: t('msg_type_name_first') } });
+    setRelookup({ busy: true, msg: { type: 'busy', text: t('msg_searching') } });
+    try {
+      const found = await scanner.relookupByName(batch.id, idx, trimmed);
+      setRelookup({ busy: false, msg: { type: 'ok', text: t('msg_updated', { name: found.name }) } });
+      setTimeout(() => setRelookup(r => (r.msg?.type === 'ok' ? { ...r, msg: null } : r)), 2500);
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      setRelookup({ busy: false, msg: { type: 'err', text: err.status === 404 ? t('msg_not_found') : t('msg_lookup_failed', { err: err.message }) } });
+    }
+  }, [batch.id, scanner, t]);
 
   // "Photo 2 of 2": the photo's place in its post, once it is saved.
   const photoNumber = numbers.get(batch.id);
@@ -63,13 +79,13 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
       const card = await frameCard(batch.scanId, [[x, y], [x + cw, y], [x + cw, y + ch], [x, y + ch]]);
       const idx = batch.response.cards.length;
       scanner.appendFramedCard(batch.id, card);
-      await scanner.relookupByName(batch.id, idx, name, t);
+      await findCard(idx, name);
       await dialog.alert({ title: t('add_card_title'), message: t('add_card_next') });
       setPrintingsCtx({ batchId: batch.id, idx });
     } catch (e) {
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
     }
-  }, [batch, dialog, scanner, t]);
+  }, [batch, dialog, findCard, scanner, t]);
 
   // The seller's answers about the printing; each one also sends the card's crop
   // with the answer to the server, as training data (card corrections).
@@ -130,7 +146,7 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
         onEditPrices={() => editPrices(batch)}
         onRefreshPrices={() => refreshScanPrices(batch)}
         onAddMissing={addMissingCard}
-        onChangeCard={idx => setPrintingsCtx({ batchId: batch.id, idx })}
+        onChangeCard={openPrintings}
         onLooksRight={looksRight}
         onAddToPost={cd => addCard(batch, cd)}
         onTakeOut={cd => takeOutCard(batch, cd)}
@@ -160,10 +176,10 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
         currentSid={printingsCard?.scryfall_id || ''}
         onClose={() => setPrintingsCtx(null)}
         onSelect={printing => { if (printingsCtx) { pickPrinting(printingsCtx.batchId, printingsCtx.idx, printing); setPrintingsCtx(null); } }}
-        busy={!!printingsCtx && !!printingsBatch?.relookupBusy[printingsCtx.idx]}
-        msg={printingsCtx ? printingsBatch?.relookupMsg[printingsCtx.idx] ?? null : null}
-        onFind={name => printingsCtx && scanner.relookupByName(printingsCtx.batchId, printingsCtx.idx, name, t)}
-        onUseAsIs={name => { if (printingsCtx) { scanner.useAsIs(printingsCtx.batchId, printingsCtx.idx, name, t); setPrintingsCtx(null); } }}
+        busy={relookup.busy}
+        msg={relookup.msg}
+        onFind={name => printingsCtx && findCard(printingsCtx.idx, name)}
+        onUseAsIs={name => { if (printingsCtx) { if (name.trim()) scanner.useAsIs(printingsCtx.batchId, printingsCtx.idx, name.trim()); setPrintingsCtx(null); } }}
         t={t}
       />
     </section>

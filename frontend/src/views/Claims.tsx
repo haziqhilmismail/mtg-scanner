@@ -123,7 +123,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
       .sort(byPostOrder)
       .map((batch, at) => {
         const index = numbers.get(batch.id) ?? at + 1;
-        const visible = computeCardData(batch, settings).filter(cd => !cd.removed);
+        const visible = computeCardData(batch.response!.cards, batch, settings).filter(cd => !cd.removed);
         const where = describePositions(visible);
         return {
           batch, index,
@@ -348,7 +348,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
       for (const p of photos) {
         const res = await relookupScanPrices(p.batch.scanId as number);
         scanner.replaceAllCards(p.batch.id, res.cards);
-        fresh.set(p.batch.scanId as number, computeCardData({ ...p.batch, response: { ...p.batch.response!, cards: res.cards } }, settings));
+        fresh.set(p.batch.scanId as number, computeCardData(res.cards, p.batch, settings));
       }
       for (const o of groups.flatMap(g => g.orders)) {
         if (o.prices_sent_at) continue;

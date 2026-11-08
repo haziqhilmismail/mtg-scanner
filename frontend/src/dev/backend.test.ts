@@ -91,7 +91,7 @@ test('saving a photo\'s edits keeps them, and a picked printing becomes the card
   const { send, get } = api('one');
   const [scan] = await get<SavedScan[]>('/api/scans?lite=1&limit=500');
   const pick = { ...scan.cards[0].candidates[0], set: 'PLST', collector_number: 'WOE-97' };
-  const state = { isFoil: [true], priceOverride: ['15.50'], quantity: [2], multOverride: [null], removed: [false], pillOffset: [null], versionOk: [false], locked: [null], lockedAt: null, rev: 5 };
+  const state = { isFoil: [true], priceOverride: ['15.50'], quantity: [2], multOverride: [null], removed: [false], sold: [false], pillOffset: [null], versionOk: [false], locked: [null], lockedAt: null, rev: 5 };
   assert.equal((await send('PATCH', `/api/scans/${scan.scan_id}/state`, { state: { ...state, picks: [pick] } })).status, 204);
   const [saved] = await get<SavedScan[]>('/api/scans?lite=1&limit=500');
   assert.deepEqual(saved.ui_state, state);

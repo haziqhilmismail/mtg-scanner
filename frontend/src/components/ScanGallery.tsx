@@ -24,7 +24,7 @@ export function summarise(batch: Batch, settings: Settings): BatchSummary {
   if (!batch.response) {
     return { batch, cards: 0, total: 0, pending: 0, needs: batch.status === 'error' ? 1 : 0, names: [] };
   }
-  const visible = computeCardData(batch, settings).filter(cd => !cd.removed);
+  const visible = computeCardData(batch.response.cards, batch, settings).filter(cd => !cd.removed);
   return {
     batch,
     cards: visible.length,

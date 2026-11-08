@@ -4,8 +4,9 @@
 // dialog's counts and what the server is sent come from one rule.
 
 import type { Listing, Order } from '../api/checklist.ts';
-import type { Batch, ScanUiState } from '../types.ts';
-import { bboxKey, uiStateOf } from '../utils.ts';
+import type { Batch } from '../types.ts';
+import { bboxKey } from '../utils.ts';
+import { uiStateOf, type ScanUiState } from './scanState.ts';
 
 export interface RepostPhoto {
   scanId: number;

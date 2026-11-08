@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Listing, Order } from '../api/checklist.ts';
 import type { Batch, DetectedCard } from '../types.ts';
-import { freshState } from '../utils.ts';
+import { freshState } from './scanState.ts';
 import { repostPlan } from './repost.ts';
 
 const card = (x: number) => ({ id: x, bbox: [x * 100, 0, 80, 110] }) as unknown as DetectedCard;
@@ -11,7 +11,6 @@ const photo = (scanId: number, cards: DetectedCard[], edits: Partial<Batch> = {}
   id: `s${scanId}`, scanId, postId: 7, position: null, listed: [], filename: '', status: 'done',
   response: { image_id: String(scanId), image_b64: '', width: 1000, height: 800, cards },
   ...freshState(cards), lockedAt: '2026-10-20T10:00:00Z',
-  relookupBusy: [], relookupMsg: [],
   ...edits,
 });
 
