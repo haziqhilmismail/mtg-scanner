@@ -34,7 +34,7 @@ export const plural = (t: T, key: Counted, n: number, vars?: Vars) =>
   t(n === 1 ? `${key}_one` : key, { ...vars, n: n.toLocaleString('en-MY') });
 
 export function translate(lang: Lang, key: Key, vars?: Vars): string {
-  let s: string = STRINGS[lang][key] ?? key;
+  let s = STRINGS[lang][key];
   if (vars) {
     for (const k of Object.keys(vars)) {
       s = s.split('{' + k + '}').join(String(vars[k]));

@@ -5,6 +5,7 @@ import { PhotoDrop } from '../../components/PhotoDrop.tsx';
 import { Mosaic, PostRow, thumbOf } from '../../components/ScanGallery.tsx';
 import { Spinner } from '../../components/Spinner.tsx';
 import { plural } from '../../i18n/index.ts';
+import { isLive } from '../../utils.ts';
 import { ScanProgress, type Area, type Folder } from './area.tsx';
 import { NewPostDialog } from './NewPostDialog.tsx';
 
@@ -47,7 +48,7 @@ export function PostsPage({ area }: { area: Area }) {
               <p>{t('posts_empty_body')}</p>
             </div>
           )}
-          {liveFolders.some(f => pricingFor(f.postId).priceMode === 'live') ? <p className="posts-note">{t('posts_live_note')}</p> : null}
+          {liveFolders.some(f => isLive(pricingFor(f.postId))) ? <p className="posts-note">{t('posts_live_note')}</p> : null}
           {unfiledFolder ? (
             <ul className="ui-list postlist">
               <li>

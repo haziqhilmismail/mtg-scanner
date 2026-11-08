@@ -87,7 +87,7 @@ export function CardRow({
     );
   }
 
-  const set = cd.isManual ? '' : cd.sel.set?.toUpperCase() ?? '';
+  const printed = !cd.isManual && !!cd.sel.set;
   const rarity = rarityKey(cd.sel.rarity);
   const matchSrc = cd.sel.image_url || '';
   const priced = Number.isFinite(cd.unitPrice);
@@ -106,7 +106,7 @@ export function CardRow({
         <button type="button" className="photo-tile-img" aria-label={t('photo_view_match', { name })} onClick={() => onView(1)}>
           <Picture
             src={matchSrc && smallScryfallImage(matchSrc)}
-            fallback={<span className="photo-tile-none"><Icon name="photo" size={24} />{set ? printingText(cd.sel) : t('photo_no_match')}</span>}
+            fallback={<span className="photo-tile-none"><Icon name="photo" size={24} />{printed ? printingText(cd.sel) : t('photo_no_match')}</span>}
           />
           <span className="photo-tile-zoom"><Icon name="expand" size={12} /></span>
         </button>
@@ -131,7 +131,7 @@ export function CardRow({
         ><span><Icon name={added ? 'check' : 'plus'} size={16} /></span></button>
       </div>
 
-      <VersionLine p={set ? cd.sel : {}} rarity={rarity} none={t('photo_no_printing')} className="photo-tile-version" />
+      <VersionLine p={printed ? cd.sel : {}} rarity={rarity} none={t('photo_no_printing')} className="photo-tile-version" />
 
       <p className="photo-tile-formula">{formula(cd, live, settings, t)}</p>
 
@@ -181,12 +181,12 @@ interface ViewerProps {
 // between them. With no matched picture, your card alone.
 export function CardViewer({ cd, open, start, locked, t, onClose, onChangeCard }: ViewerProps) {
   const name = cardName(cd, t);
-  const set = cd.isManual ? '' : cd.sel.set?.toUpperCase() ?? '';
+  const printed = !cd.isManual && !!cd.sel.set;
   const yours = { src: cd.card.crop_b64, alt: t('photo_alt_yours', { name }), label: t('tile_your_card') };
   const caption = (
     <div className="ui-viewer-caption photo-viewer-caption is-card">
       <strong>{name}</strong>
-      <span>{[set ? printingText(cd.sel, true) : t('photo_no_printing'), t(cd.isFoil ? 'foil_on' : 'foil_off')].join(' · ')}</span>
+      <span>{[printed ? printingText(cd.sel, true) : t('photo_no_printing'), t(cd.isFoil ? 'foil_on' : 'foil_off')].join(' · ')}</span>
       {cd.sel.image_url ? <span className="photo-viewer-hint">{t('photo_viewer_hint')}</span> : null}
       {locked ? null : (
         <button type="button" className="ui-btn" onClick={onChangeCard}><Icon name="swap" size={16} />{t('tile_change_card')}</button>

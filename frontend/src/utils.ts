@@ -32,18 +32,21 @@ export function applyRounding(price: number, settings: Settings): number {
 // The label a price field and a rounding step carry; RM when the seller left it blank.
 export const currencyOf = (s: Pick<Settings, 'currencyLabel'>) => s.currencyLabel.trim() || 'RM';
 
+// A live post prices each card when its buyer's total is sent, not on the photo.
+export const isLive = (s: Pick<Settings, 'priceMode'>) => s.priceMode === 'live';
+
 // A price as the app writes it: "RM13", "RM1,240". Cents show when Show
 // cents is on, and always when the price has them (a price the seller typed,
 // or a rounding step under RM 1): hiding them would show a price nobody pays.
 export function formatMyr(price: number, settings: Pick<Settings, 'currencyLabel' | 'showCurrency' | 'showCents'>): string {
   const n = Number(price);
   if (isNaN(n)) {
-    return settings.showCurrency ? `${settings.currencyLabel} —` : '—';
+    return settings.showCurrency ? `${currencyOf(settings)} —` : '—';
   }
   // To the cent first, so float noise (1.0000000001) is no cents.
   const cents = !Number.isInteger(Math.round(n * 100) / 100);
   const formatted = AMOUNT[settings.showCents || cents ? 1 : 0].format(n);
-  return settings.showCurrency ? `${settings.currencyLabel}${formatted}` : formatted;
+  return settings.showCurrency ? `${currencyOf(settings)}${formatted}` : formatted;
 }
 
 // A card's name, or Unknown card while it has none.
@@ -90,7 +93,7 @@ export function pillLabel(
 // card always says so with F, whatever the foil mark setting: with no price
 // on the photo, nothing else tells a buyer it is the foil.
 export function photoLabel(cd: CardRowData, settings: Settings): string {
-  if (settings.priceMode === 'live') {
+  if (isLive(settings)) {
     if (cd.hasOverride && Number.isFinite(cd.unitPrice)) return pillLabel(cd, { ...settings, foilStyle: cd.isFoil ? 'suffix' : settings.foilStyle });
     const own = cd.hasMultOverride ? `CK ×${cd.mult}` : '';
     return !cd.isFoil ? own : own ? `${own} · F` : 'F';

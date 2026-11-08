@@ -1,7 +1,7 @@
-import type { Key } from '../i18n/index.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMe, saveDefaultPricing } from '../api/auth.ts';
 import { postsApi, type PostCreatePayload } from '../api/checklist.ts';
+import type { Key } from '../i18n/index.ts';
 import {
   defaultToUpload, LEGACY_KEY, LEGACY_VERSION_KEY, legacyPricing, pricingKnown, resolvePricing, savePricing, type PricingState,
 } from '../lib/pricing.ts';

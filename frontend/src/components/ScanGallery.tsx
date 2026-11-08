@@ -5,7 +5,7 @@ import type { SyntheticEvent } from 'react';
 import { plural } from '../i18n/index.ts';
 import type { Route } from '../routes.ts';
 import type { Batch, Settings } from '../types.ts';
-import { computeCardData, formatMyr, notAdded } from '../utils.ts';
+import { computeCardData, formatMyr, isLive, notAdded } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { Link } from './Link.tsx';
 import type { T } from '../hooks/useLang.ts';
@@ -79,7 +79,7 @@ interface PostRowProps {
 // For a live post that is photos with cards not in the post yet; for a
 // price-on-photo post, photos not finished. Then who still has to pay.
 export function PostRow({ title, items, total, settings, buyers, unpaid, paid, t, to }: PostRowProps) {
-  const live = settings.priceMode === 'live';
+  const live = isLive(settings);
   const scanning = items.filter(s => s.batch.status === 'scanning').length;
   const waiting = items.filter(s => waits(s, live)).length;
   const needs = items.reduce((n, s) => n + s.needs, 0);
@@ -93,7 +93,7 @@ export function PostRow({ title, items, total, settings, buyers, unpaid, paid, t
           <span className="ui-row-title">{title}</span>
           {items.length ? (
             <span className="postrow-total">
-              <span><Money live={settings.priceMode === 'live'}>{formatMyr(total, settings)}</Money></span>
+              <span><Money live={live}>{formatMyr(total, settings)}</Money></span>
               {paid > 0 ? <span className="postrow-paid">{t('posts_paid', { amount: formatMyr(paid, settings) })}</span> : null}
             </span>
           ) : null}

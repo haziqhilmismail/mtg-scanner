@@ -13,7 +13,7 @@ import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Credits, Settings } from '../../types.ts';
-import { creditsLine, creditsOutText, formatMyrWithFoil, listingFields, sortScreenshots } from '../../utils.ts';
+import { creditsLine, creditsOutText, formatMyrWithFoil, isLive, listingFields, sortScreenshots } from '../../utils.ts';
 import { blankDraft, CheckClaims, draftsKind, type Draft } from './CheckClaims.tsx';
 import { PostPhotos } from './PostPhotos.tsx';
 import { ShotCard, type Shot } from './ShotCard.tsx';
@@ -57,7 +57,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
   const fileRef = useRef<HTMLInputElement>(null);
   const nextId = useRef(1);
   const cents = settings.showCents;
-  const live = settings.priceMode === 'live';
+  const live = isLive(settings);
 
   // Screenshots show from object URLs; they go with the session.
   const shotsRef = useRef(shots);
