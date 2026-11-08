@@ -37,7 +37,6 @@ interface Props {
   credits: Credits | null;
   onCredits: (credits: Credits) => void;
   onEnterVoucher: () => void;
-  lang: string;
 }
 
 type Busy = null | 'reading' | 'finding' | 'saving';
@@ -45,8 +44,8 @@ const isImage = (f: File) => f.type.startsWith('image/') || /\.(heic|heif)$/i.te
 
 // Mounted for the whole session, open or not, so a closed one can come back
 // with Undo; a new session is a new key.
-export function AddComments({ open, onClose, onSaved, incoming, photos, postId, postTitle, claimedBy, buyerNames, handFor, settings, credits, onCredits, onEnterVoucher, lang }: Props) {
-  const t = useT();
+export function AddComments({ open, onClose, onSaved, incoming, photos, postId, postTitle, claimedBy, buyerNames, handFor, settings, credits, onCredits, onEnterVoucher }: Props) {
+  const { lang, t } = useT();
   const [shots, setShots] = useState<Shot[]>([]);
   const [step, setStep] = useState<'shots' | 'check'>(handFor == null ? 'shots' : 'check');
   const [busy, setBusy] = useState<Busy>(null);

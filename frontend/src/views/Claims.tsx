@@ -36,7 +36,7 @@ import {
   type BuyerGroup, type ClaimSort, type Line, type PayState, type Stamps, type StatusMove,
 } from './claims/model.ts';
 import { ClaimSteps, HowDialog } from './claims/parts.tsx';
-import type { T } from '../hooks/useLang.ts';
+import { useT } from '../hooks/useLang.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Folder } from './scanner/usePosts.ts';
@@ -50,8 +50,6 @@ export interface ClaimsProps {
   pricingFor: PricingStore['pricingFor'];
   // Reads the posts again, for their claim counts.
   refreshPosts: () => Promise<void>;
-  t: T;
-  lang: string;
   // Claim-read balance; null until loaded. onCredits takes the new one after each read.
   credits: Credits | null;
   onCredits: (credits: Credits) => void;
@@ -93,7 +91,8 @@ function describePositions(cards: CardRowData[]): Map<number, string> {
   return out;
 }
 
-export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, credits, onCredits, onEnterVoucher, payment }: ClaimsProps) {
+export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onCredits, onEnterVoucher, payment }: ClaimsProps) {
+  const { lang, t } = useT();
   const active = folder != null;
   const toast = useToast();
   const [listings, setListings] = useState<Listing[]>([]);
@@ -495,7 +494,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
       <AddComments
         key={session} open={addOpen} onClose={closeAdd} onSaved={added} incoming={incoming}
         photos={photos} postId={postId} postTitle={postTitle} claimedBy={claimedBy} buyerNames={buyerNames} handFor={handFor} settings={settings}
-        credits={credits} onCredits={onCredits} onEnterVoucher={onEnterVoucher} lang={lang}
+        credits={credits} onCredits={onCredits} onEnterVoucher={onEnterVoucher}
       />
       <BuyerDialog
         open={buyerId != null} onClose={() => setBuyerId(null)} group={buyer}
@@ -512,7 +511,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
         open={slipsOpen} onClose={() => setSlipsOpen(false)} postTitle={postTitle}
         buyers={groups.map(g => ({ id: g.buyerId, name: g.name, phone: g.phone }))}
       />
-      <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} asking t={t} />
+      <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} asking />
     </div>
   );
 }

@@ -15,7 +15,7 @@ const MAX_QR_BYTES = 8 * 1024 * 1024;  // the server's limit
 
 
 export function PaymentDetails({ store }: { store: PaymentStore }) {
-  const t = useT();
+  const { t } = useT();
   const { payment, failed, retry, setPayment } = store;
   if (payment) return <PaymentForm saved={payment} setPayment={setPayment} />;
   return (
@@ -34,7 +34,7 @@ export function PaymentDetails({ store }: { store: PaymentStore }) {
 // The form is a draft: nothing reaches the server until Save. A new QR is
 // uploaded on Save too, not when it is picked.
 function PaymentForm({ saved, setPayment }: { saved: Payment; setPayment: (payment: Payment) => void }) {
-  const t = useT();
+  const { t } = useT();
   const toast = useToast();
   const dialog = useDialog();
   const id = useId();

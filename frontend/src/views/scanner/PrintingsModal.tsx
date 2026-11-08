@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchPrintings } from '../../api/catalogue.ts';
 import { statusOf } from '../../api/http.ts';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Candidate, RelookupMsg } from '../../types.ts';
 import { fmt2, smallScryfallImage } from '../../utils.ts';
@@ -22,26 +22,27 @@ interface Props {
   msg: RelookupMsg | null;
   onFind: (name: string) => void;
   onUseAsIs: (name: string) => void;
-  t: T;
 }
 
 const PAGE_SIZE = 30;
 
 // Change card: every printing of the card with its Card Kingdom prices, the
 // current one marked. Choosing one is the change, so there is no Save.
-export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, busy, msg, onFind, onUseAsIs, t }: Props) {
+export function PrintingsModal({ open, cardName, currentSid, onClose, onSelect, busy, msg, onFind, onUseAsIs }: Props) {
+  const { t } = useT();
   return (
     <Dialog
       open={open} onClose={onClose} variant="picker" className="change-card"
       title={t('cc_title')} subtitle={t('cc_subtitle', { name: cardName })}
     >
-      <Printings cardName={cardName} currentSid={currentSid} onSelect={onSelect} busy={busy} msg={msg} onFind={onFind} onUseAsIs={onUseAsIs} t={t} />
+      <Printings cardName={cardName} currentSid={currentSid} onSelect={onSelect} busy={busy} msg={msg} onFind={onFind} onUseAsIs={onUseAsIs} />
     </Dialog>
   );
 }
 
 // The body mounts with each opening, so the search box and the list start from the card as it is.
-function Printings({ cardName, currentSid, onSelect, busy, msg, onFind, onUseAsIs, t }: Omit<Props, 'open' | 'onClose'>) {
+function Printings({ cardName, currentSid, onSelect, busy, msg, onFind, onUseAsIs }: Omit<Props, 'open' | 'onClose'>) {
+  const { t } = useT();
   const [name, setName] = useState(cardName);
   const [printings, setPrintings] = useState<Candidate[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -82,7 +83,7 @@ function Printings({ cardName, currentSid, onSelect, busy, msg, onFind, onUseAsI
         <ul className="cc-grid">
           {printings.slice(0, shown).map(p => (
             <li key={p.scryfall_id || `${p.set}-${p.collector_number}`}>
-              <Printing p={p} current={!!currentSid && p.scryfall_id === currentSid} onPick={() => onSelect(p)} t={t} />
+              <Printing p={p} current={!!currentSid && p.scryfall_id === currentSid} onPick={() => onSelect(p)} />
             </li>
           ))}
         </ul>
@@ -101,7 +102,8 @@ function Printings({ cardName, currentSid, onSelect, busy, msg, onFind, onUseAsI
   );
 }
 
-function Printing({ p, current, onPick, t }: { p: Candidate; current: boolean; onPick: () => void; t: T }) {
+function Printing({ p, current, onPick }: { p: Candidate; current: boolean; onPick: () => void }) {
+  const { t } = useT();
   const code = printingText(p);
   const normal = p.price_source_normal === 'cardkingdom' && p.usd > 0;
   const foil = p.price_source_foil === 'cardkingdom' && p.usd_foil > 0;

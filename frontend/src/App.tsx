@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchCredits } from './api/credits.ts';
 import { fetchHealth, type Health } from './api/health.ts';
 import { formatRelativeTime } from './utils.ts';
@@ -8,7 +8,7 @@ import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
-import { TProvider, useLang } from './hooks/useLang.ts';
+import { TProvider, useLang, useT } from './hooks/useLang.ts';
 import { NavProvider, useNav } from './hooks/useNav.ts';
 import { usePayment } from './hooks/usePayment.ts';
 import { usePricing } from './hooks/usePricing.ts';
@@ -20,11 +20,12 @@ import { Login } from './views/login/Login.tsx';
 import { PricingPage } from './views/PricingPage.tsx';
 import { Profile } from './views/profile/Profile.tsx';
 import { Scanner } from './views/scanner/Scanner.tsx';
-import type { Key, T } from './hooks/useLang.ts';
+import type { Key } from './hooks/useLang.ts';
 
 export default function App() {
   const { appearance, setAppearance } = useTheme();
   const { lang, setLang, t } = useLang();
+  const langT = useMemo(() => ({ lang, t }), [lang, t]);
   const auth = useAuth();
   const { signInWithCredential } = auth;
   const onCredential = useCallback(
@@ -39,15 +40,13 @@ export default function App() {
   }
   if (auth.status === 'unauthenticated' && auth.config?.auth_enabled) {
     return (
-      <TProvider value={t}>
+      <TProvider value={langT}>
       <DialogProvider>
         <Login
           clientId={auth.config.google_client_id}
           onCredential={onCredential}
           error={auth.error}
-          lang={lang}
           setLang={setLang}
-          t={t}
           appearance={appearance}
           setAppearance={setAppearance}
         />
@@ -59,13 +58,11 @@ export default function App() {
   // Keyed by user so signing in as someone else starts from a clean slate:
   // the scans are fetched again, with the new user's token, after sign-in.
   return (
-    <TProvider value={t}>
+    <TProvider value={langT}>
       <Workspace
         key={auth.user?.id ?? 'none'}
         auth={auth}
-        lang={lang}
         setLang={setLang}
-        t={t}
         appearance={appearance}
         setAppearance={setAppearance}
       />
@@ -75,14 +72,13 @@ export default function App() {
 
 interface WorkspaceProps {
   auth: ReturnType<typeof useAuth>;
-  lang: Lang;
   setLang: (l: Lang) => void;
-  t: T;
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;
 }
 
-function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: WorkspaceProps) {
+function Workspace({ auth, setLang, appearance, setAppearance }: WorkspaceProps) {
+  const { t } = useT();
   const pricing = usePricing(auth.user?.pricing ?? null);
   // Credit balance, shown under Find Claims; each scan answers with the balance after it.
   const [credits, setCredits] = useState<Credits | null>(null);
@@ -137,8 +133,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         scanner={scanner}
         nav={navStore}
         pricing={pricing}
-        t={t}
-        lang={lang}
         claims={{ credits, onCredits: setCredits, payment: payments.payment, onEnterVoucher: () => setVoucherOpen(true) }}
       />
       {page === 'profile' ? (
@@ -150,7 +144,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           onSignOut={auth.config?.auth_enabled ? () => { scanner.flush(); pricing.flush(); auth.signOut(); } : undefined}
           status={{ label: healthLabel, state: healthState }}
           credits={credits}
-          lang={lang}
           setLang={setLang}
           appearance={appearance}
           setAppearance={setAppearance}
@@ -165,7 +158,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
           crumbs={[{ label: t('nav_profile'), to: { page: 'profile' } }, { label: t('menu_default_pricing') }]}
           parent={{ page: 'profile' }}
           pricing={pricing}
-          t={t}
         />
       ) : null}
 
@@ -174,14 +166,13 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         <span>{t('footer_right')} · <a href="/privacy.html">{t('privacy_link')}</a></span>
       </footer>
     </main>
-    <Notice source={scanner} t={t} />
-    <Notice source={pricing} t={t} />
+    <Notice source={scanner} />
+    <Notice source={pricing} />
     <FloatingBackToTop />
     <VoucherSheet
       open={voucherOpen}
       onClose={() => setVoucherOpen(false)}
       onRedeemed={setCredits}
-      t={t}
     />
     </ImageZoomProvider>
     </DialogProvider>
@@ -189,7 +180,8 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   );
 }
 
-function Notice({ source, t }: { source: { notice: Key | null; clearNotice: () => void }; t: T }) {
+function Notice({ source }: { source: { notice: Key | null; clearNotice: () => void } }) {
+  const { t } = useT();
   const dialog = useDialog();
   const { notice, clearNotice } = source;
   useEffect(() => {

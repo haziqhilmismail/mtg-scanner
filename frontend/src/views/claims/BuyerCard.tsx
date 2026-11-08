@@ -23,7 +23,7 @@ interface Props {
 }
 
 export function BuyerCard({ group: g, isNew, copied, cents, showPhotos, qrLabel, onOpen, onCopy, onQr, onMove }: Props) {
-  const t = useT();
+  const { t } = useT();
   const more = g.lines.length - SHOWN;
   return (
     <article className={`claims-buyer is-${g.state}`}>

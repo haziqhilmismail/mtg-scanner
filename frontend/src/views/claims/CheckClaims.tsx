@@ -38,7 +38,7 @@ interface Props {
 const quoteOf = (line: string) => `“${line.length > 80 ? `${line.slice(0, 79)}…` : line}”`;
 
 export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, cents, live, problem, buyerNames, onChange }: Props) {
-  const t = useT();
+  const { t } = useT();
   const namesId = useId();
   // `${draft}:${item}` whose card is being changed. A claim typed by hand
   // starts with its card picker open.

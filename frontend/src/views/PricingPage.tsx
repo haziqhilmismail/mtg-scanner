@@ -8,7 +8,7 @@ import { Select, TextField } from '../components/ui/Field.tsx';
 import { RadioCards } from '../components/ui/RadioCards.tsx';
 import { StickyBar } from '../components/ui/StickyBar.tsx';
 import { useToast } from '../components/ui/Toast.tsx';
-import type { Key, T } from '../hooks/useLang.ts';
+import { useT, type Key } from '../hooks/useLang.ts';
 import { useNavStore } from '../hooks/useNav.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import { formulaLine, priceField, pricingSummary, roundingKey, ROUNDINGS, roundingText, samePricing, type PriceField } from '../lib/pricing.ts';
@@ -24,12 +24,12 @@ interface Props {
   // Where Cancel and Save lead when there is no page to go back to.
   parent: Route;
   pricing: PricingStore;
-  t: T;
 }
 
 // A post's pricing, or the default for new posts, as a form: nothing is saved
 // until Save, which sends it all at once.
-export function PricingPage({ postId, postTitle, crumbs, parent, pricing, t }: Props) {
+export function PricingPage({ postId, postTitle, crumbs, parent, pricing }: Props) {
+  const { t } = useT();
   const title = postId == null ? t('menu_default_pricing') : t('settings_title');
   return (
     <>
@@ -38,7 +38,7 @@ export function PricingPage({ postId, postTitle, crumbs, parent, pricing, t }: P
       <p className="pricing-sub">{postId == null ? t('pricing_default_sub') : t('pricing_sub_post', { post: postTitle ?? '' })}</p>
       {pricing.pricingKnown(postId)
         // Keyed: another post's pricing starts a fresh draft.
-        ? <PricingForm key={postId ?? 'default'} postId={postId} parent={parent} pricing={pricing} t={t} />
+        ? <PricingForm key={postId ?? 'default'} postId={postId} parent={parent} pricing={pricing} />
         : <Spinner />}
     </>
   );
@@ -47,7 +47,8 @@ export function PricingPage({ postId, postTitle, crumbs, parent, pricing, t }: P
 const SIZES: Array<[string, Key]> = [['0.85', 'font_scale_small'], ['1', 'font_scale_default'], ['1.25', 'font_scale_large'], ['1.5', 'font_scale_xlarge']];
 const TEXT_FIELDS: PriceField[] = ['multNormal', 'multFoil', 'minPrice'];
 
-function PricingForm({ postId, parent, pricing, t }: Omit<Props, 'postTitle' | 'crumbs'>) {
+function PricingForm({ postId, parent, pricing }: Omit<Props, 'postTitle' | 'crumbs'>) {
+  const { t } = useT();
   const nav = useNavStore();
   const toast = useToast();
   const saved = pricing.pricingFor(postId);
@@ -91,7 +92,7 @@ function PricingForm({ postId, parent, pricing, t }: Omit<Props, 'postTitle' | '
             aria-labelledby="pricing-kind" value={values.priceMode} onChange={(v: PriceMode) => set('priceMode', v)}
             options={(['photo', 'live'] as const).map(v => ({ value: v, title: t(`kind_${v}`), description: t(`kind_${v}_desc`) }))}
           />
-          <PricingExample settings={next} t={t} />
+          <PricingExample settings={next} />
         </section>
 
         <div className="pricing-fields">

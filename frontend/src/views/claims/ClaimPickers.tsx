@@ -64,7 +64,7 @@ interface CardPickerProps {
 // Which card a comment means, picked by its picture. The photo the comment is
 // about comes first; the rest of the post is one click away.
 export function CardPicker({ photos, hint, value, priceOf, statusOf, onPick }: CardPickerProps) {
-  const t = useT();
+  const { t } = useT();
   const first = photos.find(p => p.batch.scanId === hint);
   const [all, setAll] = useState(!first);
   const shown = first && !all ? [first] : photos;

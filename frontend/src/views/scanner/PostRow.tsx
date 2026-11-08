@@ -9,7 +9,7 @@ import { formatMyr, isLive } from '../../utils.ts';
 import { postStatus, type PhotoStatus } from './status.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import { Money } from '../../components/Money.tsx';
 
 export const thumbOf = (b: Batch) => (b.response ? b.response.thumb_url ?? b.response.image_b64 : null);
@@ -41,14 +41,14 @@ interface PostRowProps {
   buyers: number;
   unpaid: number;
   paid: number;          // RM buyers have paid, shown in green under the total
-  t: T;
   to: Route;
 }
 
 // One post in the list: its photos, name, total, kind and what still waits.
 // For a live post that is photos with cards not in the post yet; for a
 // price-on-photo post, photos not finished. Then who still has to pay.
-export function PostRow({ title, items, settings, buyers, unpaid, paid, t, to }: PostRowProps) {
+export function PostRow({ title, items, settings, buyers, unpaid, paid, to }: PostRowProps) {
+  const { t } = useT();
   const live = isLive(settings);
   const { scanning, waiting: { length: waiting }, toFix: needs, total } = postStatus(items);
   const meta = [live ? t('kind_live') : '', items.length ? plural(t, 'photos', items.length) : t('posts_no_photos'), scanning ? t('posts_row_scanning', { n: scanning }) : '']

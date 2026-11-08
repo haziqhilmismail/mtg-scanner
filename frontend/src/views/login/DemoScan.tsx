@@ -25,7 +25,7 @@ const at = (x: number, from: number, size: number) => `${((x - from) / size) * 1
 
 // onNext: the button after a run that moves on to the Claims demo.
 export function DemoScan({ onNext }: { onNext: () => void }) {
-  const t = useT();
+  const { t } = useT();
   const [step, setStep] = useState(IDLE);
   const timers = useRef<number[]>([]);
   const root = useRef<HTMLDivElement>(null);

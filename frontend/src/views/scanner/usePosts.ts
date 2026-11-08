@@ -3,7 +3,7 @@ import { postsApi, repostPost, type Post } from '../../api/checklist.ts';
 import { statusOf } from '../../api/http.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT, type T } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
@@ -35,11 +35,10 @@ interface Props {
   scanner: ScannerStore;
   nav: NavStore;
   pricing: PricingStore;
-  t: T;
-  lang: string;
 }
 
-export function usePosts({ scanner, nav: { route, go, replace, current }, pricing, t, lang }: Props) {
+export function usePosts({ scanner, nav: { route, go, replace, current }, pricing }: Props) {
+  const { lang, t } = useT();
   const dialog = useDialog();
   const toast = useToast();
   const { pricingFor, listPosts, createPost } = pricing;

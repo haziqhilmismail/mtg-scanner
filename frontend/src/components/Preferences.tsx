@@ -3,14 +3,13 @@ import type { Appearance, Lang } from '../types.ts';
 import { Segmented } from './ui/Segmented.tsx';
 
 interface Props {
-  lang: Lang;
   setLang: (l: Lang) => void;
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;
 }
 
-export function Preferences({ lang, setLang, appearance, setAppearance }: Props) {
-  const t = useT();
+export function Preferences({ setLang, appearance, setAppearance }: Props) {
+  const { lang, t } = useT();
   return (
     <>
       <Segmented

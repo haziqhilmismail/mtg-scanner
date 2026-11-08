@@ -6,7 +6,7 @@ import { Mosaic, PostRow, thumbOf } from './PostRow.tsx';
 import { Spinner } from '../../components/Spinner.tsx';
 import { plural } from '../../i18n/index.ts';
 import { isLive } from '../../utils.ts';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { ScanProgress } from './ScanProgress.tsx';
@@ -15,7 +15,8 @@ import { NewPostDialog } from './NewPostDialog.tsx';
 
 // Posts: every post as a row with + New post above, the photos in no post,
 // and the archived posts behind their own heading.
-export function PostsPage({ posts, scanner, pricingFor, t }: { posts: Posts; scanner: ScannerStore; pricingFor: PricingStore['pricingFor']; t: T }) {
+export function PostsPage({ posts, scanner, pricingFor }: { posts: Posts; scanner: ScannerStore; pricingFor: PricingStore['pricingFor'] }) {
+  const { t } = useT();
   const { loading, liveFolders, archivedFolders, unfiledFolder, startPost, setArchived } = posts;
   const [newOpen, setNewOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -24,7 +25,7 @@ export function PostsPage({ posts, scanner, pricingFor, t }: { posts: Posts; sca
   // A post with buyers opens on Claims: collecting is what is left to do.
   const postRow = (f: Folder) => (
     <PostRow
-      title={f.title} items={f.items} settings={pricingFor(f.postId)} buyers={f.buyers} unpaid={f.unpaid} paid={f.paid} t={t}
+      title={f.title} items={f.items} settings={pricingFor(f.postId)} buyers={f.buyers} unpaid={f.unpaid} paid={f.paid}
       to={{ page: f.buyers ? 'claims' : 'post', folder: f.key }}
     />
   );
@@ -40,7 +41,7 @@ export function PostsPage({ posts, scanner, pricingFor, t }: { posts: Posts; sca
           <Icon name="plus" size={18} />{t('new_post')}
         </button>
       </div>
-      <ScanProgress progress={scanner.scanProgress} t={t} />
+      <ScanProgress progress={scanner.scanProgress} />
       {loading ? (
         <Spinner label={t('scanner_loading_saved')} />
       ) : (
@@ -89,8 +90,8 @@ export function PostsPage({ posts, scanner, pricingFor, t }: { posts: Posts; sca
         </>
       )}
       {/* On a computer, photos dropped or pasted on the page start a post of the default kind. */}
-      <PhotoDrop label={t('new_post_drop')} onPhotos={photos => startPost(photos, defaultKind)} t={t} />
-      <NewPostDialog open={newOpen} onClose={() => setNewOpen(false)} defaults={pricingFor(null)} onStart={startPost} t={t} />
+      <PhotoDrop label={t('new_post_drop')} onPhotos={photos => startPost(photos, defaultKind)} />
+      <NewPostDialog open={newOpen} onClose={() => setNewOpen(false)} defaults={pricingFor(null)} onStart={startPost} />
     </>
   );
 }

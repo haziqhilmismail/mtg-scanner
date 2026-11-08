@@ -92,7 +92,7 @@ interface RequestDialogProps {
 }
 
 function RequestDialog({ request, open, onAnswer, onExited }: RequestDialogProps) {
-  const t = useT();
+  const { t } = useT();
   const formId = useId();
   const okLabel = request.opts.okLabel ?? t('ok');
   const cancelLabel = (request.kind !== 'alert' && request.opts.cancelLabel) || t('cancel');

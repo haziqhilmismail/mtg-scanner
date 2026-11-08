@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import type { T } from '../../hooks/useLang.ts';
+import { useT, type T } from '../../hooks/useLang.ts';
 import type { Settings } from '../../types.ts';
 import { cardName, ckSearchUrl, fmt2, formatMyr, rarityKey, smallScryfallImage } from '../../utils.ts';
 import { Icon } from '../../components/Icon.tsx';
@@ -21,7 +21,6 @@ interface Props {
   // The scanner guessed the printing: the seller checks it.
   unsure: boolean;
   settings: Settings;
-  t: T;
   onView: (side: 0 | 1) => void;
   onLooksRight: () => void;
   onToggleAdded: () => void;
@@ -68,9 +67,10 @@ function Picture({ src, fallback }: { src: string; fallback: ReactNode }) {
 // printing, price and the controls a seller uses on every card. A removed
 // card stays in its place as one row, so it is easy to bring back.
 export function CardRow({
-  cd, added, adding, locked, live, unsure, settings, t,
+  cd, added, adding, locked, live, unsure, settings,
   onView, onLooksRight, onToggleAdded, onEditPrice, onChangeCard, onQuantity, onRemove, onRestore,
 }: Props) {
+  const { t } = useT();
   const name = cardName(cd, t);
   const num = cd.origIdx + 1;
   if (cd.removed) {
@@ -170,14 +170,14 @@ interface ViewerProps {
   // Which picture shows first: your card (0) or the matched one (1).
   start: 0 | 1;
   locked: boolean;
-  t: T;
   onClose: () => void;
   onChangeCard: () => void;
 }
 
 // Your card and the matched card full screen; a click on the picture flips
 // between them. With no matched picture, your card alone.
-export function CardViewer({ cd, open, start, locked, t, onClose, onChangeCard }: ViewerProps) {
+export function CardViewer({ cd, open, start, locked, onClose, onChangeCard }: ViewerProps) {
+  const { t } = useT();
   const name = cardName(cd, t);
   const printed = !cd.isManual && !!cd.sel.set;
   const yours = { src: cd.card.crop_b64, alt: t('photo_alt_yours', { name }), label: t('tile_your_card') };

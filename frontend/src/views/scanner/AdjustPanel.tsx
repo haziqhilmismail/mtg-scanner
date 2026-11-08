@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import type { T } from '../../hooks/useLang.ts';
+import { useT, type T } from '../../hooks/useLang.ts';
 import { computeCardData, editCardState, type CardRowData, type CardState } from '../../lib/scanState.ts';
 import type { Batch, Settings } from '../../types.ts';
 import { cardName, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../../utils.ts';
@@ -22,7 +22,6 @@ interface Props {
   idx: number;
   live: boolean;
   settings: Settings;
-  t: T;
   onClose: () => void;
   onSave: (edit: PriceEdit) => void;
 }
@@ -43,7 +42,8 @@ function working(cd: CardRowData, usd: number, settings: Settings, t: T): string
 // One card's price as a draft: its finish, its multiplier and a price of the
 // seller's own, in RM (kept as typed) or USD (still multiplied and rounded).
 // Nothing changes on the card until Save price.
-export function AdjustPanel({ open, batch, idx, live, settings, t, onClose, onSave }: Props) {
+export function AdjustPanel({ open, batch, idx, live, settings, onClose, onSave }: Props) {
+  const { t } = useT();
   const ids = useId();
   const [draft, setDraft] = useState<Draft>(() => {
     const own = parseOverride(batch.priceOverride[idx]);

@@ -34,7 +34,7 @@ const TONE: Record<SortedBy, { tone: string; icon: IconName }> = {
 };
 
 export function ShotCard({ shot, photos, onChange, onRemove, onView, onPostPhotos }: Props) {
-  const t = useT();
+  const { t } = useT();
   const id = useId();
   const rows = useMemo(() => commentRows(shot.text), [shot.text]);
   const [raw, setRaw] = useState(rows.length === 0);

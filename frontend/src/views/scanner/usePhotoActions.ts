@@ -3,7 +3,7 @@ import { listingsApi } from '../../api/checklist.ts';
 import type { ExportPayload } from '../../api/export.ts';
 import { relookupScanPrices } from '../../api/scans.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { migrateAdded } from '../../lib/legacy.ts';
@@ -46,12 +46,12 @@ interface Props {
   pricingFor: PricingStore['pricingFor'];
   // The name of the post a photo is in, for its exported file name.
   folderTitle: (postId: number | null) => string;
-  t: T;
 }
 
 // What is done to a photo's cards: add them to the post or take them out,
 // finish (lock the prices), refresh CK prices, and export the labelled image.
-export function usePhotoActions({ scanner, pricingFor, folderTitle, t }: Props) {
+export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
+  const { t } = useT();
   const dialog = useDialog();
 
   // Once every saved photo has loaded, tie cards added by older versions

@@ -10,7 +10,7 @@ interface ZoomApi {
 const Ctx = createContext<ZoomApi | null>(null);
 
 export function ImageZoomProvider({ children }: { children: ReactNode }) {
-  const t = useT();
+  const { t } = useT();
   // The last picture stays set while the viewer closes, so it shows through its exit.
   const [zoom, setZoom] = useState<{ src: string; caption: string; open: boolean } | null>(null);
   const open = useCallback((src: string, caption = '') => setZoom({ src, caption, open: true }), []);

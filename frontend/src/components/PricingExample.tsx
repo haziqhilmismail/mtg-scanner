@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Key, T } from '../hooks/useLang.ts';
+import { useT, type Key } from '../hooks/useLang.ts';
 import type { Settings } from '../types.ts';
 import { applyRounding, fmt2, formatMyr, pillLabel } from '../utils.ts';
 import { Icon } from './Icon.tsx';
@@ -9,7 +9,8 @@ import { approxText } from './Money.tsx';
 // settings change.
 const SAMPLE = { name: 'Lord Skitter, Sewer King', usd: 4.99, usdFoil: 4.49 };
 
-export function PricingExample({ settings, t, caption: showCaption = true }: { settings: Settings; t: T; caption?: boolean }) {
+export function PricingExample({ settings, caption: showCaption = true }: { settings: Settings; caption?: boolean }) {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;

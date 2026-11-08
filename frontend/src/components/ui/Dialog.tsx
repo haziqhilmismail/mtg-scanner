@@ -25,7 +25,7 @@ export type DialogProps = Common & (
 // Render it always and switch `open`: its content mounts only while it is
 // open, and stays through the exit transition.
 export function Dialog({ open, onClose, onExited, title, subtitle, footer, children, className, variant = 'default', closeLabel }: DialogProps) {
-  const t = useT();
+  const { t } = useT();
   const id = useId();
   const alert = variant === 'alert';
   return (

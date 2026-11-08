@@ -20,7 +20,7 @@ interface Props {
 // "In this post": every photo large, in post order, to tell which photo a
 // screenshot's comments are about when the small ones look alike.
 export function PostPhotos({ open, onClose, photos, postTitle, chosen, cents, live, onUse }: Props) {
-  const t = useT();
+  const { t } = useT();
   return (
     <Dialog
       open={open} onClose={onClose} variant="picker" className="claims-dialog" title={t('claims_in_post')}

@@ -31,7 +31,7 @@ interface Props {
 }
 
 export function BuyerDialog({ open, onClose, group: g, message, cents, showPhotos, hasPayment, qrLabel, live, sentOn, onCopy, onQr, onStatus, onSaveName, onSavePhone, onRemove, onResend, onAddCard }: Props) {
-  const t = useT();
+  const { t } = useT();
   return (
     <Dialog
       open={open && !!g} onClose={onClose} className="claims-dialog claims-buyer-dialog"

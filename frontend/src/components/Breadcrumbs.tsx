@@ -9,7 +9,7 @@ export interface Crumb {
 }
 
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
-  const t = useT();
+  const { t } = useT();
   return (
     <nav className="crumbs" aria-label={t('crumbs_label')}>
       {items.map((c, i) => (
