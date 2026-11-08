@@ -1,10 +1,10 @@
 import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
-import { waits } from '../../components/ScanGallery.tsx';
 import { plural } from '../../i18n/index.ts';
 import { formatMyr, isLive } from '../../utils.ts';
 import type { Area, Folder } from './area.tsx';
 import type { ExportJob } from './exportFiles.ts';
+import { postStatus } from './status.ts';
 import type { usePostExport } from './usePostExport.ts';
 
 interface Props {
@@ -24,37 +24,32 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
   const settings = pricingFor(folder.postId);
   const live = isLive(settings);
   const { items } = folder;
-  const saved = items.filter(s => s.batch.response && s.batch.scanId != null);
-  const cards = items.reduce((n, s) => n + s.cards, 0);
-  const unpriced = items.reduce((n, s) => n + (s.batch.response ? s.needs : 0), 0);
   // Cards with no price can't go in the post until they get one.
-  const priced = cards - unpriced;
-  const waiting = items.filter(s => waits(s, live));
-  const notAdded = waiting.reduce((n, s) => n + s.pending, 0);
+  const { saved, cards, unpriced, priced, waiting, pending, total } = postStatus(items);
   const busy = finishing === folder.key;
 
   const finish = async () => {
     if (live || await explainFinish()) await runFinishAll(folder.key, waiting.map(s => s.batch), folder.postId);
   };
-  const shareLine = !jobs.length ? (!live && saved.length ? t('post_share_none') : '')
-    : !live && jobs.length < saved.length ? t('post_share_line_some', { n: jobs.length })
+  const shareLine = !jobs.length ? (!live && saved ? t('post_share_none') : '')
+    : !live && jobs.length < saved ? t('post_share_line_some', { n: jobs.length })
     : plural(t, live ? 'post_share_line_live' : 'post_share_line_photo', jobs.length);
 
   return (
     <>
       <section className="ui-card post-summary" aria-label={t('total')}>
         <span className="post-summary-label">{t('total')}</span>
-        <span className="post-total" aria-live="polite"><Money live={live}>{formatMyr(folder.total, settings)}</Money></span>
+        <span className="post-total" aria-live="polite"><Money live={live}>{formatMyr(total, settings)}</Money></span>
         <span className="post-summary-meta">
           {[t(live ? 'kind_live' : 'kind_photo'), plural(t, 'photos', items.length), plural(t, 'cards', cards)].join(' · ')}
         </span>
         {live ? <span className="post-summary-meta">{t('post_live_note')}</span> : null}
-        {saved.length ? (
+        {saved ? (
           <div className="post-summary-status">
             {waiting.length ? (
               <>
                 <span className="post-summary-line"><span className="dot" aria-hidden="true" />
-                  {live ? plural(t, 'post_not_added', notAdded) : plural(t, 'post_unfinished', waiting.length)}
+                  {live ? plural(t, 'post_not_added', pending) : plural(t, 'post_unfinished', waiting.length)}
                 </span>
                 <button type="button" className={`ui-btn ui-btn--block ui-btn--lg${quiet ? '' : ' ui-btn--primary'}`} disabled={finishing != null} onClick={finish}>
                   <Icon name={live ? 'addList' : 'lock'} size={18} />{busy ? t('post_busy') : t(live ? 'add_all_to_post' : 'post_finish')}

@@ -3,7 +3,8 @@ import type { Key, T } from '../hooks/useLang.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import { plural } from '../i18n/index.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
-import { bboxKey, canRetry, cardName, computeCardData, formatMyr, notAdded } from '../utils.ts';
+import { bboxKey, canRetry, cardName, computeCardData, formatMyr } from '../utils.ts';
+import { photoStatus } from '../views/scanner/status.ts';
 import { AdjustPanel, type PriceEdit } from './AdjustPanel.tsx';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow, CardViewer } from './CardRow.tsx';
@@ -60,6 +61,7 @@ export function ActiveBatchView({
   // card null: the whole photo.
   const [view, setView] = useState<{ card: number | null; side: 0 | 1; open: boolean } | null>(null);
   const cardData = useMemo(() => computeCardData(batch.response?.cards ?? [], batch, settings), [batch, settings]);
+  const { pending, unpricedOut, inPost, total, unpriced } = useMemo(() => photoStatus(batch, settings), [batch, settings]);
   const cardsLabel = (n: number) => plural(t, 'cards', n);
 
   if (batch.status === 'scanning' || batch.status === 'error' || !batch.response) {
@@ -97,14 +99,8 @@ export function ActiveBatchView({
   const covered = cardData.filter(cd => cd.sold);
   const removedCount = cardData.length - visible.length - covered.length;
   const isAdded = (cd: CardRowData) => batch.listed.includes(bboxKey(cd.card.bbox));
-  const priced = (cd: CardRowData) => Number.isFinite(cd.unitPrice);
-  const pending = notAdded(batch, visible).length;
-  const unpricedOut = visible.filter(cd => !isAdded(cd) && !(cd.unitPrice > 0)).length;
-  const inPost = visible.filter(isAdded).length;
   const totalQty = visible.reduce((n, cd) => n + cd.qty, 0);
-  const total = visible.reduce((sum, cd) => sum + (priced(cd) ? cd.lineTotal : 0), 0);
-  const unpriced = visible.filter(cd => !priced(cd)).length;
-  const approxTotal = live && visible.some(cd => !cd.hasOverride && priced(cd));
+  const approxTotal = live && visible.some(cd => !cd.hasOverride && Number.isFinite(cd.unitPrice));
   const photoName = photoNumber != null ? t('photo_n', { n: photoNumber }) : batch.filename;
   const nameOf = (cd: CardRowData) => cardName(cd, t);
 
