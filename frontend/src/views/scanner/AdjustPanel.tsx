@@ -2,13 +2,14 @@ import { useId, useState } from 'react';
 import { useT, type T } from '../../hooks/useLang.ts';
 import { computeCardData, editCardState, type CardRowData, type CardState } from '../../lib/scanState.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { cardName, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../../utils.ts';
-import { approxText, Money } from '../../components/Money.tsx';
+import { cardName } from '../../utils.ts';
+import { Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
 import { Stepper } from '../../components/ui/Stepper.tsx';
 import { printingText } from '../../components/VersionLine.tsx';
+import { currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride, approxText } from '../../lib/money.ts';
 
 // What Save price writes back to the card: its finish, its own multiplier
 // (null: the pricing's) and its own price (null: none, see PriceOverride).

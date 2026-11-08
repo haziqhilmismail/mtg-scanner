@@ -2,8 +2,9 @@
 // posts list, the post page, its photo rows and the photo page.
 
 import type { Batch, Settings } from '../../types.ts';
-import { bboxKey, isLive, notAdded } from '../../utils.ts';
+import { bboxKey, notAdded } from '../../utils.ts';
 import { computeCardData } from '../../lib/scanState.ts';
+import { isLive } from '../../lib/pricing.ts';
 
 export interface PhotoStatus {
   batch: Batch;

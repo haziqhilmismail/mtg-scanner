@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useT, type Key } from '../hooks/useLang.ts';
 import type { Settings } from '../types.ts';
-import { applyRounding, fmt2, formatMyr, pillLabel } from '../utils.ts';
 import { Icon } from './Icon.tsx';
-import { approxText } from './Money.tsx';
+import { applyRounding, fmt2, formatMyr, pillLabel, approxText } from '../lib/money.ts';
 
 // The example card, at fixed Card Kingdom prices so it shows only what the
 // settings change.

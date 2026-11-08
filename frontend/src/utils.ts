@@ -4,90 +4,10 @@ import type { Credits } from './api/credits.ts';
 import type { T } from './i18n/index.ts';
 import type { Payment } from './api/payment.ts';
 import { dateLocale } from './lib/browser.ts';
-
-// Amounts read the same in every browser, "1,240.50", whatever its locale.
-const AMOUNT = [0, 2].map(d => new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }));
-
-export function fmt2(n: number | null | undefined): string {
-  if (n == null || isNaN(n as number)) return '—';
-  return AMOUNT[1].format(Number(n));
-}
-
-export function applyRounding(price: number, settings: Settings): number {
-  let p = Number(price) || 0;
-  const dir = settings.roundDirection;
-  if (dir !== 'none') {
-    const step = settings.roundStep;
-    // Multiply / divide via inverse to dodge FP noise on 0.1 / 0.5 steps —
-    // 0.1 + 0.2 === 0.30000000000000004, etc.
-    const inv = 1 / step;
-    // Snap the product's own noise away before rounding: 12.5 × 4.4 is
-    // 55.00000000000001, which would otherwise round "up" to 56.
-    const x = Math.round(p * inv * 1e6) / 1e6;
-    if (dir === 'up') p = Math.ceil(x) / inv;
-    else if (dir === 'down') p = Math.floor(x) / inv;
-    else p = Math.round(x) / inv;
-  }
-  if (p < settings.minPrice) p = settings.minPrice;
-  return p;
-}
-
-// The label a price field and a rounding step carry; RM when the seller left it blank.
-export const currencyOf = (s: Pick<Settings, 'currencyLabel'>) => s.currencyLabel.trim() || 'RM';
-
-// A live post prices each card when its buyer's total is sent, not on the photo.
-export const isLive = (s: Pick<Settings, 'priceMode'>) => s.priceMode === 'live';
-
-// A price as the app writes it: "RM13", "RM1,240". Cents show when Show
-// cents is on, and always when the price has them (a price the seller typed,
-// or a rounding step under RM 1): hiding them would show a price nobody pays.
-export function formatMyr(price: number, settings: Pick<Settings, 'currencyLabel' | 'showCurrency' | 'showCents'>): string {
-  const n = Number(price);
-  if (isNaN(n)) {
-    return settings.showCurrency ? `${currencyOf(settings)} —` : '—';
-  }
-  // To the cent first, so float noise (1.0000000001) is no cents.
-  const cents = !Number.isInteger(Math.round(n * 100) / 100);
-  const formatted = AMOUNT[settings.showCents || cents ? 1 : 0].format(n);
-  return settings.showCurrency ? `${currencyOf(settings)}${formatted}` : formatted;
-}
+import { pillLabel } from './lib/money.ts';
+import { isLive } from './lib/pricing.ts';
 
 export const cardName = (cd: CardRowData, t: T) => cd.sel.name || t('unknown_card');
-
-// A card's own price, as priceOverride stores it: RM as typed ("15.5"), or a
-// USD price the multiplier and rounding still apply to ("usd:4.5"). Versions
-// before USD prices read "usd:" as no price of the seller's own, and keep it.
-export interface PriceOverride { unit: 'rm' | 'usd'; amount: number }
-const USD_OVERRIDE = 'usd:';
-
-export function parseOverride(raw: string | null | undefined): PriceOverride | null {
-  const usd = !!raw?.startsWith(USD_OVERRIDE);
-  const amount = parseFloat((usd ? raw!.slice(USD_OVERRIDE.length) : raw) ?? '');
-  return Number.isNaN(amount) ? null : { unit: usd ? 'usd' : 'rm', amount };
-}
-
-export const overrideText = (o: PriceOverride | null): string | null =>
-  (o ? `${o.unit === 'usd' ? USD_OVERRIDE : ''}${o.amount}` : null);
-
-// A price box as typed: empty (no price of the seller's own), a price above
-// 0, or not a price. Commas and spaces are how people write 1,240.
-export function readPrice(text: string): number | null | 'invalid' {
-  const clean = text.replace(/[,\s]/g, '');
-  if (!clean) return null;
-  if (!/^(\d+\.?\d{0,2}|\.\d{1,2})$/.test(clean)) return 'invalid';
-  const n = Number(clean);
-  return n > 0 ? n : 'invalid';
-}
-
-// What is printed on a card's price pill: "RM58", "RM58 ×2". One function so
-// the on-screen preview and the exported image can't drift apart.
-export function pillLabel(
-  cd: { unitPrice: number; isFoil: boolean; qty: number },
-  settings: Settings,
-): string {
-  const unit = formatMyrWithFoil(cd.unitPrice, cd.isFoil, settings);
-  return cd.qty > 1 ? `${unit} ×${cd.qty}` : unit;
-}
 
 // What a card's label on the photo says ('' = no label), on screen and in the
 // exported image alike. A live-price post prints only what CK won't decide:
@@ -106,12 +26,6 @@ export function photoLabel(cd: CardRowData, settings: Settings): string {
 
 // Whether a card's label on the photo is the gold foil pill, on screen and in the exported image alike.
 export const goldPill = (cd: { isFoil: boolean }, settings: Settings) => cd.isFoil && settings.foilStyle === 'gold';
-
-export function formatMyrWithFoil(price: number, isFoil: boolean, settings: Settings): string {
-  const base = formatMyr(price, settings);
-  if (isFoil && settings.foilStyle === 'suffix') return base + 'F';
-  return base;
-}
 
 // CK's working search URL — matches what their site emits when you submit the
 // top search bar. `?search=header` is CK's "search context" param;

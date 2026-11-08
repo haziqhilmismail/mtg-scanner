@@ -5,8 +5,9 @@
 import type { Payment } from '../../api/payment.ts';
 import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
 import type { T } from '../../i18n/index.ts';
-import { fmt2, formatMyr, paymentLines } from '../../utils.ts';
+import { paymentLines } from '../../utils.ts';
 import type { CardRowData } from '../../lib/scanState.ts';
+import { fmt2, formatMyr } from '../../lib/money.ts';
 
 export type PayState = 'unpaid' | 'paid' | 'done';
 export const PAY_STATES: readonly PayState[] = ['unpaid', 'paid', 'done'];

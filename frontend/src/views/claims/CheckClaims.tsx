@@ -1,13 +1,13 @@
 import { useId, useMemo, useState } from 'react';
 import { CardPicker, hideBroken, type CardRef, type CardStatus, type Photo } from './ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
-import { approxText } from '../../components/Money.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { Stepper } from '../../components/ui/Stepper.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import { spelledDifferently } from './comments.ts';
 import { rm } from './model.ts';
+import { approxText } from '../../lib/money.ts';
 
 // hint: the photo the comment is about, when known, so its cards come first.
 export interface DraftItem { key: string | null; qty: number; said: string; unclear: string; hint: number | null }

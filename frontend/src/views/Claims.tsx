@@ -16,7 +16,7 @@ import {
 import type { CardRef, Photo } from './claims/ClaimPickers.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Link } from '../components/Link.tsx';
-import { approxText, Money } from '../components/Money.tsx';
+import { Money } from '../components/Money.tsx';
 import { SlipsSheet } from './claims/SlipsSheet.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
@@ -27,7 +27,7 @@ import { KEY } from '../lib/storage.ts';
 import { plural } from '../i18n/index.ts';
 import type { Credits } from '../api/credits.ts';
 import { canShareFiles, dateLocale, fetchQrFile, isPhone, popupOpen, useFileDrop } from '../lib/browser.ts';
-import { byPostOrder, dueForSupportAsk, isLive, paymentLines, photoNumbers } from '../utils.ts';
+import { byPostOrder, dueForSupportAsk, paymentLines, photoNumbers } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
 import { BuyerDialog } from './claims/BuyerDialog.tsx';
@@ -41,6 +41,8 @@ import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Folder } from './scanner/usePosts.ts';
 import { computeCardData, type CardRowData } from '../lib/scanState.ts';
+import { isLive } from '../lib/pricing.ts';
+import { approxText } from '../lib/money.ts';
 
 export interface ClaimsProps {
   // The open post, from the URL; null while another page shows. Claims

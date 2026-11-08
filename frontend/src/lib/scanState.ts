@@ -5,7 +5,7 @@
 // (rev, lockedAt, locked[].price, picks), so renaming one needs a data migration.
 
 import type { Batch, Candidate, Correction, DetectedCard, PriceSource, Settings } from '../types.ts';
-import { applyRounding, parseOverride } from '../utils.ts';
+import { applyRounding, parseOverride } from './money.ts';
 
 // Per-card draggable pill offset. The pill default position is derived from
 // the bbox + the global label-position setting; this offset (in source image

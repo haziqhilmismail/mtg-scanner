@@ -10,9 +10,10 @@ import { migrateAdded } from '../../lib/legacy.ts';
 import { photoFileName } from '../../lib/photoFiles.ts';
 import { KEY, storage } from '../../lib/storage.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { bboxKey, downloadBlob, goldPill, isLive, listingFields, notAdded, photoLabel, photoNumbers } from '../../utils.ts';
+import { bboxKey, downloadBlob, goldPill, listingFields, notAdded, photoLabel, photoNumbers } from '../../utils.ts';
 import { renderFile, type ExportJob } from './exportFiles.ts';
 import { computeCardData, lockPrices, type CardRowData } from '../../lib/scanState.ts';
+import { isLive } from '../../lib/pricing.ts';
 
 // What the exported photo of a batch shows, or null for a batch that hasn't
 // finished scanning. Foil prices are always on a gold pill (DESIGN.md §7),

@@ -1,7 +1,6 @@
 import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { plural } from '../../i18n/index.ts';
-import { formatMyr, isLive } from '../../utils.ts';
 import { useT } from '../../hooks/useLang.ts';
 import type { Settings } from '../../types.ts';
 import type { PhotoActions } from './usePhotoActions.ts';
@@ -9,6 +8,8 @@ import type { Folder } from './usePosts.ts';
 import type { ExportJob } from './exportFiles.ts';
 import { postStatus } from './status.ts';
 import type { usePostExport } from './usePostExport.ts';
+import { formatMyr } from '../../lib/money.ts';
+import { isLive } from '../../lib/pricing.ts';
 
 interface Props {
   photos: PhotoActions;
