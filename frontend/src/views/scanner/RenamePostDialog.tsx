@@ -1,17 +1,17 @@
 import { useEffect, useId, useState } from 'react';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 
 interface Props {
   open: boolean;
   title: string;
   onClose: () => void;
   onSave: (title: string) => void;
-  t: T;
 }
 
-export function RenamePostDialog({ open, title, onClose, onSave, t }: Props) {
+export function RenamePostDialog({ open, title, onClose, onSave }: Props) {
+  const { t } = useT();
   const form = useId();
   const [name, setName] = useState(title);
   useEffect(() => { if (open) setName(title); }, [open, title]);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiUrl } from '../api/http.ts';
-import type { T } from '../hooks/useLang.ts';
+import { useT } from '../hooks/useLang.ts';
 import { canShareFiles, fetchQrFile } from '../lib/browser.ts';
 import { downloadBlob } from '../utils.ts';
 import { Icon } from './Icon.tsx';
@@ -20,11 +20,11 @@ interface Props {
   onClose: () => void;
   // Opened by the app after a save, not from Profile: thank first.
   asking?: boolean;
-  t: T;
 }
 
 // A voluntary tip jar: the app stays free whether or not anyone pays.
-export function SupportSheet({ open, onClose, asking, t }: Props) {
+export function SupportSheet({ open, onClose, asking }: Props) {
+  const { t } = useT();
   const [noQr, setNoQr] = useState(false);
   // Fetched ahead, so Save can share inside the tap: browsers drop a share
   // once the tap is a moment old.

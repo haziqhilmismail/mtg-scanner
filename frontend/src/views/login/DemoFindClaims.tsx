@@ -14,7 +14,7 @@ const buyers = DEMO_COMMENTS.filter(c => c.cards.length);
 const skipped = DEMO_COMMENTS.filter(c => !c.cards.length);
 
 export function DemoFindClaims() {
-  const t = useT();
+  const { t } = useT();
   const [stage, setStage] = useState<'idle' | 'reading' | 'found'>('idle');
   const [who, setWho] = useState(buyers[0].name);
   const [copied, setCopied] = useState<string | null>(null);

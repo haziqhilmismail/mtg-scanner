@@ -15,9 +15,8 @@ export function useLang() {
   return { lang, setLang, t };
 }
 
-const TContext = createContext<T>((key, vars) => translate('en', key, vars));
+const TContext = createContext<{ lang: Lang; t: T }>({ lang: 'en', t: (key, vars) => translate('en', key, vars) });
 
-// App provides its t; a component under it can call useT() instead of
-// taking a t prop.
+// App provides its lang and t; every component under it reads them with useT().
 export const TProvider = TContext.Provider;
 export const useT = () => useContext(TContext);

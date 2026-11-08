@@ -1,4 +1,4 @@
-import type { T } from '../hooks/useLang.ts';
+import { useT } from '../hooks/useLang.ts';
 import { popupOpen, useFileDrop } from '../lib/browser.ts';
 import { photosOf } from '../lib/photoFiles.ts';
 import { Icon } from './Icon.tsx';
@@ -8,7 +8,8 @@ import { useToast } from './ui/Toast.tsx';
 // convenience on a computer, with nothing on screen for it until files are
 // dragged over the page (then a quiet overlay says where they go). Ignored
 // while a popup is open over the page.
-export function PhotoDrop({ label, onPhotos, t }: { label: string; onPhotos: (photos: File[]) => void; t: T }) {
+export function PhotoDrop({ label, onPhotos }: { label: string; onPhotos: (photos: File[]) => void }) {
+  const { t } = useT();
   const toast = useToast();
   const dragging = useFileDrop(true, () => !popupOpen(), files => {
     const photos = photosOf(files);

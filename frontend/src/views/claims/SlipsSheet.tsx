@@ -19,7 +19,7 @@ interface Props {
 
 // Drop-off slips: one per buyer, ticked by default, made into an A4 PDF.
 export function SlipsSheet({ open, onClose, buyers, postTitle }: Props) {
-  const t = useT();
+  const { t } = useT();
   const toast = useToast();
   const listId = useId();
   const [picked, setPicked] = useState<Set<number>>(new Set());

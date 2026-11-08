@@ -37,7 +37,7 @@ export function PhotoViewer(props: PhotoViewerProps) {
 }
 
 function ViewerBody(props: PhotoViewerProps) {
-  const t = useT();
+  const { t } = useT();
   const [at, setAt] = useState<number>('pair' in props ? props.start ?? 0 : 0);
   const media = 'pair' in props ? (
     <>

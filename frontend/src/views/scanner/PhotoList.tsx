@@ -3,7 +3,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { Money } from '../../components/Money.tsx';
 import { hideBroken, thumbOf } from './PostRow.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Route } from '../../routes.ts';
 import type { Settings } from '../../types.ts';
@@ -25,7 +25,6 @@ interface Props {
   settings: Settings;
   mode: PhotoListMode;
   photoRoute: (scanId: number) => Route;
-  t: T;
 }
 
 // A file name in one line, shortened in the middle so its end shows.
@@ -43,7 +42,8 @@ function FileName({ name }: { name: string }) {
 const keepFocus = (btn: HTMLButtonElement) =>
   requestAnimationFrame(() => { if (btn.disabled) btn.parentElement?.querySelector<HTMLButtonElement>('button:enabled')?.focus(); });
 
-export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute, t }: Props) {
+export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute }: Props) {
+  const { t } = useT();
   return (
     <ul className="ui-list photolist">
       {items.map((s, i) => {

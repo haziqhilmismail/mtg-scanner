@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
@@ -22,17 +22,16 @@ interface Props {
   nav: NavStore;
   // Pricing per post and the default; pricingFor() prices every photo.
   pricing: PricingStore;
-  t: T;
-  lang: string;
   claims: Pick<ClaimsProps, 'credits' | 'onCredits' | 'onEnterVoucher' | 'payment'>;
 }
 
 // Posts, and under each post its Photos and Claims parts, a photo or its
 // pricing, by URL.
-export function Scanner({ active, scanner, nav, pricing, t, lang, claims }: Props) {
+export function Scanner({ active, scanner, nav, pricing, claims }: Props) {
+  const { t } = useT();
   const { pricingFor } = pricing;
-  const posts = usePosts({ scanner, nav, pricing, t, lang });
-  const photos = usePhotoActions({ scanner, pricingFor, folderTitle: posts.folderTitle, t });
+  const posts = usePosts({ scanner, nav, pricing });
+  const photos = usePhotoActions({ scanner, pricingFor, folderTitle: posts.folderTitle });
   // The photos Prev/Next step through, fixed when a photo is opened so the
   // order doesn't shift under you as you fix things.
   const [navIds, setNavIds] = useState<string[]>([]);
@@ -49,7 +48,7 @@ export function Scanner({ active, scanner, nav, pricing, t, lang, claims }: Prop
     if (activeBatch) {
       return (
         <PhotoPage
-          batch={activeBatch} scanner={scanner} pricingFor={pricingFor} nav={nav} t={t} lang={lang}
+          batch={activeBatch} scanner={scanner} pricingFor={pricingFor} nav={nav}
           posts={posts} photos={photos} navIds={navIds}
         />
       );
@@ -63,7 +62,6 @@ export function Scanner({ active, scanner, nav, pricing, t, lang, claims }: Prop
           crumbs={[{ label: t('scans_title'), to: POSTS }, { label: openFolder.title, to: { page: 'post', folder: openFolder.key } }, { label: t('crumbs_pricing') }]}
           parent={{ page: 'post', folder: openFolder.key }}
           pricing={pricing}
-          t={t}
         />
       );
     }
@@ -72,21 +70,21 @@ export function Scanner({ active, scanner, nav, pricing, t, lang, claims }: Prop
     if (openFolder) {
       return (
         <PostPage
-          key={openFolder.key} folder={openFolder} scanner={scanner} pricing={pricing} go={nav.go} t={t}
+          key={openFolder.key} folder={openFolder} scanner={scanner} pricing={pricing} go={nav.go}
           posts={posts} photos={photos} sort={sort} setSort={setSort}
           onOpenPhoto={ids => { setNavIds(ids); window.scrollTo({ top: 0 }); }}
         />
       );
     }
-    return <PostsPage posts={posts} scanner={scanner} pricingFor={pricingFor} t={t} />;
+    return <PostsPage posts={posts} scanner={scanner} pricingFor={pricingFor} />;
   };
 
   return (
     <>
-      {onPart ? <PostHead key={openFolder.key} posts={posts} folder={openFolder} part={claimsFolder ? 'claims' : 'photos'} t={t} /> : null}
+      {onPart ? <PostHead key={openFolder.key} posts={posts} folder={openFolder} part={claimsFolder ? 'claims' : 'photos'} /> : null}
       {/* Always mounted: back on Claims, it shows at once instead of loading again. */}
       <Claims
-        folder={claimsFolder} scanner={scanner} pricingFor={pricingFor} refreshPosts={posts.refreshPosts} t={t} lang={lang}
+        folder={claimsFolder} scanner={scanner} pricingFor={pricingFor} refreshPosts={posts.refreshPosts}
         {...claims}
       />
       {active && !claimsFolder ? page() : null}

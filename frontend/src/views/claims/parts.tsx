@@ -10,7 +10,7 @@ import { formulaText, rm, type BuyerGroup, type Line } from './model.ts';
 
 // "● Unpaid · dropped off · 3 cards": the dot marks the status, the label names it.
 export function StatusLine({ group }: { group: BuyerGroup }) {
-  const t = useT();
+  const { t } = useT();
   const words = [
     t(`claims_state_${group.state}`),
     group.droppedOff ? t('claims_dropped_off') : '',
@@ -24,7 +24,7 @@ export function StatusLine({ group }: { group: BuyerGroup }) {
 // price was made, and the row's total. Every row is one height, so buyer
 // cards line up.
 export function ClaimLines({ lines, cents, showPhotos }: { lines: Line[]; cents: boolean; showPhotos: boolean }) {
-  const t = useT();
+  const { t } = useT();
   const zoom = useImageZoom();
   return (
     <ul className="claims-lines">
@@ -62,7 +62,7 @@ const STEPS = [1, 2, 3, 4] as const;
 // The four steps of How claims work: inline on a post with no claims yet,
 // and in the How claims work dialog.
 export function ClaimSteps({ cards = false }: { cards?: boolean }) {
-  const t = useT();
+  const { t } = useT();
   return (
     <ol className={cards ? 'claims-steps is-cards' : 'claims-steps'}>
       {STEPS.map(n => (
@@ -81,7 +81,7 @@ export function ClaimSteps({ cards = false }: { cards?: boolean }) {
 // How claims work, any time after the first visit. `onAdd` is left out when
 // there is nothing to claim yet.
 export function HowDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd?: () => void }) {
-  const t = useT();
+  const { t } = useT();
   return (
     <Dialog
       open={open} onClose={onClose} className="claims-dialog" title={t('claims_how')}

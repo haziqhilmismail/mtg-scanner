@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useState } from 'react';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import { canShareFiles } from '../../lib/browser.ts';
 import { fileSafe } from '../../lib/photoFiles.ts';
 import { downloadFiles, jobKey, KEEP, renderedFile, renderFile, type ExportJob } from './exportFiles.ts';
@@ -15,7 +15,8 @@ const SHARE_MAX = typeof navigator !== 'undefined' && 'userAgentData' in navigat
 // ahead of time, a moment after they last changed, one at a time (the export
 // allows 60 a minute), so Share opens the share sheet inside the click:
 // browsers drop a share once the click is a moment old.
-export function usePostExport(jobs: ExportJob[], title: string, t: T) {
+export function usePostExport(jobs: ExportJob[], title: string) {
+  const { t } = useT();
   const dialog = useDialog();
   const toast = useToast();
   const [busy, setBusy] = useState(false);

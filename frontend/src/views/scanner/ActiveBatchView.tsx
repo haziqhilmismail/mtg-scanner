@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import type { Key, T } from '../../hooks/useLang.ts';
+import { useT, type Key } from '../../hooks/useLang.ts';
+import { dateLocale } from '../../lib/browser.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Batch, Settings } from '../../types.ts';
@@ -23,9 +24,7 @@ interface Props {
   live: boolean;
   settings: Settings;
   scanner: ScannerStore;
-  t: T;
   // Dates in the app's language: "24 Oct".
-  dateLocale: string;
   // The post the photo is in (null when unfiled): its cards are added there.
   postTitle: string | null;
   // Finishing, adding all or rendering the image is under way.
@@ -50,9 +49,10 @@ const ACTIONS_AGAIN_AFTER = 4;
 // tile per card. The dialogs a tile opens (viewer, Edit price) live here, one
 // each, for whichever card asked.
 export function ActiveBatchView({
-  batch, photoNumber, live, settings, scanner, t, dateLocale, postTitle, busy,
+  batch, photoNumber, live, settings, scanner, postTitle, busy,
   onFinish, onDeliver, onEditPrices, onRefreshPrices, onAddMissing, onChangeCard, onLooksRight, onAddToPost, onTakeOut,
 }: Props) {
+  const { lang, t } = useT();
   const dialog = useDialog();
   const toast = useToast();
   const [refreshing, setRefreshing] = useState(false);
@@ -176,7 +176,7 @@ export function ActiveBatchView({
       );
       row = <>{add}{download(pending === 0)}{refreshButton}</>;
     } else if (locked) {
-      const date = new Date(batch.lockedAt!).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' });
+      const date = new Date(batch.lockedAt!).toLocaleDateString(dateLocale(lang), { day: 'numeric', month: 'short' });
       hint = <><Icon name="lock" size={16} /><span>{withPost('locked_hint', { date })}</span></>;
       row = <>{download(true)}<button type="button" className="ui-btn" disabled={busy} onClick={onEditPrices}><Icon name="edit" size={18} />{t('edit_prices')}</button></>;
     } else {
@@ -241,7 +241,6 @@ export function ActiveBatchView({
                   live={live}
                   unsure={!locked && !cd.isManual && cd.card.version_source === 'embedding' && !batch.versionOk[cd.origIdx]}
                   settings={settings}
-                  t={t}
                   onView={side => setView({ card: cd.origIdx, side, open: true })}
                   onLooksRight={() => onLooksRight(cd.origIdx)}
                   onToggleAdded={() => toggleAdded(cd)}
@@ -287,14 +286,14 @@ export function ActiveBatchView({
       {view && viewed ? (
         <CardViewer
           key={`${view.card}-${view.side}`}
-          cd={viewed} open={view.open} start={view.side} locked={locked} t={t}
+          cd={viewed} open={view.open} start={view.side} locked={locked}
           onClose={() => setView(v => (v ? { ...v, open: false } : v))}
           onChangeCard={() => onChangeCard(viewed.origIdx)}
         />
       ) : null}
       {edit ? (
         <AdjustPanel
-          key={edit.n} open={edit.open} batch={batch} idx={edit.idx} live={live} settings={settings} t={t}
+          key={edit.n} open={edit.open} batch={batch} idx={edit.idx} live={live} settings={settings}
           onClose={() => setEdit(s => (s ? { ...s, open: false } : s))}
           onSave={e => savePrice(edit.idx, e)}
         />

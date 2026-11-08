@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SignedOutHeader } from '../../components/Header.tsx';
 import { Preferences } from '../../components/Preferences.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { Appearance, Lang } from '../../types.ts';
 import { DemoFindClaims } from './DemoFindClaims.tsx';
 import { DemoScan } from './DemoScan.tsx';
@@ -16,9 +16,7 @@ interface Props {
   clientId: string;
   onCredential: (credential: string) => void;
   error?: string | null;
-  lang: Lang;
   setLang: (l: Lang) => void;
-  t: T;
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;
 }
@@ -30,7 +28,8 @@ const GIS_WAIT_MS = 10000;
 // A post's life, and the part of the post each step happens on.
 const STEPS = [['photos', 'post_photos'], ['share', 'post_photos'], ['claims', 'nav_claims'], ['collect', 'nav_claims']] as const;
 
-export function Login({ clientId, onCredential, error, lang, setLang, t, appearance, setAppearance }: Props) {
+export function Login({ clientId, onCredential, error, setLang, appearance, setAppearance }: Props) {
+  const { t } = useT();
   const [demo, setDemo] = useState<'photos' | 'claims'>('photos');
   const gis = useGis(clientId, onCredential);
   // The scan's results run long on a phone: the Claims demo starts at its top.
@@ -81,7 +80,7 @@ export function Login({ clientId, onCredential, error, lang, setLang, t, appeara
 
           <footer className="signin-foot">
             <div className="signin-prefs">
-              <Preferences lang={lang} setLang={setLang} appearance={appearance} setAppearance={setAppearance} />
+              <Preferences setLang={setLang} appearance={appearance} setAppearance={setAppearance} />
             </div>
             <div className="signin-links">
               <a href="/privacy.html">{t('privacy_link')}</a>

@@ -4,7 +4,7 @@ import { PricingExample } from '../../components/PricingExample.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { RadioCards } from '../../components/ui/RadioCards.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import { isPhone } from '../../lib/browser.ts';
 import { photosOf } from '../../lib/photoFiles.ts';
 import type { PriceMode, Settings } from '../../types.ts';
@@ -19,10 +19,10 @@ interface Props {
   // The seller's default pricing; its kind is picked to start with.
   defaults: Settings;
   onStart: (photos: File[], kind: PriceMode) => void;
-  t: T;
 }
 
-export function NewPostDialog({ open, onClose, defaults, onStart, t }: Props) {
+export function NewPostDialog({ open, onClose, defaults, onStart }: Props) {
+  const { t } = useT();
   const defaultKind = defaults.priceMode;
   const [picked, setPicked] = useState<PriceMode | null>(null);
   const [how, setHow] = useState(false);
@@ -99,7 +99,7 @@ export function NewPostDialog({ open, onClose, defaults, onStart, t }: Props) {
               {k === kind ? <span className="ui-chip ui-chip--accent">{t('new_post_how_chosen')}</span> : null}
             </div>
             <p className="how-card-desc">{t(`kind_${k}_desc`)}</p>
-            <PricingExample settings={{ ...defaults, priceMode: k }} caption={false} t={t} />
+            <PricingExample settings={{ ...defaults, priceMode: k }} caption={false} />
           </section>
         ))}
       </div>

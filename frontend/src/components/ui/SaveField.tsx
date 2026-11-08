@@ -17,7 +17,7 @@ export interface SaveFieldProps {
 
 // One detail, saved with its own button: nothing saves as you type.
 export function SaveField({ saved, onSave, label, saveLabel, placeholder, hint, required, inputMode, maxLength, autoComplete }: SaveFieldProps) {
-  const t = useT();
+  const { t } = useT();
   const id = useId();
   const [value, setValue] = useState(saved);
   // A new saved value (the server's, after a save) replaces what is typed.

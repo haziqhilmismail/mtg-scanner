@@ -26,7 +26,6 @@ interface Props {
   status: { label: string; state: 'ok' | 'err' | null };
   credits: Credits | null;
   onRedeemVoucher?: () => void;  // set when claim reads are counted
-  lang: Lang;
   setLang: (l: Lang) => void;
   appearance: Appearance;
   setAppearance: (a: Appearance) => void;
@@ -34,8 +33,8 @@ interface Props {
   payments: PaymentStore;
 }
 
-export function Profile({ user, sellerName, onSellerName, onSignOut, status, credits, onRedeemVoucher, lang, setLang, appearance, setAppearance, pricing, payments }: Props) {
-  const t = useT();
+export function Profile({ user, sellerName, onSellerName, onSignOut, status, credits, onRedeemVoucher, setLang, appearance, setAppearance, pricing, payments }: Props) {
+  const { lang, t } = useT();
   const [supportOpen, setSupportOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const claimReads = creditsLine(credits, t, lang);
@@ -95,7 +94,7 @@ export function Profile({ user, sellerName, onSellerName, onSignOut, status, cre
 
           <section className="ui-card profile-stack" aria-labelledby="profile-prefs-title">
             <h2 id="profile-prefs-title" className="ui-card-title">{t('profile_prefs')}</h2>
-            <Preferences lang={lang} setLang={setLang} appearance={appearance} setAppearance={setAppearance} />
+            <Preferences setLang={setLang} appearance={appearance} setAppearance={setAppearance} />
           </section>
 
           <section className="ui-card profile-stack" aria-labelledby="profile-help-title">
@@ -108,14 +107,14 @@ export function Profile({ user, sellerName, onSellerName, onSignOut, status, cre
         </div>
       </div>
 
-      <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} t={t} />
-      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} t={t} />
+      <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} />
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   );
 }
 
 function SellerName({ saved, onSaved }: { saved: string; onSaved: (name: string) => void }) {
-  const t = useT();
+  const { t } = useT();
   const toast = useToast();
   return (
     <div className="profile-seller">

@@ -1,7 +1,8 @@
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 
-export function ScanProgress({ progress, t }: { progress: ScannerStore['scanProgress']; t: T }) {
+export function ScanProgress({ progress }: { progress: ScannerStore['scanProgress'] }) {
+  const { t } = useT();
   if (!progress) return null;
   return (
     <div className="scan-progress">

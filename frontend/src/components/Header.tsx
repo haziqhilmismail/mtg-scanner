@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function SignedOutHeader() {
-  const t = useT();
+  const { t } = useT();
   return (
     <header className="app-bar">
       <div className="app-bar-inner">
@@ -29,7 +29,7 @@ export function SignedOutHeader() {
 
 // Photos and Claims are tabs on each post, not here.
 export function Header({ route, healthLabel, healthState, user }: Props) {
-  const t = useT();
+  const { t } = useT();
   const onProfile = route.page === 'profile' || route.page === 'profile-pricing';
   return (
     <header className="app-bar">

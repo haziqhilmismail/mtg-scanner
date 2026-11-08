@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { redeemVoucher, type Credits } from '../api/credits.ts';
 import { ApiError } from '../api/http.ts';
-import type { T } from '../hooks/useLang.ts';
+import { useT } from '../hooks/useLang.ts';
 import { TextField } from './ui/Field.tsx';
 import { Dialog } from './ui/Dialog.tsx';
 
@@ -9,14 +9,14 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onRedeemed: (credits: Credits) => void;
-  t: T;
 }
 
 // The reasons the server gives for refusing a code; each has its own message.
 const VOUCHER_ERRORS = ['invalid', 'expired', 'used_up', 'already_redeemed', 'rate_limited'] as const;
 const isVoucherError = (code?: string): code is (typeof VOUCHER_ERRORS)[number] => VOUCHER_ERRORS.includes(code as never);
 
-export function VoucherSheet({ open, onClose, onRedeemed, t }: Props) {
+export function VoucherSheet({ open, onClose, onRedeemed }: Props) {
+  const { t } = useT();
   const formId = useId();
   const [code, setCode] = useState('');
   const [sending, setSending] = useState(false);

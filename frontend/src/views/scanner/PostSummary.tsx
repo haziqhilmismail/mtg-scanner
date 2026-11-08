@@ -2,7 +2,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { plural } from '../../i18n/index.ts';
 import { formatMyr, isLive } from '../../utils.ts';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { Settings } from '../../types.ts';
 import type { PhotoActions } from './usePhotoActions.ts';
 import type { Folder } from './usePosts.ts';
@@ -13,7 +13,6 @@ import type { usePostExport } from './usePostExport.ts';
 interface Props {
   photos: PhotoActions;
   settings: Settings;
-  t: T;
   folder: Folder;
   // Another mode holds the page's one primary button (Save order).
   quiet: boolean;
@@ -24,7 +23,8 @@ interface Props {
 
 // The post's total and its one primary action (Add all to post, or Finish
 // post for a price-on-photo post), then Share photos and Download all.
-export function PostSummary({ photos, settings, t, folder, quiet, jobs, exp }: Props) {
+export function PostSummary({ photos, settings, folder, quiet, jobs, exp }: Props) {
+  const { t } = useT();
   const { finishing, runFinishAll, explainFinish } = photos;
   const live = isLive(settings);
   const { items } = folder;

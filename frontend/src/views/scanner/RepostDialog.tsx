@@ -8,20 +8,20 @@ import { plural } from '../../i18n/index.ts';
 import { repostPlan, type RepostPhoto } from '../../lib/repost.ts';
 import { byPostOrder } from '../../utils.ts';
 import { thumbOf } from './PostRow.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { Folder, Posts } from './usePosts.ts';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   repost: Posts['repost'];
-  t: T;
   folder: Folder;
 }
 
 // Repost unsold cards: the photos the new post can hold, read from the post's
 // claims when the dialog opens, which of them to take, and its name.
-export function RepostDialog({ open, onClose, repost, folder, t }: Props) {
+export function RepostDialog({ open, onClose, repost, folder }: Props) {
+  const { t } = useT();
   const form = useId();
   const [plan, setPlan] = useState<RepostPhoto[] | null>(null);
   const [skipped, setSkipped] = useState<ReadonlySet<number>>(new Set());

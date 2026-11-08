@@ -11,7 +11,7 @@ import { pricingSummary } from '../../lib/pricing.ts';
 import { POSTS, UNFILED, type Route } from '../../routes.ts';
 import type { Batch, Settings } from '../../types.ts';
 import { byPostOrder, isLive, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
@@ -36,7 +36,6 @@ interface Props {
   scanner: ScannerStore;
   pricing: PricingStore;
   go: NavStore['go'];
-  t: T;
   posts: Posts;
   photos: PhotoActions;
   sort: PhotoSort;
@@ -45,7 +44,8 @@ interface Props {
   onOpenPhoto: (ids: string[]) => void;
 }
 
-export function PostPage({ folder, scanner, pricing, go, t, posts, photos, sort, setSort, onOpenPhoto }: Props) {
+export function PostPage({ folder, scanner, pricing, go, posts, photos, sort, setSort, onOpenPhoto }: Props) {
+  const { t } = useT();
   const { pickerPosts, postTitle, deletePhotos, moveTo } = posts;
   const { numbers, exportJob } = photos;
   const { pricingFor } = pricing;
@@ -69,7 +69,7 @@ export function PostPage({ folder, scanner, pricing, go, t, posts, photos, sort,
   const jobsOf = (batches: Batch[]) => batches.filter(b => live || b.lockedAt).flatMap(b => exportJob(b) ?? []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const shareJobs = useMemo(() => (isPost ? jobsOf(saved) : []), [isPost, saved, live, exportJob]);
-  const exp = usePostExport(shareJobs, folder.title, t);
+  const exp = usePostExport(shareJobs, folder.title);
   const visible = useMemo(
     () => sortPhotos(folder.items.filter(s => !q || s.names.some(n => n.toLowerCase().includes(q))), sort),
     [folder, q, sort],
@@ -132,12 +132,12 @@ export function PostPage({ folder, scanner, pricing, go, t, posts, photos, sort,
     <>
       <div className="post-layout">
         <div className="post-side">
-          {isPost && count ? <PostSummary photos={photos} settings={settings} t={t} folder={folder} quiet={mode.kind === 'reorder'} jobs={shareJobs} exp={exp} /> : null}
-          <PostPricingRow pricing={pricing} folder={folder} t={t} />
+          {isPost && count ? <PostSummary photos={photos} settings={settings} folder={folder} quiet={mode.kind === 'reorder'} jobs={shareJobs} exp={exp} /> : null}
+          <PostPricingRow pricing={pricing} folder={folder} />
         </div>
 
         <section className="post-main" aria-labelledby={headId}>
-          <ScanProgress progress={scanner.scanProgress} t={t} />
+          <ScanProgress progress={scanner.scanProgress} />
           <div className="ui-section-head">
             <h2 className="ui-section-title" id={headId} aria-live={mode.kind === 'select' ? 'polite' : undefined}>
               {mode.kind === 'select' ? (selected.size ? t('photos_selected', { n: selected.size }) : t('photos_select_title'))
@@ -198,7 +198,6 @@ export function PostPage({ folder, scanner, pricing, go, t, posts, photos, sort,
               inPost={isPost}
               numbers={mode.kind === 'reorder' ? new Map(draft.map((id, i) => [id, i + 1])) : numbers}
               settings={settings}
-              t={t}
               photoRoute={scanId => ({ page: 'photo', folder: folder.key, scanId })}
               mode={mode.kind === 'select' ? { kind: 'select', selected, onToggle: toggle }
                 : mode.kind === 'reorder' ? { kind: 'reorder', onMove: move } : {
@@ -242,29 +241,30 @@ export function PostPage({ folder, scanner, pricing, go, t, posts, photos, sort,
         </StickyBar>
       ) : null}
 
-      <PhotoDrop label={t('post_drop')} onPhotos={addPhotos} t={t} />
+      <PhotoDrop label={t('post_drop')} onPhotos={addPhotos} />
 
     </>
   );
 }
 
 // The post's pricing, or for the unfiled photos the default, once it is known.
-function PostPricingRow({ pricing, folder, t }: { pricing: PricingStore; folder: Folder; t: T }) {
+function PostPricingRow({ pricing, folder }: { pricing: PricingStore; folder: Folder }) {
+  const { t } = useT();
   const { pricingFor } = pricing;
   if (!pricing.pricingKnown(folder.postId)) return null;
   return folder.postId == null
-    ? <PricingRow title={t('pricing_row_default')} settings={pricingFor(null)} t={t} to={{ page: 'profile-pricing' }} />
-    : <PricingRow title={t('settings_title')} settings={pricingFor(folder.postId)} t={t} to={{ page: 'pricing', folder: folder.key }} />;
+    ? <PricingRow title={t('pricing_row_default')} settings={pricingFor(null)} to={{ page: 'profile-pricing' }} />
+    : <PricingRow title={t('settings_title')} settings={pricingFor(folder.postId)} to={{ page: 'pricing', folder: folder.key }} />;
 }
 
 interface RowProps {
   title: string;
   settings: Settings;
-  t: T;
   to: Route;
 }
 
-function PricingRow({ title, settings, t, to }: RowProps) {
+function PricingRow({ title, settings, to }: RowProps) {
+  const { t } = useT();
   return (
     <Link className="pricing-row" to={to}>
       <Icon name="tag" size={18} />

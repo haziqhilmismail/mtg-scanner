@@ -2,7 +2,7 @@
 // Telegram push renders as "💬 Feedback" instead of "🚨 Error".
 
 import { useId, useState } from 'react';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import { reportBug } from '../../lib/bugReporter.ts';
 import { TextArea } from '../../components/ui/Field.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
@@ -11,12 +11,12 @@ import { useToast } from '../../components/ui/Toast.tsx';
 interface Props {
   open: boolean;
   onClose: () => void;
-  t: T;
 }
 
 const MAX = 2000;
 
-export function FeedbackModal({ open, onClose, t }: Props) {
+export function FeedbackModal({ open, onClose }: Props) {
+  const { t } = useT();
   const formId = useId();
   const toast = useToast();
   const [message, setMessage] = useState('');

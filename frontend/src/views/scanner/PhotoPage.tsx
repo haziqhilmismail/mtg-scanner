@@ -6,11 +6,11 @@ import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { PrintingsModal } from './PrintingsModal.tsx';
-import type { T } from '../../hooks/useLang.ts';
+import { useT } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
-import { dateLocale, keyTaken } from '../../lib/browser.ts';
+import { keyTaken } from '../../lib/browser.ts';
 import { folderOf, POSTS, routeFolder } from '../../routes.ts';
 import type { Batch, Candidate, RelookupMsg } from '../../types.ts';
 import { isLive, matchThumbs } from '../../utils.ts';
@@ -22,15 +22,14 @@ interface Props {
   scanner: ScannerStore;
   pricingFor: PricingStore['pricingFor'];
   nav: NavStore;
-  t: T;
-  lang: string;
   posts: Posts;
   photos: PhotoActions;
   // The photos Prev and Next step through, as the post page listed them.
   navIds: string[];
 }
 
-export function PhotoPage({ batch, scanner, pricingFor, nav: { route, go, replace }, t, lang, posts, photos, navIds }: Props) {
+export function PhotoPage({ batch, scanner, pricingFor, nav: { route, go, replace }, posts, photos, navIds }: Props) {
+  const { t } = useT();
   const { openFolder, postsById, postTitle, deletePhotos } = posts;
   const { numbers, finishing, finishPhoto, deliverPhoto, editPrices, refreshScanPrices, addCard, takeOutCard } = photos;
   const dialog = useDialog();
@@ -163,8 +162,6 @@ export function PhotoPage({ batch, scanner, pricingFor, nav: { route, go, replac
         live={isLive(settings)}
         settings={settings}
         scanner={scanner}
-        t={t}
-        dateLocale={dateLocale(lang)}
         postTitle={postName}
         busy={finishing === batch.id}
         onFinish={() => finishPhoto(batch)}
@@ -206,7 +203,6 @@ export function PhotoPage({ batch, scanner, pricingFor, nav: { route, go, replac
         msg={relookup.msg}
         onFind={name => printingsCtx && findCard(printingsCtx.idx, name)}
         onUseAsIs={name => { if (printingsCtx) { if (name.trim()) scanner.useAsIs(printingsCtx.batchId, printingsCtx.idx, name.trim()); setPrintingsCtx(null); } }}
-        t={t}
       />
     </section>
   );
