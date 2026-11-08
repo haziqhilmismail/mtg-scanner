@@ -6,7 +6,6 @@ import asyncio
 import base64
 from contextlib import nullcontext
 from io import BytesIO
-from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
@@ -16,11 +15,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 
 from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter, owned
-from ..models import Listing, ListingStatus, Order, OrderItem, Post, Scan
+from ..models import Listing, ListingStatus, Post, Scan
 from ..models.card_correction import CorrectionKind
 from ..schemas.types import CardEdits, Id
 from ..services import catalogue, corrections, credits, scans
-from ..services.listings import drop_listing, locked_prices
+from ..services.listings import locked_prices
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
 router = APIRouter(tags=["scans"])
@@ -289,22 +288,7 @@ async def delete_scan(scan_id: Id, db: DbSession, user_id: CurrentUserId):
     """Drop a scan from the dashboard. Removes the DB row, the image bytes on
     disk, and the checklist cards added from it. A card in an open order
     stays (unlinked from the scan), so no buyer's claim is lost."""
-    scan_row = await owned(db, Scan, scan_id, user_id)
-    claimed = (
-        select(OrderItem.listing_id)
-        .join(Order, Order.id == OrderItem.order_id)
-        .where(Order.holds_stock)
-    )
-    for listing in (await db.execute(
-        select(Listing).where(Listing.scan_id == scan_id, Listing.id.not_in(claimed))
-    )).scalars().all():
-        await drop_listing(db, listing)
-    if scan_row.image_path:
-        try:
-            Path(scan_row.image_path).unlink(missing_ok=True)
-        except Exception:
-            pass
-    await db.delete(scan_row)
+    await scans.delete(db, await owned(db, Scan, scan_id, user_id))
 
 
 @router.post("/api/scans/{scan_id}/relookup-prices")

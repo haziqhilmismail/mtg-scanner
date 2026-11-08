@@ -4,10 +4,7 @@ free-form note. Its cards are listings linked through listing_post_links
 
 We never query Facebook. The URL is reference-only."""
 
-import asyncio
 import copy
-import os
-import shutil
 from decimal import Decimal
 from pathlib import Path
 
@@ -15,7 +12,6 @@ from fastapi import APIRouter, Form, HTTPException
 from pydantic import BaseModel, Field, Json
 from sqlalchemy import case, func, select, update
 
-from ..config import settings
 from ..deps import CurrentUserId, DbSession, owned, owned_many
 from ..models import (
     Listing,
@@ -30,8 +26,8 @@ from ..models import (
 from ..schemas import PostReadWithStats, PostUpdate
 from ..schemas.post import PostBase
 from ..schemas.types import CardEdits, Id, Pricing
-from ..services import catalogue
-from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
+from ..services import catalogue, scans
+from ..services.scans import scan_out
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
@@ -181,41 +177,10 @@ async def repost(post_id: Id, body: Repost, db: DbSession, user_id: CurrentUserI
     db.add(new_post)
     await db.flush()
     ck_index = await catalogue.ck_index() if body.new_prices else None
-    copies: list[Scan] = []
-    written: list[Path] = []
     try:
-        for photo in body.photos:
-            src = found[photo.scan_id]
-            try:
-                state, picks = split_state(photo.state, len(src.cards))
-            except ValueError as e:
-                raise HTTPException(400, str(e))
-            dup = Scan(
-                user_id=user_id, post_id=new_post.id, position=src.position, filename=src.filename,
-                width=src.width, height=src.height, gemini_raw=copy.deepcopy(src.gemini_raw), ui_state=state,
-            )
-            with dup.edit_payload() as payload:
-                apply_picks(payload, picks)
-                if ck_index:
-                    refresh_prices(payload, ck_index)
-            db.add(dup)
-            await db.flush()
-            dst = settings.scans_dir / f"{dup.id}.bin"
-            # A scan's picture never changes once saved, so a hard link is a
-            # full copy that takes no time and no space.
-            try:
-                os.link(src.image_path, dst)
-            except OSError:
-                await asyncio.to_thread(shutil.copyfile, src.image_path, dst)
-            written.append(dst)
-            dup.image_path = str(dst)
-            copies.append(dup)
-        await db.flush()
-    except BaseException:
-        # The rows roll back with the request; their pictures go too.
-        for path in written:
-            path.unlink(missing_ok=True)
-        raise
+        copies = await scans.copy_scans(db, [(found[p.scan_id], p.state) for p in body.photos], new_post.id, ck_index)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {
         "post": await _build_read_with_stats(db, new_post),
         "scans": [scan_out(dup, [], lite=True) for dup in copies],

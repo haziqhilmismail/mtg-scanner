@@ -1,9 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import MISSING, BaseModel, ConfigDict
+from pydantic import MISSING, BaseModel, ConfigDict, Field
 
 from ..models.order import OrderStatus
+from .listing import ListingBase
+from .types import Id
 
 
 class OrderItemRead(BaseModel):
@@ -46,3 +48,18 @@ class OrderRead(BaseModel):
     items: list[OrderItemRead]
     created_at: datetime
     updated_at: datetime
+
+
+class ConfirmItem(ListingBase):
+    """A claimed card: the listing it becomes, where it is in which photo,
+    and how many this buyer wants (qty_total is how many the seller has)."""
+    scan_id: Id
+    card_id: int
+    bbox: list[int] = Field(..., min_length=4, max_length=4)
+    qty: int = Field(1, ge=1)
+
+
+class ConfirmClaim(BaseModel):
+    buyer: str = Field(..., min_length=1, max_length=255)
+    note: str | None = None
+    items: list[ConfirmItem] = Field(..., min_length=1)

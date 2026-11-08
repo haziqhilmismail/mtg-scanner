@@ -1,11 +1,14 @@
-"""Orders: making one from a buyer's claim, and its running total."""
+"""Orders: making them from buyers' claims, and their running total."""
 
 from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from ..models import Buyer, Listing, Order, OrderItem
+from ..models import Buyer, Listing, ListingStatus, Order, OrderItem, Post, Scan
+from ..schemas.order import ConfirmClaim, ConfirmItem
+from .listings import locked_prices
 
 
 async def _buyer(db: AsyncSession, user_id: int, name: str) -> Buyer:
@@ -52,3 +55,47 @@ async def create_order(
     db.add(order)
     await db.flush()
     return order
+
+
+async def _listing_for(db: AsyncSession, user_id: int, post: Post | None, item: ConfirmItem) -> Listing:
+    """The stock listing behind a scanned card, created the first time the
+    card is claimed. A card is recognised by its scan and its box in the photo."""
+    rows = (await db.execute(
+        select(Listing)
+        .where(Listing.user_id == user_id, Listing.scan_id == item.scan_id)
+        .options(selectinload(Listing.posts))
+    )).scalars().all()
+    listing = next((l for l in rows if l.bbox == item.bbox and l.is_foil == item.is_foil), None)
+    if listing is None:
+        listing = Listing(
+            **item.model_dump(exclude={"card_id", "qty"}), user_id=user_id, status=ListingStatus.active,
+        )
+        listing.posts = [post] if post else []
+        db.add(listing)
+        await db.flush()
+        return listing
+    # Seen before: keep it in step with what the seller is showing now.
+    listing.unit_price_myr = item.unit_price_myr
+    listing.qty_total = max(listing.qty_total or 1, item.qty_total)
+    if post and post not in listing.posts:
+        listing.posts.append(post)
+    return listing
+
+
+async def confirm_claims(
+    db: AsyncSession, user_id: int, post: Post | None, scans: dict[int, Scan], claims: list[ConfirmClaim],
+) -> list[Order]:
+    """Orders for confirmed claims: one per buyer, in the order given. `scans`
+    holds this user's photos the items are on, by id. A card of a finished
+    photo sells at the price it was posted with. ValueError when a buyer name
+    is empty."""
+    locked = {sid: locked_prices(s.ui_state, s.cards) for sid, s in scans.items()}
+    out = []
+    for claim in claims:
+        lines = []
+        for item in claim.items:
+            if (price := locked[item.scan_id].get(tuple(item.bbox))) is not None:
+                item = item.model_copy(update={"unit_price_myr": price})
+            lines.append((await _listing_for(db, user_id, post, item), item.qty, item.unit_price_myr))
+        out.append(await create_order(db, user_id, claim.buyer, lines, notes=claim.note))
+    return out
