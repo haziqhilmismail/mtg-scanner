@@ -2,8 +2,8 @@ import { useMemo, useState, type ReactNode } from 'react';
 import type { Key, T } from '../../hooks/useLang.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { plural } from '../../i18n/index.ts';
-import type { Batch, CardRowData, Settings } from '../../types.ts';
-import { bboxKey, canRetry, cardName, computeCardData, formatMyr } from '../../utils.ts';
+import type { Batch, Settings } from '../../types.ts';
+import { bboxKey, canRetry, cardName, formatMyr } from '../../utils.ts';
 import { photoStatus } from './status.ts';
 import { AdjustPanel, type PriceEdit } from './AdjustPanel.tsx';
 import { BatchPreview } from './BatchPreview.tsx';
@@ -13,6 +13,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
+import { computeCardData, type CardRowData } from '../../lib/scanState.ts';
 
 interface Props {
   batch: Batch;

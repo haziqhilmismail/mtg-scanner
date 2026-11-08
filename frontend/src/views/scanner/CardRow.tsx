@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import type { T } from '../../hooks/useLang.ts';
-import type { CardRowData, Settings } from '../../types.ts';
+import type { Settings } from '../../types.ts';
 import { cardName, ckSearchUrl, fmt2, formatMyr, rarityKey, smallScryfallImage } from '../../utils.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { approxText, Money } from '../../components/Money.tsx';
 import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { Stepper } from '../../components/ui/Stepper.tsx';
 import { printingText, VersionLine } from '../../components/VersionLine.tsx';
+import type { CardRowData } from '../../lib/scanState.ts';
 
 interface Props {
   cd: CardRowData;

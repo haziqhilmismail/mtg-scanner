@@ -11,10 +11,10 @@ import type { SavedScan } from '../api/scans.ts';
 import type { Buyer, Listing, Order, Post, PostStatus } from '../api/checklist.ts';
 import { DEMO_CARDS, DEMO_IMAGE_H, DEMO_IMAGE_URL, DEMO_IMAGE_W } from '../data/demoScan.ts';
 import { resolvePricing } from '../lib/pricing.ts';
-import { freshState, type ScanUiState } from '../lib/scanState.ts';
+import { computeCardData, freshState, lockPrices, type ScanUiState } from '../lib/scanState.ts';
 import type { Candidate, DetectedCard, Settings } from '../types.ts';
 import type { Credits } from '../api/credits.ts';
-import { computeCardData, listingFields, lockPrices } from '../utils.ts';
+import { listingFields } from '../utils.ts';
 
 export interface ClaimComment { buyer: string; text: string }
 
