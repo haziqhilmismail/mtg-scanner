@@ -12,20 +12,7 @@ import { dateLocale } from '../../lib/browser.ts';
 import type { RepostPhoto } from '../../lib/repost.ts';
 import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
 import type { PriceMode } from '../../types.ts';
-import { photoStatus, type PhotoStatus } from './status.ts';
-
-// One post's worth of scans. `postId` null is the Unfiled photos.
-export interface Folder {
-  key: string;
-  postId: number | null;
-  title: string;
-  archived: boolean;    // hidden from the posts list (shown under Archived)
-  // Buyers with claims on the post, and how many still have to pay.
-  buyers: number;
-  unpaid: number;
-  paid: number;         // RM buyers have paid
-  items: PhotoStatus[];
-}
+import { photoStatus, type Folder } from './status.ts';
 
 const emptyUnfiled = (t: T): Folder => ({
   key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, buyers: 0, unpaid: 0, paid: 0, items: [],

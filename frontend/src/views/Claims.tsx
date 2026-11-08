@@ -35,12 +35,12 @@ import { ClaimSteps, HowDialog } from './claims/parts.tsx';
 import { useT } from '../hooks/useLang.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
-import type { Folder } from './scanner/usePosts.ts';
 import { cardRows, computeCardData, type CardRowData } from '../lib/scanState.ts';
 import { isLive } from '../lib/pricing.ts';
 import { approxText } from '../lib/money.ts';
 import { byPostOrder, photoNumbers } from './scanner/photos.ts';
 import { paymentLines } from '../lib/paymentDraft.ts';
+import type { Folder } from './scanner/status.ts';
 
 export interface ClaimsProps {
   // The open post, from the URL; null while another page shows. Claims

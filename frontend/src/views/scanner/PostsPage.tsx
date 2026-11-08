@@ -9,9 +9,10 @@ import { useT } from '../../hooks/useLang.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { ScanProgress } from './ScanProgress.tsx';
-import type { Folder, Posts } from './usePosts.ts';
+import type { Posts } from './usePosts.ts';
 import { NewPostDialog } from './NewPostDialog.tsx';
 import { isLive } from '../../lib/pricing.ts';
+import type { Folder } from './status.ts';
 
 // Posts: every post as a row with + New post above, the photos in no post,
 // and the archived posts behind their own heading.
