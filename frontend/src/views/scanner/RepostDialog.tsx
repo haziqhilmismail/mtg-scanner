@@ -9,8 +9,9 @@ import { plural } from '../../i18n/index.ts';
 import { repostPlan, type RepostPhoto } from '../../lib/repost.ts';
 import { thumbOf } from './PostRow.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import type { Folder, Posts } from './usePosts.ts';
+import type { Posts } from './usePosts.ts';
 import { byPostOrder } from './photos.ts';
+import type { Folder } from './status.ts';
 
 interface Props {
   open: boolean;

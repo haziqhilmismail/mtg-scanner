@@ -19,6 +19,19 @@ export interface PhotoStatus {
   names: string[];      // the visible cards' names, for search
 }
 
+// One post's worth of scans. `postId` null is the Unfiled photos.
+export interface Folder {
+  key: string;
+  postId: number | null;
+  title: string;
+  archived: boolean;    // hidden from the posts list (shown under Archived)
+  // Buyers with claims on the post, and how many still have to pay.
+  buyers: number;
+  unpaid: number;
+  paid: number;         // RM buyers have paid
+  items: PhotoStatus[];
+}
+
 // rows: the photo's cardRows, when the caller has them already.
 export function photoStatus(batch: Batch, settings: Settings, rows = cardRows(batch, settings)): PhotoStatus {
   const visible = rows.filter(cd => !cd.removed);
