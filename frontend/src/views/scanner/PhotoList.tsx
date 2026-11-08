@@ -2,12 +2,13 @@ import type { ReactNode } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { Money } from '../../components/Money.tsx';
-import { hideBroken, thumbOf, type BatchSummary } from '../../components/ScanGallery.tsx';
+import { hideBroken, thumbOf } from '../../components/ScanGallery.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Route } from '../../routes.ts';
 import type { Settings } from '../../types.ts';
 import { canRetry, formatMyr, isLive } from '../../utils.ts';
+import type { PhotoStatus } from './status.ts';
 
 // What a row of the list does: open its photo, be ticked, or move up and down.
 export type PhotoListMode =
@@ -16,7 +17,7 @@ export type PhotoListMode =
   | { kind: 'reorder'; onMove: (index: number, by: -1 | 1) => void };
 
 interface Props {
-  items: BatchSummary[];
+  items: PhotoStatus[];
   // Photos in a post; the unfiled ones have no post to add their cards to.
   inPost: boolean;
   // "Photo N" for each saved photo; in reorder mode the place in the draft.
@@ -75,7 +76,7 @@ export function PhotoList({ items, inPost, numbers, settings, mode, photoRoute, 
                 <span className="chips">
                   {b.lockedAt ? <span className="ui-chip"><Icon name="lock" size={13} />{t('tile_locked')}</span>
                     : s.pending && inPost ? <span className="ui-chip ui-chip--accent"><Icon name="addList" size={13} />{t('scans_cards_not_added', { n: s.pending })}</span> : null}
-                  {s.needs ? <span className="ui-chip ui-chip--warn"><Icon name="warning" size={13} />{t('scans_to_fix', { n: s.needs })}</span> : null}
+                  {s.unpriced ? <span className="ui-chip ui-chip--warn"><Icon name="warning" size={13} />{t('scans_to_fix', { n: s.unpriced })}</span> : null}
                 </span>
               ) : null}
             </span>

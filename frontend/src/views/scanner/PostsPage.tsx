@@ -20,7 +20,7 @@ export function PostsPage({ area }: { area: Area }) {
   // A post with buyers opens on Claims: collecting is what is left to do.
   const postRow = (f: Folder) => (
     <PostRow
-      title={f.title} items={f.items} total={f.total} settings={pricingFor(f.postId)} buyers={f.buyers} unpaid={f.unpaid} paid={f.paid} t={t}
+      title={f.title} items={f.items} settings={pricingFor(f.postId)} buyers={f.buyers} unpaid={f.unpaid} paid={f.paid} t={t}
       to={{ page: f.buyers ? 'claims' : 'post', folder: f.key }}
     />
   );

@@ -5,7 +5,6 @@ import type { Health } from '../../api/health.ts';
 import { statusOf } from '../../api/http.ts';
 import { relookupScanPrices } from '../../api/scans.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
-import { summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
@@ -20,6 +19,7 @@ import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
 import type { Batch, CardRowData, PriceMode, Settings } from '../../types.ts';
 import { bboxKey, computeCardData, downloadBlob, goldPill, isLive, listingFields, lockPrices, notAdded, photoLabel, photoNumbers, popupOpen, type PhotoSort } from '../../utils.ts';
 import { renderFile, type ExportJob } from './exportFiles.ts';
+import { photoStatus, type PhotoStatus } from './status.ts';
 
 // One post's worth of scans. `postId` null is the Unfiled photos.
 export interface Folder {
@@ -31,9 +31,7 @@ export interface Folder {
   buyers: number;
   unpaid: number;
   paid: number;         // RM buyers have paid
-  items: BatchSummary[];
-  needs: number;
-  total: number;
+  items: PhotoStatus[];
 }
 
 export interface ScannerProps {
@@ -78,7 +76,7 @@ function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | n
 
 // The photos in no post, before any are added to it.
 const emptyUnfiled = (t: T): Folder => ({
-  key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, buyers: 0, unpaid: 0, paid: 0, items: [], needs: 0, total: 0,
+  key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, buyers: 0, unpaid: 0, paid: 0, items: [],
 });
 
 // A key press that belongs to a field or to an open popup, not to the page.
@@ -338,15 +336,12 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   const folders = useMemo<Folder[]>(() => {
     const byKey = new Map<string, Folder>(posts.map(p => [folderOf(p.id), {
       key: folderOf(p.id), postId: p.id, title: postTitle(p), archived: p.status === 'archived',
-      buyers: p.buyer_count, unpaid: p.unpaid_buyer_count, paid: Number(p.paid_myr), items: [], needs: 0, total: 0,
+      buyers: p.buyer_count, unpaid: p.unpaid_buyer_count, paid: Number(p.paid_myr), items: [],
     }]));
     const unfiled = emptyUnfiled(t);
     for (const b of scanner.batches) {
       const f = byKey.get(folderOf(b.postId)) ?? unfiled;
-      const sum = summarise(b, pricingFor(f.postId));
-      f.items.push(sum);
-      f.needs += sum.needs;
-      f.total += sum.total;
+      f.items.push(photoStatus(b, pricingFor(f.postId)));
     }
     return unfiled.items.length ? [...byKey.values(), unfiled] : [...byKey.values()];
   }, [scanner.batches, posts, postTitle, pricingFor, t]);
