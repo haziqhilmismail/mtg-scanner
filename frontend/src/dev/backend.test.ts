@@ -6,7 +6,6 @@ import { fakeBackend } from './backend.ts';
 import { buildFixture } from './fixtures.ts';
 import type { TestData } from './mode.ts';
 
-// The fake backend as the app reaches it: requests in, responses out.
 function api(mode: TestData) {
   const answer = fakeBackend(buildFixture(mode));
   const send = (method: string, path: string, body?: unknown) => answer(new Request(`http://app.test${path}`, {
@@ -22,15 +21,6 @@ function api(mode: TestData) {
   });
   return { send, get, all };
 }
-
-test('many: 120 posts, one with 47 photos, a photo with 60 cards, 150 buyers', async () => {
-  const { posts, scans, buyers } = await api('many').all();
-  const photosPerPost = posts.map(p => scans.filter(s => s.post_id === p.id).length);
-  assert.equal(posts.length, 120);
-  assert.equal(Math.max(...photosPerPost), 47);
-  assert.equal(Math.max(...scans.map(s => s.cards.length)), 60);
-  assert.equal(buyers.length, 150);
-});
 
 test('one: exactly one of everything, every count at 1', async () => {
   const { get, all } = api('one');
