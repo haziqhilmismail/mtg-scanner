@@ -4,47 +4,19 @@ import { deleteScan as apiDeleteScan, fetchScans, SCANS_PAGE, saveScanState, sca
 import type { Credits } from '../api/credits.ts';
 import { OutOfCreditsError, statusOf } from '../api/http.ts';
 import type { Key } from '../i18n/index.ts';
+import { forgetLocalBatchState, keepSharedTombstones, localBatchState, sharedTombstones } from '../lib/legacy.ts';
 import { editCardState, freshState, normalizeUiState, uiStateOf, withCard, type CardState, type LockedPrice, type ScanUiState } from '../lib/scanState.ts';
+import { KEY, readTombstones, writeTombstones } from '../lib/storage.ts';
 import type { Batch, Candidate, DetectedCard } from '../types.ts';
 import { bboxKey, canRetry, correctionFor, generateBatchId } from '../utils.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
 
-// Older versions kept per-card UI state in localStorage under this key. A
-// scan the server has no state for uses it, the save queue uploads it, and it
-// is removed once a save of that scan succeeds.
-const STATE_KEY = (scanId: number) => `mtg.batchstate.${scanId}`;
 const SAVE_DELAY_MS = 800;
+const SCAN_CONCURRENCY = 3;
 
 // Tombstones: scan IDs the user has asked to delete but whose backend DELETE
 // hasn't been confirmed yet. Survives reload so a refresh-mid-clear can't
 // cause deleted scans to reappear, and so the unsent deletes get retried.
-// Per user, so another account signing in here doesn't clear them.
-const tombstoneKey = (userId: number | null) => `mtg.scan_tombstones.${userId}`;
-// Where they were kept before they were per user.
-const OLD_TOMBSTONES = 'mtg.scan_tombstones';
-const SCAN_CONCURRENCY = 3;
-
-function readTombstones(key: string): Set<number> {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((n): n is number => typeof n === 'number'));
-  } catch {
-    return new Set();
-  }
-}
-
-function writeTombstones(key: string, s: Set<number>) {
-  try {
-    if (s.size === 0) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(Array.from(s)));
-  } catch {
-    // quota / disabled — best effort
-  }
-}
-
 function addTombstones(key: string, ids: number[]) {
   if (!ids.length) return;
   const s = readTombstones(key);
@@ -94,7 +66,7 @@ function batchFromSavedScan(saved: SavedScan): Batch {
 // signOut is called if the server no longer knows the session. onCredits gets
 // the balance each scan answers with (a scan may cost a credit).
 export function useScanner(userId: number | null, signOut: () => void, onCredits: (credits: Credits) => void) {
-  const tombKey = tombstoneKey(userId);
+  const tombKey = KEY.tombstones(userId);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
   // Translation key of a background failure to tell the user about.
@@ -113,7 +85,7 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
   const { queue: saves, later: flushLater, flush: flushSaves } = useSaveQueue<number, ScanUiState>(
     (scanId, state, final, rev) => saveScanState(scanId, { ...state, rev }, final),
     scanId => {
-      try { localStorage.removeItem(STATE_KEY(scanId)); } catch { /* ignore */ }
+      forgetLocalBatchState(scanId);
       // The server has written the picks into the scan; sending them again would only rewrite it.
       if (!saves.busy(scanId)) commit(prev => prev.map(b => (b.scanId === scanId && b.picks.some(Boolean) ? { ...b, picks: b.picks.map(() => null) } : b)));
     },
@@ -127,13 +99,9 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Honour tombstones: scans the user previously deleted but whose
-      // backend DELETE never confirmed (e.g. refresh-mid-clear, backend
-      // --reload kicked in, network blip). Filter them out of the UI and
-      // fire the DELETE again so they're actually gone next time.
-      // Older versions kept them under one key for everyone: this user
-      // honours them too, and takes over those that are its scans.
-      const old = readTombstones(OLD_TOMBSTONES);
+      // Tombstoned scans are hidden and deleted again. The tombstones every
+      // user shared are honoured too; this user takes over those that are its scans.
+      const old = sharedTombstones();
       const tombstones = new Set([...readTombstones(tombKey), ...old]);
       const serverIds = new Set<number>();
       for (let before: number | undefined, told = false; ;) {
@@ -155,8 +123,7 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
         const kept = page.filter(s => !tombstones.has(s.scan_id));
         let seeded = false;
         const loaded = kept.reverse().map(s => {
-          let local: unknown = null;
-          if (!s.ui_state) try { local = JSON.parse(localStorage.getItem(STATE_KEY(s.scan_id)) ?? 'null'); } catch { /* corrupt: ignore */ }
+          const local = s.ui_state ? null : localBatchState(s.scan_id);
           if (!local) return batchFromSavedScan(s);
           const b = batchFromSavedScan({ ...s, ui_state: local });
           saves.save(s.scan_id, uiStateOf(b));
@@ -178,7 +145,7 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
       // Still on the server: delete again (which tombstones it under this
       // user). Gone: the earlier DELETE worked, we just never got to clear
       // its tombstone.
-      writeTombstones(OLD_TOMBSTONES, new Set(Array.from(old).filter(id => !serverIds.has(id))));
+      keepSharedTombstones(Array.from(old).filter(id => !serverIds.has(id)));
       tombstones.forEach(id => serverIds.has(id) && deleteSaved(tombKey, id));
       removeTombstones(tombKey, Array.from(tombstones).filter(id => !serverIds.has(id)));
       setLoadingSaved(false);

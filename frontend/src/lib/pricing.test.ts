@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { translate, type T } from '../i18n/index.ts';
 import { DEFAULT_SETTINGS } from '../types.ts';
 import {
-  defaultToUpload, formulaLine, legacyPricing, priceField, pricingKnown, pricingSummary, resolvePricing, ROUNDINGS, roundingKey,
+  formulaLine, priceField, pricingKnown, pricingSummary, resolvePricing, ROUNDINGS, roundingKey,
   roundingText, samePricing, savePricing,
 } from './pricing.ts';
 
@@ -22,26 +22,6 @@ test("a post's own pricing wins, then the user's default, then the built-in defa
 
 test('keys missing from a saved pricing fall back to the built-in default', () => {
   assert.deepEqual(resolvePricing({ multFoil: 5 }, null), { ...DEFAULT_SETTINGS, multFoil: 5 });
-});
-
-test("the browser's old pricing is uploaded only when the server has no default", () => {
-  assert.deepEqual(defaultToUpload(null, userDefault), userDefault);
-  assert.deepEqual(defaultToUpload(undefined, userDefault), userDefault);
-  assert.equal(defaultToUpload(post, userDefault), null);
-  assert.equal(defaultToUpload(null, null), null);
-});
-
-test("the browser's old pricing is read and brought up to date", () => {
-  assert.equal(legacyPricing(null, null), null);
-  assert.equal(legacyPricing('not json', '3'), null);
-  assert.equal(legacyPricing('null', '3'), null);
-  assert.deepEqual(legacyPricing(JSON.stringify({ multNormal: 3 }), '3'), { ...DEFAULT_SETTINGS, multNormal: 3 });
-  const v1 = legacyPricing(JSON.stringify({ labelPosition: 'bottom', rounding: 'nearest_0.5' }), null);
-  assert.equal(v1?.labelPosition, 'center');
-  assert.equal(v1?.roundDirection, 'nearest');
-  assert.equal(v1?.roundStep, 0.5);
-  assert.equal('rounding' in (v1 ?? {}), false);
-  assert.equal(legacyPricing(JSON.stringify({ rounding: 'none' }), '2')?.roundDirection, 'none');
 });
 
 test("a post's pricing can be saved only once it is known; the default always can", () => {

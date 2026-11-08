@@ -1,7 +1,8 @@
 // Every request goes through request(), which sends the session token. The
-// tokens are read fresh from localStorage each time, so signing out takes
-// effect at once (no in-memory copy to invalidate).
+// tokens are read fresh from storage each time, so signing out takes effect
+// at once (no in-memory copy to invalidate).
 
+import { KEY, storage } from '../lib/storage.ts';
 import type { Credits } from './credits.ts';
 
 // Where the API lives. The real site calls the Cloudflare Tunnel straight,
@@ -12,24 +13,16 @@ const API_BASE = typeof location !== 'undefined' && location.hostname === 'mtg.h
   ? 'https://api.haziqhilmi.com' : '';
 export const apiUrl = (path: string) => API_BASE + path;
 
-function storedToken(key: string) {
-  return {
-    get: (): string | null => {
-      try { return localStorage.getItem(key); } catch { return null; }
-    },
-    set: (token: string) => {
-      try { localStorage.setItem(key, token); } catch { /* ignore */ }
-    },
-    clear: () => {
-      try { localStorage.removeItem(key); } catch { /* ignore */ }
-    },
-  };
-}
+const storedToken = (key: string) => ({
+  get: () => storage.get(key),
+  set: (token: string) => storage.set(key, token),
+  clear: () => storage.remove(key),
+});
 
-export const authToken = storedToken('mtg.auth.token');
+export const authToken = storedToken(KEY.authToken);
 // Image-only token: <img src> can't send headers, so pictures carry this in
 // the URL. It can load images and nothing else, unlike the session token.
-export const imageToken = storedToken('mtg.auth.image_token');
+export const imageToken = storedToken(KEY.imageToken);
 
 // Set by the dev test-data harness (src/dev/harness.ts) to point image routes
 // at its own pictures. Never set in a production build.

@@ -9,11 +9,11 @@ import { summarise, type BatchSummary } from '../../components/ScanGallery.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
-import { readStored, writeStored } from '../../hooks/usePersistedState.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { plural } from '../../i18n/index.ts';
-import { migrateAdded } from '../../lib/addedMarkers.ts';
+import { migrateAdded } from '../../lib/legacy.ts';
+import { KEY, storage } from '../../lib/storage.ts';
 import type { RepostPhoto } from '../../lib/repost.ts';
 import { photoFileName } from '../../lib/photoFiles.ts';
 import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
@@ -229,9 +229,9 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
 
   // What Finish does, said once before the first time.
   const explainFinish = useCallback(async () => {
-    if (readStored('mtg.finish.explained', false)) return true;
+    if (storage.getJson(KEY.finishExplained, false)) return true;
     const ok = await dialog.confirm({ title: t('finish_explain_title'), message: t('finish_explain_msg'), okLabel: t('finish_explain_ok') });
-    if (ok) writeStored('mtg.finish.explained', true);
+    if (ok) storage.setJson(KEY.finishExplained, true);
     return ok;
   }, [dialog, t]);
 

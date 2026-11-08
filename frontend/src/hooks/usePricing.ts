@@ -2,32 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { saveDefaultPricing } from '../api/auth.ts';
 import { postsApi, type PostCreatePayload } from '../api/checklist.ts';
 import type { Key } from '../i18n/index.ts';
-import {
-  defaultToUpload, LEGACY_KEY, LEGACY_VERSION_KEY, legacyPricing, pricingKnown, resolvePricing, savePricing, type PricingState,
-} from '../lib/pricing.ts';
+import { forgetLegacyPricing, pricingToUpload } from '../lib/legacy.ts';
+import { pricingKnown, resolvePricing, savePricing, type PricingState } from '../lib/pricing.ts';
 import type { PriceMode, Settings } from '../types.ts';
 import { useSaveQueue } from './useSaveQueue.ts';
 
 // What gets saved: a post's pricing, or the user's default.
 type Target = number | 'default';
 
-function readLegacy(): Settings | null {
-  try { return legacyPricing(localStorage.getItem(LEGACY_KEY), localStorage.getItem(LEGACY_VERSION_KEY)); } catch { return null; }
-}
-
-function forgetLegacy() {
-  try { localStorage.removeItem(LEGACY_KEY); localStorage.removeItem(LEGACY_VERSION_KEY); } catch { /* ignore */ }
-}
-
 // Pricing per post plus the user's default, kept on the server. A saved
 // pricing shows at once and goes to the server straight after.
 // `serverDefault`: the user's default as /me answered (null: none set yet).
-// If the server has none, the browser's old pricing becomes it, once; the
-// browser's copy goes when the server has one.
+// If the server has none, the browser's old pricing becomes it, once (see
+// lib/legacy.ts); the browser's copy goes when the server has one.
 export function usePricing(serverDefault: Settings | null) {
-  const [state, setState] = useState<PricingState>(() => ({
-    userDefault: defaultToUpload(serverDefault, readLegacy()) ?? serverDefault, posts: {},
-  }));
+  const [state, setState] = useState<PricingState>(() => ({ userDefault: pricingToUpload(serverDefault) ?? serverDefault, posts: {} }));
   const stateRef = useRef(state);
   const set = useCallback((next: PricingState) => { stateRef.current = next; setState(next); }, []);
   const [notice, setNotice] = useState<Key | null>(null);
@@ -47,7 +36,7 @@ export function usePricing(serverDefault: Settings | null) {
     (target, pricing, final) => (target === 'default'
       ? saveDefaultPricing(pricing, final)
       : postsApi.update(target, { pricing }, final).then(() => undefined)),
-    target => { settle(target); if (target === 'default') forgetLegacy(); },
+    target => { settle(target); if (target === 'default') forgetLegacyPricing(); },
     target => { settle(target); setNotice('pricing_save_failed'); },
     { ordered: true },
   );
@@ -59,9 +48,9 @@ export function usePricing(serverDefault: Settings | null) {
   }, [saves]);
 
   useEffect(() => {
-    const upload = defaultToUpload(serverDefault, readLegacy());
+    const upload = pricingToUpload(serverDefault);
     if (upload) send('default', upload);
-    else if (serverDefault != null) forgetLegacy();
+    else if (serverDefault != null) forgetLegacyPricing();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
