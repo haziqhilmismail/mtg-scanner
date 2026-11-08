@@ -2,11 +2,13 @@
 // what they owe, and the message they are sent. Pure, so the page and the
 // tests read the same rules.
 
+import type { Buyer } from '../../api/buyers.ts';
+import type { Order, OrderItem } from '../../api/orders.ts';
 import type { Payment } from '../../api/payment.ts';
-import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
 import type { T } from '../../i18n/index.ts';
-import { fmt2, formatMyr, paymentLines } from '../../utils.ts';
 import type { CardRowData } from '../../lib/scanState.ts';
+import { fmt2, formatMyr } from '../../lib/money.ts';
+import { paymentLines } from '../../lib/paymentDraft.ts';
 
 export type PayState = 'unpaid' | 'paid' | 'done';
 export const PAY_STATES: readonly PayState[] = ['unpaid', 'paid', 'done'];
@@ -172,4 +174,31 @@ export function buyerMessage(name: string, lines: Line[], payment: Payment | nul
     name.trim().replace(/\s+/g, ' '), ...cards, '', `*${t('total')}: ${rm(total, cents)}*`,
     ...(pay.length ? ['', ...pay] : []),
   ].join('\n');
+}
+
+// Whether saving claims should end with the tip-jar popup: from the third
+// save on, at most once every 30 days, so a regular seller is asked about
+// once a month and a first-time one not at all.
+const SUPPORT_ASK_AFTER_SAVES = 3;
+export function dueForSupportAsk(saves: number, askedAt: number | null, now: number): boolean {
+  return saves >= SUPPORT_ASK_AFTER_SAVES && (askedAt == null || now - askedAt >= 30 * 24 * 3600 * 1000);
+}
+
+// How a comment screenshot got its photo: the seller picked it, the app saw
+// the photo in it (sure, or a best guess between look-alike photos), or it
+// follows the screenshot before (comments scrolled past the photo).
+// 'none': no photo in it and none before, so it goes with every photo.
+export type SortedBy = 'picked' | 'found' | 'guess' | 'follows' | 'none';
+
+// Which photo each screenshot, in the order taken, is about. Each has the
+// photo the app saw in it (`sure`) or its best guess (`guess`), either may be
+// null; `before` is the photo of the screenshot already there ahead of them,
+// and `unknown` is what a screenshot gets when nothing says which photo.
+export function sortScreenshots<P>(seen: Array<{ sure: P | null; guess: P | null }>, before: P | null, unknown: P): Array<{ scanId: P; by: SortedBy }> {
+  let last = before;
+  return seen.map(({ sure, guess }) => {
+    if (sure != null) { last = sure; return { scanId: sure, by: 'found' as const }; }
+    if (guess != null) { last = guess; return { scanId: guess, by: 'guess' as const }; }
+    return last != null ? { scanId: last, by: 'follows' as const } : { scanId: unknown, by: 'none' as const };
+  });
 }

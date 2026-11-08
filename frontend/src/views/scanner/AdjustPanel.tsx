@@ -1,14 +1,14 @@
 import { useId, useState } from 'react';
 import { useT, type T } from '../../hooks/useLang.ts';
-import { computeCardData, editCardState, type CardRowData, type CardState } from '../../lib/scanState.ts';
+import { cardName, cardRows, editCardState, type CardRowData, type CardState } from '../../lib/scanState.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { cardName, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../../utils.ts';
-import { approxText, Money } from '../../components/Money.tsx';
+import { Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
 import { Stepper } from '../../components/ui/Stepper.tsx';
 import { printingText } from '../../components/VersionLine.tsx';
+import { currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride, approxText } from '../../lib/money.ts';
 
 // What Save price writes back to the card: its finish, its own multiplier
 // (null: the pricing's) and its own price (null: none, see PriceOverride).
@@ -55,7 +55,7 @@ export function AdjustPanel({ open, batch, idx, live, settings, onClose, onSave 
     multOverride: draft.multOverride,
     priceOverride: overrideText(typeof price === 'number' ? { unit: draft.unit, amount: price } : null),
   };
-  const cd = computeCardData(batch.response?.cards ?? [], editCardState(batch, idx, edit), settings)[idx];
+  const cd = cardRows(editCardState(batch, idx, edit), settings)[idx];
   if (!cd) return null;
 
   const name = cardName(cd, t);

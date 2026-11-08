@@ -2,6 +2,7 @@
 // fields, and the QR as a choice that Save carries out.
 
 import type { Payment } from '../api/payment.ts';
+import type { T } from '../i18n/index.ts';
 
 export type PaymentFields = Omit<Payment, 'qr_version'>;
 
@@ -37,3 +38,13 @@ export function changesOf(saved: Payment, draft: PaymentDraft): { fields: Paymen
 
 // The details as buyers will get them once the draft is saved (see paymentLines).
 export const previewOf = (draft: PaymentDraft): Payment => ({ ...trimmed(draft.fields), qr_version: null });
+
+// The seller's payment details as lines under a buyer's message
+// (DESIGN.md section 8): "Payment: {bank} {number} ({name})", then the note.
+// Empty parts are left out; nothing filled in gives no lines.
+export function paymentLines(p: Payment | null, t: T): string[] {
+  if (!p) return [];
+  const holder = p.bank_account_holder.trim();
+  const account = [p.bank_name.trim(), p.bank_account_number.trim(), holder && `(${holder})`].filter(Boolean).join(' ');
+  return [account && t('pay_copy_account', { account }), p.payment_note.trim()].filter(Boolean);
+}

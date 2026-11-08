@@ -5,11 +5,20 @@ import type { Credits } from '../api/credits.ts';
 import { OutOfCreditsError, statusOf } from '../api/http.ts';
 import type { Key } from '../i18n/index.ts';
 import { forgetLocalBatchState, keepSharedTombstones, localBatchState, sharedTombstones } from '../lib/legacy.ts';
-import { correctionFor, editCardState, freshState, normalizeUiState, uiStateOf, withCard, type CardState, type LockedPrice, type ScanUiState } from '../lib/scanState.ts';
+import { correctionFor, editCardState, freshState, normalizeUiState, uiStateOf, withCard, type CardState, type LockedPrice, type ScanUiState, bboxKey } from '../lib/scanState.ts';
 import { KEY, readTombstones, writeTombstones } from '../lib/storage.ts';
 import type { Batch, Candidate, DetectedCard } from '../types.ts';
-import { bboxKey, canRetry, generateBatchId } from '../utils.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
+
+// A failed scan of a photo picked in this session can run again. Saved scans
+// loaded from the server have no file.
+export function canRetry(b: Batch): b is Batch & { file: File } {
+  return b.status === 'error' && b.file != null;
+}
+
+function generateBatchId(): string {
+  return 'b' + Date.now() + Math.random().toString(36).slice(2, 6);
+}
 
 const SAVE_DELAY_MS = 800;
 const SCAN_CONCURRENCY = 3;

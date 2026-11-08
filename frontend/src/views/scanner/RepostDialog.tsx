@@ -1,15 +1,17 @@
 import { useEffect, useId, useState } from 'react';
-import { listingsApi, ordersApi } from '../../api/checklist.ts';
+import { fetchListings } from '../../api/listings.ts';
+import { fetchOrders } from '../../api/orders.ts';
 import { Spinner } from '../../components/Spinner.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { Checkbox } from '../../components/ui/Checkbox.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { plural } from '../../i18n/index.ts';
 import { repostPlan, type RepostPhoto } from '../../lib/repost.ts';
-import { byPostOrder } from '../../utils.ts';
 import { thumbOf } from './PostRow.tsx';
 import { useT } from '../../hooks/useLang.ts';
-import type { Folder, Posts } from './usePosts.ts';
+import type { Posts } from './usePosts.ts';
+import { byPostOrder } from './photos.ts';
+import type { Folder } from './status.ts';
 
 interface Props {
   open: boolean;
@@ -36,7 +38,7 @@ export function RepostDialog({ open, onClose, repost, folder }: Props) {
     setPlan(null); setSkipped(new Set()); setNewPrices(true); setError(''); setBusy(false);
     setName(t('repost_name', { title: folder.title }));
     let current = true;
-    Promise.all([listingsApi.list(), ordersApi.list(true)]).then(
+    Promise.all([fetchListings(), fetchOrders(true)]).then(
       ([listings, orders]) => { if (current) setPlan(repostPlan(photos, listings, orders)); },
       e => { if (current) setError((e as Error).message); },
     );

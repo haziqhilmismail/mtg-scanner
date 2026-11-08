@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchCredits } from './api/credits.ts';
 import { fetchHealth, type Health } from './api/health.ts';
-import { formatRelativeTime } from './utils.ts';
 import { DialogProvider, useDialog } from './components/DialogProvider.tsx';
 import { FloatingBackToTop } from './components/FloatingBackToTop.tsx';
 import { Header } from './components/Header.tsx';
 import { ImageZoomProvider } from './components/ImageZoomProvider.tsx';
 import { VoucherSheet } from './components/VoucherSheet.tsx';
 import { useAuth } from './hooks/useAuth.ts';
-import { TProvider, useLang, useT } from './hooks/useLang.ts';
+import { TProvider, useLang, useT, type T } from './hooks/useLang.ts';
 import { NavProvider, useNav } from './hooks/useNav.ts';
 import { usePayment } from './hooks/usePayment.ts';
 import { usePricing } from './hooks/usePricing.ts';
@@ -21,6 +20,19 @@ import { PricingPage } from './views/PricingPage.tsx';
 import { Profile } from './views/profile/Profile.tsx';
 import { Scanner } from './views/scanner/Scanner.tsx';
 import type { Key } from './hooks/useLang.ts';
+
+// Short relative time ("just now", "5m ago", "2h ago", "3d ago").
+function formatRelativeTime(epochSeconds: number, t: T): string {
+  const diffMs = Date.now() - epochSeconds * 1000;
+  if (diffMs < 0) return t('relative_now');  // clock skew → "just now"
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return t('relative_now');
+  if (diffMin < 60) return t('relative_min', { n: diffMin });
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return t('relative_hr', { n: diffHr });
+  const diffDay = Math.floor(diffHr / 24);
+  return t('relative_day', { n: diffDay });
+}
 
 export default function App() {
   const { appearance, setAppearance } = useTheme();

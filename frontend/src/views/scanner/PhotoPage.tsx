@@ -13,9 +13,10 @@ import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { keyTaken } from '../../lib/browser.ts';
 import { folderOf, POSTS, routeFolder } from '../../routes.ts';
 import type { Batch, Candidate, RelookupMsg } from '../../types.ts';
-import { isLive, matchThumbs } from '../../utils.ts';
 import type { PhotoActions } from './usePhotoActions.ts';
 import type { Posts } from './usePosts.ts';
+import { isLive } from '../../lib/pricing.ts';
+import { matchThumbs } from './photos.ts';
 
 interface Props {
   batch: Batch;

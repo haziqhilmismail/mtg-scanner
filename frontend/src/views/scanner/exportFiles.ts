@@ -1,5 +1,5 @@
 import { exportAllImages, exportImage, type ExportPayload } from '../../api/export.ts';
-import { downloadBlob } from '../../utils.ts';
+import { downloadBlob } from '../../lib/browser.ts';
 
 // A labelled photo to render: what the server draws, and the file's name.
 export interface ExportJob {

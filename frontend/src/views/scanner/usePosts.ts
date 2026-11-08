@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { postsApi, repostPost, type Post } from '../../api/checklist.ts';
+import { deletePost as apiDeletePost, type Post, repostPost, updatePost } from '../../api/posts.ts';
 import { statusOf } from '../../api/http.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
@@ -12,20 +12,7 @@ import { dateLocale } from '../../lib/browser.ts';
 import type { RepostPhoto } from '../../lib/repost.ts';
 import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
 import type { PriceMode } from '../../types.ts';
-import { photoStatus, type PhotoStatus } from './status.ts';
-
-// One post's worth of scans. `postId` null is the Unfiled photos.
-export interface Folder {
-  key: string;
-  postId: number | null;
-  title: string;
-  archived: boolean;    // hidden from the posts list (shown under Archived)
-  // Buyers with claims on the post, and how many still have to pay.
-  buyers: number;
-  unpaid: number;
-  paid: number;         // RM buyers have paid
-  items: PhotoStatus[];
-}
+import { photoStatus, type Folder } from './status.ts';
 
 const emptyUnfiled = (t: T): Folder => ({
   key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, buyers: 0, unpaid: 0, paid: 0, items: [],
@@ -178,7 +165,7 @@ export function usePosts({ scanner, nav: { route, go, replace, current }, pricin
     if (folder.postId == null || !title || title === folder.title) return;
     setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, title } : p)));
     try {
-      await postsApi.update(folder.postId, { title });
+      await updatePost(folder.postId, { title });
     } catch (e) {
       await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
@@ -192,7 +179,7 @@ export function usePosts({ scanner, nav: { route, go, replace, current }, pricin
     const status = archived ? 'archived' : 'active';
     setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, status } : p)));
     try {
-      await postsApi.update(folder.postId, { status });
+      await updatePost(folder.postId, { status });
     } catch (e) {
       await refreshPosts();
       await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });
@@ -221,7 +208,7 @@ export function usePosts({ scanner, nav: { route, go, replace, current }, pricin
     });
     if (!ok) return;
     try {
-      await postsApi.remove(folder.postId);
+      await apiDeletePost(folder.postId);
     } catch (e) {
       if (statusOf(e) !== 409) {
         await dialog.alert({ title: t('alert_error_title'), message: (e as Error).message });

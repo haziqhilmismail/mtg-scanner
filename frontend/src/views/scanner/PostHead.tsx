@@ -5,9 +5,10 @@ import { Link } from '../../components/Link.tsx';
 import { Menu } from '../../components/ui/Menu.tsx';
 import { POSTS } from '../../routes.ts';
 import { useT } from '../../hooks/useLang.ts';
-import type { Folder, Posts } from './usePosts.ts';
+import type { Posts } from './usePosts.ts';
 import { RenamePostDialog } from './RenamePostDialog.tsx';
 import { RepostDialog } from './RepostDialog.tsx';
+import type { Folder } from './status.ts';
 
 export type PostPart = 'photos' | 'claims';
 

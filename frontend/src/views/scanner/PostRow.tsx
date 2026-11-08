@@ -5,12 +5,13 @@ import type { SyntheticEvent } from 'react';
 import { plural } from '../../i18n/index.ts';
 import type { Route } from '../../routes.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { formatMyr, isLive } from '../../utils.ts';
 import { postStatus, type PhotoStatus } from './status.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { Money } from '../../components/Money.tsx';
+import { formatMyr } from '../../lib/money.ts';
+import { isLive } from '../../lib/pricing.ts';
 
 export const thumbOf = (b: Batch) => (b.response ? b.response.thumb_url ?? b.response.image_b64 : null);
 

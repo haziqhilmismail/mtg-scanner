@@ -4,11 +4,12 @@ import { statusOf } from '../../api/http.ts';
 import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Candidate, RelookupMsg } from '../../types.ts';
-import { fmt2, smallScryfallImage } from '../../utils.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { printingText } from '../../components/VersionLine.tsx';
+import { fmt2 } from '../../lib/money.ts';
+import { smallScryfallImage } from './photos.ts';
 
 interface Props {
   open: boolean;

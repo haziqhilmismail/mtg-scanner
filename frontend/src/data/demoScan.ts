@@ -10,7 +10,7 @@
 //   4. Update DEMO_IMAGE_W / DEMO_IMAGE_H and DEMO_CROP to match.
 
 import { DEFAULT_SETTINGS } from '../types.ts';
-import { applyRounding } from '../utils.ts';
+import { applyRounding } from '../lib/money.ts';
 
 export interface DemoCard {
   id: number;

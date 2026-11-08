@@ -7,40 +7,40 @@
 // Status changes and Remove buyer show at once and offer Undo.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { paymentApi, type Payment } from '../api/payment.ts';
-import { relookupScanPrices } from '../api/scans.ts';
-import {
-  buyersApi, listingsApi, ordersApi, salesApi,
-  type Buyer, type Listing, type Order, type OrderItem, type SentLine,
-} from '../api/checklist.ts';
-import type { CardRef, Photo } from './claims/ClaimPickers.tsx';
-import { Icon } from '../components/Icon.tsx';
-import { Link } from '../components/Link.tsx';
-import { approxText, Money } from '../components/Money.tsx';
-import { SlipsSheet } from './claims/SlipsSheet.tsx';
-import { Spinner } from '../components/Spinner.tsx';
-import { SupportSheet } from '../components/SupportSheet.tsx';
-import { Segmented } from '../components/ui/Segmented.tsx';
-import { useToast } from '../components/ui/Toast.tsx';
-import { usePersistedState } from '../hooks/usePersistedState.ts';
-import { KEY } from '../lib/storage.ts';
-import { plural } from '../i18n/index.ts';
-import type { Credits } from '../api/credits.ts';
-import { canShareFiles, dateLocale, fetchQrFile, isPhone, popupOpen, useFileDrop } from '../lib/browser.ts';
-import { byPostOrder, dueForSupportAsk, isLive, paymentLines, photoNumbers } from '../utils.ts';
-import { AddComments } from './claims/AddComments.tsx';
-import { BuyerCard } from './claims/BuyerCard.tsx';
-import { BuyerDialog } from './claims/BuyerDialog.tsx';
-import {
-  buyerGroups, buyerMessage, claimedCounts, claimTotals, CLAIM_SORTS, PAY_STATES, priceFormula, rm, sortGroups, stampsFor,
-  type BuyerGroup, type ClaimSort, type Line, type PayState, type Stamps, type StatusMove,
-} from './claims/model.ts';
-import { ClaimSteps, HowDialog } from './claims/parts.tsx';
-import { useT } from '../hooks/useLang.ts';
-import type { PricingStore } from '../hooks/usePricing.ts';
-import type { ScannerStore } from '../hooks/useScanner.ts';
-import type { Folder } from './scanner/usePosts.ts';
-import { computeCardData, type CardRowData } from '../lib/scanState.ts';
+import { type Buyer, fetchBuyers, updateBuyer } from '../../api/buyers.ts';
+import { fetchListings, type Listing } from '../../api/listings.ts';
+import { cancelOrder, fetchOrders, type Order, type OrderItem, restoreOrder, setOrderPrices, unsendOrderPrices, updateOrder } from '../../api/orders.ts';
+import { type Payment, paymentQrUrl } from '../../api/payment.ts';
+import { recordSales as apiRecordSales, type SentLine } from '../../api/sales.ts';
+import { relookupScanPrices } from '../../api/scans.ts';
+import type { CardRef, Photo } from './ClaimPickers.tsx';
+import { Icon } from '../../components/Icon.tsx';
+import { Link } from '../../components/Link.tsx';
+import { Money } from '../../components/Money.tsx';
+import { SlipsSheet } from './SlipsSheet.tsx';
+import { Spinner } from '../../components/Spinner.tsx';
+import { SupportSheet } from '../../components/SupportSheet.tsx';
+import { Segmented } from '../../components/ui/Segmented.tsx';
+import { useToast } from '../../components/ui/Toast.tsx';
+import { usePersistedState } from '../../hooks/usePersistedState.ts';
+import { KEY } from '../../lib/storage.ts';
+import { plural } from '../../i18n/index.ts';
+import type { Credits } from '../../api/credits.ts';
+import { canShareFiles, dateLocale, fetchQrFile, isPhone, popupOpen, useFileDrop } from '../../lib/browser.ts';
+import { AddComments } from './AddComments.tsx';
+import { BuyerCard } from './BuyerCard.tsx';
+import { BuyerDialog } from './BuyerDialog.tsx';
+import { buyerGroups, buyerMessage, claimedCounts, claimTotals, CLAIM_SORTS, PAY_STATES, priceFormula, rm, sortGroups, stampsFor, type BuyerGroup, type ClaimSort, type Line, type PayState, type Stamps, type StatusMove, dueForSupportAsk } from './model.ts';
+import { ClaimSteps, HowDialog } from './parts.tsx';
+import { useT } from '../../hooks/useLang.ts';
+import type { PricingStore } from '../../hooks/usePricing.ts';
+import type { ScannerStore } from '../../hooks/useScanner.ts';
+import { cardRows, computeCardData, type CardRowData } from '../../lib/scanState.ts';
+import { isLive } from '../../lib/pricing.ts';
+import { approxText } from '../../lib/money.ts';
+import { byPostOrder, photoNumbers } from '../scanner/photos.ts';
+import { paymentLines } from '../../lib/paymentDraft.ts';
+import type { Folder } from '../scanner/status.ts';
 
 export interface ClaimsProps {
   // The open post, from the URL; null while another page shows. Claims
@@ -104,7 +104,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
   const reload = useCallback(async () => {
     try {
       // The posts too: their claim counts show on Posts and on the tabs.
-      const [l, o, b] = await Promise.all([listingsApi.list(), ordersApi.list(true), buyersApi.list(), refreshPosts()]);
+      const [l, o, b] = await Promise.all([fetchListings(), fetchOrders(true), fetchBuyers(), refreshPosts()]);
       setListings(l); setOrders(o); setBuyers(b); setLoadError('');
     } catch (e) {
       setLoadError((e as Error).message);
@@ -130,7 +130,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
       .sort(byPostOrder)
       .map((batch, at) => {
         const index = numbers.get(batch.id) ?? at + 1;
-        const visible = computeCardData(batch.response!.cards, batch, settings).filter(cd => !cd.removed);
+        const visible = cardRows(batch, settings).filter(cd => !cd.removed);
         const where = describePositions(visible);
         return {
           batch, index,
@@ -226,7 +226,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
   }, [toast, t, reload, refreshPosts]);
   const stamp = useCallback((changes: Map<number, Stamps>) => {
     setOrders(prev => prev.map(o => (changes.has(o.id) ? { ...o, ...changes.get(o.id) } : o)));
-    queue(async () => { for (const [id, s] of changes) await ordersApi.update(id, s); });
+    queue(async () => { for (const [id, s] of changes) await updateOrder(id, s); });
   }, [queue]);
   const move = useCallback((g: BuyerGroup, to: StatusMove) => {
     const now = new Date().toISOString();
@@ -244,7 +244,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
   }, [stamp, toast, t]);
   const cancelOrders = useCallback((ids: number[], cancelled: boolean) => {
     setOrders(prev => prev.map(o => (ids.includes(o.id) ? { ...o, status: cancelled ? 'cancelled' : 'claimed' } : o)));
-    queue(async () => { for (const id of ids) await (cancelled ? ordersApi.cancel(id) : ordersApi.restore(id)); });
+    queue(async () => { for (const id of ids) await (cancelled ? cancelOrder(id) : restoreOrder(id)); });
   }, [queue]);
   const remove = (g: BuyerGroup) => {
     const ids = g.orders.map(o => o.id);
@@ -254,7 +254,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
   };
   const saveBuyer = async (g: BuyerGroup, change: { fb_name: string } | { phone: string | null }) => {
     try {
-      const saved = await buyersApi.update(g.buyerId, change);
+      const saved = await updateBuyer(g.buyerId, change);
       setBuyers(prev => prev.map(b => (b.id === saved.id ? saved : b)));
       return true;
     } catch {
@@ -275,7 +275,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
       if (o.prices_sent_at) continue;
       const items = g.lines.filter(l => o.items.some(i => i.id === l.id)).map(l => ({ id: l.id, unit_price_myr: l.each.toFixed(2) }));
       try {
-        const saved = await ordersApi.setPrices(o.id, items, true);
+        const saved = await setOrderPrices(o.id, items, true);
         applyPrices(saved);
       } catch { all = false; /* stays an estimate: copying again sends it */ }
     }
@@ -294,7 +294,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
       };
     });
     // Best effort: a lost call is made up the next time the message is copied.
-    salesApi.record('copy', postId, settings.priceMode, lines).catch(() => {});
+    apiRecordSales('copy', postId, settings.priceMode, lines).catch(() => {});
   };
   const messageOf = (g: BuyerGroup) => buyerMessage(g.name, g.lines, payment, cents, t);
   const copy = async (g: BuyerGroup) => {
@@ -306,7 +306,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
     try {
       for (const o of g.orders) {
         if (!o.prices_sent_at) continue;
-        const saved = await ordersApi.unsendPrices(o.id);
+        const saved = await unsendOrderPrices(o.id);
         applyPrices(saved);
       }
     } catch {
@@ -321,7 +321,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
     setQrFile(null);
     if (!payment?.qr_version) return;
     let current = true;
-    fetchQrFile(paymentApi.qrUrl(payment.qr_version))
+    fetchQrFile(paymentQrUrl(payment.qr_version))
       .then(file => { if (current) setQrFile(file); }, () => { /* no QR button */ });
     return () => { current = false; };
   }, [payment?.qr_version]);
@@ -357,7 +357,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
           return cd && Number.isFinite(cd.unitPrice) && cd.unitPrice > 0 ? [{ id: i.id, unit_price_myr: cd.unitPrice.toFixed(2) }] : [];
         });
         if (!items.length) continue;
-        const saved = await ordersApi.setPrices(o.id, items);
+        const saved = await setOrderPrices(o.id, items);
         applyPrices(saved);
       }
     } catch {
