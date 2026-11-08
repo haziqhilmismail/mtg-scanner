@@ -8,6 +8,7 @@ import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { plural } from '../../i18n/index.ts';
+import { dateLocale } from '../../lib/browser.ts';
 import type { RepostPhoto } from '../../lib/repost.ts';
 import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
 import type { PriceMode } from '../../types.ts';
@@ -133,7 +134,7 @@ export function usePosts({ scanner, nav: { route, go, replace, current }, pricin
   const startPost = useCallback(async (files: File[], priceMode: PriceMode) => {
     let postId: number | null = null;
     try {
-      const title = new Date().toLocaleString(lang === 'ms' ? 'ms-MY' : 'en-MY', {
+      const title = new Date().toLocaleString(dateLocale(lang), {
         day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
       });
       const post = await createPost({ title }, priceMode);

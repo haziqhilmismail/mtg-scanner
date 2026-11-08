@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiUrl } from '../api/http.ts';
 import type { T } from '../hooks/useLang.ts';
+import { canShareFiles, fetchQrFile } from '../lib/browser.ts';
 import { downloadBlob } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 import { Dialog } from './ui/Dialog.tsx';
@@ -31,14 +32,13 @@ export function SupportSheet({ open, onClose, asking, t }: Props) {
   useEffect(() => {
     if (!open || file) return;
     let current = true;
-    fetch(QR_SRC)
-      .then(r => (r.ok ? r.blob() : Promise.reject()))
-      .then(b => { if (current) setFile(new File([b], 'duitnow-qr.png', { type: 'image/png' })); }, () => { /* no Save button */ });
+    fetchQrFile(QR_SRC)
+      .then(f => { if (current) setFile(f); }, () => { /* no Save button */ });
     return () => { current = false; };
   }, [open, file]);
   const save = () => {
     if (!file) return;
-    if (IOS && navigator.canShare?.({ files: [file] })) navigator.share({ files: [file] }).catch(() => { /* closed */ });
+    if (IOS && canShareFiles([file])) navigator.share({ files: [file] }).catch(() => { /* closed */ });
     else downloadBlob(file, file.name);
   };
 

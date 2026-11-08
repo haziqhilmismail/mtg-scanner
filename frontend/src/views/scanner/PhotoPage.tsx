@@ -10,7 +10,7 @@ import type { T } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
-import { keyTaken } from '../../lib/browser.ts';
+import { dateLocale, keyTaken } from '../../lib/browser.ts';
 import { folderOf, POSTS, routeFolder } from '../../routes.ts';
 import type { Batch, Candidate, RelookupMsg } from '../../types.ts';
 import { isLive, matchThumbs } from '../../utils.ts';
@@ -165,7 +165,7 @@ export function PhotoPage({ batch, scanner, pricingFor, nav: { route, go, replac
         settings={settings}
         scanner={scanner}
         t={t}
-        dateLocale={lang === 'ms' ? 'ms-MY' : 'en-MY'}
+        dateLocale={dateLocale(lang)}
         postTitle={postName}
         busy={finishing === batch.id}
         onFinish={() => finishPhoto(batch)}
