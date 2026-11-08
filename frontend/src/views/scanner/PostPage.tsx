@@ -2,13 +2,14 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { PhotoDrop } from '../../components/PhotoDrop.tsx';
-import { PricingRow } from '../../components/SettingsPanel.tsx';
+import { Link } from '../../components/Link.tsx';
 import { Select, TextField } from '../../components/ui/Field.tsx';
 import { StickyBar } from '../../components/ui/StickyBar.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
 import { photosOf } from '../../lib/photoFiles.ts';
-import { POSTS, UNFILED } from '../../routes.ts';
-import type { Batch } from '../../types.ts';
+import { pricingSummary } from '../../lib/pricing.ts';
+import { POSTS, UNFILED, type Route } from '../../routes.ts';
+import type { Batch, Settings } from '../../types.ts';
 import { byPostOrder, isLive, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
 import type { T } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
@@ -254,4 +255,24 @@ function PostPricingRow({ pricing, folder, t }: { pricing: PricingStore; folder:
   return folder.postId == null
     ? <PricingRow title={t('pricing_row_default')} settings={pricingFor(null)} t={t} to={{ page: 'profile-pricing' }} />
     : <PricingRow title={t('settings_title')} settings={pricingFor(folder.postId)} t={t} to={{ page: 'pricing', folder: folder.key }} />;
+}
+
+interface RowProps {
+  title: string;
+  settings: Settings;
+  t: T;
+  to: Route;
+}
+
+function PricingRow({ title, settings, t, to }: RowProps) {
+  return (
+    <Link className="pricing-row" to={to}>
+      <Icon name="tag" size={18} />
+      <span className="pricing-row-text">
+        <span className="pricing-row-title">{title}</span>
+        <span className="pricing-row-summary">{pricingSummary(settings, t)}</span>
+      </span>
+      <span className="pricing-row-change">{t('pricing_edit')}</span>
+    </Link>
+  );
 }

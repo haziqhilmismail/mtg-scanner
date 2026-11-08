@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Breadcrumbs, type Crumb } from '../components/Breadcrumbs.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { PricingExample } from '../components/SettingsPanel.tsx';
+import { PricingExample } from '../components/PricingExample.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { Checkbox } from '../components/ui/Checkbox.tsx';
 import { Select, TextField } from '../components/ui/Field.tsx';
