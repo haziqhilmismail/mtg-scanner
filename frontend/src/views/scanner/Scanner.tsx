@@ -4,7 +4,7 @@ import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { POSTS } from '../../routes.ts';
-import { Claims, type ClaimsProps } from '../Claims.tsx';
+import { Claims, type ClaimsProps } from '../claims/Claims.tsx';
 import { PricingPage } from '../PricingPage.tsx';
 import { PhotoPage } from './PhotoPage.tsx';
 import { PostHead } from './PostHead.tsx';
