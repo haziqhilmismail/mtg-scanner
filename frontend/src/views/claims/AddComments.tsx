@@ -75,7 +75,6 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
       const all = photos.map(p => p.batch.scanId as number);
       const read = await readClaimScreenshots(images, all);
       const ours = (id: number | null) => (id != null && all.includes(id) ? id : null);
-      // A one-photo post has nothing to sort.
       const sorted = all.length === 1
         ? read.map(() => ({ scanId: all[0], by: 'picked' as const }))
         : sortScreenshots<number | 'all'>(read.map(pg => ({ sure: ours(pg.scan_id), guess: ours(pg.guess) })), shotsRef.current.at(-1)?.photo ?? null, 'all');

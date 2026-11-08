@@ -18,7 +18,6 @@ export interface Draft { buyer: string; comment: string; unclear: string; items:
 export const draftsKind = (drafts: Draft[]): 'found' | 'hand' | 'none' =>
   !drafts.length ? 'none' : drafts.some(d => !d.byHand) ? 'found' : 'hand';
 
-// A claim to type: the buyer (when known) and one card still to choose.
 export const blankDraft = (buyer = ''): Draft => ({
   buyer, comment: '', unclear: '', byHand: true, items: [{ key: null, qty: 1, said: '', unclear: '', hint: null }],
 });
@@ -38,8 +37,6 @@ interface Props {
 
 const quoteOf = (line: string) => `“${line.length > 80 ? `${line.slice(0, 79)}…` : line}”`;
 
-// The claims found, one card each, to fix before they are added: the buyer's
-// name, their comment, the matched card with Change, and how many.
 export function CheckClaims({ drafts, skipped, photos, cardsByKey, claimedBy, cents, live, problem, buyerNames, onChange }: Props) {
   const t = useT();
   const namesId = useId();

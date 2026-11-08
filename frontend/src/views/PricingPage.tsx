@@ -66,7 +66,6 @@ function PricingForm({ postId, parent, pricing, t }: Omit<Props, 'postTitle' | '
   const dirty = invalid || !samePricing(next, saved) || (alsoDefault && !matchesDefault);
   const live = isLive(values);
 
-  // Back to where the seller came from: the post, a photo, or Profile.
   const leave = () => (history.length > 1 ? history.back() : nav.replace(parent));
   const save = () => {
     pricing.save(postId, next, alsoDefault && !matchesDefault);

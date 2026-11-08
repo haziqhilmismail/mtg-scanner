@@ -39,8 +39,6 @@ function FileName({ name }: { name: string }) {
   );
 }
 
-// A post's photos as rows: the picture, "Photo N", its cards and total, and
-// what still waits (not added, to fix, prices locked).
 // At the top or bottom a move button turns off; keep the keyboard on the row.
 const keepFocus = (btn: HTMLButtonElement) =>
   requestAnimationFrame(() => { if (btn.disabled) btn.parentElement?.querySelector<HTMLButtonElement>('button:enabled')?.focus(); });

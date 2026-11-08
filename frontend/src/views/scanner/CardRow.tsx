@@ -10,7 +10,6 @@ import { printingText, VersionLine } from '../../components/VersionLine.tsx';
 
 interface Props {
   cd: CardRowData;
-  // On the post's card list.
   added: boolean;
   // Being added to the post or taken out of it, or the photo is not saved yet: the toggle waits.
   adding: boolean;
@@ -32,7 +31,6 @@ interface Props {
   onRestore: () => void;
 }
 
-// The card's name, linked to its Card Kingdom page (or a search there by name).
 function titleLink(cd: CardRowData, name: string, t: T) {
   if (cd.isManual) return name;
   const ck = (cd.isFoil ? cd.sel.ck_url_foil || cd.sel.ck_url_normal : cd.sel.ck_url_normal || cd.sel.ck_url_foil) || '';
@@ -60,7 +58,6 @@ function formula(cd: CardRowData, live: boolean, settings: Settings, t: T): Reac
   return <>{foil}USD {fmt2(cd.usd)} × {cd.mult}</>;
 }
 
-// A card's picture, or the placeholder when there is none or it fails to load.
 function Picture({ src, fallback }: { src: string; fallback: ReactNode }) {
   const [failed, setFailed] = useState('');
   return src && failed !== src ? <img src={src} alt="" loading="lazy" onError={() => setFailed(src)} /> : <>{fallback}</>;

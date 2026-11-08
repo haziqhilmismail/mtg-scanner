@@ -17,7 +17,6 @@ import { isLive, matchThumbs } from '../../utils.ts';
 import type { PhotoActions } from './usePhotoActions.ts';
 import type { Posts } from './usePosts.ts';
 
-// One photo: its cards as tiles, with previous and next through its post.
 interface Props {
   batch: Batch;
   scanner: ScannerStore;

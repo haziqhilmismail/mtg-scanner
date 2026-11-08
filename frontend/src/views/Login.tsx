@@ -95,7 +95,6 @@ export function Login({ clientId, onCredential, error, lang, setLang, t, appeara
   );
 }
 
-// Waits for Google's script, then sets up sign-in once per client id.
 function useGis(clientId: string, onCredential: (credential: string) => void): Gis {
   const [state, setState] = useState<Gis>('loading');
   const callback = useRef(onCredential);

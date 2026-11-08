@@ -1,7 +1,6 @@
 import type { T } from '../../hooks/useLang.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 
-// One step per photo finished, shown only while a run is going.
 export function ScanProgress({ progress, t }: { progress: ScannerStore['scanProgress']; t: T }) {
   if (!progress) return null;
   return (

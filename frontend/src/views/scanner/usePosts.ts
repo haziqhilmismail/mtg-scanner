@@ -27,13 +27,10 @@ export interface Folder {
   items: PhotoStatus[];
 }
 
-// The photos in no post, before any are added to it.
 const emptyUnfiled = (t: T): Folder => ({
   key: UNFILED, postId: null, title: t('posts_unfiled'), archived: false, buyers: 0, unpaid: 0, paid: 0, items: [],
 });
 
-// The posts as folders, the open post and photo, and renaming, archiving,
-// deleting and reposting posts and moving and deleting their photos.
 interface Props {
   scanner: ScannerStore;
   nav: NavStore;
@@ -180,7 +177,6 @@ export function usePosts({ scanner, nav: { route, go, replace, current }, pricin
 
   const renamePost = useCallback(async (folder: Folder, title: string) => {
     if (folder.postId == null || !title || title === folder.title) return;
-    // Show the new name at once; put the old one back if the server says no.
     setPosts(prev => prev.map(p => (p.id === folder.postId ? { ...p, title } : p)));
     try {
       await postsApi.update(folder.postId, { title });

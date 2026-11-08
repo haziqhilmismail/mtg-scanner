@@ -22,8 +22,6 @@ interface Props {
   onMove: (move: StatusMove) => void;
 }
 
-// One buyer: their first cards with how each price was made, then Copy
-// message, the QR and the next status. A Done buyer has Not done instead.
 export function BuyerCard({ group: g, isNew, copied, cents, showPhotos, qrLabel, onOpen, onCopy, onQr, onMove }: Props) {
   const t = useT();
   const more = g.lines.length - SHOWN;

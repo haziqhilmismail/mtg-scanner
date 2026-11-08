@@ -7,7 +7,6 @@ import { plural } from '../../i18n/index.ts';
 import type { SortedBy } from '../../utils.ts';
 import { commentRows } from './comments.ts';
 
-// One comment screenshot in Add comments.
 export interface Shot {
   id: number;
   name: string;
@@ -34,8 +33,6 @@ const TONE: Record<SortedBy, { tone: string; icon: IconName }> = {
   none: { tone: 'is-picked', icon: 'photo' },
 };
 
-// The screenshot, which photo its comments are for, and the comments read
-// from it, with the raw text behind "Fix a misread name".
 export function ShotCard({ shot, photos, onChange, onRemove, onView, onPostPhotos }: Props) {
   const t = useT();
   const id = useId();
