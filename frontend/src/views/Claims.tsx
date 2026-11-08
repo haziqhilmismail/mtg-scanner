@@ -13,11 +13,11 @@ import {
   buyersApi, listingsApi, ordersApi, salesApi,
   type Buyer, type Listing, type Order, type OrderItem, type SentLine,
 } from '../api/checklist.ts';
-import type { CardRef, Photo } from '../components/ClaimPickers.tsx';
+import type { CardRef, Photo } from './claims/ClaimPickers.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Link } from '../components/Link.tsx';
 import { approxText, Money } from '../components/Money.tsx';
-import { SlipsSheet } from '../components/SlipsSheet.tsx';
+import { SlipsSheet } from './claims/SlipsSheet.tsx';
 import { Spinner } from '../components/Spinner.tsx';
 import { SupportSheet } from '../components/SupportSheet.tsx';
 import { Segmented } from '../components/ui/Segmented.tsx';

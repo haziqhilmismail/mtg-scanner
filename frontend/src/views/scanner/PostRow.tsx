@@ -2,15 +2,15 @@
 // worth knowing before opening it (its total, how many photos, what waits).
 
 import type { SyntheticEvent } from 'react';
-import { plural } from '../i18n/index.ts';
-import type { Route } from '../routes.ts';
-import type { Batch, Settings } from '../types.ts';
-import { formatMyr, isLive } from '../utils.ts';
-import { postStatus, type PhotoStatus } from '../views/scanner/status.ts';
-import { Icon } from './Icon.tsx';
-import { Link } from './Link.tsx';
-import type { T } from '../hooks/useLang.ts';
-import { Money } from './Money.tsx';
+import { plural } from '../../i18n/index.ts';
+import type { Route } from '../../routes.ts';
+import type { Batch, Settings } from '../../types.ts';
+import { formatMyr, isLive } from '../../utils.ts';
+import { postStatus, type PhotoStatus } from './status.ts';
+import { Icon } from '../../components/Icon.tsx';
+import { Link } from '../../components/Link.tsx';
+import type { T } from '../../hooks/useLang.ts';
+import { Money } from '../../components/Money.tsx';
 
 // The small picture of a photo, once it has one.
 export const thumbOf = (b: Batch) => (b.response ? b.response.thumb_url ?? b.response.image_b64 : null);

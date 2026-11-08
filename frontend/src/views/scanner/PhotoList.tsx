@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { Money } from '../../components/Money.tsx';
-import { hideBroken, thumbOf } from '../../components/ScanGallery.tsx';
+import { hideBroken, thumbOf } from './PostRow.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Route } from '../../routes.ts';

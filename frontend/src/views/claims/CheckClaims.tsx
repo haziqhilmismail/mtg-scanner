@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { CardPicker, hideBroken, type CardRef, type CardStatus, type Photo } from '../../components/ClaimPickers.tsx';
+import { CardPicker, hideBroken, type CardRef, type CardStatus, type Photo } from './ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { approxText } from '../../components/Money.tsx';
 import { TextField } from '../../components/ui/Field.tsx';

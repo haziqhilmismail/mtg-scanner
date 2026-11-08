@@ -1,14 +1,14 @@
 import { useId, useState } from 'react';
-import type { T } from '../hooks/useLang.ts';
-import { editCardState, type CardState } from '../lib/scanState.ts';
-import type { Batch, CardRowData, Settings } from '../types.ts';
-import { cardName, computeCardData, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../utils.ts';
-import { approxText, Money } from './Money.tsx';
-import { Dialog } from './ui/Dialog.tsx';
-import { TextField } from './ui/Field.tsx';
-import { Segmented } from './ui/Segmented.tsx';
-import { Stepper } from './ui/Stepper.tsx';
-import { printingText } from './VersionLine.tsx';
+import type { T } from '../../hooks/useLang.ts';
+import { editCardState, type CardState } from '../../lib/scanState.ts';
+import type { Batch, CardRowData, Settings } from '../../types.ts';
+import { cardName, computeCardData, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../../utils.ts';
+import { approxText, Money } from '../../components/Money.tsx';
+import { Dialog } from '../../components/ui/Dialog.tsx';
+import { TextField } from '../../components/ui/Field.tsx';
+import { Segmented } from '../../components/ui/Segmented.tsx';
+import { Stepper } from '../../components/ui/Stepper.tsx';
+import { printingText } from '../../components/VersionLine.tsx';
 
 // What Save price writes back to the card: its finish, its own multiplier
 // (null: the pricing's) and its own price (null: none, see PriceOverride).

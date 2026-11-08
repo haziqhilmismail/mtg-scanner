@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { PhotoDrop } from '../../components/PhotoDrop.tsx';
-import { Mosaic, PostRow, thumbOf } from '../../components/ScanGallery.tsx';
+import { Mosaic, PostRow, thumbOf } from './PostRow.tsx';
 import { Spinner } from '../../components/Spinner.tsx';
 import { plural } from '../../i18n/index.ts';
 import { isLive } from '../../utils.ts';

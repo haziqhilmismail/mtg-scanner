@@ -1,18 +1,18 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import type { Key, T } from '../hooks/useLang.ts';
-import type { ScannerStore } from '../hooks/useScanner.ts';
-import { plural } from '../i18n/index.ts';
-import type { Batch, CardRowData, Settings } from '../types.ts';
-import { bboxKey, canRetry, cardName, computeCardData, formatMyr } from '../utils.ts';
-import { photoStatus } from '../views/scanner/status.ts';
+import type { Key, T } from '../../hooks/useLang.ts';
+import type { ScannerStore } from '../../hooks/useScanner.ts';
+import { plural } from '../../i18n/index.ts';
+import type { Batch, CardRowData, Settings } from '../../types.ts';
+import { bboxKey, canRetry, cardName, computeCardData, formatMyr } from '../../utils.ts';
+import { photoStatus } from './status.ts';
 import { AdjustPanel, type PriceEdit } from './AdjustPanel.tsx';
 import { BatchPreview } from './BatchPreview.tsx';
 import { CardRow, CardViewer } from './CardRow.tsx';
-import { useDialog } from './DialogProvider.tsx';
-import { Icon } from './Icon.tsx';
-import { Money } from './Money.tsx';
-import { PhotoViewer } from './ui/PhotoViewer.tsx';
-import { useToast } from './ui/Toast.tsx';
+import { useDialog } from '../../components/DialogProvider.tsx';
+import { Icon } from '../../components/Icon.tsx';
+import { Money } from '../../components/Money.tsx';
+import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
+import { useToast } from '../../components/ui/Toast.tsx';
 
 interface Props {
   batch: Batch;

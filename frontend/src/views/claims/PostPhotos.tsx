@@ -1,4 +1,4 @@
-import { hideBroken, photoThumb, type Photo } from '../../components/ClaimPickers.tsx';
+import { hideBroken, photoThumb, type Photo } from './ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';

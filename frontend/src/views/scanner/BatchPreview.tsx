@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
-import type { CardRowData, Settings } from '../types.ts';
-import { goldPill, photoLabel } from '../utils.ts';
+import type { CardRowData, Settings } from '../../types.ts';
+import { goldPill, photoLabel } from '../../utils.ts';
 
 interface Props {
   src: string;

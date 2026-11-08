@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { confirmClaims, parseClaims, readClaimScreenshots, type CataloguePhoto } from '../../api/claims.ts';
 import { OutOfCreditsError } from '../../api/http.ts';
-import type { Photo } from '../../components/ClaimPickers.tsx';
+import type { Photo } from './ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';

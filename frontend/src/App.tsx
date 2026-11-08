@@ -18,7 +18,7 @@ import type { Appearance, Lang } from './types.ts';
 import type { Credits } from './api/credits.ts';
 import { Login } from './views/Login.tsx';
 import { PricingPage } from './views/PricingPage.tsx';
-import { Profile } from './views/Profile.tsx';
+import { Profile } from './views/profile/Profile.tsx';
 import { Scanner } from './views/scanner/Scanner.tsx';
 import type { Key, T } from './hooks/useLang.ts';
 

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { statusOf } from '../../api/http.ts';
 import { frameCard } from '../../api/scans.ts';
-import { ActiveBatchView } from '../../components/ActiveBatchView.tsx';
+import { ActiveBatchView } from './ActiveBatchView.tsx';
 import { Breadcrumbs } from '../../components/Breadcrumbs.tsx';
 import { useDialog } from '../../components/DialogProvider.tsx';
 import { Icon } from '../../components/Icon.tsx';
-import { PrintingsModal } from '../../components/PrintingsModal.tsx';
+import { PrintingsModal } from './PrintingsModal.tsx';
 import { folderOf, POSTS } from '../../routes.ts';
 import type { Batch, Candidate, RelookupMsg } from '../../types.ts';
 import { isLive, matchThumbs } from '../../utils.ts';
