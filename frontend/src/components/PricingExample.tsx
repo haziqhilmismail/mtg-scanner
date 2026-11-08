@@ -1,32 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { Key, T } from '../hooks/useLang.ts';
-import { pricingSummary } from '../lib/pricing.ts';
-import type { Route } from '../routes.ts';
 import type { Settings } from '../types.ts';
 import { applyRounding, fmt2, formatMyr, pillLabel } from '../utils.ts';
 import { Icon } from './Icon.tsx';
-import { Link } from './Link.tsx';
 import { approxText } from './Money.tsx';
-
-interface RowProps {
-  title: string;
-  settings: Settings;
-  t: T;
-  to: Route;
-}
-
-export function PricingRow({ title, settings, t, to }: RowProps) {
-  return (
-    <Link className="pricing-row" to={to}>
-      <Icon name="tag" size={18} />
-      <span className="pricing-row-text">
-        <span className="pricing-row-title">{title}</span>
-        <span className="pricing-row-summary">{pricingSummary(settings, t)}</span>
-      </span>
-      <span className="pricing-row-change">{t('pricing_edit')}</span>
-    </Link>
-  );
-}
 
 // The example card, at fixed Card Kingdom prices so it shows only what the
 // settings change.

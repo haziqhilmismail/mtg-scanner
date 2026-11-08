@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Icon } from '../../components/Icon.tsx';
-import { PricingExample } from '../../components/SettingsPanel.tsx';
+import { PricingExample } from '../../components/PricingExample.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { RadioCards } from '../../components/ui/RadioCards.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
