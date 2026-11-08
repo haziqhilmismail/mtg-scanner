@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type CardRowData, type DetectedCard, type RoundDirection, type RoundStep } from './types.ts';
-import { applyRounding, computeCardData, correctionFor, dueForSupportAsk, fmt2, formatMyr, initials, lockPrices, matchThumbs, overrideText, parseOverride, readPrice, sortScreenshots, paymentLines, normalizeUiState, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
+import { freshState } from './lib/scanState.ts';
+import { applyRounding, computeCardData, correctionFor, dueForSupportAsk, fmt2, formatMyr, initials, lockPrices, matchThumbs, overrideText, parseOverride, readPrice, sortScreenshots, paymentLines, notAdded, photoLabel, photoNumbers, sortPhotos, type PhotoSort } from './utils.ts';
 import type { T } from './i18n/index.ts';
 import { priceFormula } from './views/claims/model.ts';
 
@@ -36,64 +37,24 @@ test('no rounding, and the minimum price', () => {
 
 test('a price box holding only "." is no price, not RM0', () => {
   const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
-  const batch: Batch = {
-    id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
-    response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ candidates: [sel] } as DetectedCard] },
-    isFoil: [false], priceOverride: ['.'], quantity: [1], multOverride: [null], removed: [false], sold: [false], pillOffset: [null], versionOk: [false], picks: [null], locked: [null],
-    relookupBusy: [false], relookupMsg: [null],
-  };
+  const cards = [{ candidates: [sel] } as DetectedCard];
+  const state = { ...freshState(cards), priceOverride: ['.'] };
   const settings = { ...DEFAULT_SETTINGS, multNormal: 3 };
-  assert.equal(computeCardData(batch, settings)[0].unitPrice, 30);
-  batch.priceOverride = ['12.5'];
-  assert.equal(computeCardData(batch, settings)[0].unitPrice, 12.5);
-});
-
-test('saved per-card state is fitted to the cards, entry by entry', () => {
-  const card = (is_foil: boolean, quantity?: number) => ({ gemini: { is_foil, quantity } } as DetectedCard);
-  const cards = [card(false), card(true, 2), card(false)];
-  // Saved by a device that knew two cards, with one bad entry of each kind.
-  const saved = {
-    isFoil: [true, 'yes'],
-    priceOverride: ['5', 7],
-    quantity: [0, 3, 4, 9],
-    multOverride: [null, 2.5],
-    removed: 'no',
-    pillOffset: [{ dx: 1, dy: 2 }, { dx: 'x', dy: 0 }],
-    picks: [{ name: 'Sol Ring', set: 'c21' }, 'Sol Ring', { set: 'c21' }],
-    locked: [{ price: 9, usd: 3.6, mult: 2.5, manual: false }, { price: 0, usd: 1, mult: 1, manual: false }, 'x'],
-    lockedAt: '2026-10-23T12:00:00Z',
-    rev: 1700000000000,
-  };
-  assert.deepEqual(normalizeUiState(saved, cards), {
-    isFoil: [true, true, false],
-    priceOverride: ['5', null, null],
-    quantity: [1, 3, 4],
-    multOverride: [null, 2.5, null],
-    removed: [false, false, false], sold: [false, false, false],
-    pillOffset: [{ dx: 1, dy: 2 }, null, null],
-    versionOk: [false, false, false],
-    picks: [{ name: 'Sol Ring', set: 'c21' }, null, null],
-    locked: [{ price: 9, usd: 3.6, mult: 2.5, manual: false }, null, null],
-    lockedAt: '2026-10-23T12:00:00Z',
-    rev: 1700000000000,
-  });
-  assert.deepEqual(normalizeUiState(null, [card(true)]).isFoil, [true]);
-  assert.equal('rev' in normalizeUiState({ rev: '5' }, []), false);
-  assert.equal('rev' in normalizeUiState({ rev: 1.5 }, []), false);
+  assert.equal(computeCardData(cards, state, settings)[0].unitPrice, 30);
+  assert.equal(computeCardData(cards, { ...state, priceOverride: ['12.5'] }, settings)[0].unitPrice, 12.5);
 });
 
 test('a photo still has to add its priced, kept cards that are not listed', () => {
   const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
   const card = (x: number) => ({ candidates: [sel], bbox: [x, 0, 5, 5] } as DetectedCard);
+  const cards = [card(0), card(10), card(20), card(30)];
   const batch: Batch = {
     id: 'b', scanId: 1, postId: 7, position: null, listed: ['0,0,5,5'], filename: '', status: 'done',
-    response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [card(0), card(10), card(20), card(30)] },
-    isFoil: [false, false, false, false], priceOverride: [null, null, null, '0'], quantity: [1, 1, 1, 1],
-    multOverride: [null, null, null, null], removed: [false, false, true, false], sold: [false, false, false, false], pillOffset: [null, null, null, null],
-    versionOk: [false, false, false, false], picks: [null, null, null, null], locked: [null, null, null, null], relookupBusy: [], relookupMsg: [],
+    response: { image_id: '', image_b64: '', width: 0, height: 0, cards },
+    ...freshState(cards), priceOverride: [null, null, null, '0'], removed: [false, false, true, false],
   };
   // Listed, not added, removed, priced at zero.
-  assert.deepEqual(notAdded(batch, computeCardData(batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
+  assert.deepEqual(notAdded(batch, computeCardData(cards, batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
 });
 
 test("a post's photos sort newest or oldest with unsaved ones newest, or by name in number order with ties newest first", () => {
@@ -147,23 +108,19 @@ test('payment details become the lines under a buyer message, empty parts left o
 
 test('a finished photo keeps its prices and their working whatever changes after', () => {
   const sel = { name: 'X', usd: 3.6, price_source_normal: 'cardkingdom' } as Candidate;
-  const batch: Batch = {
-    id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
-    response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ candidates: [sel] } as DetectedCard, { candidates: [sel] } as DetectedCard] },
-    isFoil: [false, false], priceOverride: [null, '7'], quantity: [1, 2], multOverride: [null, null], removed: [false, false], sold: [false, false],
-    pillOffset: [null, null], versionOk: [false, false], picks: [null, null], locked: [null, null], relookupBusy: [], relookupMsg: [],
-  };
+  const cards = [{ candidates: [sel] } as DetectedCard, { candidates: [sel] } as DetectedCard];
+  const state = { ...freshState(cards), priceOverride: [null, '7'], quantity: [1, 2] };
   const posted = { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up' as const, roundStep: 1 as const };
-  const finished = { ...batch, locked: lockPrices(computeCardData(batch, posted)), lockedAt: '2026-10-23T12:00:00Z' };
+  const finished = { ...state, locked: lockPrices(computeCardData(cards, state, posted)), lockedAt: '2026-10-23T12:00:00Z' };
   // CK moves and the multiplier changes after posting.
-  finished.response = { ...batch.response!, cards: [{ candidates: [{ ...sel, usd: 9 }] } as DetectedCard, { candidates: [{ ...sel, usd: 9 }] } as DetectedCard] };
-  const [ck, typed] = computeCardData(finished, { ...posted, multNormal: 4 });
+  const moved = [{ candidates: [{ ...sel, usd: 9 }] } as DetectedCard, { candidates: [{ ...sel, usd: 9 }] } as DetectedCard];
+  const [ck, typed] = computeCardData(moved, finished, { ...posted, multNormal: 4 });
   assert.equal(ck.unitPrice, 9);
   assert.deepEqual(priceFormula(ck, 9), { usd: 3.6, mult: 2.5 });
   assert.deepEqual([typed.unitPrice, typed.lineTotal], [7, 14]);
   assert.equal(priceFormula(typed, 7), null);
   // Edit prices: the lock no longer counts, so prices follow again.
-  assert.equal(computeCardData({ ...finished, lockedAt: null }, { ...posted, multNormal: 4 })[0].unitPrice, 36);
+  assert.equal(computeCardData(moved, { ...finished, lockedAt: null }, { ...posted, multNormal: 4 })[0].unitPrice, 36);
 });
 
 test('comment screenshots go to the photo they show, else the one before', () => {
@@ -235,14 +192,9 @@ test("the seller's own price: RM is kept as typed, USD still gets the multiplier
 
   const sel = { name: 'X', usd: 4.99, price_source_normal: 'cardkingdom' } as Candidate;
   const card = (x: number) => ({ candidates: [sel], bbox: [x, 0, 5, 5] } as DetectedCard);
-  const batch: Batch = {
-    id: 'b', scanId: 1, postId: null, position: null, listed: [], filename: '', status: 'done',
-    response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [card(0), card(10), card(20)] },
-    isFoil: [false, false, false], priceOverride: ['usd:4.5', '15.50', null], quantity: [1, 2, 1], multOverride: [null, null, 3],
-    removed: [false, false, false], sold: [false, false, false], pillOffset: [null, null, null], versionOk: [false, false, false], picks: [null, null, null],
-    locked: [null, null, null], relookupBusy: [], relookupMsg: [],
-  };
-  const [usd, rm, auto] = computeCardData(batch, { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up', roundStep: 1, minPrice: 1 });
+  const cards = [card(0), card(10), card(20)];
+  const state = { ...freshState(cards), priceOverride: ['usd:4.5', '15.50', null], quantity: [1, 2, 1], multOverride: [null, null, 3] };
+  const [usd, rm, auto] = computeCardData(cards, state, { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up', roundStep: 1, minPrice: 1 });
   assert.deepEqual([usd.unitPrice, usd.hasOverride, usd.ownUsd, usd.autoPrice], [12, true, 4.5, 13]);   // 4.5 × 2.5 = 11.25, up to 12
   assert.deepEqual([rm.unitPrice, rm.lineTotal, rm.ownUsd], [15.5, 31, null]);
   assert.deepEqual([auto.unitPrice, auto.hasOverride, auto.ownUsd], [15, false, null]);                // 4.99 × 3 = 14.97, up to 15
@@ -255,12 +207,13 @@ test('a typed price is a number above 0 with at most two decimals, or nothing', 
   assert.deepEqual(['0', '0.00', 'abc', '15.555', '1.2.3', '-5', 'RM15'].map(readPrice), Array(7).fill('invalid'));
 });
 
-const shown = (scanId: number | null = 7, sid = 'aaa'): Batch => ({
-  id: 'b', scanId, postId: null, position: null, listed: [], filename: '', status: 'done',
-  response: { image_id: '', image_b64: '', width: 0, height: 0, cards: [{ id: 5, candidates: [{ scryfall_id: sid } as Candidate] } as DetectedCard] },
-  isFoil: [false], priceOverride: [null], quantity: [1], multOverride: [null], removed: [false], sold: [false], pillOffset: [null], versionOk: [false], picks: [null], locked: [null],
-  relookupBusy: [false], relookupMsg: [null],
-});
+const shown = (scanId: number | null = 7, sid = 'aaa'): Batch => {
+  const cards = [{ id: 5, candidates: [{ scryfall_id: sid } as Candidate] } as DetectedCard];
+  return {
+    id: 'b', scanId, postId: null, position: null, listed: [], filename: '', status: 'done',
+    response: { image_id: '', image_b64: '', width: 0, height: 0, cards }, ...freshState(cards),
+  };
+};
 
 test('"Looks right" confirms the printing the card shows, under the card\'s own id', () => {
   assert.deepEqual(correctionFor(shown(), 0), { scanId: 7, cardId: 5, scryfallId: 'aaa', kind: 'confirm' });

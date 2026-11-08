@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import type { T } from '../hooks/useLang.ts';
+import { editCardState, type CardState } from '../lib/scanState.ts';
 import type { Batch, CardRowData, Settings } from '../types.ts';
 import { cardName, computeCardData, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../utils.ts';
 import { approxText, Money } from './Money.tsx';
@@ -11,7 +12,7 @@ import { printingText } from './VersionLine.tsx';
 
 // What Save price writes back to the card: its finish, its own multiplier
 // (null: the pricing's) and its own price (null: none, see PriceOverride).
-export interface PriceEdit { isFoil: boolean; multOverride: number | null; priceOverride: string | null }
+export type PriceEdit = Pick<CardState, 'isFoil' | 'multOverride' | 'priceOverride'>;
 
 interface Draft { isFoil: boolean; multOverride: number | null; unit: PriceOverride['unit']; text: string }
 
@@ -29,7 +30,6 @@ interface Props {
 const MULT_MIN = 1;
 const MULT_MAX = 5;
 const asTyped = (n: number) => n.toFixed(Number.isInteger(n) ? 0 : 2);
-const replaceAt = <V,>(arr: V[], i: number, v: V) => arr.map((x, j) => (j === i ? v : x));
 
 // How the price was worked out, in one sentence: "USD 4.99 × 2.5 = RM12.48, rounded up."
 function working(cd: CardRowData, usd: number, settings: Settings, t: T): string {
@@ -55,12 +55,7 @@ export function AdjustPanel({ open, batch, idx, live, settings, t, onClose, onSa
     multOverride: draft.multOverride,
     priceOverride: overrideText(typeof price === 'number' ? { unit: draft.unit, amount: price } : null),
   };
-  const cd = computeCardData({
-    ...batch,
-    isFoil: replaceAt(batch.isFoil, idx, edit.isFoil),
-    multOverride: replaceAt(batch.multOverride, idx, edit.multOverride),
-    priceOverride: replaceAt(batch.priceOverride, idx, edit.priceOverride),
-  }, settings)[idx];
+  const cd = computeCardData(batch.response?.cards ?? [], editCardState(batch, idx, edit), settings)[idx];
   if (!cd) return null;
 
   const name = cardName(cd, t);

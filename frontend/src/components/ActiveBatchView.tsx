@@ -59,7 +59,7 @@ export function ActiveBatchView({
   const [edit, setEdit] = useState<{ idx: number; n: number; open: boolean } | null>(null);
   // card null: the whole photo.
   const [view, setView] = useState<{ card: number | null; side: 0 | 1; open: boolean } | null>(null);
-  const cardData = useMemo(() => computeCardData(batch, settings), [batch, settings]);
+  const cardData = useMemo(() => computeCardData(batch.response?.cards ?? [], batch, settings), [batch, settings]);
   const cardsLabel = (n: number) => plural(t, 'cards', n);
 
   if (batch.status === 'scanning' || batch.status === 'error' || !batch.response) {
@@ -146,9 +146,7 @@ export function ActiveBatchView({
   };
 
   const savePrice = (idx: number, e: PriceEdit) => {
-    if (e.isFoil !== !!batch.isFoil[idx]) scanner.toggleFoil(batch.id, idx);
-    scanner.setMultOverride(batch.id, idx, e.multOverride);
-    scanner.setPriceOverride(batch.id, idx, e.priceOverride);
+    scanner.editCard(batch.id, idx, e);
     setEdit(s => (s ? { ...s, open: false } : s));
   };
 
@@ -252,7 +250,7 @@ export function ActiveBatchView({
                   onToggleAdded={() => toggleAdded(cd)}
                   onEditPrice={() => setEdit(s => ({ idx: cd.origIdx, n: (s?.n ?? 0) + 1, open: true }))}
                   onChangeCard={() => onChangeCard(cd.origIdx)}
-                  onQuantity={qty => scanner.setQuantity(batch.id, cd.origIdx, qty)}
+                  onQuantity={qty => scanner.editCard(batch.id, cd.origIdx, { quantity: Math.max(1, qty | 0) })}
                   onRemove={() => remove(cd)}
                   onRestore={() => scanner.setRemoved(batch.id, cd.origIdx, false)}
                 />

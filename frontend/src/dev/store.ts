@@ -9,7 +9,8 @@ import type { Health, Payment, SavedScan } from '../api.ts';
 import type { Buyer, Listing, Order, Post, PostStatus } from '../api/checklist.ts';
 import { DEMO_CARDS, DEMO_IMAGE_H, DEMO_IMAGE_URL, DEMO_IMAGE_W } from '../data/demoScan.ts';
 import { resolvePricing } from '../lib/pricing.ts';
-import type { Batch, Candidate, Credits, DetectedCard, ScanUiState, Settings } from '../types.ts';
+import { freshState, type ScanUiState } from '../lib/scanState.ts';
+import type { Candidate, Credits, DetectedCard, Settings } from '../types.ts';
 import { computeCardData, listingFields, lockPrices } from '../utils.ts';
 
 export interface ClaimComment { buyer: string; text: string }
@@ -184,16 +185,7 @@ export interface PhotoSpec {
 const pricingOf = (f: Fixture, postId: number | null | undefined) =>
   resolvePricing(postId != null ? f.posts.find(p => p.id === postId)?.pricing : null, f.me.pricing);
 
-// Each card's price as the app works it out: the app's own computeCardData.
-function cardPrices(f: Fixture, { scan, state }: Photo) {
-  const batch: Batch = {
-    ...state, id: `s${scan.scan_id}`, scanId: scan.scan_id, postId: scan.post_id ?? null,
-    position: scan.position ?? null, listed: [], filename: scan.filename, status: 'done',
-    response: { image_id: scan.image_id, image_b64: '', width: scan.width, height: scan.height, cards: scan.cards },
-    relookupBusy: [], relookupMsg: [],
-  };
-  return computeCardData(batch, pricingOf(f, scan.post_id));
-}
+const cardPrices = (f: Fixture, { scan, state }: Photo) => computeCardData(scan.cards, state, pricingOf(f, scan.post_id));
 
 export function addPhoto(f: Fixture, post: Post | null, spec: PhotoSpec): Photo {
   const id = nextId(f.scans.map(s => ({ id: s.scan_id })), FIRST_SCAN_ID);
@@ -210,17 +202,12 @@ export function addPhoto(f: Fixture, post: Post | null, spec: PhotoSpec): Photo 
   crops.forEach((crop, i) => f.images.set(`/api/scans/${id}/crops/${i}`, crop));
 
   const cards = spec.cards;
+  const detectedCards = cards.map((c, i) => detected(c, i, boxes[i], crops[i]));
   const state: ScanUiState = {
-    isFoil: cards.map(c => !!c.foil),
+    ...freshState(detectedCards),
     priceOverride: cards.map(c => c.price ?? null),
-    quantity: cards.map(c => c.qty ?? 1),
     multOverride: cards.map(c => c.mult ?? null),
     removed: cards.map(c => !!c.removed),
-    sold: cards.map(() => false),
-    pillOffset: cards.map(() => null),
-    versionOk: cards.map(() => false),
-    picks: cards.map(() => null),
-    locked: cards.map(() => null),
     lockedAt: null,
     rev: 1,
   };
@@ -229,7 +216,7 @@ export function addPhoto(f: Fixture, post: Post | null, spec: PhotoSpec): Photo 
     image_id: String(id), scan_id: id, post_id: post?.id ?? null,
     position: post ? f.scans.filter(s => s.post_id === post.id).length : null,
     filename: spec.file, image_b64: '', width: w, height: h,
-    cards: cards.map((c, i) => detected(c, i, boxes[i], crops[i])),
+    cards: detectedCards,
     created_at: ago(spec.hoursAgo),
     // A photo nobody edited has none: the app starts it from the scan.
     ui_state: edited ? state : null,
