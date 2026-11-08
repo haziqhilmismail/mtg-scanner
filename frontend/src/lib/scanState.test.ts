@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard } from '../types.ts';
-import { computeCardData, editCardState, freshState, normalizeUiState, notAdded, uiStateOf, withCard } from './scanState.ts';
+import { computeCardData, correctionFor, editCardState, freshState, normalizeUiState, notAdded, uiStateOf, withCard } from './scanState.ts';
+import { overrideText, parseOverride } from './money.ts';
 
 const card = (is_foil: boolean, quantity?: number) => ({ gemini: { is_foil, quantity } } as DetectedCard);
 
@@ -84,4 +85,58 @@ test('a photo still has to add its priced, kept cards that are not listed', () =
   };
   // Listed, not added, removed, priced at zero.
   assert.deepEqual(notAdded(batch, computeCardData(cards, batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
+});
+
+test('a price box holding only "." is no price, not RM0', () => {
+  const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
+  const cards = [{ candidates: [sel] } as DetectedCard];
+  const state = { ...freshState(cards), priceOverride: ['.'] };
+  const settings = { ...DEFAULT_SETTINGS, multNormal: 3 };
+  assert.equal(computeCardData(cards, state, settings)[0].unitPrice, 30);
+  assert.equal(computeCardData(cards, { ...state, priceOverride: ['12.5'] }, settings)[0].unitPrice, 12.5);
+});
+
+test("the seller's own price: RM is kept as typed, USD still gets the multiplier and rounding", () => {
+  assert.deepEqual(parseOverride('15.50'), { unit: 'rm', amount: 15.5 });
+  assert.deepEqual(parseOverride('usd:4.5'), { unit: 'usd', amount: 4.5 });
+  assert.equal(parseOverride('.'), null);
+  assert.equal(parseOverride('usd:'), null);
+  assert.equal(parseOverride(null), null);
+  assert.equal(overrideText({ unit: 'usd', amount: 4.5 }), 'usd:4.5');
+  assert.equal(overrideText({ unit: 'rm', amount: 15.5 }), '15.5');
+  assert.equal(overrideText(null), null);
+
+  const sel = { name: 'X', usd: 4.99, price_source_normal: 'cardkingdom' } as Candidate;
+  const card = (x: number) => ({ candidates: [sel], bbox: [x, 0, 5, 5] } as DetectedCard);
+  const cards = [card(0), card(10), card(20)];
+  const state = { ...freshState(cards), priceOverride: ['usd:4.5', '15.50', null], quantity: [1, 2, 1], multOverride: [null, null, 3] };
+  const [usd, rm, auto] = computeCardData(cards, state, { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up', roundStep: 1, minPrice: 1 });
+  assert.deepEqual([usd.unitPrice, usd.hasOverride, usd.ownUsd, usd.autoPrice], [12, true, 4.5, 13]);   // 4.5 × 2.5 = 11.25, up to 12
+  assert.deepEqual([rm.unitPrice, rm.lineTotal, rm.ownUsd], [15.5, 31, null]);
+  assert.deepEqual([auto.unitPrice, auto.hasOverride, auto.ownUsd], [15, false, null]);                // 4.99 × 3 = 14.97, up to 15
+});
+
+const shown = (scanId: number | null = 7, sid = 'aaa'): Batch => {
+  const cards = [{ id: 5, candidates: [{ scryfall_id: sid } as Candidate] } as DetectedCard];
+  return {
+    id: 'b', scanId, postId: null, position: null, listed: [], filename: '', status: 'done',
+    response: { image_id: '', image_b64: '', width: 0, height: 0, cards }, ...freshState(cards),
+  };
+};
+
+test('"Looks right" confirms the printing the card shows, under the card\'s own id', () => {
+  assert.deepEqual(correctionFor(shown(), 0), { scanId: 7, cardId: 5, scryfallId: 'aaa', kind: 'confirm' });
+});
+
+test('a pick of another printing changes the card; a pick of the shown printing confirms it', () => {
+  assert.deepEqual(correctionFor(shown(), 0, { scryfall_id: 'bbb' } as Candidate), { scanId: 7, cardId: 5, scryfallId: 'bbb', kind: 'pick' });
+  assert.deepEqual(correctionFor(shown(), 0, { scryfall_id: 'aaa' } as Candidate), { scanId: 7, cardId: 5, scryfallId: 'aaa', kind: 'confirm' });
+  assert.deepEqual(correctionFor(shown(7, ''), 0, { scryfall_id: 'bbb' } as Candidate), { scanId: 7, cardId: 5, scryfallId: 'bbb', kind: 'pick' });
+});
+
+test('nothing is reported for an unsaved photo, a missing card, or no printing', () => {
+  assert.equal(correctionFor(shown(null), 0), null);
+  assert.equal(correctionFor(shown(), 3), null);
+  assert.equal(correctionFor(shown(7, ''), 0), null);
+  assert.equal(correctionFor(shown(), 0, { scryfall_id: '' } as Candidate), null);
 });

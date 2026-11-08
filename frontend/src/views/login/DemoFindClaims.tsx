@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from 'react';
 import { DEMO_COMMENTS, demoMessage, totalOf } from './demoClaims.ts';
 import { DEMO_IMAGE_URL } from '../../data/demoScan.ts';
 import { useT } from '../../hooks/useLang.ts';
-import { initials } from '../../utils.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Segmented } from '../../components/ui/Segmented.tsx';
+import { initials } from '../../components/initials.ts';
 
 const READ_MS = 1100;
 const buyers = DEMO_COMMENTS.filter(c => c.cards.length);

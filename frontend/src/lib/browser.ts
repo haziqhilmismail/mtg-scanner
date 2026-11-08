@@ -96,3 +96,13 @@ export function useFileDrop(enabled: boolean, take: () => boolean, onFiles: (fil
 
   return dragging;
 }
+
+// Saves a file the app made, as the browser downloads one.
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

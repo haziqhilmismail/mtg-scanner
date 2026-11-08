@@ -14,7 +14,6 @@ import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Settings } from '../../types.ts';
 import type { Credits } from '../../api/credits.ts';
-import { creditsLine, creditsOutText, sortScreenshots } from '../../utils.ts';
 import { blankDraft, CheckClaims, draftsKind, type Draft } from './CheckClaims.tsx';
 import { PostPhotos } from './PostPhotos.tsx';
 import { ShotCard, type Shot } from './ShotCard.tsx';
@@ -22,6 +21,8 @@ import { useFileDrop } from '../../lib/browser.ts';
 import { formatMyr } from '../../lib/money.ts';
 import { isLive } from '../../lib/pricing.ts';
 import { listingFields } from '../../lib/scanState.ts';
+import { creditsLine, creditsOutText } from '../../components/VoucherSheet.tsx';
+import { sortScreenshots } from './model.ts';
 
 interface Props {
   open: boolean;
