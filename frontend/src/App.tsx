@@ -34,8 +34,6 @@ export default function App() {
 
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 
-  // While bootstrapping auth: show a blank shell with the theme/lang controls.
-  // While unauthenticated with auth enabled: show the Google login screen.
   if (auth.status === 'loading') {
     return <div className="auth-bootstrap" aria-busy="true" />;
   }
@@ -115,8 +113,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   const healthLabel = (() => {
     if (!health && !healthErr) return t('ck_checking');
     if (!health && healthErr) return t('ck_unreachable');
-    // When the index loaded successfully, append the refresh-age so users
-    // can decide whether their prices are stale enough to manually refresh.
     const since = health?.cardkingdom_refreshed_at
       ? ' · ' + formatRelativeTime(health.cardkingdom_refreshed_at, t)
       : '';
@@ -193,8 +189,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
   );
 }
 
-// Tells the user when something done in the background (a scan, a save)
-// failed. `notice` is a message key.
 function Notice({ source, t }: { source: { notice: Key | null; clearNotice: () => void }; t: T }) {
   const dialog = useDialog();
   const { notice, clearNotice } = source;

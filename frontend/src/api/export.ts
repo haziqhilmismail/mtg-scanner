@@ -1,5 +1,3 @@
-// Priced photos rendered by the server: one PNG, or every photo in a zip.
-
 import type { LabelPosition } from '../types.ts';
 import { request } from './http.ts';
 

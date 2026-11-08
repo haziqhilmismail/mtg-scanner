@@ -1,5 +1,3 @@
-// API + state types shared across components.
-
 import type { ScanPicture } from './api/scans.ts';
 import type { PillOffset, ScanUiState } from './lib/scanState.ts';
 
@@ -88,11 +86,10 @@ export interface DetectedCard {
   bbox: [number, number, number, number]; // [x, y, w, h]
   corners: [number, number][];
   crop_b64: string;
-  // Which pipeline produced the bbox. Gemini always does the *naming*; the
-  // optional classical detector can refine the box when it confidently
-  // matches a card-shaped blob (see backend/services/classical_detector.py).
-  // 'user' marks a card the user framed by hand in expand mode after the
-  // detector merged or missed it.
+  // Which pipeline produced the bbox: the classical detector refining Gemini's
+  // box (backend/app/services/classical_detector.py), Gemini's own, the local
+  // scanner's quad ('detector'), or the seller framing it by hand ('user', Add
+  // card on the photo page).
   bbox_source?: 'classical' | 'gemini' | 'user' | 'detector';
   // Which pipeline NAMED the card. 'gemini' means the cloud model named it;
   // 'title' / 'embedding' come from the local scanner (SCANNER_BACKEND=local):
@@ -140,7 +137,6 @@ export interface Batch extends ScanUiState {
   error?: string;
 }
 
-// Computed per-card row data used for rendering
 export interface CardRowData {
   card: DetectedCard;
   sel: Candidate;

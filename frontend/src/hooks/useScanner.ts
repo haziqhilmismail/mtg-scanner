@@ -69,7 +69,6 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
   const tombKey = KEY.tombstones(userId);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
-  // Translation key of a background failure to tell the user about.
   const [notice, setNotice] = useState<Key | null>(null);
   const clearNotice = useCallback(() => setNotice(null), []);
   // Latest batches, for work that finishes after they changed. Every change
@@ -110,7 +109,6 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
           page = await fetchScans(before);
         } catch (e) {
           if (cancelled) return;
-          // Session gone: only signing in again helps.
           if (statusOf(e) === 401) return signOut();
           if (!told) setNotice('scans_load_failed');
           told = true;
@@ -154,7 +152,6 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit, tombKey, signOut, saves]);
 
-  // Queue a save for every finished batch whose per-card state changed.
   useEffect(() => {
     let changed = false;
     for (const b of batches) {
@@ -168,15 +165,14 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
     commit(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)));
   }, []);
 
-  // One card's edits: its finish, price, multiplier, quantity, and so on.
   const editCard = useCallback((batchId: string, idx: number, patch: Partial<CardState>) => {
     commit(prev => prev.map(b => (b.id === batchId ? editCardState(b, idx, patch) : b)));
   }, []);
 
-  // Scans run a few at a time: each one mostly waits on Gemini (~6 s), so
-  // running them side by side cuts a 10-photo drop from ~70 s to ~25 s. Three
-  // stays under the server's 30-scans-a-minute limit. One shared queue, so a
-  // second drop while the first is running joins it instead of doubling up.
+  // Scans run three at a time: each one mostly waits on Gemini (~6 s), so
+  // running them side by side cuts a 10-photo drop from ~70 s to ~25 s. One
+  // shared queue, so a second drop while the first is running joins it
+  // instead of doubling up.
   const scanQueue = useRef<Array<() => Promise<void>>>([]);
   const scansRunning = useRef(0);
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
@@ -186,7 +182,6 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
       scansRunning.current += 1;
       job().finally(() => {
         scansRunning.current -= 1;
-        // Clear the bar once the whole run is finished.
         setScanProgress(p => (!p || p.done + 1 >= p.total ? null : { ...p, done: p.done + 1 }));
         pumpScanQueue();
       });
@@ -237,10 +232,8 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
 
   const addFiles = useCallback(async (files: File[], postId: number | null = null) => {
     if (!files.length) return;
-    // Front-load every dropped file as a 'scanning' stub so the tab strip
-    // shows all N immediately. Without this, sequential awaits below mean
-    // file N+1's tab only appears once N finishes, which looks like
-    // "only 1 file uploaded" to the user.
+    // Every dropped photo shows at once, before its turn in the scan queue, so
+    // a big drop doesn't look like only one photo went in.
     const stubs: Batch[] = files.map(file => ({
       id: generateBatchId(),
       scanId: null,
@@ -260,7 +253,6 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
     pumpScanQueue();
   }, [commit, pumpScanQueue, queueScan]);
 
-  // Ids that canRetry rejects are skipped.
   const retryBatches = useCallback((ids: string[]) => {
     const retry = batchesRef.current.filter(canRetry).filter(b => ids.includes(b.id));
     if (!retry.length) return;
@@ -302,13 +294,11 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
     commit(prev => prev.map(b => (b.id === batchId ? { ...b, locked: b.locked.map(() => null), lockedAt: null } : b)));
   }, []);
 
-  // A card of this photo is now on the checklist.
   const markListed = useCallback((batchId: string, bbox: number[]) => {
     const key = bboxKey(bbox);
     commit(prev => prev.map(b => (b.id === batchId && !b.listed.includes(key) ? { ...b, listed: [...b.listed, key] } : b)));
   }, []);
 
-  // A card of this photo was taken off the checklist.
   const unmarkListed = useCallback((batchId: string, bbox: number[]) => {
     const key = bboxKey(bbox);
     commit(prev => prev.map(b => (b.id === batchId ? { ...b, listed: b.listed.filter(k => k !== key) } : b)));
@@ -327,11 +317,9 @@ export function useScanner(userId: number | null, signOut: () => void, onCredits
       : withCard({ ...b, response: { ...b.response, cards: [...b.response.cards, card] } }, card))));
   }, []);
 
-  // Swap the entire cards array — used by the per-scan "↻ Refresh prices"
-  // flow, which gets a fully re-enriched cards[] from the backend. Parent
-  // card fields (bbox, corners) are preserved server-side; only candidate
-  // pricing fields change. User overrides (priceOverride / multOverride /
-  // isFoil) live in the batch state, not in `response`, so they survive.
+  // The cards as Refresh prices answers them: the server keeps each card's
+  // bbox and corners and changes only candidate prices. The seller's edits
+  // live in the per-card state, not in `response`, so they survive.
   const replaceAllCards = useCallback((batchId: string, cards: DetectedCard[]) => {
     commit(prev =>
       prev.map(b => {

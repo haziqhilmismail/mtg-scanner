@@ -1,7 +1,3 @@
-// What the app asks of the browser and the device: is a popup open, is this a
-// phone, can it share files, the date format for the app's language, and
-// files dropped or pasted on the page.
-
 import { useEffect, useRef, useState } from 'react';
 
 // Dates in the app's language: "24 Okt" or "24 Oct".

@@ -52,7 +52,6 @@ export function formatMyr(price: number, settings: Pick<Settings, 'currencyLabel
   return settings.showCurrency ? `${currencyOf(settings)}${formatted}` : formatted;
 }
 
-// A card's name, or Unknown card while it has none.
 export const cardName = (cd: CardRowData, t: T) => cd.sel.name || t('unknown_card');
 
 // A card's own price, as priceOverride stores it: RM as typed ("15.5"), or a
@@ -126,8 +125,6 @@ export function ckSearchUrl(name: string): string {
 // A card's identity on its photo: listings record the bbox they came from.
 export const bboxKey = (bbox: number[]) => bbox.join(',');
 
-// The cards a photo's Add would put on the checklist (visible and priced)
-// that are not on it yet.
 export function notAdded(batch: Batch, cards: CardRowData[]): CardRowData[] {
   return cards.filter(cd => !cd.removed && cd.unitPrice > 0 && !batch.listed.includes(bboxKey(cd.card.bbox)));
 }
@@ -198,7 +195,7 @@ export function smallScryfallImage(url: string): string {
   return url.replace('/normal/', '/small/').replace('/large/', '/small/');
 }
 
-// The match thumbnails a photo shows, as CompareImages requests them.
+// The match images a photo's card rows show (CardRow), so they can be loaded ahead.
 export const matchThumbs = (batch: Batch): string[] =>
   (batch.response?.cards ?? []).map(c => c.candidates[0]?.image_url).filter((u): u is string => !!u).map(smallScryfallImage);
 
@@ -215,9 +212,7 @@ export function generateBatchId(): string {
   return 'b' + Date.now() + Math.random().toString(36).slice(2, 6);
 }
 
-// Short relative time ("just now", "5m ago", "2h ago", "3d ago"). Used for
-// the CK pricelist freshness chip in the masthead, but generic enough that
-// any other "when was this last updated" indicator can reuse it.
+// Short relative time ("just now", "5m ago", "2h ago", "3d ago").
 export function formatRelativeTime(epochSeconds: number, t: T): string {
   const diffMs = Date.now() - epochSeconds * 1000;
   if (diffMs < 0) return t('relative_now');  // clock skew → "just now"

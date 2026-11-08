@@ -1,4 +1,3 @@
-// Typed wrappers for the checklist endpoints (listings, buyers, orders).
 // Decimal values come back as strings (Pydantic Decimal serialization).
 
 import type { ScanUiState } from '../lib/scanState.ts';
@@ -68,7 +67,7 @@ export interface ListingCreatePayload {
   is_foil?: boolean;
   image_url?: string | null;
   ck_url?: string | null;
-  unit_price_myr: string;  // Decimal as string to avoid float drift
+  unit_price_myr: string;
   qty_total?: number;
   notes?: string | null;
   post_ids?: number[];
@@ -77,7 +76,6 @@ export interface ListingCreatePayload {
   bbox?: number[] | null;
 }
 
-// ---------- Posts ----------
 export interface Post {
   id: number;
   user_id: number;
@@ -151,14 +149,12 @@ async function json<T>(method: string, url: string, body?: unknown, keepalive = 
   return (await r.json()) as T;
 }
 
-// ---------- Buyers ----------
 export const buyersApi = {
   list: () => json<Buyer[]>('GET', '/api/buyers'),
   update: (id: number, payload: Partial<BuyerCreatePayload>) =>
     json<Buyer>('PATCH', `/api/buyers/${id}`, payload),
 };
 
-// ---------- Listings ----------
 export const listingsApi = {
   list: (status?: ListingStatus) =>
     json<Listing[]>('GET', `/api/listings${status ? `?status=${status}` : ''}`),
@@ -168,7 +164,6 @@ export const listingsApi = {
   remove: (id: number) => json<void>('DELETE', `/api/listings/${id}`),
 };
 
-// ---------- Orders ----------
 // A buyer's summary was copied or shared: its lines are kept as sales records
 // (price, card, how it was priced; nothing about the buyer). See PRIVACY.md.
 export interface SentLine {
@@ -196,7 +191,6 @@ export const ordersApi = {
   restore: (id: number) => json<Order>('POST', `/api/orders/${id}/restore`),
 };
 
-// ---------- Posts ----------
 async function postMultipart<T>(url: string, fields: Record<string, string | Blob | undefined | null>, method: 'POST' | 'PATCH' = 'POST'): Promise<T> {
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) {
@@ -218,7 +212,6 @@ export const postsApi = {
       note: payload.note ?? undefined,
       pricing: payload.pricing ? JSON.stringify(payload.pricing) : undefined,
     }),
-  // `keepalive` lets the save finish as the page closes.
   update: (id: number, payload: PostUpdatePayload, keepalive = false) =>
     json<Post>('PATCH', `/api/posts/${id}`, payload, keepalive),
   remove: (id: number) => json<void>('DELETE', `/api/posts/${id}`),

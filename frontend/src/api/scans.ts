@@ -1,5 +1,3 @@
-// Scans: a photo's cards as the server found them, and the seller's edits saved with it.
-
 import type { ScanUiState } from '../lib/scanState.ts';
 import type { Correction, DetectedCard } from '../types.ts';
 import type { Credits } from './credits.ts';
@@ -37,6 +35,8 @@ export interface ScanResponse extends SavedScan {
   credits: Credits;
 }
 
+export const SCANS_PAGE = 500;
+
 // One page of saved scans, newest first: the SCANS_PAGE newest with an id
 // below `before` (or the newest overall). A page shorter than SCANS_PAGE is
 // the last one. The server caps a page at 500 (routers/scans.py list_scans).
@@ -46,15 +46,12 @@ export interface ScanResponse extends SavedScan {
 // in one response, and nothing showed until all of it arrived; this way the
 // list is ~0.3 MB and the browser fetches only the pictures on screen, then
 // keeps them cached.
-export const SCANS_PAGE = 500;
-
 export async function fetchScans(before?: number): Promise<SavedScan[]> {
   const url = `/api/scans?lite=1&limit=${SCANS_PAGE}${before != null ? `&before=${before}` : ''}`;
   const scans = (await (await request(url)).json()) as SavedScan[];
   return scans.map(withPictureUrls);
 }
 
-// A scan listed without its pictures (lite), pointed at their own URLs.
 export function withPictureUrls<S extends SavedScan>(s: S): S {
   // A server that predates `lite` ignores it and still embeds the pictures.
   if (s.image_b64) return s;
@@ -69,7 +66,6 @@ export function withPictureUrls<S extends SavedScan>(s: S): S {
   };
 }
 
-// Save a scan's per-card edits.
 export async function saveScanState(id: number, state: ScanUiState, keepalive = false): Promise<void> {
   await request(`/api/scans/${id}/state`, { method: 'PATCH', keepalive, json: { state } });
 }

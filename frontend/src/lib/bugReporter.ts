@@ -23,7 +23,6 @@ function _fingerprint(payload: { exception_type: string; message: string; stack?
 
 function _suppressLocally(fp: string): boolean {
   const now = Date.now();
-  // Sweep old entries opportunistically so the Map can't grow unbounded.
   if (_recent.size > CLIENT_DEDUP_MAX) {
     for (const [k, t] of _recent) {
       if (now - t > CLIENT_DEDUP_WINDOW_MS) _recent.delete(k);

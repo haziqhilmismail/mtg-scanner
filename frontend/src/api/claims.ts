@@ -1,5 +1,3 @@
-// Claims: read a comment thread, draft who claimed what, and confirm it.
-
 import type { Credits } from './credits.ts';
 import { request } from './http.ts';
 
