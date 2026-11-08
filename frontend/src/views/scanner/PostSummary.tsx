@@ -1,8 +1,8 @@
 import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { waits } from '../../components/ScanGallery.tsx';
-import { plural, type Counted } from '../../i18n/index.ts';
-import { formatMyr } from '../../utils.ts';
+import { plural } from '../../i18n/index.ts';
+import { formatMyr, isLive } from '../../utils.ts';
 import type { Area, Folder } from './area.tsx';
 import type { ExportJob } from './exportFiles.ts';
 import type { usePostExport } from './usePostExport.ts';
@@ -22,7 +22,7 @@ interface Props {
 export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
   const { t, pricingFor, finishing, runFinishAll, explainFinish } = area;
   const settings = pricingFor(folder.postId);
-  const live = settings.priceMode === 'live';
+  const live = isLive(settings);
   const { items } = folder;
   const saved = items.filter(s => s.batch.response && s.batch.scanId != null);
   const cards = items.reduce((n, s) => n + s.cards, 0);
@@ -36,18 +36,17 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
   const finish = async () => {
     if (live || await explainFinish()) await runFinishAll(folder.key, waiting.map(s => s.batch), folder.postId);
   };
-  const n = (key: Counted, count: number) => plural(t, key, count);
   const shareLine = !jobs.length ? (!live && saved.length ? t('post_share_none') : '')
     : !live && jobs.length < saved.length ? t('post_share_line_some', { n: jobs.length })
-    : n(live ? 'post_share_line_live' : 'post_share_line_photo', jobs.length);
+    : plural(t, live ? 'post_share_line_live' : 'post_share_line_photo', jobs.length);
 
   return (
     <>
       <section className="ui-card post-summary" aria-label={t('total')}>
         <span className="post-summary-label">{t('total')}</span>
-        <span className="post-total" aria-live="polite"><Money live={settings.priceMode === 'live'}>{formatMyr(folder.total, settings)}</Money></span>
+        <span className="post-total" aria-live="polite"><Money live={live}>{formatMyr(folder.total, settings)}</Money></span>
         <span className="post-summary-meta">
-          {[t(live ? 'kind_live' : 'kind_photo'), n('photos', items.length), n('cards', cards)].join(' · ')}
+          {[t(live ? 'kind_live' : 'kind_photo'), plural(t, 'photos', items.length), plural(t, 'cards', cards)].join(' · ')}
         </span>
         {live ? <span className="post-summary-meta">{t('post_live_note')}</span> : null}
         {saved.length ? (
@@ -55,7 +54,7 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
             {waiting.length ? (
               <>
                 <span className="post-summary-line"><span className="dot" aria-hidden="true" />
-                  {live ? n('post_not_added', notAdded) : n('post_unfinished', waiting.length)}
+                  {live ? plural(t, 'post_not_added', notAdded) : plural(t, 'post_unfinished', waiting.length)}
                 </span>
                 <button type="button" className={`ui-btn ui-btn--block ui-btn--lg${quiet ? '' : ' ui-btn--primary'}`} disabled={finishing != null} onClick={finish}>
                   <Icon name={live ? 'addList' : 'lock'} size={18} />{busy ? t('post_busy') : t(live ? 'add_all_to_post' : 'post_finish')}
@@ -63,10 +62,10 @@ export function PostSummary({ area, folder, quiet, jobs, exp }: Props) {
               </>
             ) : !live || priced ? (
               <span className="post-summary-line is-done"><Icon name="check" size={16} />
-                {live ? n('post_all_added', priced) : t('post_finished')}
+                {live ? plural(t, 'post_all_added', priced) : t('post_finished')}
               </span>
             ) : null}
-            {unpriced ? <span className="post-summary-line is-warn"><Icon name="warning" size={16} />{n('post_needs_price', unpriced)}</span> : null}
+            {unpriced ? <span className="post-summary-line is-warn"><Icon name="warning" size={16} />{plural(t, 'post_needs_price', unpriced)}</span> : null}
           </div>
         ) : null}
       </section>

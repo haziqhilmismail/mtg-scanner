@@ -9,7 +9,7 @@ import { useToast } from '../../components/ui/Toast.tsx';
 import { photosOf } from '../../lib/photoFiles.ts';
 import { POSTS, UNFILED } from '../../routes.ts';
 import type { Batch } from '../../types.ts';
-import { byPostOrder, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
+import { byPostOrder, isLive, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
 import { keyTaken, ScanProgress, type Area, type Folder } from './area.tsx';
 import { PhotoList } from './PhotoList.tsx';
 import { PostSummary } from './PostSummary.tsx';
@@ -40,7 +40,7 @@ export function PostPage({ area, folder }: { area: Area; folder: Folder }) {
   const addInput = useRef<HTMLInputElement>(null);
 
   const settings = pricingFor(folder.postId);
-  const live = settings.priceMode === 'live';
+  const live = isLive(settings);
   const isPost = folder.postId != null;
   const q = query.trim().toLowerCase();
   // The saved photos in post order: what reorder moves and what exports.

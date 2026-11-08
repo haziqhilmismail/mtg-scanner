@@ -14,7 +14,7 @@ import type { PricingStore } from '../hooks/usePricing.ts';
 import { formulaLine, priceField, pricingSummary, roundingKey, ROUNDINGS, roundingText, samePricing, type PriceField } from '../lib/pricing.ts';
 import type { Route } from '../routes.ts';
 import type { FoilStyle, LabelPosition, PriceMode, Settings } from '../types.ts';
-import { currencyOf } from '../utils.ts';
+import { currencyOf, isLive } from '../utils.ts';
 
 interface Props {
   // The post whose pricing this is; null for the default that new posts start with.
@@ -64,7 +64,7 @@ function PricingForm({ postId, parent, pricing, t }: Omit<Props, 'postTitle' | '
   const defaults = pricing.pricingFor(null);
   const matchesDefault = postId != null && samePricing(next, defaults);
   const dirty = invalid || !samePricing(next, saved) || (alsoDefault && !matchesDefault);
-  const live = values.priceMode === 'live';
+  const live = isLive(values);
 
   // Back to where the seller came from: the post, a photo, or Profile.
   const leave = () => (history.length > 1 ? history.back() : nav.replace(parent));

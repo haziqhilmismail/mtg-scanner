@@ -1,4 +1,3 @@
-import type { Key } from '../i18n/index.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   deleteScan as apiDeleteScan,
@@ -13,6 +12,7 @@ import {
   recordCorrection,
 } from '../api.ts';
 import { OutOfCreditsError } from '../api/http.ts';
+import type { Key } from '../i18n/index.ts';
 import type { Batch, Candidate, DetectedCard, LockedPrice, RelookupMsg, ScanUiState } from '../types.ts';
 import { bboxKey, canRetry, correctionFor, freshState, generateBatchId, normalizeUiState, uiStateOf } from '../utils.ts';
 import type { T } from './useLang.ts';

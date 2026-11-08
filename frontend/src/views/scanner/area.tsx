@@ -15,7 +15,7 @@ import type { RepostPhoto } from '../../lib/repost.ts';
 import { photoFileName } from '../../lib/photoFiles.ts';
 import { folderOf, POSTS, routeFolder, UNFILED } from '../../routes.ts';
 import type { Batch, CardRowData, PriceMode, Settings } from '../../types.ts';
-import { bboxKey, computeCardData, downloadBlob, goldPill, listingFields, lockPrices, notAdded, photoLabel, photoNumbers, popupOpen, type PhotoSort } from '../../utils.ts';
+import { bboxKey, computeCardData, downloadBlob, goldPill, isLive, listingFields, lockPrices, notAdded, photoLabel, photoNumbers, popupOpen, type PhotoSort } from '../../utils.ts';
 import { renderFile, type ExportJob } from './exportFiles.ts';
 
 // One post's worth of scans. `postId` null is the Unfiled photos.
@@ -238,7 +238,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   const finishCore = useCallback(async (batch: Batch, postId: number | null): Promise<'unpriced' | number> => {
     const settings = pricingFor(batch.postId);
     // Live price: the cards go on the post; prices stay live until each buyer is sent theirs.
-    if (settings.priceMode === 'live') return addBatchCore(batch, postId);
+    if (isLive(settings)) return addBatchCore(batch, postId);
     const cards = computeCardData(batch, settings);
     if (cards.some(cd => !cd.removed && !(cd.unitPrice > 0))) return 'unpriced';
     if (!batch.lockedAt) scanner.lockBatch(batch.id, lockPrices(cards));
@@ -250,7 +250,7 @@ export function useScannerArea({ scanner, nav: { route, go, replace, current }, 
   }, [dialog, t]);
 
   const finishPhoto = useCallback(async (batch: Batch) => {
-    const live = pricingFor(batch.postId).priceMode === 'live';
+    const live = isLive(pricingFor(batch.postId));
     if (finishing || batch.scanId == null || (!live && !(await explainFinish()))) return;
     setFinishing(batch.id); setReady(null);
     try {

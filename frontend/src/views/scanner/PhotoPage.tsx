@@ -7,7 +7,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { PrintingsModal } from '../../components/PrintingsModal.tsx';
 import { folderOf, POSTS } from '../../routes.ts';
 import type { Batch, Candidate } from '../../types.ts';
-import { matchThumbs } from '../../utils.ts';
+import { isLive, matchThumbs } from '../../utils.ts';
 import { keyTaken, type Area } from './area.tsx';
 
 // One photo: its cards as tiles, with previous and next through its post.
@@ -118,7 +118,7 @@ export function PhotoPage({ area, batch }: { area: Area; batch: Batch }) {
       <ActiveBatchView
         batch={batch}
         photoNumber={photoNumber ?? null}
-        live={settings.priceMode === 'live'}
+        live={isLive(settings)}
         settings={settings}
         scanner={scanner}
         t={t}

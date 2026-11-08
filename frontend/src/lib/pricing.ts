@@ -92,13 +92,13 @@ export const ROUNDINGS: Rounding[] = [
 ];
 export const roundingKey = (r: Rounding) => (r.roundDirection === 'none' ? 'none' : `${r.roundDirection} ${r.roundStep}`);
 
-// An amount of the pricing's currency, as settings show it: "RM 1", "RM 0.50".
-const money = (n: number, s: Settings) => `${currencyOf(s)} ${Number.isInteger(n) ? n : n.toFixed(2)}`;
+// A rounding step or minimum as the settings text writes it ("RM 1", "RM 0.50"), not a price.
+const stepText = (n: number, s: Settings) => `${currencyOf(s)} ${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 // A rounding in words: as a summary ("Round up to RM 1"), a dropdown option
 // ("Up to RM 1"), or a clause of the formula ("rounded up to the nearest RM 1").
 export const roundingText = (r: Rounding, s: Settings, t: T, form: 'summary' | 'option' | 'formula') =>
-  t(`round_${form}_${r.roundDirection}`, { step: money(r.roundStep, s) });
+  t(`round_${form}_${r.roundDirection}`, { step: stepText(r.roundStep, s) });
 
 // "×2.5 · Foil ×2.8 · Round up to RM 1"
 export const pricingSummary = (s: Settings, t: T) =>
@@ -108,7 +108,7 @@ export const pricingSummary = (s: Settings, t: T) =>
 export const formulaLine = (s: Settings, t: T) => [
   t('formula_start'),
   roundingText(s, s, t, 'formula'),
-  s.minPrice > 0 ? t('formula_min', { min: money(s.minPrice, s) }) : '',
+  s.minPrice > 0 ? t('formula_min', { min: stepText(s.minPrice, s) }) : '',
 ].filter(Boolean).join(', ') + '.';
 
 // The pricing fields typed as text, each with what it accepts: a multiplier

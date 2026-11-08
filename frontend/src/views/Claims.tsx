@@ -24,7 +24,7 @@ import { useToast } from '../components/ui/Toast.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import { plural } from '../i18n/index.ts';
 import type { CardRowData, Credits } from '../types.ts';
-import { byPostOrder, computeCardData, dueForSupportAsk, paymentLines, photoNumbers, popupOpen } from '../utils.ts';
+import { byPostOrder, computeCardData, dueForSupportAsk, isLive, paymentLines, photoNumbers, popupOpen } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
 import { BuyerDialog } from './claims/BuyerDialog.tsx';
@@ -112,7 +112,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
   // Every photo here is the open post's, so one pricing prices them all.
   const settings = pricingFor(postId);
   const cents = settings.showCents;
-  const live = settings.priceMode === 'live';
+  const live = isLive(settings);
 
   // ---------- what can be claimed ----------
   const photos = useMemo<Photo[]>(() => {
