@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { KEY } from '../lib/storage.ts';
 import { usePersistedState } from './usePersistedState.ts';
 import type { Appearance, Theme } from '../types.ts';
 
@@ -7,7 +8,7 @@ const DARK_QUERY = '(prefers-color-scheme: dark)';
 // The app follows the system appearance by default. `appearance` is the
 // person's choice (auto / light / dark); `theme` is what's actually on screen.
 export function useTheme() {
-  const [appearance, setAppearance] = usePersistedState<Appearance>('mtg.appearance', 'auto');
+  const [appearance, setAppearance] = usePersistedState<Appearance>(KEY.appearance, 'auto');
   const [systemDark, setSystemDark] = useState(() => window.matchMedia(DARK_QUERY).matches);
 
   useEffect(() => {

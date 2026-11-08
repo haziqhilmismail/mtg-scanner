@@ -23,6 +23,7 @@ import { SupportSheet } from '../components/SupportSheet.tsx';
 import { Segmented } from '../components/ui/Segmented.tsx';
 import { useToast } from '../components/ui/Toast.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
+import { KEY } from '../lib/storage.ts';
 import { plural } from '../i18n/index.ts';
 import type { CardRowData } from '../types.ts';
 import type { Credits } from '../api/credits.ts';
@@ -167,7 +168,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
   const buyerNames = useMemo(() => [...new Set([...groups.map(g => g.name), ...buyers.map(b => b.fb_name)].map(n => n.trim()))], [groups, buyers]);
   const totals = claimTotals(groups);
 
-  const [storedSort, setSort] = usePersistedState<ClaimSort>('mtg.claims.sort', 'claimed');
+  const [storedSort, setSort] = usePersistedState<ClaimSort>(KEY.claimsSort, 'claimed');
   const sort = CLAIM_SORTS.includes(storedSort) ? storedSort : 'claimed';
   const [filter, setFilter] = useState<'all' | PayState>('all');
   const shown = useMemo(() => sortGroups(groups, sort).filter(g => filter === 'all' || g.state === filter), [groups, sort, filter]);
@@ -183,7 +184,7 @@ export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payme
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [newSince, setNewSince] = useState<Set<number> | null>(null);   // buyers before the last Add
   const [supportOpen, setSupportOpen] = useState(false);
-  const [supportAsk, setSupportAsk] = usePersistedState<{ saves: number; askedAt: number | null }>('mtg.claims.supportAsk', { saves: 0, askedAt: null });
+  const [supportAsk, setSupportAsk] = usePersistedState<{ saves: number; askedAt: number | null }>(KEY.supportAsk, { saves: 0, askedAt: null });
   // Another post: nothing from the last one carries over.
   const [shownKey, setShownKey] = useState(activeKey);
   if (activeKey != null && shownKey !== activeKey) {
