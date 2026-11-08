@@ -1,5 +1,5 @@
 import type { ScanPicture } from './api/scans.ts';
-import type { PillOffset, ScanUiState } from './lib/scanState.ts';
+import type { ScanUiState } from './lib/scanState.ts';
 
 export type RoundDirection = 'none' | 'up' | 'down' | 'nearest';
 export type RoundStep = 0.1 | 0.5 | 1;
@@ -137,26 +137,3 @@ export interface Batch extends ScanUiState {
   error?: string;
 }
 
-export interface CardRowData {
-  card: DetectedCard;
-  sel: Candidate;
-  origIdx: number;
-  removed: boolean;
-  sold: boolean;          // removed because it sold before: covered on the photo
-  isFoil: boolean;
-  isManual: boolean;
-  needsPrice: boolean;
-  usd: number;
-  mult: number;
-  globalMult: number;
-  hasMultOverride: boolean;
-  autoPrice: number;
-  qty: number;
-  unitPrice: number;
-  hasOverride: boolean;
-  // The USD price the seller typed for the card (see PriceOverride); null for none or an RM price.
-  ownUsd: number | null;
-  lineTotal: number;
-  source: PriceSource;
-  pillOffset: PillOffset | null;
-}

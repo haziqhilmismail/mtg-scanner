@@ -5,10 +5,10 @@ import type { Credits } from '../api/credits.ts';
 import { OutOfCreditsError, statusOf } from '../api/http.ts';
 import type { Key } from '../i18n/index.ts';
 import { forgetLocalBatchState, keepSharedTombstones, localBatchState, sharedTombstones } from '../lib/legacy.ts';
-import { editCardState, freshState, normalizeUiState, uiStateOf, withCard, type CardState, type LockedPrice, type ScanUiState } from '../lib/scanState.ts';
+import { correctionFor, editCardState, freshState, normalizeUiState, uiStateOf, withCard, type CardState, type LockedPrice, type ScanUiState } from '../lib/scanState.ts';
 import { KEY, readTombstones, writeTombstones } from '../lib/storage.ts';
 import type { Batch, Candidate, DetectedCard } from '../types.ts';
-import { bboxKey, canRetry, correctionFor, generateBatchId } from '../utils.ts';
+import { bboxKey, canRetry, generateBatchId } from '../utils.ts';
 import { RETRY_MS, useSaveQueue } from './useSaveQueue.ts';
 
 const SAVE_DELAY_MS = 800;

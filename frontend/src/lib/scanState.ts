@@ -4,7 +4,8 @@
 // stored entry must look like. The stored key names are read by the backend
 // (rev, lockedAt, locked[].price, picks), so renaming one needs a data migration.
 
-import type { Candidate, DetectedCard } from '../types.ts';
+import type { Batch, Candidate, Correction, DetectedCard, PriceSource, Settings } from '../types.ts';
+import { applyRounding, parseOverride } from '../utils.ts';
 
 // Per-card draggable pill offset. The pill default position is derived from
 // the bbox + the global label-position setting; this offset (in source image
@@ -105,4 +106,100 @@ export function normalizeUiState(raw: unknown, cards: DetectedCard[]): ScanUiSta
     (state[k] as unknown[]).forEach((_, i, out) => { if (i < arr.length && FIELDS[k].valid(arr[i])) out[i] = arr[i]; });
   }
   return state;
+}
+
+export interface CardRowData {
+  card: DetectedCard;
+  sel: Candidate;
+  origIdx: number;
+  removed: boolean;
+  sold: boolean;          // removed because it sold before: covered on the photo
+  isFoil: boolean;
+  isManual: boolean;
+  needsPrice: boolean;
+  usd: number;
+  mult: number;
+  globalMult: number;
+  hasMultOverride: boolean;
+  autoPrice: number;
+  qty: number;
+  unitPrice: number;
+  hasOverride: boolean;
+  // The USD price the seller typed for the card (see PriceOverride); null for none or an RM price.
+  ownUsd: number | null;
+  lineTotal: number;
+  source: PriceSource;
+  pillOffset: PillOffset | null;
+}
+
+// Each card's pricing, quantity and foil row from the scan's cards and the
+// seller's per-card edits (a Batch is one).
+export function computeCardData(cards: DetectedCard[], batch: ScanUiState, settings: Settings): CardRowData[] {
+  return cards.map((c, origIdx) => {
+    const sel = c.candidates[0] || ({} as never);
+    const isManual = !!sel._manual;
+    const isFoil = batch.isFoil[origIdx] ?? false;
+    const removed = !!batch.removed[origIdx];
+    const sold = removed && !!batch.sold[origIdx];
+    const usd = isFoil ? (sel.usd_foil || sel.usd || 0) : (sel.usd || 0);
+    const globalMult = isFoil ? settings.multFoil : settings.multNormal;
+    const multRaw = batch.multOverride[origIdx];
+    const hasMultOverride = multRaw != null && !isNaN(multRaw);
+    const mult = hasMultOverride ? (multRaw as number) : globalMult;
+    const qty = Math.max(1, batch.quantity[origIdx] || 1);
+    // A box holding only "." (or nothing) is no price yet, not RM0.
+    const own = parseOverride(batch.priceOverride[origIdx]);
+    const hasOverride = own != null;
+    // CK is the only price source. If the chosen side has no CK row we don't
+    // auto-price — the user must enter manually. Skipping applyRounding here
+    // is what bypasses the RM 1 floor and surfaces "needs price" so we never
+    // ship a fake RM 1 sticker on something we couldn't actually look up.
+    const ckSourceMatched = isFoil
+      ? sel.price_source_foil === 'cardkingdom'
+      : sel.price_source_normal === 'cardkingdom';
+    const autoPrice = ckSourceMatched ? applyRounding(usd * mult, settings) : 0;
+    const needsPrice = !hasOverride && (isManual || !ckSourceMatched);
+    const ownUsd = own?.unit === 'usd' ? own.amount : null;
+    const unitPrice = own ? (ownUsd != null ? applyRounding(ownUsd * mult, settings) : own.amount) : needsPrice ? NaN : autoPrice;
+    const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
+    // A finished photo keeps the prices buyers saw, whatever CK or the
+    // multipliers do since.
+    const source = isManual
+      ? 'manual'
+      : (isFoil
+        ? (sel.price_source_foil || 'none')
+        : (sel.price_source_normal || 'none')) as CardRowData['source'];
+    const row: CardRowData = {
+      card: c, sel, origIdx, removed, sold,
+      isFoil, isManual, needsPrice,
+      usd, mult, globalMult, hasMultOverride,
+      autoPrice, qty, unitPrice, hasOverride, ownUsd, lineTotal, source,
+      pillOffset: batch.pillOffset?.[origIdx] ?? null,
+    };
+    // A finished photo keeps the prices buyers saw, whatever CK or the
+    // multipliers do since.
+    const lock = batch.lockedAt ? batch.locked[origIdx] : null;
+    if (!lock) return row;
+    return {
+      ...row, needsPrice: false, usd: lock.usd, mult: lock.mult,
+      autoPrice: lock.manual ? autoPrice : lock.price, unitPrice: lock.price,
+      hasOverride: lock.manual, ownUsd: null, lineTotal: lock.price * qty,
+      source: lock.manual ? 'manual' : 'cardkingdom',
+    };
+  });
+}
+
+export function correctionFor(batch: Batch, idx: number, picked?: Candidate): Correction | null {
+  const card = batch.response?.cards[idx];
+  const shown = card?.candidates[0]?.scryfall_id ?? '';
+  const scryfallId = picked ? picked.scryfall_id : shown;
+  if (batch.scanId == null || !card || !scryfallId) return null;
+  return { scanId: batch.scanId, cardId: card.id, scryfallId, kind: !picked || scryfallId === shown ? 'confirm' : 'pick' };
+}
+
+// The prices to lock a photo at when it is finished: each kept card's price
+// as it stands, and how it was worked out.
+export function lockPrices(cards: CardRowData[]): (LockedPrice | null)[] {
+  return cards.map(cd => (cd.removed || !(cd.unitPrice > 0) ? null
+    : { price: cd.unitPrice, usd: cd.usd, mult: cd.mult, manual: cd.hasOverride }));
 }

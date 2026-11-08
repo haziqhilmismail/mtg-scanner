@@ -1,8 +1,8 @@
 import { useId, useState } from 'react';
 import type { T } from '../../hooks/useLang.ts';
-import { editCardState, type CardState } from '../../lib/scanState.ts';
-import type { Batch, CardRowData, Settings } from '../../types.ts';
-import { cardName, computeCardData, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../../utils.ts';
+import { computeCardData, editCardState, type CardRowData, type CardState } from '../../lib/scanState.ts';
+import type { Batch, Settings } from '../../types.ts';
+import { cardName, currencyOf, fmt2, formatMyr, overrideText, parseOverride, readPrice, type PriceOverride } from '../../utils.ts';
 import { approxText, Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { TextField } from '../../components/ui/Field.tsx';

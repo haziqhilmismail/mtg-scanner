@@ -25,10 +25,9 @@ import { useToast } from '../components/ui/Toast.tsx';
 import { usePersistedState } from '../hooks/usePersistedState.ts';
 import { KEY } from '../lib/storage.ts';
 import { plural } from '../i18n/index.ts';
-import type { CardRowData } from '../types.ts';
 import type { Credits } from '../api/credits.ts';
 import { canShareFiles, dateLocale, fetchQrFile, isPhone, popupOpen, useFileDrop } from '../lib/browser.ts';
-import { byPostOrder, computeCardData, dueForSupportAsk, isLive, paymentLines, photoNumbers } from '../utils.ts';
+import { byPostOrder, dueForSupportAsk, isLive, paymentLines, photoNumbers } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
 import { BuyerDialog } from './claims/BuyerDialog.tsx';
@@ -41,6 +40,7 @@ import type { T } from '../hooks/useLang.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Folder } from './scanner/usePosts.ts';
+import { computeCardData, type CardRowData } from '../lib/scanState.ts';
 
 export interface ClaimsProps {
   // The open post, from the URL; null while another page shows. Claims
