@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUser, CurrentUserId, DbSession, limiter, owned
+from ..deps import CurrentUser, CurrentUserId, DbSession, limiter, owned, owned_many
 from ..models import Listing, ListingStatus, Post, Scan
 from ..schemas import OrderRead
 from ..schemas.listing import ListingBase
@@ -38,6 +38,7 @@ async def read_screenshots(
     ids = [i for x in scan_ids.split(",") if (i := as_id(x.strip())) is not None][:MAX_PHOTOS]
     photos = {}
     if ids:
+        # Not owned_many: an id that is not this user's photo is skipped, not a 404.
         rows = (await db.scalars(select(Scan).where(Scan.id.in_(ids), Scan.user_id == user_id))).all()
         photos = await asyncio.to_thread(
             claims.decode_photos, {s.id: s.preview_b64 for s in rows})
@@ -129,11 +130,7 @@ async def confirm_claims(body: ConfirmRequest, db: DbSession, user_id: CurrentUs
     All or nothing — a bad item rolls the whole batch back."""
     post = None if body.post_id is None else await owned(db, Post, body.post_id, user_id)
     scan_ids = {i.scan_id for c in body.claims for i in c.items}
-    scans = {s.id: s for s in (await db.scalars(
-        select(Scan).where(Scan.id.in_(scan_ids), Scan.user_id == user_id)
-    )).all()}
-    if scan_ids - scans.keys():
-        raise HTTPException(404, "Scan not found")
+    scans = await owned_many(db, Scan, scan_ids, user_id)
     # A card of a finished photo sells at the price it was posted with.
     locked = {sid: locked_prices(s.ui_state, s.cards) for sid, s in scans.items()}
 

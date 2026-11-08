@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, Json
 from sqlalchemy import case, func, select, update
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession, owned
+from ..deps import CurrentUserId, DbSession, owned, owned_many
 from ..models import (
     Listing,
     ListingStatus,
@@ -173,11 +173,7 @@ async def repost(post_id: Id, body: Repost, db: DbSession, user_id: CurrentUserI
     ids = [p.scan_id for p in body.photos]
     if len(set(ids)) != len(ids):
         raise HTTPException(400, "A photo is listed twice")
-    found = {s.id: s for s in (await db.execute(
-        select(Scan).where(Scan.id.in_(ids), Scan.user_id == user_id, Scan.post_id == post_id)
-    )).scalars().all()}
-    if len(found) != len(ids):
-        raise HTTPException(404, "Photo not found in this post")
+    found = await owned_many(db, Scan, ids, user_id, Scan.post_id == post_id, detail="Photo not found in this post")
     if any(not s.photo for s in found.values()):
         raise HTTPException(409, "A photo's picture is missing on the server")
 

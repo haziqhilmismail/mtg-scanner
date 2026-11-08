@@ -1,10 +1,10 @@
 """CRUD for sale listings."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession, owned
+from ..deps import CurrentUserId, DbSession, owned, owned_many
 from ..models import (
     Listing,
     ListingStatus,
@@ -45,29 +45,6 @@ def _read_with_availability(listing: Listing, committed: int) -> ListingReadWith
         "qty_committed": committed,
         "qty_available": max(0, qty_total - committed),
     })
-
-
-async def _resolve_posts(db, user_id: int, post_ids: list[int]) -> list[Post]:
-    """Look up the user's posts by id, validating ownership in a single round-trip."""
-    if not post_ids:
-        return []
-    rows = (await db.execute(
-        select(Post).where(Post.id.in_(post_ids), Post.user_id == user_id)
-    )).scalars().all()
-    found = {p.id for p in rows}
-    missing = [pid for pid in post_ids if pid not in found]
-    if missing:
-        raise HTTPException(404, f"Post(s) not found: {missing}")
-    return list(rows)
-
-
-async def _check_scan(db, user_id: int, scan_id: int | None) -> None:
-    """A listing may only point at its owner's own scan: deleting that scan
-    deletes the listing."""
-    if scan_id is not None and await db.scalar(
-        select(Scan.id).where(Scan.id == scan_id, Scan.user_id == user_id)
-    ) is None:
-        raise HTTPException(404, "Scan not found")
 
 
 @router.get("", response_model=list[ListingReadWithAvailability])
@@ -118,8 +95,10 @@ async def create_listing(
     """Create a listing optionally linked to N posts."""
     data = payload.model_dump()
     post_ids: list[int] = data.pop("post_ids", []) or []
-    posts = await _resolve_posts(db, user_id, post_ids)
-    await _check_scan(db, user_id, payload.scan_id)
+    posts = list((await owned_many(db, Post, post_ids, user_id)).values())
+    # A listing may only point at its owner's own scan: deleting that scan deletes the listing.
+    if payload.scan_id is not None:
+        await owned(db, Scan, payload.scan_id, user_id)
 
     listing = Listing(**data, user_id=user_id)
     listing.posts = posts
@@ -136,12 +115,13 @@ async def update_listing(
 
     updates = payload.model_dump(exclude_unset=True)
     post_ids = updates.pop("post_ids", None)  # None = unchanged, [] = unlink all
-    await _check_scan(db, user_id, updates.get("scan_id"))
+    if updates.get("scan_id") is not None:
+        await owned(db, Scan, updates["scan_id"], user_id)
     for k, v in updates.items():
         setattr(listing, k, v)
 
     if post_ids is not None:
-        listing.posts = await _resolve_posts(db, user_id, post_ids)
+        listing.posts = list((await owned_many(db, Post, post_ids, user_id)).values())
 
     await db.flush()
     return _read(listing)
