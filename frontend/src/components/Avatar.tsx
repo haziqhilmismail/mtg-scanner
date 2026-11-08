@@ -3,8 +3,6 @@ import type { AuthUser } from '../api/auth.ts';
 import { initials } from '../utils.ts';
 import { Icon } from './Icon.tsx';
 
-// The Google photo, or the person's initials when there is none or it fails
-// to load; a plain person in solo mode.
 export function Avatar({ user, className = '' }: { user: AuthUser | null; className?: string }) {
   const [failed, setFailed] = useState<string | null>(null);
   const photo = user?.avatar_url;

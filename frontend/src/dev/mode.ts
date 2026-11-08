@@ -9,7 +9,6 @@ export const MODE_KEY = 'mtg.dev.data';
 
 const isMode = (v: string | null): v is DataMode => DATA_MODES.includes(v as DataMode);
 
-// ?data= in the URL wins, then the tab's last choice, then live.
 export function pickMode(search: string, saved: string | null): DataMode {
   return [new URLSearchParams(search).get('data'), saved].find(isMode) ?? 'live';
 }

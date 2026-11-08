@@ -1,6 +1,3 @@
-// Scanner strings: Posts, a post, a photo and its card tiles.
-// Every key appears in one area file only; index.ts merges them.
-
 export const en = {
   scan_progress: 'Scanned {done} of {total}',
   scan_no_credits: 'Not scanned: no scans left. Enter a voucher or wait for your next free scan, then retry.',

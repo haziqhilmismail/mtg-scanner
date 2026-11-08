@@ -1,6 +1,3 @@
-// Pricing, payment, voucher, support and feedback strings.
-// Every key appears in one area file only; index.ts merges them.
-
 export const en = {
   menu_language: 'Language',
   menu_appearance: 'Appearance',

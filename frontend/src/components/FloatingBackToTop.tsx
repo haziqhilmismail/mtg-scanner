@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
 
-// Page-level floating "back to top" button. Hidden by default; fades in once
-// the user has scrolled more than one viewport down. Sits above the tab bar
-// at the bottom-right corner.
 export function FloatingBackToTop() {
   const [visible, setVisible] = useState(false);
 

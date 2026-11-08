@@ -10,14 +10,11 @@ import { approxText } from './Money.tsx';
 
 interface RowProps {
   title: string;
-  // For the one-line summary.
   settings: Settings;
   t: T;
-  // The pricing page.
   to: Route;
 }
 
-// A pricing in one line, linking to its page: set once per market night.
 export function PricingRow({ title, settings, t, to }: RowProps) {
   return (
     <Link className="pricing-row" to={to}>
@@ -35,9 +32,6 @@ export function PricingRow({ title, settings, t, to }: RowProps) {
 // settings change.
 const SAMPLE = { name: 'Lord Skitter, Sewer King', usd: 4.99, usdFoil: 4.49 };
 
-// One card priced with these settings: the labels printed on a price-on-photo
-// post, or for a live post the rate, today's price and when it gets set, with
-// the caption to copy unless `caption` is false.
 export function PricingExample({ settings, t, caption: showCaption = true }: { settings: Settings; t: T; caption?: boolean }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {

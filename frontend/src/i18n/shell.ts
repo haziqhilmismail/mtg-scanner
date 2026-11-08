@@ -1,6 +1,3 @@
-// Strings shared by the shell (top bar, Profile, footer, alerts) or by several areas.
-// Every key appears in one area file only; index.ts merges them.
-
 export const en = {
   close: 'Close',
   cancel: 'Cancel',

@@ -1,7 +1,3 @@
-// Claims strings.
-// Every key appears in one area file only; index.ts merges them.
-// Counted strings come in pairs: `key` with {n}, and `key_one`.
-
 export const en = {
   claims_how: 'How claims work',
   claims_to_collect: 'To collect',

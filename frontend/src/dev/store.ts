@@ -43,7 +43,6 @@ export const ago = (hours: number) => new Date(Date.now() - hours * 3600e3).toIS
 // 404: the broken pictures of the worst case.
 export const missing = (what: string) => `/api/no-such-image/${what}`;
 
-// The picture for an image route (imageUrl's path); a broken one if none.
 export const pictureAt = (f: Fixture, path: string) => f.images.get(path) ?? missing('unknown.jpg');
 
 const nextId = (rows: Array<{ id: number }>, first = 1) => Math.max(first - 1, ...rows.map(r => r.id)) + 1;
@@ -58,8 +57,6 @@ export function newFixture(account: Pick<Fixture, 'config' | 'me' | 'health' | '
     images: new Map([['/api/payment/qr', QR_PICTURE]]),
   };
 }
-
-// ---------- pictures ----------
 
 const svg = (w: number, h: number, body: string) =>
   `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${body}</svg>`)}`;
@@ -105,8 +102,6 @@ function layout(n: number, w: number, h: number): Box[] {
   ]);
 }
 
-// ---------- posts ----------
-
 export function newPost(f: Fixture, fields: { title: string | null; pricing: Settings | null; status?: PostStatus; created_at?: string }): Post {
   const at = fields.created_at ?? ago(0);
   const post: Post = {
@@ -118,8 +113,6 @@ export function newPost(f: Fixture, fields: { title: string | null; pricing: Set
   f.posts.push(post);
   return post;
 }
-
-// ---------- photos and cards ----------
 
 export interface CardSpec {
   name: string;
@@ -235,8 +228,6 @@ export function addPhoto(f: Fixture, post: Post | null, spec: PhotoSpec): Photo 
   return photo;
 }
 
-// ---------- stock and claims ----------
-
 export function newListing(f: Fixture, fields: Omit<Listing, 'id' | 'user_id' | 'status' | 'notes' | 'created_at' | 'updated_at'>): Listing {
   const at = ago(0);
   const listing: Listing = { ...fields, id: nextId(f.listings), user_id: f.me.id, status: 'active', notes: null, created_at: at, updated_at: at };
@@ -303,7 +294,6 @@ export interface ClaimSpec {
   hoursAgo: number;
 }
 
-// One comment's claim: an order for the buyer with a line per card.
 export function addClaim(f: Fixture, spec: ClaimSpec): Order {
   const at = ago(spec.hoursAgo), later = ago(spec.hoursAgo - 1);
   const lines = spec.lines.map(([photo, i, qty = 1]) => {
