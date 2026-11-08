@@ -4,13 +4,12 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession
+from ..deps import CurrentUserId, DbSession, owned
 from ..models import (
     Listing,
     ListingStatus,
     Order,
     OrderItem,
-    OrderStatus,
     Post,
     Scan,
     listing_post_links,
@@ -21,14 +20,14 @@ from ..schemas import (
     ListingReadWithAvailability,
     ListingUpdate,
 )
+from ..schemas.types import Id
 from ..services.listings import drop_listing
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
 
 
 def _serialize_listing(listing: Listing) -> dict:
-    """ORM instance → dict ready for ListingRead.model_validate. Pulls
-    post_ids out of the .posts relationship since the column was removed."""
+    """ORM listing → dict for ListingRead, with post_ids from the .posts relationship."""
     return {
         **{c.name: getattr(listing, c.name) for c in Listing.__table__.columns},
         "post_ids": sorted(p.id for p in listing.posts),
@@ -76,18 +75,17 @@ async def list_listings(
     db: DbSession,
     user_id: CurrentUserId,
     status: ListingStatus | None = Query(None, description="Filter by listing status"),
-    post_id: int | None = Query(None, description="Filter to one post; pass 0 for unlinked listings"),
+    post_id: int | None = Query(None, ge=0, le=2**63 - 1, description="Filter to one post (an Id); pass 0 for unlinked listings"),
 ) -> list[ListingReadWithAvailability]:
     """Each listing is annotated with qty_committed (sum of qty across non-cancelled
     order items) and qty_available (qty_total − committed)."""
-    # Subquery: per-listing committed qty across active orders
     committed_subq = (
         select(
             OrderItem.listing_id.label("lid"),
             func.coalesce(func.sum(OrderItem.qty), 0).label("committed"),
         )
         .join(Order, Order.id == OrderItem.order_id)
-        .where(Order.status != OrderStatus.cancelled)
+        .where(Order.holds_stock)
         .group_by(OrderItem.listing_id)
         .subquery()
     )
@@ -103,7 +101,6 @@ async def list_listings(
         q = q.where(Listing.status == status)
     if post_id is not None:
         if post_id == 0:
-            # listings with no post link at all
             q = q.where(~Listing.id.in_(select(listing_post_links.c.listing_id)))
         else:
             q = q.where(Listing.id.in_(
@@ -128,22 +125,14 @@ async def create_listing(
     listing.posts = posts
     db.add(listing)
     await db.flush()
-    await db.refresh(listing)
     return _read(listing)
 
 
 @router.patch("/{listing_id}", response_model=ListingRead)
 async def update_listing(
-    listing_id: int, payload: ListingUpdate, db: DbSession, user_id: CurrentUserId,
+    listing_id: Id, payload: ListingUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> ListingRead:
-    q = (
-        select(Listing)
-        .where(Listing.id == listing_id)
-        .options(selectinload(Listing.posts))
-    )
-    listing = (await db.execute(q)).scalar_one_or_none()
-    if not listing or listing.user_id != user_id:
-        raise HTTPException(404, "Listing not found")
+    listing = await owned(db, Listing, listing_id, user_id, selectinload(Listing.posts))
 
     updates = payload.model_dump(exclude_unset=True)
     post_ids = updates.pop("post_ids", None)  # None = unchanged, [] = unlink all
@@ -155,16 +144,11 @@ async def update_listing(
         listing.posts = await _resolve_posts(db, user_id, post_ids)
 
     await db.flush()
-    await db.refresh(listing)
     return _read(listing)
 
 
 @router.delete("/{listing_id}", status_code=204)
-async def remove_listing(listing_id: int, db: DbSession, user_id: CurrentUserId) -> None:
-    """Remove listing (see drop_listing). Either way the row stops appearing
-    in the active stock view; this matters only for users digging into
-    archived inventory."""
-    listing = await db.get(Listing, listing_id)
-    if not listing or listing.user_id != user_id:
-        raise HTTPException(404, "Listing not found")
+async def remove_listing(listing_id: Id, db: DbSession, user_id: CurrentUserId) -> None:
+    """Remove a listing (see drop_listing)."""
+    listing = await owned(db, Listing, listing_id, user_id)
     await drop_listing(db, listing)

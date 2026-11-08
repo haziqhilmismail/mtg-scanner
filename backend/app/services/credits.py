@@ -1,7 +1,4 @@
-"""
-credits.py
-----------
-Scan credits. Each signed-in user gets `settings.free_scans_per_window` free
+"""Scan credits. Each signed-in user gets `settings.free_scans_per_window` free
 photo scans in any rolling 30-day window; a voucher (and later a payment) can
 add extra credits that don't expire, or switch the limit off.
 
@@ -15,6 +12,7 @@ holding SQLite's write lock that long would stall every other writer.
 import asyncio
 import secrets
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import DateTime, delete, func, insert, literal, select, update
@@ -28,15 +26,22 @@ from ..models import ScanCreditEvent, User, Voucher, VoucherRedemption
 WINDOW = timedelta(days=30)
 FOREVER = datetime(9999, 12, 31)
 
-# What reserve() hands back and refund() takes.
 UNLIMITED, FREE, BONUS = "unlimited", "free", "bonus"
+
+
+@dataclass(frozen=True)
+class Credit:
+    """What reserve() took and refund() hands back. A FREE credit is one
+    credit event row; `event_id` names it so a refund deletes that row."""
+    source: str
+    event_id: int | None = None
 
 # No 0/O or 1/I/L: codes get read off a screen and typed on a phone.
 _CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
 
 class OutOfCredits(Exception):
-    """No credit left. main.py turns it into the 402 the frontend knows."""
+    """No credit left: the app answers 402 with `credits`, which the frontend knows."""
 
     def __init__(self, credits: dict):
         super().__init__("out_of_credits")
@@ -51,7 +56,8 @@ class VoucherError(Exception):
         self.code = code
 
 
-def _now() -> datetime:
+def utcnow() -> datetime:
+    """UTC now, naive, as the credit tables store it."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
@@ -64,51 +70,45 @@ def _free_used(user_id: int, now: datetime):
     )
 
 
-async def reserve(user_id: int) -> str | None:
-    """Take one credit for `user_id`. Returns where it came from, or None when
-    the user has none left."""
+async def reserve(user_id: int) -> Credit | None:
+    """Take one credit for `user_id`, or return None when the user has none left."""
     if not settings.auth_enabled:
-        return UNLIMITED  # solo mode: there is nobody to limit
-    now = _now()
+        return Credit(UNLIMITED)  # solo mode: there is nobody to limit
+    now = utcnow()
     async with async_session_factory() as s:
         user = await s.get(User, user_id)
         if user is None:
             return None
         if user.unlimited_scans_until and user.unlimited_scans_until > now:
-            return UNLIMITED
+            return Credit(UNLIMITED)
         # One statement, so the check and the insert can't be split by a
         # parallel scan from the same user.
-        took_free = await s.execute(
+        event_id = await s.scalar(
             insert(ScanCreditEvent).from_select(
                 ["user_id", "created_at"],
                 select(literal(user_id), literal(now, DateTime())).where(
                     _free_used(user_id, now) < settings.free_scans_per_window
                 ),
-            )
+            ).returning(ScanCreditEvent.id)
         )
-        if took_free.rowcount:
+        if event_id is not None:
             await s.commit()
-            return FREE
+            return Credit(FREE, event_id)
         took_bonus = await s.execute(
             update(User)
             .where(User.id == user_id, User.bonus_scan_credits > 0)
             .values(bonus_scan_credits=User.bonus_scan_credits - 1)
         )
         await s.commit()
-        return BONUS if took_bonus.rowcount else None
+        return Credit(BONUS) if took_bonus.rowcount else None
 
 
-async def refund(user_id: int, source: str) -> None:
+async def refund(user_id: int, credit: Credit) -> None:
     """Hand back a credit taken by reserve() — the scan it paid for failed."""
     async with async_session_factory() as s:
-        if source == FREE:
-            newest = (
-                select(func.max(ScanCreditEvent.id))
-                .where(ScanCreditEvent.user_id == user_id)
-                .scalar_subquery()
-            )
-            await s.execute(delete(ScanCreditEvent).where(ScanCreditEvent.id == newest))
-        elif source == BONUS:
+        if credit.source == FREE:
+            await s.execute(delete(ScanCreditEvent).where(ScanCreditEvent.id == credit.event_id))
+        elif credit.source == BONUS:
             await s.execute(
                 update(User)
                 .where(User.id == user_id)
@@ -122,14 +122,14 @@ async def spend(db: AsyncSession, user_id: int):
     """Pay one credit for the block: taken before it runs (so parallel scans
     can't overshoot), handed back if it raises or is cancelled. Raises
     OutOfCredits when there is none."""
-    source = await reserve(user_id)
-    if source is None:
+    credit = await reserve(user_id)
+    if credit is None:
         raise OutOfCredits(await status(db, user_id))
     try:
         yield
     except BaseException:
         # Shielded: a request cancelled mid-call must still get its credit back.
-        await asyncio.shield(refund(user_id, source))
+        await asyncio.shield(refund(user_id, credit))
         raise
 
 
@@ -139,7 +139,7 @@ async def status(db: AsyncSession, user_id: int) -> dict:
     if not settings.auth_enabled:
         return {"enforced": False, "unlimited": True, "limit": limit, "used": 0,
                 "bonus": 0, "remaining": None, "next_free_at": None}
-    now = _now()
+    now = utcnow()
     user = await db.get(User, user_id)
     in_window = (
         await db.scalars(
@@ -181,10 +181,34 @@ def new_code() -> str:
     return "MTG-" + "-".join(groups)
 
 
+async def create_voucher(
+    db: AsyncSession, *, credits: int = 0, unlimited: bool = False, unlimited_days: int | None = None,
+    resets: bool = False, reusable: bool = False, only_user_id: int | None = None, max_uses: int = 1,
+    expires_in_days: int | None = None, note: str | None = None,
+) -> str:
+    """Add a voucher to the session and return its code as people type it.
+    Raises ValueError when the options make no sense."""
+    if not credits and not unlimited and not resets:
+        raise ValueError("a voucher must give extra credits, unlimited scans and/or a reset")
+    if unlimited_days is not None and not unlimited:
+        raise ValueError("unlimited days only apply to an unlimited voucher")
+    if reusable and only_user_id is None:
+        raise ValueError("a reusable voucher must be bound to one user (anyone else could use it forever)")
+    now = utcnow()
+    code = new_code()
+    db.add(Voucher(
+        code=normalise_code(code), credits=credits, unlimited=unlimited, unlimited_days=unlimited_days,
+        resets=resets, reusable=reusable, only_user_id=only_user_id, max_uses=max_uses,
+        expires_at=now + timedelta(days=expires_in_days) if expires_in_days else None,
+        note=note, created_at=now,
+    ))
+    await db.flush()
+    return code
+
+
 async def grant(db: AsyncSession, user_id: int, *, credits: int = 0,
                 unlimited: bool = False, unlimited_days: int | None = None) -> None:
-    """Add extra credits and/or unlimited scanning to a user. Vouchers call
-    this; a payment will too."""
+    """Add extra credits and/or unlimited scanning to a user."""
     user = await db.get(User, user_id)
     if credits:
         user.bonus_scan_credits += credits
@@ -194,13 +218,13 @@ async def grant(db: AsyncSession, user_id: int, *, credits: int = 0,
         else:
             # Extend from whatever is left, so two 30-day vouchers make 60;
             # capped in days so a huge --days can't overflow past FOREVER.
-            start = max(user.unlimited_scans_until or _now(), _now())
+            start = max(user.unlimited_scans_until or utcnow(), utcnow())
             user.unlimited_scans_until = start + timedelta(days=min(unlimited_days, (FOREVER - start).days))
 
 
 async def redeem(db: AsyncSession, user_id: int, code: str) -> Voucher:
     """Apply a voucher to `user_id`. Raises VoucherError when it can't be."""
-    now = _now()
+    now = utcnow()
     voucher = await db.scalar(select(Voucher).where(Voucher.code == normalise_code(code)))
     # A code bound to someone else looks exactly like a code that doesn't exist.
     if voucher is None or (voucher.only_user_id and voucher.only_user_id != user_id):

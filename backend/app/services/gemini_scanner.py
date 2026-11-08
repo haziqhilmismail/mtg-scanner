@@ -1,7 +1,4 @@
-"""
-gemini_scanner.py
------------------
-The Gemini scanner (SCANNER_BACKEND=gemini, the code default) behind the
+"""The Gemini scanner (SCANNER_BACKEND=gemini, the code default) behind the
 `Scanner` interface of services/scans.py.
 
 Gemini does both jobs in one call:
@@ -25,18 +22,19 @@ from pydantic import BaseModel
 from ..config import settings
 from ..schemas.scan import Detection, Guess
 from . import gemini
-from .classical_detector import detect_card_quads, iou_xywh
+from .card_geometry import iou, merge_same_name, xyxy
+from .classical_detector import detect_card_quads
 
 
 # Gemini's answer for one card. Structured outputs don't support
 # Optional/Union types, so empty strings mean "unknown" instead of null.
 class GeminiCard(BaseModel):
-    name: str          # exact card name as printed (English)
-    set_code: str      # 3-letter Scryfall set code, lowercase, or "" if unknown
-    collector_number: str  # collector number from card bottom, or "" if unknown
-    is_foil: bool      # true if rainbow shimmer / holographic treatment visible
-    quantity: int      # 1 for a single card; N for N stacked-with-offset copies
-    box_2d: list[int]  # [ymin, xmin, ymax, xmax] normalized 0-1000
+    name: str
+    set_code: str
+    collector_number: str
+    is_foil: bool
+    quantity: int
+    box_2d: list[int]
 
 
 PROMPT = """You are an expert at identifying Magic: The Gathering trading cards.
@@ -108,7 +106,7 @@ def scan_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> list[Gemini
     parsed = gemini.generate_json(
         [types.Part.from_bytes(data=image_bytes, mime_type=mime_type), PROMPT],
         list[GeminiCard],
-        temperature=0.1,  # low temp for accuracy
+        temperature=0.1,
     )
     if parsed is None:
         raise RuntimeError("Could not parse Gemini response")
@@ -119,59 +117,21 @@ def scan_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> list[Gemini
     return _merge_stacked_detections(parsed)
 
 
-def _bbox_overlap_ratio(a: list[int], b: list[int]) -> float:
-    """Overlap as fraction of the smaller bbox's area.
-    Stacked-with-offset pairs are nearly fully overlapping (the smaller is almost
-    entirely contained in the larger), so this ratio approaches 1.0. Side-by-side
-    cards have ratio ~= 0."""
-    ay1, ax1, ay2, ax2 = a
-    by1, bx1, by2, bx2 = b
-    iy1, ix1 = max(ay1, by1), max(ax1, bx1)
-    iy2, ix2 = min(ay2, by2), min(ax2, bx2)
-    if iy2 <= iy1 or ix2 <= ix1:
-        return 0.0
-    inter = (iy2 - iy1) * (ix2 - ix1)
-    a_area = (ay2 - ay1) * (ax2 - ax1)
-    b_area = (by2 - by1) * (bx2 - bx1)
-    smaller = min(a_area, b_area)
-    return inter / smaller if smaller > 0 else 0.0
-
-
-def _bbox_union(a: list[int], b: list[int]) -> list[int]:
-    return [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
+def _stack(kept: GeminiCard, card: GeminiCard) -> GeminiCard:
+    """Fold `card` into `kept`: quantities add up and the box covers both."""
+    kept.quantity = max(1, kept.quantity) + max(1, card.quantity)
+    a, b = kept.box_2d, card.box_2d
+    kept.box_2d = [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
+    return kept
 
 
 def _merge_stacked_detections(dets: list[GeminiCard]) -> list[GeminiCard]:
-    """Merge same-name detections whose bboxes overlap by >50% of the smaller box.
-    Result has summed quantities and the union bbox covering the stack."""
-    if len(dets) < 2:
-        return dets
-
-    by_name: dict[str, list[int]] = {}
-    for i, d in enumerate(dets):
-        key = (d.name or "").strip().lower()
-        if not key:
-            continue
-        by_name.setdefault(key, []).append(i)
-
-    merged_into: dict[int, int] = {}  # j -> i; means j was merged into i
-    for idxs in by_name.values():
-        if len(idxs) < 2:
-            continue
-        for i in idxs:
-            if i in merged_into:
-                continue
-            for j in idxs:
-                if j <= i or j in merged_into:
-                    continue
-                ratio = _bbox_overlap_ratio(dets[i].box_2d, dets[j].box_2d)
-                if ratio >= 0.5:  # threshold: overlapping at least half of the smaller box
-                    add_qty = max(1, dets[j].quantity)
-                    dets[i].quantity = max(1, dets[i].quantity) + add_qty
-                    dets[i].box_2d = _bbox_union(dets[i].box_2d, dets[j].box_2d)
-                    merged_into[j] = i
-
-    return [d for i, d in enumerate(dets) if i not in merged_into]
+    return merge_same_name(
+        dets,
+        name=lambda d: (d.name or "").strip().lower() or None,
+        box=lambda d: (d.box_2d[1], d.box_2d[0], d.box_2d[3], d.box_2d[2]),
+        absorb=_stack,
+    )
 
 
 class GeminiScanner:
@@ -191,8 +151,6 @@ class GeminiScanner:
     async def detect(self, pil: Image.Image, jpeg: bytes) -> list[Detection]:
         W, H = pil.size
 
-        # Card-shaped blobs: a tight axis-aligned bbox (for IoU matching
-        # against Gemini) and a 4-corner quad following the card edges.
         classical_boxes: list[tuple[int, int, int, int]] = []
         classical_quads: list[list[list[int]]] = []
         if settings.use_classical_bbox:
@@ -203,8 +161,6 @@ class GeminiScanner:
             except Exception as e:
                 print(f"[scan] classical detector failed: {e}", flush=True)
 
-        # The Gemini SDK call is synchronous and takes several seconds; run it
-        # in a worker thread so the event loop keeps serving other requests.
         cards = await asyncio.to_thread(scan_image, jpeg)
 
         out: list[Detection] = []
@@ -227,13 +183,12 @@ class GeminiScanner:
             bbox_source = "gemini"
             matched_quad: list[list[int]] | None = None
             if classical_boxes:
-                gemini_xywh = (x, y, x2 - x, y2 - y)
                 # Match against ALL classical boxes. If the best one was already
                 # taken by an earlier Gemini detection, this one is a duplicate of
                 # the same card; otherwise refine to it and mark it taken.
                 best_iou, best_idx = 0.0, -1
                 for ci, cb in enumerate(classical_boxes):
-                    cur = iou_xywh(gemini_xywh, cb)
+                    cur = iou((x, y, x2, y2), xyxy(cb))
                     if cur > best_iou:
                         best_iou, best_idx = cur, ci
                 if best_idx >= 0 and best_iou >= 0.4:
@@ -249,8 +204,6 @@ class GeminiScanner:
             out.append(Detection(
                 guess=Guess(**card.model_dump(exclude={"box_2d"})),
                 bbox=(x, y, x2 - x, y2 - y),
-                # The classical quad when one matched; otherwise the box as a
-                # rectangle, so `corners` is always a 4-point polygon.
                 corners=matched_quad or [[x, y], [x2, y], [x2, y2], [x, y2]],
                 bbox_source=bbox_source,
                 name_source="gemini",

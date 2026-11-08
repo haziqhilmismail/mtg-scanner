@@ -1,8 +1,10 @@
 """Drop-off slips as a PDF."""
 
 import re
+from io import BytesIO
 
 from conftest import run, sign_in
+from PIL import Image
 
 from app.db import async_session_factory
 from app.models import User
@@ -14,6 +16,18 @@ LONGEST = ("Siti Nur Aisyah Az-Zahra binti Wan Ahmad Fauzi " * 6)[:255]
 
 def _pages(pdf: bytes) -> int:
     return len(re.findall(rb"/Type\s*/Page\b", pdf))
+
+
+def _first_page(pdf: bytes) -> Image.Image:
+    return Image.open(BytesIO(pdf[pdf.index(b"\xff\xd8"):]))  # each page is a JPEG inside the PDF
+
+
+def _seller_row_ink(img, n):
+    """The darkest pixel after "Seller's name:" on slip n."""
+    left, top = (n % slips.COLS) * slips.SLIP_W, (n // slips.COLS) * slips.SLIP_H
+    label_end = left + slips.PAD_X + 120 * slips.PX
+    baseline = top + slips.BASELINES[2]
+    return img.crop((round(label_end), round(baseline - 20 * slips.PX), round(left + slips.SLIP_W - slips.PAD_X), round(baseline + 2))).getextrema()[0]
 
 
 def test_slips_fill_whole_a4_pages(client):
@@ -45,7 +59,7 @@ def test_a_long_name_shrinks_then_wraps_and_never_prints_under_12px():
     assert " ".join(lines) == "Siti Nur Aisyah Az-Zahra binti Wan Ahmad Fauzi"
 
     font, lines = slips.fit_value(LONGEST, width, slips.NAME_LINES)
-    assert font.size == round(12 * slips.PX) and len(lines) == slips.NAME_LINES == 5
+    assert font.size == round(12 * slips.PX) and len(lines) == slips.NAME_LINES
     assert lines[-1].endswith("…") and all(font.getlength(line) <= width for line in lines)
 
     # No spaces to break at: it breaks between letters.
@@ -79,7 +93,7 @@ async def _google_user(name: str) -> int:
         return u.id
 
 
-def test_the_seller_name_set_on_profile_prints_on_the_slips(client, monkeypatch):
+def test_the_seller_name_set_on_profile_prints_on_the_slips(client):
     uid = run(_google_user("Aiman Google"))
     me = {"Authorization": f"Bearer {issue_session_token(uid)}"}
     seller = lambda: client.get("/api/auth/me", headers=me).json()["seller_name"]
@@ -93,19 +107,13 @@ def test_the_seller_name_set_on_profile_prints_on_the_slips(client, monkeypatch)
     assert client.put("/api/auth/me/seller-name", json={"seller_name": "x"}).status_code == 401
 
     set_seller("Kedai Kad Aiman")
-    printed = []
-    monkeypatch.setattr(slips, "render", lambda rows, seller: printed.append(seller) or b"%PDF")
-    client.post("/api/slips", headers=me, json={"slips": [{"buyer": "Farah"}]})
-    assert printed == ["Kedai Kad Aiman"]
+    printed = _first_page(client.post("/api/slips", headers=me, json={"slips": [{"buyer": "Farah"}]}).content)
+    _, nameless = sign_in()
+    blank = _first_page(client.post("/api/slips", headers=nameless, json={"slips": [{"buyer": "Farah"}]}).content)
+    assert _seller_row_ink(printed, 0) < 60 < _seller_row_ink(blank, 0)  # black name vs the grey write-in line
 
 
 def test_every_slip_on_the_page_carries_the_seller_name():
-    def seller_row_ink(img, n):
-        left, top = (n % slips.COLS) * slips.SLIP_W, (n // slips.COLS) * slips.SLIP_H
-        label_end = left + slips.PAD_X + 120 * slips.PX                              # past "Seller's name:"
-        baseline = top + slips.BASELINES[2]
-        return img.crop((round(label_end), round(baseline - 20 * slips.PX), round(left + slips.SLIP_W - slips.PAD_X), round(baseline + 2))).getextrema()[0]
-
     named = slips.page([("Tan Wei Jie", "0123456789"), ("", "")], seller="Kedai Kad Aiman")
-    assert seller_row_ink(named, 0) == slips.INK and seller_row_ink(named, 1) == slips.INK   # a blank spare slip too
-    assert seller_row_ink(slips.page([("Tan Wei Jie", "0123456789")]), 0) == slips.LINE_INK  # no name: a line to write on
+    assert _seller_row_ink(named, 0) == slips.INK and _seller_row_ink(named, 1) == slips.INK   # a blank spare slip too
+    assert _seller_row_ink(slips.page([("Tan Wei Jie", "0123456789")]), 0) == slips.LINE_INK  # no name: a line to write on

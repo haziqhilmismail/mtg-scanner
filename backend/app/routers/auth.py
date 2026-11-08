@@ -1,12 +1,5 @@
-"""Google sign-in + session endpoints.
-
-POST /api/auth/google  — exchange a Google ID token for one of our session JWTs.
-GET  /api/auth/me      — return the current user (or 401 if not signed in).
-PUT  /api/auth/me/pricing — set the user's default pricing settings.
-PUT  /api/auth/me/seller-name — set the seller name; empty means the Google name.
-Both also hand out an image-only token for <img src> URLs ("" in solo mode).
-GET  /api/auth/config  — exposes auth_enabled so the frontend can render the
-                         login page vs. solo mode without a separate env var.
+"""Google sign-in and session endpoints. The sign-in and /me answers also hand
+out an image-only token for <img src> URLs ("" in solo mode).
 """
 
 from __future__ import annotations
@@ -16,8 +9,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession, check_pricing_size
+from ..deps import CurrentUser, DbSession
 from ..models import User
+from ..schemas.types import Pricing
 from ..services.auth_service import (
     issue_image_token,
     issue_session_token,
@@ -50,7 +44,7 @@ class SellerName(BaseModel):
 
 
 class PricingBody(BaseModel):
-    pricing: dict
+    pricing: Pricing
 
 
 class AuthResponse(BaseModel):
@@ -94,7 +88,6 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
     if not sub or not email:
         raise HTTPException(401, "Google token missing required claims")
 
-    # Optional allowlist — empty set means anyone can sign in.
     allowlist = settings.allowed_emails_set
     if allowlist and email not in allowlist:
         raise HTTPException(403, "This email is not allowed to sign in")
@@ -113,7 +106,7 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
             solo.avatar_url = picture or solo.avatar_url
             user = solo
 
-    # 3) Brand-new account — create a fresh user row with default pricing
+    # 3) Brand-new account
     if user is None:
         user = User(
             email=email,
@@ -123,8 +116,7 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
         )
         db.add(user)
 
-    await db.commit()
-    await db.refresh(user)
+    await db.flush()
 
     return AuthResponse(
         token=issue_session_token(user.id),
@@ -134,10 +126,7 @@ async def google_login(req: GoogleLoginRequest, db: DbSession):
 
 
 @router.get("/me", response_model=Me)
-async def me(db: DbSession, user_id: CurrentUserId):
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(401, "User no longer exists")
+async def me(user: CurrentUser):
     return Me(
         id=user.id, email=user.email, name=user.name, avatar_url=user.avatar_url,
         image_token=_image_token(user.id), pricing=user.pricing, seller_name=user.seller_name,
@@ -145,18 +134,11 @@ async def me(db: DbSession, user_id: CurrentUserId):
 
 
 @router.put("/me/pricing", status_code=204)
-async def set_default_pricing(body: PricingBody, db: DbSession, user_id: CurrentUserId):
-    check_pricing_size(body.pricing)
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(401, "User no longer exists")
+async def set_default_pricing(body: PricingBody, user: CurrentUser):
     user.pricing = body.pricing
 
 
 @router.put("/me/seller-name", response_model=SellerName)
-async def set_seller_name(body: SellerName, db: DbSession, user_id: CurrentUserId) -> SellerName:
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(401, "User no longer exists")
+async def set_seller_name(body: SellerName, user: CurrentUser) -> SellerName:
     user.fb_name = body.seller_name.strip() or None
     return SellerName(seller_name=user.seller_name)

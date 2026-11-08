@@ -67,7 +67,7 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
   const listingRead = (l: Listing): Listing => ({ ...l, qty_committed: committed(l.id), qty_available: Math.max(0, l.qty_total - committed(l.id)) });
   const buyerRead = (b: Buyer): Buyer => {
     const os = f.orders.filter(o => o.buyer_id === b.id);
-    return { ...b, total_orders_count: os.length, open_orders_count: os.filter(o => o.status !== 'cancelled' && !(o.paid_at && o.delivered_at)).length };
+    return { ...b, total_orders_count: os.length };
   };
   // A scan as GET /api/scans sends it: `lite` leaves the pictures out (the
   // client then asks the image routes, which imageUrl() points at fixture
@@ -282,8 +282,6 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       const order = find(f.orders, id);
       if (!order) return notFound('Order not found');
       const changes: Record<string, Partial<Order>> = {
-        'mark-paid': { paid_at: order.paid_at ?? ago(0) },
-        'mark-delivered': { delivered_at: order.delivered_at ?? ago(0) },
         cancel: { status: 'cancelled' },
         restore: { status: 'claimed' },
       };

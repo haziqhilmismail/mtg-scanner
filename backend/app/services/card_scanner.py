@@ -1,7 +1,4 @@
-"""
-card_scanner.py
----------------
-The local scan pipeline: photo in, identified cards out, with no cloud model
+"""The local scan pipeline: photo in, identified cards out, with no cloud model
 involved. Enabled with SCANNER_BACKEND=local, which production runs (see
 local_scan.py for the FastAPI glue); the code default is Gemini.
 
@@ -29,13 +26,12 @@ from PIL import Image
 
 from ..schemas.scan import Detection, Guess
 from .card_crop import warp_quad
+from .card_geometry import CARD_ASPECT, box_around, merge_same_name, xyxy
 from .card_detector import CardDetector
 from .card_embedder import CardIndex, Embedder, Printing, normalize_name
 from .collector_ocr import (
     STRIP_SIZE, TITLE_SIZE, CollectorLine, CollectorReader, strip_quad, title_quad,
 )
-
-CARD_ASPECT = 488.0 / 680.0  # width / height
 
 # Cosine similarity below which a detection is dropped as "not a card we
 # know" (keyboard, phone, a card too cropped or glared to recognise).
@@ -65,8 +61,6 @@ PRINTING_TIE_MARGIN = 0.04
 
 def _detection(printing, quad: np.ndarray, is_foil: bool, name_source: str, version_source: str) -> Detection:
     """A `Detection` for an upright card quad (TL, TR, BR, BL, image pixels)."""
-    x0, y0 = np.floor(quad.min(axis=0))
-    x1, y1 = np.ceil(quad.max(axis=0))
     return Detection(
         guess=Guess(
             name=printing.name,
@@ -76,7 +70,7 @@ def _detection(printing, quad: np.ndarray, is_foil: bool, name_source: str, vers
             quantity=1,
             scryfall_id=printing.scryfall_id,
         ),
-        bbox=(int(x0), int(y0), int(x1 - x0), int(y1 - y0)),
+        bbox=box_around(quad),
         corners=[[int(round(px)), int(round(py))] for px, py in quad],
         bbox_source="detector",
         name_source=name_source,
@@ -209,31 +203,12 @@ def pick_printing(
     return by_look()
 
 
-def _overlap_of_smaller(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
-    """Intersection of two (x, y, w, h) boxes as a fraction of the smaller."""
-    iw = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
-    ih = min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1])
-    if iw <= 0 or ih <= 0:
-        return 0.0
-    return iw * ih / max(1, min(a[2] * a[3], b[2] * b[3]))
-
-
-def _merge_duplicates(cards: list[Detection]) -> list[Detection]:
-    """Collapse same-name detections that overlap by more than half of the
-    smaller box — the detector occasionally boxes a stack and the card on top
-    of it separately. The better match survives with the larger quantity."""
-    out: list[Detection] = []
-    for card in cards:
-        for i, kept in enumerate(out):
-            if (kept.guess.name == card.guess.name
-                    and _overlap_of_smaller(kept.bbox, card.bbox) >= 0.5):
-                winner, loser = (kept, card) if kept.confidence >= card.confidence else (card, kept)
-                winner.guess.quantity = max(winner.guess.quantity, loser.guess.quantity)
-                out[i] = winner
-                break
-        else:
-            out.append(card)
-    return out
+def _keep_better(kept: Detection, card: Detection) -> Detection:
+    """The detector occasionally boxes a stack and the card on top of it
+    separately: the better match survives with the larger quantity."""
+    winner, loser = (kept, card) if kept.confidence >= card.confidence else (card, kept)
+    winner.guess.quantity = max(winner.guess.quantity, loser.guess.quantity)
+    return winner
 
 
 class CardScanner:
@@ -247,7 +222,10 @@ class CardScanner:
         """Find and identify every card in an RGB photo, in reading order."""
         detections = self.detector.detect(img)
         cards = self._identify(img, [_candidate_quads(d.quad) for d in detections])
-        return _merge_duplicates([c for c in cards if c is not None])
+        return merge_same_name(
+            [c for c in cards if c is not None],
+            name=lambda c: c.guess.name, box=lambda c: xyxy(c.bbox), absorb=_keep_better,
+        )
 
     def _identify(
         self, img: Image.Image, hypotheses: list[list[np.ndarray]],

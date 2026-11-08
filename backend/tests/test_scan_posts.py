@@ -47,6 +47,16 @@ def test_scans_follow_their_post(client):
     assert _by_post(client, me) == {a["scan_id"]: friday, b["scan_id"]: None, c["scan_id"]: None}
 
 
+def test_post_text_is_stored_stripped_and_blank_as_null(client):
+    _, me = sign_in()
+    text = lambda p: (p["title"], p["fb_url"], p["note"])
+    post = client.post("/api/posts", data={"title": "  Friday ", "fb_url": "   ", "note": ""}, headers=me).json()
+    assert text(post) == ("Friday", None, None)
+
+    r = client.patch(f"/api/posts/{post['id']}", json={"title": " ", "note": " cash only ", "status": "archived"}, headers=me)
+    assert (*text(r.json()), r.json()["status"]) == (None, None, "cash only", "archived")
+
+
 def test_post_stats(client):
     _, me = sign_in()
     full = client.post("/api/posts", data={"title": "Full"}, headers=me).json()["id"]

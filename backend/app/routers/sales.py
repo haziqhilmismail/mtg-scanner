@@ -11,15 +11,16 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession, limiter
-from ..models import Order, OrderItem, OrderStatus, Post, SaleRecord
+from ..deps import CurrentUserId, DbSession, limiter, owned
+from ..models import Order, OrderItem, Post, SaleRecord
+from ..schemas.types import Id
 from ..services import catalogue
 
 router = APIRouter(prefix="/api/sales", tags=["sales"])
 
 
 class SentLine(BaseModel):
-    order_item_id: int
+    order_item_id: Id
     # How the seller's app priced the card; context only. The price itself is
     # read from the order.
     app_usd: Decimal | None = Field(None, ge=0, le=100_000, decimal_places=2)
@@ -29,7 +30,7 @@ class SentLine(BaseModel):
 
 class SentSummary(BaseModel):
     channel: Literal["copy", "share"]
-    post_id: int | None = None
+    post_id: Id | None = None
     # The post's kind as the app resolves it (its own pricing, or the
     # seller's default); the backend treats pricing as the app's.
     post_type: Literal["photo", "live"] | None = None
@@ -48,9 +49,7 @@ async def record_sales(request: Request, body: SentSummary, db: DbSession, user_
     cancelled orders are skipped too. 404 if a line or the post isn't the
     caller's."""
     if body.post_id is not None:
-        post = await db.get(Post, body.post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
+        await owned(db, Post, body.post_id, user_id)
 
     wanted = {line.order_item_id: line for line in body.lines}
     items = (await db.scalars(
@@ -72,7 +71,7 @@ async def record_sales(request: Request, body: SentSummary, db: DbSession, user_
     rows = []
     for item in items:
         seq, qty, price = last.get(item.id, (0, None, None))
-        if item.order.status == OrderStatus.cancelled or (qty, price) == (item.qty, item.unit_price_myr):
+        if not item.order.holds_stock or (qty, price) == (item.qty, item.unit_price_myr):
             continue
         line, listing = wanted[item.id], item.listing
         ck_price = ck.price(listing.scryfall_id, listing.is_foil)

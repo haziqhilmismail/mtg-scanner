@@ -1,16 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import MISSING, BaseModel, ConfigDict, Field
+from pydantic import MISSING, BaseModel, ConfigDict
 
 from ..models.order import OrderStatus
-
-
-class OrderItemCreate(BaseModel):
-    listing_id: int
-    qty: int = Field(1, ge=1)
-    # If omitted, route copies the current listing.unit_price_myr at order time
-    unit_price_myr: Decimal | None = Field(None, ge=0, decimal_places=2)
 
 
 class OrderItemRead(BaseModel):
@@ -26,17 +19,9 @@ class OrderItemRead(BaseModel):
     created_at: datetime
 
 
-class OrderCreate(BaseModel):
-    # The buyer is found by FB name (case-insensitive), or created.
-    buyer_fb_name: str
-    items: list[OrderItemCreate] = Field(..., min_length=1)
-    notes: str | None = None
-
-
 class OrderUpdate(BaseModel):
     """PATCH update — drives the paid/delivered transitions.
     Pass an ISO timestamp to mark, or null to unmark."""
-    status: OrderStatus | MISSING = MISSING
     paid_at: datetime | None = None
     delivered_at: datetime | None = None
     dropoff_method: str | None = None

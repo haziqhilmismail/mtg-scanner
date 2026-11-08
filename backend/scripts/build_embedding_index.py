@@ -1,14 +1,11 @@
-"""
-build_embedding_index.py
-------------------------
-One-off (or occasional refresh) script that builds the card embedding index
+"""One-off (or occasional refresh) script that builds the card embedding index
 used by the local scanner (services/card_embedder.py).
 
 Pipeline:
   1. Hit Scryfall's /bulk-data endpoint and download the latest
      `default_cards` JSONL (every paper printing, one object per line).
-     Unlike the old pHash index we want EVERY printing, not unique artwork:
-     the scan path picks the exact version from this index.
+     Every printing, not unique artwork: the scan path picks the exact
+     version from this index.
   2. For each printing (and each face of a double-faced card): GET
      `image_uris.normal` (488x680, ~60KB) from the Scryfall CDN into an
      on-disk cache.

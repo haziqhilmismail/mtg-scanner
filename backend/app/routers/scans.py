@@ -7,37 +7,24 @@ import base64
 from contextlib import nullcontext
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi import Path as PathParam
 from fastapi.responses import Response
 from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.orm.attributes import flag_modified
 
-from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter
-from ..models import Listing, ListingStatus, Order, OrderItem, OrderStatus, Post, Scan
+from ..deps import CurrentUserId, DbSession, ImageUserId, json_payload, limiter, owned
+from ..models import Listing, ListingStatus, Order, OrderItem, Post, Scan
 from ..models.card_correction import CorrectionKind
+from ..schemas.types import Id
 from ..services import catalogue, corrections, credits, scans
 from ..services.listings import drop_listing, locked_prices
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
 router = APIRouter(tags=["scans"])
-
-# A scan id SQLite can hold. A bigger one names no scan, and the driver raises
-# OverflowError on it, which is a 500.
-ScanId = Annotated[int, PathParam(ge=1, le=2**63 - 1)]
-
-
-async def _own_scan(db: DbSession, scan_id: int, user_id: int) -> Scan:
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
-    return scan_row
-
 
 @router.post("/api/scan")
 @limiter.limit("10/minute;100/hour")  # local scans load the home server's CPU; Gemini scans cost money
@@ -46,13 +33,11 @@ async def scan(
     db: DbSession,
     user_id: CurrentUserId,
     image: UploadFile = File(...),
-    post_id: int | None = Form(default=None),
+    post_id: Id | None = Form(default=None),
 ):
     # Which post to file the photo under. Checked before anything costly.
     if post_id is not None:
-        post = await db.get(Post, post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
+        await owned(db, Post, post_id, user_id)
     if problem := scans.scanner.ready():
         raise HTTPException(503, problem)
     raw = await image.read()
@@ -63,7 +48,6 @@ async def scan(
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Image too large (max 25 MB)")
     try:
-        # Decoding (HEIC especially) and resizing are CPU-bound; keep the loop free.
         pil, jpeg = await asyncio.to_thread(scans.normalise_upload, raw)
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -84,7 +68,7 @@ async def scan(
 @limiter.limit("30/minute")
 async def frame_card(
     request: Request,
-    scan_id: int,
+    scan_id: Id,
     db: DbSession,
     user_id: CurrentUserId,
     payload: str = Form(...),
@@ -94,9 +78,7 @@ async def frame_card(
     pixels, TL/TR/BR/BL order. Returns a "manual" card the user fills in via
     the row's edit controls. Appended to the scan's stored cards JSON so it
     survives refresh."""
-    scan_row = await db.get(Scan, scan_id)
-    if not scan_row or scan_row.user_id != user_id:
-        raise HTTPException(404, "Scan not found")
+    scan_row = await owned(db, Scan, scan_id, user_id)
 
     corners = json_payload(payload).get("corners")
     if not (isinstance(corners, list) and len(corners) == 4
@@ -107,8 +89,7 @@ async def frame_card(
     except (TypeError, ValueError):
         raise HTTPException(400, "Corners must be numeric")
 
-    photo = Path(scan_row.image_path) if scan_row.image_path else None
-    if not photo or not photo.exists():
+    if not (photo := scan_row.photo):
         raise HTTPException(404, "image_id not found (re-upload the image)")
     pil = await asyncio.to_thread(scans.decode_upright, photo.read_bytes())
 
@@ -130,7 +111,7 @@ async def frame_card(
 async def list_scans(
     db: DbSession, user_id: CurrentUserId,
     limit: int = Query(default=30, ge=1, le=500), lite: bool = False,
-    before: int | None = None,
+    before: Id | None = None,
 ):
     """Most-recent-first list of saved scans, with the full response baked in.
     Frontend uses this to rehydrate batches after a page refresh.
@@ -170,14 +151,14 @@ class ScanState(BaseModel):
 
 
 @router.patch("/api/scans/{scan_id}/state", status_code=204)
-async def save_scan_state(scan_id: ScanId, body: ScanState, db: DbSession, user_id: CurrentUserId):
+async def save_scan_state(scan_id: Id, body: ScanState, db: DbSession, user_id: CurrentUserId):
     """Store the seller's per-card edits for this scan. Last write wins, except
     a state whose integer rev is below the stored one is ignored (late arrival).
 
     `picks` (one entry per card, null or a candidate) are printings the seller
     chose for a card. They are not kept in ui_state: each one replaces the
     card's first candidate in the saved scan, so every later read sees it."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     state, picks = split_state(body.state, len((scan_row.gemini_raw or {}).get("cards", [])))
     # One conditional UPDATE, so two saves arriving together can't both pass a
     # read-then-compare and leave the older one stored.
@@ -215,7 +196,7 @@ class Answer(BaseModel):
 @router.put("/api/scans/{scan_id}/cards/{card_id}/correction")
 @limiter.limit("120/minute")
 async def correct_card(
-    request: Request, scan_id: ScanId, card_id: int, body: Answer, db: DbSession, user_id: CurrentUserId,
+    request: Request, scan_id: Id, card_id: int, body: Answer, db: DbSession, user_id: CurrentUserId,
 ) -> dict:
     """The seller says this card is the printing `scryfall_id`: they picked it
     (`kind` "pick"), or tapped "Looks right" on the one it shows ("confirm").
@@ -223,7 +204,7 @@ async def correct_card(
     scanner. Sending the same answer again changes nothing; a different one
     replaces it. `kept` is false when the card has no usable crop, for example
     one the seller framed by hand."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     card = scan_row.card(card_id)
     if card is None:
         raise HTTPException(404, "Card not found")
@@ -231,8 +212,8 @@ async def correct_card(
 
 
 class MoveScans(BaseModel):
-    scan_ids: list[int]
-    post_id: int | None = None  # None = unfile
+    scan_ids: list[Id]
+    post_id: Id | None = None  # None = unfile
 
 
 @router.post("/api/scans/move", status_code=204)
@@ -240,9 +221,7 @@ async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
     """File photos under a post (or unfile them). Other people's scans in
     `scan_ids` are silently left alone."""
     if body.post_id is not None:
-        post = await db.get(Post, body.post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
+        await owned(db, Post, body.post_id, user_id)
     await db.execute(
         update(Scan)
         .where(Scan.id.in_(body.scan_ids), Scan.user_id == user_id)
@@ -252,7 +231,7 @@ async def move_scans(body: MoveScans, db: DbSession, user_id: CurrentUserId):
 
 
 class ScanOrder(BaseModel):
-    scan_ids: list[int] = Field(..., max_length=500)
+    scan_ids: list[Id] = Field(..., max_length=500)
 
 
 @router.put("/api/scans/order", status_code=204)
@@ -287,39 +266,38 @@ def _data_url_jpeg(data_url: str, max_edge: int | None = None) -> Response:
 
 @router.get("/api/scans/{scan_id}/preview")
 async def scan_preview(
-    scan_id: ScanId,
+    scan_id: Id,
     db: DbSession,
     user_id: ImageUserId,
     w: int | None = Query(default=None, ge=32, le=1400),
 ):
     """The scan's photo preview. `w` caps the longest edge, for the small
     thumbnails in the scan strip."""
-    scan_row = await _own_scan(db, scan_id, user_id)
-    # Resizing for ?w= is a decode + re-encode; a strip of thumbnails is many at once.
+    scan_row = await owned(db, Scan, scan_id, user_id)
     return await asyncio.to_thread(_data_url_jpeg, (scan_row.gemini_raw or {}).get("image_b64", ""), w)
 
 
 @router.get("/api/scans/{scan_id}/crops/{card_id}")
 async def scan_card_crop(
-    scan_id: ScanId, card_id: int, db: DbSession, user_id: ImageUserId,
+    scan_id: Id, card_id: int, db: DbSession, user_id: ImageUserId,
 ):
     """One detected card's thumbnail, cut from the photo at scan time."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     if card := scan_row.card(card_id):
         return _data_url_jpeg(card.get("crop_b64", ""))
     raise HTTPException(404, "Card not found")
 
 
 @router.delete("/api/scans/{scan_id}", status_code=204)
-async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
+async def delete_scan(scan_id: Id, db: DbSession, user_id: CurrentUserId):
     """Drop a scan from the dashboard. Removes the DB row, the image bytes on
     disk, and the checklist cards added from it. A card in an open order
     stays (unlinked from the scan), so no buyer's claim is lost."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    scan_row = await owned(db, Scan, scan_id, user_id)
     claimed = (
         select(OrderItem.listing_id)
         .join(Order, Order.id == OrderItem.order_id)
-        .where(Order.status != OrderStatus.cancelled)
+        .where(Order.holds_stock)
     )
     for listing in (await db.execute(
         select(Listing).where(Listing.scan_id == scan_id, Listing.id.not_in(claimed))
@@ -336,31 +314,20 @@ async def delete_scan(scan_id: ScanId, db: DbSession, user_id: CurrentUserId):
 @router.post("/api/scans/{scan_id}/relookup-prices")
 @limiter.limit("30/minute")
 async def relookup_scan_prices(
-    request: Request, scan_id: ScanId, db: DbSession, user_id: CurrentUserId,
+    request: Request, scan_id: Id, db: DbSession, user_id: CurrentUserId,
 ):
     """Re-run CK price enrichment for every candidate in a saved scan. Cards
     themselves (names, sets, scryfall_ids, bboxes) are unchanged — only the
     pricing fields (usd/usd_foil/price_source_*/ck_*) are refreshed from
     the current ck_index.db. Cheap (local SQLite lookups, no network).
-    Returns the same shape as GET /api/scans for in-place rehydration."""
-    scan_row = await _own_scan(db, scan_id, user_id)
+    Returns the scan's picture and repriced cards, and `updated`: how many
+    candidates got a price row."""
+    scan_row = await owned(db, Scan, scan_id, user_id)
 
     payload = scan_row.gemini_raw or {}
     updated = refresh_prices(payload, await catalogue.ck_index())
-    cards = payload["cards"]
     scan_row.gemini_raw = payload
     # JSON column needs an explicit mark — SQLAlchemy doesn't detect
     # in-place dict mutation.
     flag_modified(scan_row, "gemini_raw")
-    await db.commit()
-
-    return {
-        "image_id": str(scan_row.id),
-        "scan_id": scan_row.id,
-        "filename": scan_row.filename,
-        "image_b64": payload.get("image_b64", ""),
-        "width": scan_row.width,
-        "height": scan_row.height,
-        "cards": cards,
-        "updated": updated,
-    }
+    return {**scan_out(scan_row, [], lite=False), "updated": updated}

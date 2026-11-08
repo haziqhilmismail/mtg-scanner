@@ -1,6 +1,6 @@
-"""Association table for the M:N between listings and posts. A single
-stock card can be linked into multiple FB posts (e.g. listed in two drops),
-and a post groups many cards — that's the natural relationship."""
+"""Association table for the M:N between listings and posts: a stock card can
+be linked into several FB posts (e.g. listed in two drops), and a post groups
+many cards."""
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Table, func
 

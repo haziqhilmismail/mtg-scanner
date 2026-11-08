@@ -10,9 +10,8 @@ NOT_NULL = [
     ("listings", "name"), ("listings", "is_foil"), ("listings", "unit_price_myr"),
     ("listings", "qty_total"), ("listings", "status"),
     ("buyers", "fb_name"),
-    ("orders", "status"),
 ]
-CLEARABLE = {"posts": "note", "listings": "notes", "buyers": "phone", "orders": "notes"}
+CLEARABLE = {"posts": "note", "listings": "notes", "buyers": "phone"}
 
 
 @pytest.mark.parametrize("route,field", NOT_NULL)
@@ -22,7 +21,7 @@ def test_null_on_a_required_field_is_a_422(client, route, field):
     scan = client.post("/api/scan", files={"image": ("a.jpg", _photo(), "image/jpeg")}, headers=me).json()["scan_id"]
     item = {"scan_id": scan, "card_id": 0, "bbox": [0, 0, 50, 70], "name": "Sol Ring", "unit_price_myr": "9.00"}
     order = client.post("/api/claims/confirm", json={"claims": [{"buyer": "Aiman", "items": [item]}]}, headers=me).json()[0]
-    ids = {"posts": post, "listings": order["items"][0]["listing_id"], "buyers": order["buyer_id"], "orders": order["id"]}
+    ids = {"posts": post, "listings": order["items"][0]["listing_id"], "buyers": order["buyer_id"]}
     url = f"/api/{route}/{ids[route]}"
     # Read back through the list route, as the app does.
     read = lambda: next(r for r in client.get(f"/api/{route}", headers=me).json() if r["id"] == ids[route])

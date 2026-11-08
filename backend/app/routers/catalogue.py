@@ -22,10 +22,7 @@ def _check_refresh_token(x_refresh_token: str | None = Header(default=None)):
 @limiter.limit("3/hour")  # CK pricelist is ~50MB; don't hammer their CDN
 async def refresh_ck(request: Request):
     """Force a refresh from CK. 200 only when the download actually ran end
-    to end; 502 if CK couldn't be reached. The previous fire-and-forget
-    behaviour returned 200 even when the underlying download silently
-    failed and the rebuild ran from a week-old cache — see
-    cardkingdom_prices.py for the new contract.
+    to end; 502 if CK couldn't be reached.
 
     Guarded by `refresh_ck_token` when configured: the API's URL is public, so
     anyone could otherwise trigger a 50 MB rebuild. The scheduled GitHub Action

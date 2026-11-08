@@ -1,6 +1,6 @@
 """CRUD for Facebook post groups. A post is a tiny container: FB URL +
-free-form note. The N cards listed under the post are stored
-as regular Listing rows with `post_id` set.
+free-form note. Its cards are listings linked through listing_post_links
+(a card can be in several posts).
 
 We never query Facebook. The URL is reference-only."""
 
@@ -16,18 +16,20 @@ from pydantic import BaseModel, Field, Json
 from sqlalchemy import case, func, select, update
 
 from ..config import settings
-from ..deps import CurrentUserId, DbSession, check_pricing_size
+from ..deps import CurrentUserId, DbSession, owned
 from ..models import (
     Listing,
     ListingStatus,
     Order,
     OrderItem,
-    OrderStatus,
     Post,
+    PostStatus,
     listing_post_links,
     Scan,
 )
 from ..schemas import PostReadWithStats, PostUpdate
+from ..schemas.post import PostBase
+from ..schemas.types import Id, Pricing
 from ..services import catalogue
 from ..services.scans import apply_picks, refresh_prices, scan_out, split_state
 
@@ -60,7 +62,7 @@ async def _claims_by_post(db, post_ids: list[int]) -> dict[int, tuple[int, int, 
     shows: not cancelled, not archived. A card is in a post when it is linked
     to it or was scanned in one of its photos, the same rule as the Claims
     page. One row per claimed card, so a card reached both ways counts once."""
-    live = (Order.status != OrderStatus.cancelled, Order.archived_at.is_(None))
+    live = (Order.holds_stock, Order.archived_at.is_(None))
     item = (Order.buyer_id, Order.paid_at.is_(None), OrderItem.id, OrderItem.line_total_myr)
     linked = (
         select(listing_post_links.c.post_id, *item)
@@ -103,7 +105,6 @@ def _read_with_stats(post: Post, stats: dict, claims: dict[int, tuple[int, int, 
 
 
 async def _build_read_with_stats(db, post: Post) -> PostReadWithStats:
-    """Build the read schema with computed stats (listing counts, total qty, value)."""
     return _read_with_stats(post, await _stats_by_post(db, [post.id]), await _claims_by_post(db, [post.id]))
 
 
@@ -121,8 +122,7 @@ async def list_posts(
         .order_by(Post.created_at.desc())
     )
     if not include_archived:
-        from ..models import PostStatus as _PS
-        q = q.where(Post.status != _PS.archived)
+        q = q.where(Post.status != PostStatus.archived)
     rows = (await db.execute(q)).scalars().all()
     ids = [p.id for p in rows]
     stats, claims = await _stats_by_post(db, ids), await _claims_by_post(db, ids)
@@ -136,30 +136,19 @@ async def create_post(
     title: str | None = Form(None),
     fb_url: str | None = Form(None),
     note: str | None = Form(None),
-    pricing: Json[dict] | None = Form(None),
+    pricing: Json[Pricing] | None = Form(None),
 ) -> PostReadWithStats:
     """Create a post. Empty strings become NULL. `pricing` is a JSON object as
     a string."""
-    check_pricing_size(pricing)
-    post = Post(
-        user_id=user_id,
-        title=(title or None) and title.strip() or None,
-        fb_url=(fb_url or None) and fb_url.strip() or None,
-        note=(note or None) and note.strip() or None,
-        pricing=pricing,
-    )
+    text = PostBase(title=title, fb_url=fb_url, note=note)
+    post = Post(user_id=user_id, **text.model_dump(), pricing=pricing)
     db.add(post)
     await db.flush()
-
-    # Refresh through the async session so subsequent attribute access
-    # (in _build_read_with_stats) doesn't trigger a sync lazy-load outside
-    # the greenlet bridge.
-    await db.refresh(post)
     return await _build_read_with_stats(db, post)
 
 
 class RepostPhoto(BaseModel):
-    scan_id: int
+    scan_id: Id
     # The copy's per-card edits, built by the client, which owns their shape:
     # the sold cards removed and marked sold, so the photo covers them.
     state: dict
@@ -173,16 +162,14 @@ class Repost(BaseModel):
 
 
 @router.post("/{post_id}/repost", status_code=201)
-async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUserId) -> dict:
+async def repost(post_id: Id, body: Repost, db: DbSession, user_id: CurrentUserId) -> dict:
     """A new post of this post's photos, for the cards still unsold: each photo
     copied (its picture on disk too) with the edits the client sends, checked
     as PATCH /api/scans/{id}/state checks them. The new post takes this post's
     pricing, and its cards today's CK prices unless `new_prices` is off. The copies have no cards on the post yet: the seller finishes
     them, as on any new post. Returns the new post and its photos as
     GET /api/scans lists them (lite)."""
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
+    post = await owned(db, Post, post_id, user_id)
     ids = [p.scan_id for p in body.photos]
     if len(set(ids)) != len(ids):
         raise HTTPException(400, "A photo is listed twice")
@@ -191,7 +178,7 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
     )).scalars().all()}
     if len(found) != len(ids):
         raise HTTPException(404, "Photo not found in this post")
-    if any(not (s.image_path and Path(s.image_path).exists()) for s in found.values()):
+    if any(not s.photo for s in found.values()):
         raise HTTPException(409, "A photo's picture is missing on the server")
 
     new_post = Post(user_id=user_id, title=body.title.strip(), pricing=copy.deepcopy(post.pricing))
@@ -230,9 +217,6 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
         for path in written:
             path.unlink(missing_ok=True)
         raise
-    await db.refresh(new_post)
-    for dup in copies:
-        await db.refresh(dup)
     return {
         "post": await _build_read_with_stats(db, new_post),
         "scans": [scan_out(dup, [], lite=True) for dup in copies],
@@ -241,41 +225,30 @@ async def repost(post_id: int, body: Repost, db: DbSession, user_id: CurrentUser
 
 @router.patch("/{post_id}", response_model=PostReadWithStats)
 async def update_post(
-    post_id: int, payload: PostUpdate, db: DbSession, user_id: CurrentUserId,
+    post_id: Id, payload: PostUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> PostReadWithStats:
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
+    post = await owned(db, Post, post_id, user_id)
     updates = payload.model_dump(exclude_unset=True)
-    check_pricing_size(updates.get("pricing"))
     for k, v in updates.items():
-        if k == "status":
-            # status is an enum — never empty-string-coerced
-            setattr(post, k, v)
-        else:
-            # Normalise empty strings to NULL so the UI doesn't have to
-            setattr(post, k, v.strip() if isinstance(v, str) and v.strip() else (v if not isinstance(v, str) else None))
+        setattr(post, k, v)
     await db.flush()
-    await db.refresh(post)
     return await _build_read_with_stats(db, post)
 
 
 @router.delete("/{post_id}", status_code=204)
-async def delete_post(post_id: int, db: DbSession, user_id: CurrentUserId) -> None:
+async def delete_post(post_id: Id, db: DbSession, user_id: CurrentUserId) -> None:
     """Delete the post. The join table rows are dropped
     via CASCADE, but the underlying listings stay intact (and may still be
     linked to other posts). Refuses delete if any of the listings are
     currently committed to an open order — caller should cancel those first."""
-    post = await db.get(Post, post_id)
-    if not post or post.user_id != user_id:
-        raise HTTPException(404, "Post not found")
+    post = await owned(db, Post, post_id, user_id)
 
     open_commit = await db.scalar(
         select(func.count(OrderItem.id))
         .join(Listing, Listing.id == OrderItem.listing_id)
         .join(listing_post_links, listing_post_links.c.listing_id == Listing.id)
         .join(Order, Order.id == OrderItem.order_id)
-        .where(listing_post_links.c.post_id == post_id, Order.status != OrderStatus.cancelled)
+        .where(listing_post_links.c.post_id == post_id, Order.holds_stock)
     ) or 0
     if open_commit:
         raise HTTPException(409, f"{open_commit} item(s) under this post still claimed in active orders")

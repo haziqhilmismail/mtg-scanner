@@ -19,7 +19,7 @@ from ..config import settings
 from ..models import Scan
 from ..schemas.scan import Detection, Guess, ScannedCard
 from . import catalogue, gemini_scanner, local_scan
-from .cardkingdom_prices import CKPriceIndex
+from .catalogue import CKPriceIndex
 
 
 class Scanner(Protocol):
@@ -79,7 +79,7 @@ def _jpeg_data_url(pil: Image.Image) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def thumb_b64(pil: Image.Image, x: int, y: int, x2: int, y2: int) -> str:
+def _thumb_b64(pil: Image.Image, x: int, y: int, x2: int, y2: int) -> str:
     """A card's thumbnail as a data URL. 700 px wide: the row shows it at
     ~78 px, the zoom modal at up to 900 px, from the same bytes."""
     crop = pil.crop((max(0, x), max(0, y), min(pil.width, x2), min(pil.height, y2)))
@@ -93,10 +93,10 @@ def _pictures(pil: Image.Image, cards: list[ScannedCard]) -> tuple[str, list[str
     """The scan's preview and one thumbnail per card, as data URLs."""
     preview = pil.copy()
     preview.thumbnail((1400, 1400))
-    return _jpeg_data_url(preview), [thumb_b64(pil, x, y, x + w, y + h) for x, y, w, h in (c.bbox for c in cards)]
+    return _jpeg_data_url(preview), [_thumb_b64(pil, x, y, x + w, y + h) for x, y, w, h in (c.bbox for c in cards)]
 
 
-def unknown_candidate(guess: Guess) -> dict:
+def _unknown_candidate(guess: Guess) -> dict:
     """The candidate shown when Scryfall has no match: the guess, unpriced."""
     return {
         "scryfall_id": guess.scryfall_id,
@@ -127,7 +127,7 @@ def _record(i: int, d: Detection, candidate: dict | None, width: int, height: in
         name_confidence=None if d.confidence is None else round(d.confidence, 3),
         version_source=d.version_source,
         gemini=d.guess,
-        candidates=[candidate or unknown_candidate(d.guess)],
+        candidates=[candidate or _unknown_candidate(d.guess)],
     )
 
 
@@ -153,13 +153,13 @@ async def manual_card(pil: Image.Image, existing: list[dict], corners: list[list
         id=max((c.get("id", -1) for c in existing), default=-1) + 1,
         bbox=[x0, y0, x1 - x0, y1 - y0],
         corners=clamped,
-        crop_b64=await asyncio.to_thread(thumb_b64, pil, x0, y0, x1, y1),
+        crop_b64=await asyncio.to_thread(_thumb_b64, pil, x0, y0, x1, y1),
         bbox_source="user",
         name_source="gemini",  # nothing named it; the UI shows the manual banner
         name_confidence=None,
         gemini=Guess(),
         candidates=[{
-            **unknown_candidate(Guess()),
+            **_unknown_candidate(Guess()),
             "name": "",
             "_manual": True,
             "price_source_normal": "manual",
@@ -195,7 +195,7 @@ async def store(
         gemini_raw=payload,
     )
     db.add(scan_row)
-    await db.flush()  # need id before writing file path
+    await db.flush()
     # The normalized JPEG (downscaled + EXIF-corrected), not the raw upload:
     # its pixels match the W/H and polygon coords of the response, so the
     # frontend and /api/export agree, and export never re-decodes HEIC.
@@ -203,13 +203,7 @@ async def store(
     image_path.write_bytes(jpeg)
     scan_row.image_path = str(image_path)
     await db.flush()
-
-    return {
-        "image_id": str(scan_row.id),
-        "scan_id": scan_row.id,
-        "post_id": post_id,
-        **payload,
-    }
+    return scan_out(scan_row, [], lite=False)
 
 
 def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:
@@ -271,6 +265,4 @@ def refresh_prices(payload: dict, ck: CKPriceIndex) -> int:
             if new_cand:
                 cands[i] = new_cand
                 updated += 1
-        card["candidates"] = cands
-    payload["cards"] = cards
     return updated

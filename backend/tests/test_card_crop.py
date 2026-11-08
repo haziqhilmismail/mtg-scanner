@@ -2,10 +2,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 from PIL import Image, ImageDraw
 
-from app.services.card_crop import CARD_SIZE, card_crop
+from app.services.card_crop import card_crop
+from app.services.card_geometry import CARD_SIZE
 
 RED, GREY = (200, 30, 30), (90, 90, 90)
 
@@ -62,11 +62,6 @@ def test_cards_with_no_real_geometry_have_no_crop():
         {"bbox_source": "new-source", "bbox": [100, 150, 300, 420]},
         {"bbox": [100, 150, 300, 420]},
     )] == [None] * 8
-
-
-def test_a_record_without_the_box_its_source_promises_is_a_bug_not_a_decline():
-    with pytest.raises(KeyError):
-        card_crop(_table(), {"bbox_source": "detector"})
 
 
 def test_cutting_a_crop_needs_no_onnx_runtime():

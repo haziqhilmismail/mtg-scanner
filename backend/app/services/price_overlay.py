@@ -1,7 +1,4 @@
-"""
-price_overlay.py
-----------------
-Draw clean price labels on top of the original photo.
+"""Draw clean price labels on top of the original photo.
 
 Default: just price tags (rounded pill, drop shadow), positioned at the bottom
 of each detected card. No outline rectangles - the photo stays clean.
@@ -12,6 +9,8 @@ from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+from .card_geometry import CARD_ASPECT
 
 FONT_PATH_CANDIDATES = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -57,14 +56,12 @@ class _Pill:
         """The pill at (x, y): its drop shadow, the fill and ring, the text."""
         radius = max(6, self.base // 3)
 
-        # Drop shadow (slightly offset, drawn solid; blurred later)
         offset = max(2, self.base // 10)
         sh_draw.rounded_rectangle(
             [x + offset, y + offset, x + self.w + offset, y + self.h + offset],
             radius=radius, fill=(0, 0, 0, 130),
         )
 
-        # Pill background
         if is_foil:
             bg_color = (240, 195, 50, 250)
             text_color = (25, 20, 10, 255)
@@ -141,11 +138,9 @@ def render_overlay(
     if covers:
         pil = _cover_sold(pil, covers)
 
-    # Drop-shadow layer (drawn first, blurred, then composited)
     shadow_layer = Image.new("RGBA", pil.size, (0, 0, 0, 0))
     sh_draw = ImageDraw.Draw(shadow_layer)
 
-    # Foreground layer (rectangles + label fills/text)
     fg_layer = Image.new("RGBA", pil.size, (0, 0, 0, 0))
     fg_draw = ImageDraw.Draw(fg_layer)
 
@@ -159,16 +154,14 @@ def render_overlay(
     # the card on one axis (extra table/background or a sliver of a neighbor). We derive
     # a "card-shaped" subbox centered on the bbox center for label placement, so the pill
     # sits at the actual card area instead of wherever the loose bbox happens to be.
-    CARD_W_OVER_H = 488.0 / 680.0  # ≈ 0.7176
 
     for c in cards:
         raw_x, raw_y, raw_w, raw_h = c["bbox"]
         label = (c.get("label") or "").strip()
         is_foil = bool(c.get("is_foil", False))
 
-        # Outline shows the *raw* detection so the user sees what Gemini actually found.
-        # When a 4-point quad is available (classical-refined), draw a polygon so the
-        # outline follows the card's tilt instead of an axis-aligned rectangle.
+        # The outline shows the raw detection, so the user sees what the scanner found:
+        # the card's quad when it has one, else its bbox.
         if show_outlines:
             line_color = (220, 170, 30, 220) if is_foil else (50, 180, 100, 220)
             fg_draw.polygon(_polygon(c), outline=line_color, width=line_width)
@@ -180,15 +173,13 @@ def render_overlay(
         # In nearly all cases the card is portrait (h > w), so width is more reliable.
         cx = raw_x + raw_w / 2
         cy = raw_y + raw_h / 2
-        cur_aspect = (raw_w / raw_h) if raw_h > 0 else CARD_W_OVER_H
-        if cur_aspect < CARD_W_OVER_H:
-            # bbox is too tall — trust width
+        cur_aspect = (raw_w / raw_h) if raw_h > 0 else CARD_ASPECT
+        if cur_aspect < CARD_ASPECT:
             card_w = float(raw_w)
-            card_h = card_w / CARD_W_OVER_H
+            card_h = card_w / CARD_ASPECT
         else:
-            # bbox is too wide — trust height
             card_h = float(raw_h)
-            card_w = card_h * CARD_W_OVER_H
+            card_w = card_h * CARD_ASPECT
         x = int(cx - card_w / 2)
         y = int(cy - card_h / 2)
         w = int(card_w)
@@ -203,7 +194,7 @@ def render_overlay(
             rect_y = y - rect_h // 3
         elif label_position == "center":
             rect_y = y + h // 2 - rect_h // 2
-        else:  # bottom (default)
+        else:
             rect_y = y2 - rect_h * 2 // 3
 
         rect_x = card_cx - rect_w // 2
@@ -218,16 +209,13 @@ def render_overlay(
 
         pill.draw(fg_draw, sh_draw, *pill.clamp(rect_x, rect_y, W, H), is_foil)
 
-    # SOLD across the middle of each sold card.
     sold = _Pill(fg_draw, "SOLD", font, base_font_size)
     for c in covers or []:
         x, y, w, h = c["bbox"]
         sold.draw(fg_draw, sh_draw, *sold.clamp(int(x + w / 2 - sold.w / 2), int(y + h / 2 - sold.h / 2), W, H))
 
-    # Blur the shadow layer
     shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=base_font_size // 4))
 
-    # Composite: photo -> shadow -> foreground
     composed = Image.alpha_composite(pil, shadow_layer)
     composed = Image.alpha_composite(composed, fg_layer).convert("RGB")
 

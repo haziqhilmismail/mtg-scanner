@@ -1,10 +1,6 @@
-"""Bug capture endpoints.
-
-POST /api/bug   — frontend → record an unexpected JS error / React crash.
-                  Optional auth: if a JWT is present the user_id is attached,
-                  otherwise the report is anonymous. Rate limited.
-
-Reports are read from the bug_events table or the Telegram push, never over the API.
+"""Bug capture endpoint: the frontend reports an unexpected JS error or React
+crash. Reports are read from the bug_events table or the Telegram push, never
+over the API.
 """
 
 from fastapi import APIRouter, Request
@@ -28,13 +24,7 @@ async def report_bug(
 ) -> dict:
     """Frontend bug report. Returns 202 (accepted) with the persisted event id."""
     event = await bug_reporter.report_frontend(
-        message=payload.message,
-        exception_type=payload.exception_type,
-        stack=payload.stack,
-        route=payload.route,
-        user_agent=request.headers.get("user-agent"),
-        user_id=user_id,
-        db=db,
+        payload, user_agent=request.headers.get("user-agent"), user_id=user_id, db=db,
     )
     return {"id": event.id}
 

@@ -58,8 +58,8 @@ async def keep_answer(db: AsyncSession, scan: Scan, card: dict, scryfall_id: str
             set_={"scryfall_id": scryfall_id, "kind": kind, "updated_at": func.now()},
             where=CardCorrection.scryfall_id != scryfall_id,
         ).returning(CardCorrection.crop_file))
-        # get_session commits only after the reply has gone out, too late for
-        # a failed commit to change it or to remove the new file.
+        # Commit now: the `finally` must know whether the row took before it
+        # removes the new crop file.
         await db.commit()
         took = kept_file == crop_file
     finally:

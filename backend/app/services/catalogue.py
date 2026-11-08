@@ -28,8 +28,6 @@ CONCURRENCY = 5
 DELAY = 0.10  # 100ms between requests per worker: Scryfall asks for ~10 req/sec max
 
 
-# ---------- Card Kingdom ----------
-
 _index: CKPriceIndex | None = None
 
 
@@ -66,8 +64,6 @@ def priced(summary: dict | None, ck: CKPriceIndex) -> dict | None:
         "ck_url_foil": _ck_full_url(foil.url),
     }
 
-
-# ---------- Scryfall ----------
 
 def _summary(scryfall: dict | None, fallback_name: str = "") -> dict | None:
     """Slim Scryfall response into the fields the frontend needs."""
@@ -152,20 +148,17 @@ async def _lookup_one(session, sem, detection: Guess):
                 # No matching set hint — return the first (Scryfall orders by release)
                 return cards[0]
 
-        # Strategy 2: exact set + collector_number
         if set_code and cnum:
             url = f"{SCRYFALL}/cards/{urllib.parse.quote(set_code)}/{urllib.parse.quote(cnum)}"
             data = await _try_json(session, url)
             if data and "name" in data:
                 return data
 
-        # Strategy 3: fuzzy named with set hint
         if name and set_code:
             data = await _try_json(session, f"{SCRYFALL}/cards/named", params={"fuzzy": name, "set": set_code})
             if data and "name" in data:
                 return data
 
-        # Strategy 4: fuzzy named alone
         if name:
             data = await _try_json(session, f"{SCRYFALL}/cards/named", params={"fuzzy": name})
             if data and "name" in data:
@@ -184,8 +177,6 @@ async def scryfall_cards(guesses: list[Guess]) -> list[dict | None]:
         results = await asyncio.gather(*[_lookup_one(session, sem, g) for g in guesses])
     return [_summary(r, fallback_name=g.name) for r, g in zip(results, guesses)]
 
-
-# ---------- what callers use ----------
 
 async def look_up(guesses: list[Guess]) -> list[dict | None]:
     """Each scanner guess as a priced card, or None when Scryfall has no match."""

@@ -1,7 +1,4 @@
-"""
-delete_account.py
------------------
-Delete a user's account when they ask (PRIVACY.md: done within 30 days).
+"""Delete a user's account when they ask (PRIVACY.md: done within 30 days).
 Everything of theirs goes; their sales records and card corrections stay with
 no link back to them.
 Run it where the app's database is: on the home server, inside the container.
@@ -19,16 +16,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import func, select  # noqa: E402
-
 from app.db import async_session_factory  # noqa: E402
-from app.models import User  # noqa: E402
-from app.services.accounts import delete_account  # noqa: E402
+from app.services.accounts import delete_account, user_by_email  # noqa: E402
 
 
 async def main(email: str, yes: bool) -> int:
     async with async_session_factory() as db:
-        user = await db.scalar(select(User).where(func.lower(User.email) == email.strip().lower()))
+        user = await user_by_email(db, email)
         if user is None:
             print(f"No account for {email}", file=sys.stderr)
             return 1
