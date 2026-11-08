@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type DialogHTMLAttributes, type ReactNode } from 'react';
-import { useBackClose } from '../../hooks/useBackClose.ts';
+import { useBackClose } from './useBackClose.ts';
 import { hideEl, showEl } from './motion.ts';
 
 const stack: HTMLDialogElement[] = [];
