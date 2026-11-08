@@ -9,6 +9,9 @@
 //      (bbox is [x, y, w, h] in pixels of the normalised image).
 //   4. Update DEMO_IMAGE_W / DEMO_IMAGE_H and DEMO_CROP to match.
 
+import { DEFAULT_SETTINGS } from '../types.ts';
+import { applyRounding } from '../utils.ts';
+
 export interface DemoCard {
   id: number;
   name: string;
@@ -18,9 +21,11 @@ export interface DemoCard {
   rarity: 'common' | 'uncommon' | 'rare' | 'mythic' | 'special';
   bbox: { x: number; y: number; w: number; h: number };
   ckRetailUsd: number;
-  multiplier: number;
-  rmPrice: number;
 }
+
+// The demos price at the app's default multiplier and rounding.
+export const DEMO_MULT = DEFAULT_SETTINGS.multNormal;
+export const demoPrice = (c: DemoCard) => applyRounding(c.ckRetailUsd * DEMO_MULT, DEFAULT_SETTINGS);
 
 export const DEMO_IMAGE_W = 1729;
 export const DEMO_IMAGE_H = 1729;
@@ -41,8 +46,6 @@ export const DEMO_CARDS: DemoCard[] = [
     rarity: 'common',
     bbox: { x: 267, y: 27, w: 597, h: 832 },
     ckRetailUsd: 1.79,
-    multiplier: 2.8,
-    rmPrice: 6,
   },
   {
     id: 2,
@@ -53,8 +56,6 @@ export const DEMO_CARDS: DemoCard[] = [
     rarity: 'uncommon',
     bbox: { x: 864, y: 27, w: 597, h: 832 },
     ckRetailUsd: 19.99,
-    multiplier: 2.8,
-    rmPrice: 56,
   },
   {
     id: 3,
@@ -65,8 +66,6 @@ export const DEMO_CARDS: DemoCard[] = [
     rarity: 'uncommon',
     bbox: { x: 267, y: 874, w: 597, h: 835 },
     ckRetailUsd: 0.35,
-    multiplier: 2.8,
-    rmPrice: 1,
   },
   {
     id: 4,
@@ -77,7 +76,5 @@ export const DEMO_CARDS: DemoCard[] = [
     rarity: 'special',
     bbox: { x: 864, y: 874, w: 597, h: 835 },
     ckRetailUsd: 1.49,
-    multiplier: 2.8,
-    rmPrice: 5,
   },
 ];

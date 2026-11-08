@@ -2,7 +2,7 @@
 // back in steps with no call to the server.
 
 import { useEffect, useRef, useState } from 'react';
-import { DEMO_CARDS, DEMO_CROP, DEMO_IMAGE_URL, type DemoCard } from '../../data/demoScan.ts';
+import { DEMO_CARDS, DEMO_CROP, DEMO_IMAGE_URL, DEMO_MULT, demoPrice, type DemoCard } from '../../data/demoScan.ts';
 import { useT } from '../../hooks/useLang.ts';
 import { Icon } from '../Icon.tsx';
 import { VersionLine } from '../VersionLine.tsx';
@@ -47,7 +47,7 @@ export function DemoScan({ onNext }: { onNext: () => void }) {
   const running = step > IDLE && step < DONE;
   const shown = step === IDLE ? NOTHING : STEPS[Math.min(step, DONE - 1)];
   const priced = (c: DemoCard) => shown.pills === 'all' || (shown.pills === 'top' && c.bbox.y < DEMO_CROP.h / 2);
-  const total = DEMO_CARDS.reduce((sum, c) => sum + c.rmPrice, 0);
+  const total = DEMO_CARDS.reduce((sum, c) => sum + demoPrice(c), 0);
 
   return (
     // The pressed button goes away, so focus stays on the demo, not the page.
@@ -70,7 +70,7 @@ export function DemoScan({ onNext }: { onNext: () => void }) {
           <span
             key={c.id} className="demo-pill" aria-hidden="true" data-on={priced(c) || undefined}
             style={{ left: at(c.bbox.x + c.bbox.w / 2, DEMO_CROP.x, DEMO_CROP.w), top: at(c.bbox.y + c.bbox.h / 2, 0, DEMO_CROP.h) }}
-          >RM{c.rmPrice}</span>
+          >RM{demoPrice(c)}</span>
         ))}
         {step === IDLE ? (
           <button type="button" className="demo-play" onClick={play}>
@@ -106,9 +106,9 @@ export function DemoScan({ onNext }: { onNext: () => void }) {
                   <span className="demo-card-main">
                     <span className="demo-card-name">{c.name}</span>
                     <VersionLine p={{ set: c.setCode, collector_number: c.collectorNumber, set_name: c.setName }} rarity={c.rarity} />
-                    <span className="demo-card-formula">USD {c.ckRetailUsd.toFixed(2)} × {c.multiplier}</span>
+                    <span className="demo-card-formula">USD {c.ckRetailUsd.toFixed(2)} × {DEMO_MULT}</span>
                   </span>
-                  <span className="demo-card-price">RM{c.rmPrice}</span>
+                  <span className="demo-card-price">RM{demoPrice(c)}</span>
                 </li>
               ))}
             </ul>

@@ -3,8 +3,8 @@
 
 import type { Payment } from '../api/payment.ts';
 import type { T } from '../i18n/index.ts';
-import { paymentLines } from '../utils.ts';
-import { DEMO_CARDS, type DemoCard } from './demoScan.ts';
+import { buyerMessage } from '../views/claims/model.ts';
+import { DEMO_CARDS, DEMO_MULT, demoPrice, type DemoCard } from './demoScan.ts';
 
 export interface DemoComment {
   name: string;
@@ -27,10 +27,10 @@ export const DEMO_PAYMENT: Payment = {
   payment_note: 'Please provide your phone number', qr_version: null,
 };
 
-export const totalOf = (c: DemoComment) => c.cards.reduce((sum, d) => sum + d.rmPrice, 0);
+export const totalOf = (c: DemoComment) => c.cards.reduce((sum, d) => sum + demoPrice(d), 0);
 
-// The message Claims copies for a buyer, built to DESIGN.md section 8.
-export function demoMessage(c: DemoComment, t: T): string {
-  const lines = c.cards.map(d => `${d.name} — $${d.ckRetailUsd.toFixed(2)} × ${d.multiplier} → RM${d.rmPrice}`);
-  return [c.name, ...lines, '', `*${t('total')}: RM${totalOf(c)}*`, '', ...paymentLines(DEMO_PAYMENT, t)].join('\n');
-}
+// The message Claims copies for a buyer, from Claims' own builder.
+export const demoMessage = (c: DemoComment, t: T) => buyerMessage(c.name, c.cards.map(d => ({
+  id: d.id, name: d.name, qty: 1, each: demoPrice(d), formula: { usd: d.ckRetailUsd, mult: DEMO_MULT },
+  photo: null, crop: null, live: false,
+})), DEMO_PAYMENT, false, t);

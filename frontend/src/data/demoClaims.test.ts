@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { translate, type T } from '../i18n/index.ts';
-import { DEFAULT_SETTINGS } from '../types.ts';
-import { applyRounding } from '../utils.ts';
 import { DEMO_COMMENTS, demoMessage } from './demoClaims.ts';
-import { DEMO_CARDS } from './demoScan.ts';
+import { DEMO_CARDS, demoPrice } from './demoScan.ts';
 
 const en: T = (k, v) => translate('en', k, v);
 
@@ -22,9 +20,8 @@ test('a demo buyer gets the section 8 message, character for character', () => {
   ].join('\n'));
 });
 
-test('every demo price is what the app would charge at that multiplier', () => {
-  assert.deepEqual(
-    DEMO_CARDS.map(c => `${c.name}: RM${applyRounding(c.ckRetailUsd * c.multiplier, DEFAULT_SETTINGS)}`),
-    DEMO_CARDS.map(c => `${c.name}: RM${c.rmPrice}`),
-  );
+test('the demo cards are priced at the default multiplier, rounded up to RM 1', () => {
+  assert.deepEqual(DEMO_CARDS.map(c => `${c.name}: RM${demoPrice(c)}`), [
+    'Frantic Search: RM6', 'Malakir Rebirth // Malakir Mire: RM56', 'Pick Your Poison: RM1', 'Etali, Primal Storm: RM5',
+  ]);
 });
