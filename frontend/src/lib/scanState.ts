@@ -163,8 +163,6 @@ export function computeCardData(cards: DetectedCard[], batch: ScanUiState, setti
     const ownUsd = own?.unit === 'usd' ? own.amount : null;
     const unitPrice = own ? (ownUsd != null ? applyRounding(ownUsd * mult, settings) : own.amount) : needsPrice ? NaN : autoPrice;
     const lineTotal = isFinite(unitPrice) ? unitPrice * qty : 0;
-    // A finished photo keeps the prices buyers saw, whatever CK or the
-    // multipliers do since.
     const source = isManual
       ? 'manual'
       : (isFoil
@@ -189,6 +187,9 @@ export function computeCardData(cards: DetectedCard[], batch: ScanUiState, setti
     };
   });
 }
+
+// A photo's card rows, priced with its post's pricing; none until its scan is back.
+export const cardRows = (batch: Batch, settings: Settings) => computeCardData(batch.response?.cards ?? [], batch, settings);
 
 export function correctionFor(batch: Batch, idx: number, picked?: Candidate): Correction | null {
   const card = batch.response?.cards[idx];

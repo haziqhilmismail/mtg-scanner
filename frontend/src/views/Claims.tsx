@@ -36,7 +36,7 @@ import { useT } from '../hooks/useLang.ts';
 import type { PricingStore } from '../hooks/usePricing.ts';
 import type { ScannerStore } from '../hooks/useScanner.ts';
 import type { Folder } from './scanner/usePosts.ts';
-import { computeCardData, type CardRowData } from '../lib/scanState.ts';
+import { cardRows, computeCardData, type CardRowData } from '../lib/scanState.ts';
 import { isLive } from '../lib/pricing.ts';
 import { approxText } from '../lib/money.ts';
 import { byPostOrder, photoNumbers } from './scanner/photos.ts';
@@ -130,7 +130,7 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, credits, onC
       .sort(byPostOrder)
       .map((batch, at) => {
         const index = numbers.get(batch.id) ?? at + 1;
-        const visible = computeCardData(batch.response!.cards, batch, settings).filter(cd => !cd.removed);
+        const visible = cardRows(batch, settings).filter(cd => !cd.removed);
         const where = describePositions(visible);
         return {
           batch, index,

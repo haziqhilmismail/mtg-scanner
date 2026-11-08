@@ -11,7 +11,7 @@ import { photoFileName } from '../../lib/photoFiles.ts';
 import { KEY, storage } from '../../lib/storage.ts';
 import type { Batch, Settings } from '../../types.ts';
 import { renderFile, type ExportJob } from './exportFiles.ts';
-import { computeCardData, lockPrices, type CardRowData, bboxKey, listingFields, notAdded } from '../../lib/scanState.ts';
+import { bboxKey, cardRows, listingFields, lockPrices, notAdded, type CardRowData } from '../../lib/scanState.ts';
 import { isLive } from '../../lib/pricing.ts';
 import { goldPill, photoLabel, photoNumbers } from './photos.ts';
 import { downloadBlob } from '../../lib/browser.ts';
@@ -23,7 +23,7 @@ import { downloadBlob } from '../../lib/browser.ts';
 function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | null {
   if (!batch.response) return null;
   // A card added by hand has no spot on the photo, so it gets no label there.
-  const onPhoto = computeCardData(batch.response.cards, batch, settings).filter(cd => cd.card.bbox_source !== 'user');
+  const onPhoto = cardRows(batch, settings).filter(cd => cd.card.bbox_source !== 'user');
   const visible = onPhoto.filter(cd => !cd.removed);
   return {
     image_id: batch.response.image_id,
@@ -93,7 +93,7 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
   const addBatchCore = useCallback(async (batch: Batch, postId: number | null) => {
     if (!batch.response || batch.scanId == null) return 0;
     let failed = 0;
-    for (const cd of notAdded(batch, computeCardData(batch.response.cards, batch, pricingFor(batch.postId)))) {
+    for (const cd of notAdded(batch, cardRows(batch, pricingFor(batch.postId)))) {
       try {
         await addCard(batch, cd, postId);
       } catch (e) {
@@ -142,7 +142,7 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
     const settings = pricingFor(batch.postId);
     // Live price: the cards go on the post; prices stay live until each buyer is sent theirs.
     if (isLive(settings)) return addBatchCore(batch, postId);
-    const cards = computeCardData(batch.response?.cards ?? [], batch, settings);
+    const cards = cardRows(batch, settings);
     if (cards.some(cd => !cd.removed && !(cd.unitPrice > 0))) return 'unpriced';
     if (!batch.lockedAt) scanner.lockBatch(batch.id, lockPrices(cards));
     return addBatchCore(batch, postId);

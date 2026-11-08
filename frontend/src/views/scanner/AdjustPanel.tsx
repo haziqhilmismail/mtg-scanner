@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { useT, type T } from '../../hooks/useLang.ts';
-import { computeCardData, editCardState, type CardRowData, type CardState, cardName } from '../../lib/scanState.ts';
+import { cardName, cardRows, editCardState, type CardRowData, type CardState } from '../../lib/scanState.ts';
 import type { Batch, Settings } from '../../types.ts';
 import { Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
@@ -55,7 +55,7 @@ export function AdjustPanel({ open, batch, idx, live, settings, onClose, onSave 
     multOverride: draft.multOverride,
     priceOverride: overrideText(typeof price === 'number' ? { unit: draft.unit, amount: price } : null),
   };
-  const cd = computeCardData(batch.response?.cards ?? [], editCardState(batch, idx, edit), settings)[idx];
+  const cd = cardRows(editCardState(batch, idx, edit), settings)[idx];
   if (!cd) return null;
 
   const name = cardName(cd, t);

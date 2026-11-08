@@ -13,7 +13,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
-import { computeCardData, type CardRowData, bboxKey, cardName } from '../../lib/scanState.ts';
+import { bboxKey, cardName, cardRows, type CardRowData } from '../../lib/scanState.ts';
 import { formatMyr } from '../../lib/money.ts';
 
 interface Props {
@@ -61,8 +61,8 @@ export function ActiveBatchView({
   const [edit, setEdit] = useState<{ idx: number; n: number; open: boolean } | null>(null);
   // card null: the whole photo.
   const [view, setView] = useState<{ card: number | null; side: 0 | 1; open: boolean } | null>(null);
-  const cardData = useMemo(() => computeCardData(batch.response?.cards ?? [], batch, settings), [batch, settings]);
-  const { pending, unpricedOut, inPost, total, unpriced } = useMemo(() => photoStatus(batch, settings), [batch, settings]);
+  const cardData = useMemo(() => cardRows(batch, settings), [batch, settings]);
+  const { pending, unpricedOut, inPost, total, unpriced } = useMemo(() => photoStatus(batch, settings, cardData), [batch, settings, cardData]);
   const cardsLabel = (n: number) => plural(t, 'cards', n);
 
   if (batch.status === 'scanning' || batch.status === 'error' || !batch.response) {
