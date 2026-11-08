@@ -94,3 +94,10 @@ export async function request(url: string, { json, ...init }: RequestInit & { js
   if (r.status === 402) throw new OutOfCreditsError(detail);
   throw new ApiError(typeof detail === 'string' && detail ? detail : `HTTP ${r.status}`, r.status, detail);
 }
+
+// A call whose answer is JSON, or nothing (204).
+export async function fetchJson<T>(method: string, url: string, body?: unknown, keepalive = false): Promise<T> {
+  const r = await request(url, { method, json: body, keepalive });
+  if (r.status === 204) return undefined as T;
+  return (await r.json()) as T;
+}

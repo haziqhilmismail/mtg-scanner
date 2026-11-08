@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { listingsApi } from '../../api/checklist.ts';
+import { createListing, deleteListing, fetchListings } from '../../api/listings.ts';
 import type { ExportPayload } from '../../api/export.ts';
 import { relookupScanPrices } from '../../api/scans.ts';
 import { useDialog } from '../../components/DialogProvider.tsx';
@@ -10,9 +10,11 @@ import { migrateAdded } from '../../lib/legacy.ts';
 import { photoFileName } from '../../lib/photoFiles.ts';
 import { KEY, storage } from '../../lib/storage.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { bboxKey, downloadBlob, goldPill, isLive, listingFields, notAdded, photoLabel, photoNumbers } from '../../utils.ts';
 import { renderFile, type ExportJob } from './exportFiles.ts';
-import { computeCardData, lockPrices, type CardRowData } from '../../lib/scanState.ts';
+import { bboxKey, cardRows, listingFields, lockPrices, notAdded, type CardRowData } from '../../lib/scanState.ts';
+import { isLive } from '../../lib/pricing.ts';
+import { goldPill, photoLabel, photoNumbers } from './photos.ts';
+import { downloadBlob } from '../../lib/browser.ts';
 
 // What the exported photo of a batch shows, or null for a batch that hasn't
 // finished scanning. Foil prices are always on a gold pill (DESIGN.md §7),
@@ -21,7 +23,7 @@ import { computeCardData, lockPrices, type CardRowData } from '../../lib/scanSta
 function buildExportPayload(batch: Batch, settings: Settings): ExportPayload | null {
   if (!batch.response) return null;
   // A card added by hand has no spot on the photo, so it gets no label there.
-  const onPhoto = computeCardData(batch.response.cards, batch, settings).filter(cd => cd.card.bbox_source !== 'user');
+  const onPhoto = cardRows(batch, settings).filter(cd => cd.card.bbox_source !== 'user');
   const visible = onPhoto.filter(cd => !cd.removed);
   return {
     image_id: batch.response.image_id,
@@ -67,7 +69,7 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
   // One card onto the checklist of a post, tied to its photo so deleting the
   // photo takes it off again.
   const addCard = useCallback(async (batch: Batch, cd: CardRowData, postId = batch.postId) => {
-    await listingsApi.create({
+    await createListing({
       ...listingFields(cd),
       scan_id: batch.scanId,
       bbox: cd.card.bbox,
@@ -79,9 +81,9 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
   const takeOutCard = useCallback(async (batch: Batch, cd: CardRowData): Promise<'claimed' | 'taken out'> => {
     const key = bboxKey(cd.card.bbox);
     // shortcut: reads every listing of the seller to find the card's own; ask the server for one scan's if that grows slow.
-    const its = (await listingsApi.list('active')).filter(l => l.scan_id === batch.scanId && l.bbox && bboxKey(l.bbox) === key);
+    const its = (await fetchListings('active')).filter(l => l.scan_id === batch.scanId && l.bbox && bboxKey(l.bbox) === key);
     if (its.some(l => (l.qty_committed ?? 0) > 0)) return 'claimed';
-    for (const l of its) await listingsApi.remove(l.id);
+    for (const l of its) await deleteListing(l.id);
     scanner.unmarkListed(batch.id, cd.card.bbox);
     return 'taken out';
   }, [scanner.unmarkListed]);
@@ -91,7 +93,7 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
   const addBatchCore = useCallback(async (batch: Batch, postId: number | null) => {
     if (!batch.response || batch.scanId == null) return 0;
     let failed = 0;
-    for (const cd of notAdded(batch, computeCardData(batch.response.cards, batch, pricingFor(batch.postId)))) {
+    for (const cd of notAdded(batch, cardRows(batch, pricingFor(batch.postId)))) {
       try {
         await addCard(batch, cd, postId);
       } catch (e) {
@@ -140,7 +142,7 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle }: Props) {
     const settings = pricingFor(batch.postId);
     // Live price: the cards go on the post; prices stay live until each buyer is sent theirs.
     if (isLive(settings)) return addBatchCore(batch, postId);
-    const cards = computeCardData(batch.response?.cards ?? [], batch, settings);
+    const cards = cardRows(batch, settings);
     if (cards.some(cd => !cd.removed && !(cd.unitPrice > 0))) return 'unpriced';
     if (!batch.lockedAt) scanner.lockBatch(batch.id, lockPrices(cards));
     return addBatchCore(batch, postId);

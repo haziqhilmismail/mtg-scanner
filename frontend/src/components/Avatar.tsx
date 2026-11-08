@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AuthUser } from '../api/auth.ts';
-import { initials } from '../utils.ts';
 import { Icon } from './Icon.tsx';
+import { initials } from './initials.ts';
 
 export function Avatar({ user, className = '' }: { user: AuthUser | null; className?: string }) {
   const [failed, setFailed] = useState<string | null>(null);

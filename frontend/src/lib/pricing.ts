@@ -1,5 +1,5 @@
 import type { T } from '../i18n/index.ts';
-import { currencyOf } from '../utils.ts';
+import { stepText } from './money.ts';
 import { DEFAULT_SETTINGS, type Settings } from '../types.ts';
 
 // Pricing is the Settings object. The server keeps it as opaque JSON: one per
@@ -36,6 +36,9 @@ export function savePricing(s: PricingState, postId: number | null, pricing: Set
   return alsoDefault ? { ...next, userDefault: pricing } : next;
 }
 
+// A live post prices each card when its buyer's total is sent, not on the photo.
+export const isLive = (s: Pick<Settings, 'priceMode'>) => s.priceMode === 'live';
+
 // Whether two pricings price and label photos the same.
 export const samePricing = (a: Settings, b: Settings) =>
   (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).every(k => a[k] === b[k]);
@@ -47,9 +50,6 @@ export const ROUNDINGS: Rounding[] = [
   { roundDirection: 'none', roundStep: 1 },
 ];
 export const roundingKey = (r: Rounding) => (r.roundDirection === 'none' ? 'none' : `${r.roundDirection} ${r.roundStep}`);
-
-// A rounding step or minimum as the settings text writes it ("RM 1", "RM 0.50"), not a price.
-const stepText = (n: number, s: Settings) => `${currencyOf(s)} ${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 // A rounding in words: as a summary ("Round up to RM 1"), a dropdown option
 // ("Up to RM 1"), or a clause of the formula ("rounded up to the nearest RM 1").

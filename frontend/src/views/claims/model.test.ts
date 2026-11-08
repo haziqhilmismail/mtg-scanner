@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { Buyer } from '../../api/buyers.ts';
+import type { Order, OrderItem } from '../../api/orders.ts';
 import type { Payment } from '../../api/payment.ts';
-import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
 import { translate, type T } from '../../i18n/index.ts';
+import { computeCardData, freshState, lockPrices } from '../../lib/scanState.ts';
+import { DEFAULT_SETTINGS, type Candidate, type DetectedCard } from '../../types.ts';
 import {
-  buyerGroups, buyerMessage, claimedCounts, claimTotals, priceFormula, rm, sortGroups, stampsFor,
+  buyerGroups, buyerMessage, claimedCounts, claimTotals, dueForSupportAsk, priceFormula, rm, sortGroups, sortScreenshots, stampsFor,
   type BuyerGroup, type Line,
 } from './model.ts';
 
@@ -172,4 +175,41 @@ test('sorting by name ignores case and stray spaces; by photo puts each buyer un
   assert.deepEqual(sortGroups(groups, 'name').map(g => g.buyerId), [2, 3, 1]);
   const byPhoto = sortGroups(groups, 'photo');
   assert.deepEqual(byPhoto.map(g => [g.buyerId, g.lines.map(l => l.id)]), [[3, [5, 4]], [1, [2, 1]], [2, [3]]]);
+});
+
+test('the tip-jar popup waits for the third save, then asks once a month', () => {
+  const day = 24 * 3600 * 1000;
+  assert.equal(dueForSupportAsk(2, null, 100 * day), false);
+  assert.equal(dueForSupportAsk(3, null, 100 * day), true);
+  assert.equal(dueForSupportAsk(9, 100 * day, 129 * day), false);
+  assert.equal(dueForSupportAsk(9, 100 * day, 130 * day), true);
+});
+
+test('a finished photo keeps its prices and their working whatever changes after', () => {
+  const sel = { name: 'X', usd: 3.6, price_source_normal: 'cardkingdom' } as Candidate;
+  const cards = [{ candidates: [sel] } as DetectedCard, { candidates: [sel] } as DetectedCard];
+  const state = { ...freshState(cards), priceOverride: [null, '7'], quantity: [1, 2] };
+  const posted = { ...DEFAULT_SETTINGS, multNormal: 2.5, roundDirection: 'up' as const, roundStep: 1 as const };
+  const finished = { ...state, locked: lockPrices(computeCardData(cards, state, posted)), lockedAt: '2026-10-23T12:00:00Z' };
+  // CK moves and the multiplier changes after posting.
+  const moved = [{ candidates: [{ ...sel, usd: 9 }] } as DetectedCard, { candidates: [{ ...sel, usd: 9 }] } as DetectedCard];
+  const [ck, typed] = computeCardData(moved, finished, { ...posted, multNormal: 4 });
+  assert.equal(ck.unitPrice, 9);
+  assert.deepEqual(priceFormula(ck, 9), { usd: 3.6, mult: 2.5 });
+  assert.deepEqual([typed.unitPrice, typed.lineTotal], [7, 14]);
+  assert.equal(priceFormula(typed, 7), null);
+  // Edit prices: the lock no longer counts, so prices follow again.
+  assert.equal(computeCardData(moved, { ...finished, lockedAt: null }, { ...posted, multNormal: 4 })[0].unitPrice, 36);
+});
+
+test('comment screenshots go to the photo they show, else the one before', () => {
+  const seen = (sure: number | null, guess: number | null = null) => ({ sure, guess });
+  // Photo 3 with its comments, two scrolls of comments, photo 5 (a guess between look-alikes), then comments.
+  assert.deepEqual(sortScreenshots([seen(3), seen(null), seen(null), seen(null, 5), seen(null)], null, 0), [
+    { scanId: 3, by: 'found' }, { scanId: 3, by: 'follows' }, { scanId: 3, by: 'follows' },
+    { scanId: 5, by: 'guess' }, { scanId: 5, by: 'follows' },
+  ]);
+  // Comments only, nothing before: every photo. Added later: they follow what is there.
+  assert.deepEqual(sortScreenshots([seen(null), seen(null)], null, 0), [{ scanId: 0, by: 'none' }, { scanId: 0, by: 'none' }]);
+  assert.deepEqual(sortScreenshots([seen(null)], 7, 0), [{ scanId: 7, by: 'follows' }]);
 });

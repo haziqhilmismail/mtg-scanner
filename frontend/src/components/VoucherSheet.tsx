@@ -1,9 +1,34 @@
 import { useId, useState } from 'react';
 import { redeemVoucher, type Credits } from '../api/credits.ts';
 import { ApiError } from '../api/http.ts';
-import { useT } from '../hooks/useLang.ts';
+import { useT, type T } from '../hooks/useLang.ts';
+import { dateLocale } from '../lib/browser.ts';
 import { TextField } from './ui/Field.tsx';
 import { Dialog } from './ui/Dialog.tsx';
+
+// When the oldest free scan comes back, as a short date ('' if none is due).
+function nextFreeDate(credits: Credits | null, lang: string): string {
+  return credits?.next_free_at
+    ? new Date(credits.next_free_at).toLocaleDateString(dateLocale(lang), { day: 'numeric', month: 'short' })
+    : '';
+}
+
+// The balance line under Find Claims ('' when credits don't apply).
+export function creditsLine(credits: Credits | null, t: T, lang: string): string {
+  if (!credits?.enforced) return '';
+  if (credits.unlimited) return t('credits_unlimited');
+  let line = t('credits_free_left', { n: Math.max(0, credits.limit - credits.used), limit: credits.limit });
+  if (credits.bonus > 0) line += ' ' + t('credits_plus_extra', { n: credits.bonus.toLocaleString() });
+  const nextBack = nextFreeDate(credits, lang);
+  if (credits.used > 0 && nextBack) line += ' · ' + t('credits_next_back', { date: nextBack });
+  return line;
+}
+
+// Why there are no claim reads left and when the next one returns.
+export function creditsOutText(credits: Credits, t: T, lang: string): string {
+  const date = nextFreeDate(credits, lang);
+  return date ? t('credits_out_body', { date, limit: credits.limit }) : t('credits_out_body_plain', { limit: credits.limit });
+}
 
 interface Props {
   open: boolean;

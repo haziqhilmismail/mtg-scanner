@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Payment } from '../api/payment.ts';
 import { translate, type T } from '../i18n/index.ts';
-import { paymentLines } from '../utils.ts';
-import { changesOf, draftOf, NO_PAYMENT, previewOf, type PaymentDraft } from './paymentDraft.ts';
+import { changesOf, draftOf, NO_PAYMENT, paymentLines, previewOf, type PaymentDraft } from './paymentDraft.ts';
 
 const t: T = (k, v) => translate('en', k, v);
 const SAVED: Payment = { bank_name: 'Maybank', bank_account_number: '0000 0000 0000', bank_account_holder: 'Your name', payment_note: '', qr_version: '17' };
@@ -34,4 +33,15 @@ test('the preview is the payment lines buyers get, from the trimmed draft', () =
     'Send the receipt here',
   ]);
   assert.deepEqual(paymentLines(previewOf(draftOf(NO_PAYMENT)), t), []);
+});
+
+test('payment details become the lines under a buyer message, empty parts left out', () => {
+  const t = ((key: string, v?: Record<string, string>) => `${key}:${v?.account ?? ''}`) as unknown as T;
+  const full = { bank_name: 'Maybank', bank_account_number: '1234', bank_account_holder: 'Nurul Huda', payment_note: 'Send your name.', qr_version: null };
+  assert.deepEqual(paymentLines(full, t), ['pay_copy_account:Maybank 1234 (Nurul Huda)', 'Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: '' }, t), ['pay_copy_account:1234 (Nurul Huda)', 'Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: '', bank_account_number: '' }, t), ['pay_copy_account:(Nurul Huda)', 'Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: ' ', bank_account_number: '', bank_account_holder: '' }, t), ['Send your name.']);
+  assert.deepEqual(paymentLines({ ...full, bank_name: '', bank_account_number: '', bank_account_holder: '', payment_note: '' }, t), []);
+  assert.deepEqual(paymentLines(null, t), []);
 });

@@ -2,8 +2,8 @@
 // posts list, the post page, its photo rows and the photo page.
 
 import type { Batch, Settings } from '../../types.ts';
-import { bboxKey, isLive, notAdded } from '../../utils.ts';
-import { computeCardData } from '../../lib/scanState.ts';
+import { bboxKey, cardRows, notAdded } from '../../lib/scanState.ts';
+import { isLive } from '../../lib/pricing.ts';
 
 export interface PhotoStatus {
   batch: Batch;
@@ -19,8 +19,22 @@ export interface PhotoStatus {
   names: string[];      // the visible cards' names, for search
 }
 
-export function photoStatus(batch: Batch, settings: Settings): PhotoStatus {
-  const visible = batch.response ? computeCardData(batch.response.cards, batch, settings).filter(cd => !cd.removed) : [];
+// One post's worth of scans. `postId` null is the Unfiled photos.
+export interface Folder {
+  key: string;
+  postId: number | null;
+  title: string;
+  archived: boolean;    // hidden from the posts list (shown under Archived)
+  // Buyers with claims on the post, and how many still have to pay.
+  buyers: number;
+  unpaid: number;
+  paid: number;         // RM buyers have paid
+  items: PhotoStatus[];
+}
+
+// rows: the photo's cardRows, when the caller has them already.
+export function photoStatus(batch: Batch, settings: Settings, rows = cardRows(batch, settings)): PhotoStatus {
+  const visible = rows.filter(cd => !cd.removed);
   const inPost = (cd: (typeof visible)[number]) => batch.listed.includes(bboxKey(cd.card.bbox));
   const pending = notAdded(batch, visible).length;
   const saved = !!batch.response && batch.scanId != null;

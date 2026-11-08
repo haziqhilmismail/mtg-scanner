@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Listing, Order } from '../api/checklist.ts';
+import type { Listing } from '../api/listings.ts';
+import type { Order } from '../api/orders.ts';
 import type { Batch, DetectedCard } from '../types.ts';
 import { freshState } from './scanState.ts';
 import { repostPlan } from './repost.ts';

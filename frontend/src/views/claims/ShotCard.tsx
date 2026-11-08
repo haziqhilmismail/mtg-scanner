@@ -4,8 +4,8 @@ import { Icon, type IconName } from '../../components/Icon.tsx';
 import { TextArea } from '../../components/ui/Field.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
-import type { SortedBy } from '../../utils.ts';
 import { commentRows } from './comments.ts';
+import type { SortedBy } from './model.ts';
 
 export interface Shot {
   id: number;
