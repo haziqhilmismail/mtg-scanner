@@ -1,8 +1,9 @@
 // A stand-in for the FastAPI backend that answers from a Fixture in memory:
 // reads come from it, writes change it (so the next read agrees), and nothing
 // goes over the network. It has a route for every call the app's pages make,
-// returning what the real one does (backend/app/routers/, main.py); any other
-// call answers 404 (a read) or 204 (a write) and warns in the console.
+// answering in the real one's shape (npm run parity checks that against the
+// FastAPI app); any other call answers 404 (a read) or 204 (a write) and warns
+// in the console.
 
 import type { CataloguePhoto, ConfirmClaim } from '../api/claims.ts';
 import type { Payment } from '../api/payment.ts';
@@ -83,10 +84,12 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
   });
   const touch = <T extends { updated_at: string }>(row: T, changes: NoInfer<Partial<T>>) => Object.assign(row, changes, { updated_at: ago(0) });
   const allCandidates = () => f.scans.flatMap(s => s.cards.map(c => c.candidates[0]));
+  // A card Scryfall knows nothing about; priced, it also gets CK's (empty) prices and links.
   const blankCandidate = (name: string, set = ''): Candidate => ({
     scryfall_id: '', name, set, set_name: '', collector_number: '', rarity: '', usd: 0, usd_foil: 0,
     image_url: '', scryfall_uri: '', price_source_normal: 'none', price_source_foil: 'none',
   });
+  const priced = (c: Candidate): Candidate => ({ ck_retail_normal: null, ck_retail_foil: null, ck_url_normal: '', ck_url_foil: '', ...c });
 
   const routes: Array<[method: string, path: RegExp, handle: Handler]> = [
     ['GET', route('/api/auth/config'), () => json(f.config)],
@@ -182,8 +185,7 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       const { scan } = addPhoto(f, find(f.posts, String(form.get('post_id'))) ?? null, {
         file: image instanceof File ? image.name : 'upload.jpg', picture: 'sample', cards: SAMPLE_CARDS, hoursAgo: 0,
       });
-      const { listed: _, ...response } = scanRead(scan, false);
-      return json({ ...response, credits: f.credits });
+      return json({ ...scanRead(scan, false), credits: f.credits });
     }],
     ['PATCH', route('/api/scans/:id/state'), async ({ params: { id }, req }) => {
       const scan = scanOf(id);
@@ -193,6 +195,12 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       picks.forEach((pick, i) => { if (pick && scan.cards[i]) scan.cards[i].candidates = [pick, ...scan.cards[i].candidates.slice(1)]; });
       scan.ui_state = state;
       return noContent();
+    }],
+    // The answer is kept as training data on the server; here only whether it would be.
+    ['PUT', route('/api/scans/:id/cards/:card/correction'), ({ params: { id, card } }) => {
+      const scan = scanOf(id);
+      if (!scan?.cards.some(c => c.id === Number(card))) return notFound('Card not found');
+      return json({ kept: true });
     }],
     ['POST', route('/api/scans/move'), async ({ req }) => {
       const { scan_ids, post_id }: { scan_ids: number[]; post_id: number | null } = await req.json();
@@ -213,8 +221,7 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
     ['POST', route('/api/scans/:id/relookup-prices'), ({ params: { id } }) => {
       const scan = scanOf(id);
       if (!scan) return notFound('Scan not found');
-      const { listed: _, ...read } = scanRead(scan, false);
-      return json({ ...read, updated: scan.cards.length });
+      return json({ ...scanRead(scan, false), updated: scan.cards.length });
     }],
     ['POST', route('/api/scans/:id/frame-card'), async ({ params: { id }, req }) => {
       const scan = scanOf(id);
@@ -234,7 +241,7 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
     }],
     ['POST', route('/api/relookup'), async ({ req }) => {
       const { name, set } = await formJson(req, 'payload');
-      return json(allCandidates().find(c => c.name.toLowerCase() === String(name).toLowerCase()) ?? blankCandidate(name, String(set ?? '').toUpperCase()));
+      return json(allCandidates().find(c => c.name.toLowerCase() === String(name).toLowerCase()) ?? priced(blankCandidate(name, String(set ?? '').toUpperCase())));
     }],
     ['POST', route('/api/printings'), async ({ req }) => {
       const { name } = await formJson(req, 'payload');
@@ -242,9 +249,10 @@ export function fakeBackend(f: Fixture): (req: Request) => Promise<Response> {
       const image = known[0]?.image_url ?? '';
       return json({
         name,
-        printings: [...known, ...PRINTINGS.map(([set, set_name, collector_number, rarity, usd, usd_foil]): Candidate => ({
+        printings: [...known, ...PRINTINGS.map(([set, set_name, collector_number, rarity, usd, usd_foil]): Candidate => priced({
           ...blankCandidate(name, set), scryfall_id: `test-printing-${set}-${collector_number}`.toLowerCase(), set_name, collector_number, rarity, usd, usd_foil, image_url: image,
           price_source_normal: 'cardkingdom', price_source_foil: usd_foil ? 'cardkingdom' : 'none',
+          ck_retail_normal: usd, ck_retail_foil: usd_foil || null,
         }))],
       });
     }],

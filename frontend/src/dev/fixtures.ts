@@ -269,7 +269,8 @@ function many(): Fixture {
 const empty = (): Fixture => newFixture({
   config: CONFIG,
   me: { id: SELLER_ID, email: 'farah@example.com', name: 'Farah', avatar_url: null, image_token: '', pricing: null, seller_name: 'Farah' },
-  health: { ok: true, model: MODEL },
+  // A server always says how many cards its CK price list has (or why it has none).
+  health: { ok: true, model: MODEL, cardkingdom_cards: 0 },
   credits: { enforced: true, unlimited: false, limit: 50, used: 0, bonus: 0, remaining: 50, next_free_at: null },
   payment: NO_PAYMENT,
   comments: [],

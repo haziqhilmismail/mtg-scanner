@@ -143,7 +143,7 @@ export interface CardSpec {
 
 function candidate(c: CardSpec, image: string): Candidate {
   const slug = c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const ck = (usd: number | undefined, foil: string) => (usd != null ? `https://example.com/ck/${slug}${foil}` : undefined);
+  const ck = (usd: number | undefined, foil: string) => (usd != null ? `https://example.com/ck/${slug}${foil}` : '');
   return {
     scryfall_id: `test-${c.set.toLowerCase()}-${c.number}`,
     name: c.name, set: c.set, set_name: c.setName, collector_number: c.number, rarity: c.rarity,
