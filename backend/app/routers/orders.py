@@ -5,26 +5,20 @@ from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession
-from ..models import Buyer, Listing, Order, OrderItem, OrderStatus
-from ..schemas import OrderCreate, OrderRead, OrderUpdate
+from ..deps import CurrentUserId, DbSession, owned
+from ..models import Order, OrderStatus
+from ..schemas import OrderRead, OrderUpdate
+from ..schemas.types import Id
+from ..services.orders import recompute_total
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 async def _load_order(db, order_id: int, user_id: int) -> Order:
-    """Fetch an order with items eagerly loaded; 404 if not found or not owned."""
-    q = (
-        select(Order)
-        .where(Order.id == order_id, Order.user_id == user_id)
-        .options(selectinload(Order.items))
-    )
-    order = (await db.execute(q)).scalar_one_or_none()
-    if not order:
-        raise HTTPException(404, "Order not found")
-    return order
+    """This user's order with its items loaded; 404 otherwise."""
+    return await owned(db, Order, order_id, user_id, selectinload(Order.items))
 
 
 @router.get("", response_model=list[OrderRead])
@@ -47,68 +41,9 @@ async def list_orders(
     return list((await db.execute(q)).scalars().all())
 
 
-async def _resolve_buyer(db, user_id: int, name: str) -> Buyer:
-    """This user's buyer with this FB name (case-insensitive), or a new one."""
-    name = name.strip()
-    if not name:
-        raise HTTPException(400, "Buyer name is empty")
-    existing = (await db.execute(
-        select(Buyer).where(Buyer.user_id == user_id, func.lower(Buyer.fb_name) == name.lower())
-    )).scalar_one_or_none()
-    if existing:
-        return existing
-    new_buyer = Buyer(user_id=user_id, fb_name=name)
-    db.add(new_buyer)
-    await db.flush()
-    return new_buyer
-
-
-async def create_order(
-    payload: OrderCreate, db: DbSession, user_id: CurrentUserId,
-) -> Order:
-    """Create an order with N line items (Claims confirm calls this). Each line
-    item snapshots the listing's current name/set/price, so the order stays
-    readable even if the listing is later edited. The buyer is found by FB name
-    (case-insensitive), or created."""
-    buyer = await _resolve_buyer(db, user_id, payload.buyer_fb_name)
-
-    order = Order(
-        user_id=user_id,
-        buyer_id=buyer.id,
-        dropoff_method=buyer.default_dropoff_method,
-        dropoff_address=buyer.default_dropoff_address,
-        notes=payload.notes,
-        total_myr=Decimal("0.00"),
-    )
-    db.add(order)
-    await db.flush()  # need order.id before adding items
-
-    total = Decimal("0.00")
-    for item_in in payload.items:
-        listing = await db.get(Listing, item_in.listing_id)
-        if not listing or listing.user_id != user_id:
-            raise HTTPException(404, f"Listing {item_in.listing_id} not found")
-        unit_price = item_in.unit_price_myr if item_in.unit_price_myr is not None else listing.unit_price_myr
-        line_total = unit_price * item_in.qty
-        db.add(OrderItem(
-            order_id=order.id,
-            listing_id=listing.id,
-            qty=item_in.qty,
-            unit_price_myr=unit_price,
-            line_total_myr=line_total,
-            name_snapshot=listing.name,
-            set_snapshot=listing.set_code,
-        ))
-        total += line_total
-
-    order.total_myr = total
-    await db.flush()
-    return await _load_order(db, order.id, user_id)
-
-
 @router.patch("/{order_id}", response_model=OrderRead)
 async def update_order(
-    order_id: int, payload: OrderUpdate, db: DbSession, user_id: CurrentUserId,
+    order_id: Id, payload: OrderUpdate, db: DbSession, user_id: CurrentUserId,
 ) -> Order:
     """Update top-level order fields. Paid/delivered timestamps can be set, cleared,
     or left as-is — they're independent so 'took on credit' (delivered without paid) is valid."""
@@ -117,11 +52,11 @@ async def update_order(
     for k, v in updates.items():
         setattr(order, k, v)
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order
 
 
 class ItemPrice(BaseModel):
-    id: int
+    id: Id
     unit_price_myr: Decimal = Field(..., ge=0, decimal_places=2)
 
 
@@ -132,7 +67,7 @@ class OrderPrices(BaseModel):
 
 
 @router.put("/{order_id}/prices", response_model=OrderRead)
-async def set_prices(order_id: int, body: OrderPrices, db: DbSession, user_id: CurrentUserId) -> Order:
+async def set_prices(order_id: Id, body: OrderPrices, db: DbSession, user_id: CurrentUserId) -> Order:
     """Live-price posts: put today's prices on an order whose prices were not
     sent yet (Refresh prices), and optionally mark them sent (the seller just
     copied or shared the buyer's total). 409 once sent: the buyer was told."""
@@ -140,64 +75,42 @@ async def set_prices(order_id: int, body: OrderPrices, db: DbSession, user_id: C
     if order.prices_sent_at is not None:
         raise HTTPException(409, "These prices were already sent to the buyer")
     price = {p.id: p.unit_price_myr for p in body.items}
-    total = Decimal("0.00")
     for item in order.items:
         if item.id in price:
             item.unit_price_myr = price[item.id]
             item.line_total_myr = price[item.id] * item.qty
-        total += item.line_total_myr
-    order.total_myr = total
+    recompute_total(order)
     if body.sent:
         order.prices_sent_at = datetime.now(timezone.utc)
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order
 
 
 @router.delete("/{order_id}/prices-sent", response_model=OrderRead)
-async def unsend_prices(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+async def unsend_prices(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     """Resend at today's price: the prices are an estimate again."""
     order = await _load_order(db, order_id, user_id)
     order.prices_sent_at = None
     await db.flush()
-    return await _load_order(db, order.id, user_id)
-
-
-@router.post("/{order_id}/mark-paid", response_model=OrderRead)
-async def mark_paid(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
-    """Convenience: stamp paid_at to now. Idempotent if already set."""
-    order = await _load_order(db, order_id, user_id)
-    if order.paid_at is None:
-        order.paid_at = datetime.now(timezone.utc)
-        await db.flush()
-    return await _load_order(db, order.id, user_id)
-
-
-@router.post("/{order_id}/mark-delivered", response_model=OrderRead)
-async def mark_delivered(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
-    """Convenience: stamp delivered_at to now. Idempotent."""
-    order = await _load_order(db, order_id, user_id)
-    if order.delivered_at is None:
-        order.delivered_at = datetime.now(timezone.utc)
-        await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order
 
 
 @router.post("/{order_id}/cancel", response_model=OrderRead)
-async def cancel_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+async def cancel_order(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     order = await _load_order(db, order_id, user_id)
     order.status = OrderStatus.cancelled
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order
 
 
 @router.post("/{order_id}/restore", response_model=OrderRead)
-async def restore_order(order_id: int, db: DbSession, user_id: CurrentUserId) -> Order:
+async def restore_order(order_id: Id, db: DbSession, user_id: CurrentUserId) -> Order:
     """Un-cancel a cancelled order. Items return to the active claim; paid_at and
     delivered_at timestamps are preserved so the order lands back in its previous
     kanban column (unpaid/paid/credit/done) on its own."""
     order = await _load_order(db, order_id, user_id)
     if order.status != OrderStatus.cancelled:
-        return await _load_order(db, order.id, user_id)
+        return order
     order.status = OrderStatus.claimed
     await db.flush()
-    return await _load_order(db, order.id, user_id)
+    return order

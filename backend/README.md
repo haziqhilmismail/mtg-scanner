@@ -9,13 +9,13 @@ data from Scryfall) and keeps the seller's stock, posts, buyers and orders.
 
 ```
 app/
-├── main.py       # app, lifespan (migrations, CK index), scan / export / Scryfall routes
+├── main.py       # app, lifespan (migrations, CK index), health / support QR / export routes
 ├── config.py     # settings from env / .env (see .env.example)
 ├── db.py         # async engine + session (commits on success)
 ├── deps.py       # DbSession, CurrentUserId (bearer), ImageUserId (?token=), the rate limiter
 ├── models/       # SQLAlchemy tables
 ├── schemas/      # Pydantic request/response shapes
-├── routers/      # auth, bugs, buyers, claims, credits, listings, orders, payment, posts, sales, scans, slips
+├── routers/      # auth, bugs, buyers, catalogue, claims, credits, listings, orders, payment, posts, sales, scans, slips
 └── services/     # Gemini, Scryfall, CardKingdom, overlay render, credits, local scanner...
 migrations/       # Alembic; `alembic upgrade head` runs on every start
 scripts/          # make_voucher.py, build_embedding_index.py, delete_account.py

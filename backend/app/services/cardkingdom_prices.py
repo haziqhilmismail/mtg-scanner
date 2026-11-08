@@ -1,18 +1,10 @@
-"""
-cardkingdom_prices.py
----------------------
-SQLite-backed index of CardKingdom retail prices keyed by Scryfall ID.
+"""SQLite-backed index of CardKingdom retail prices keyed by Scryfall ID.
 
 Reads:  GET https://api.cardkingdom.com/api/v2/pricelist  (streamed)
 Writes: data/ck_index.db                                  (one persistent file)
 
-That's the whole contract. We do NOT keep a persistent JSON copy of CK's
-response any more — during a refresh we stream the HTTP body into a transient
-tmp file in the data dir, ijson-parse it into a tmp sqlite, atomic-rename the
-sqlite onto ck_index.db, and delete the tmp file. The previous two-cache
-design (json + sqlite, with mtime comparisons) was an over-fit to CK's flaky
-CDN and silently fell back to weeks-old data when a download failed; this
-design either succeeds outright or raises so the caller can see what went wrong.
+A refresh either succeeds outright or raises so the caller can see what went
+wrong; it never falls back to older data.
 
 Refresh policy: on startup we open ck_index.db if it's < 24h old; otherwise
 we refresh. /api/refresh-ck forces a refresh regardless of age. There is no
@@ -81,17 +73,12 @@ def _is_truthy(v) -> bool:
 
 
 def _pick_nm_price(p: dict) -> tuple[float, int]:
-    """Always return CK's NM-condition price + qty.
-
-    We deliberately ignore EX/VG/G fallbacks — the seller stocks NM cards
-    and uses CK's NM list as their pricing anchor, so charging based on
-    CK's currently-stocked-but-lower-grade price would undercut them.
-    qty is `nm_qty` so the in-stock flag downstream reflects "can a buyer
-    actually get this from CK at NM" rather than "any condition is stocked."
+    """CK's NM-condition price + qty (the module docstring says why NM only).
+    `nm_qty` makes the in-stock flag mean "a buyer can get this from CK at NM".
 
     Falls back to the top-level `price_retail` / `qty_retail` only when
     `condition_values` is missing entirely (a few edge SKUs); the top-level
-    `price_retail` IS the NM list price, so the fallback preserves intent.
+    `price_retail` IS the NM list price.
     """
     cv = p.get("condition_values") or {}
     nm_price = _to_float(cv.get("nm_price"))
@@ -157,17 +144,12 @@ class CKPriceIndex:
 
     async def refresh(self, force: bool = False) -> None:
         """
-        Reads:  GET CK_PRICELIST_URL (streamed; transient file under data/)
-        Writes: settings.ck_db_file (atomic via .tmp + rename)
+        Open the DB when it is recent and `force` is off; otherwise download
+        and rebuild.
 
-        force=False + recent DB exists → just open it (sub-ms).
-        force=True OR no/stale DB     → download + rebuild.
-
-        On download failure: raises. The previous self._conn (if any) is
-        left in place, so the running app keeps serving whatever it was
-        serving before — but the caller (e.g. /api/refresh-ck) sees the
-        exception and can surface it to the user, rather than silently
-        rebuilding from a stale cache.
+        On download failure: raises. The previous connection stays in place, so
+        the app keeps serving what it served before, and the caller (e.g.
+        /api/refresh-ck) can report the error.
         """
         settings.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -177,7 +159,6 @@ class CKPriceIndex:
                 opened = await asyncio.to_thread(self._try_open_existing)
                 if opened:
                     return
-                # Schema drift / corruption → fall through to full rebuild.
 
         await self._download_and_build()
 
@@ -205,20 +186,12 @@ class CKPriceIndex:
         return True
 
     async def _download_and_build(self) -> None:
-        """The only path that actually talks to CK.
-
-        1. Stream HTTP body to data/.ck_pricelist.download (transient).
-        2. ijson-parse the file → batched INSERTs into data/ck_index.db.tmp.
-        3. Atomic-rename tmp → ck_index.db; swap the read connection.
-        4. Delete the transient download file.
-
-        Raises on HTTP error or parse failure. Does NOT clobber self._conn
-        unless the build all the way succeeds.
+        """The only path that talks to CK. Raises on HTTP error or parse failure,
+        and swaps the read connection only when the build succeeds.
         """
         download_path = settings.data_dir / ".ck_pricelist.download"
         tmp_db = settings.ck_db_file.with_suffix(".db.tmp")
 
-        # Step 1 — stream download.
         print(f"[cardkingdom] downloading {CK_PRICELIST_URL} ...", flush=True)
         timeout = aiohttp.ClientTimeout(total=180)
         headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
@@ -231,13 +204,11 @@ class CKPriceIndex:
         size_mb = download_path.stat().st_size / 1e6
         print(f"[cardkingdom] downloaded {size_mb:.1f} MB", flush=True)
 
-        # Step 2-3 — parse + build sqlite (CPU-bound; off-loop to a thread).
         try:
             unique_count, product_count = await asyncio.to_thread(
                 self._build_db_from_file, download_path, tmp_db
             )
         finally:
-            # Step 4 — always drop the transient download, success or fail.
             download_path.unlink(missing_ok=True)
 
         self.matched_scryfall_count = unique_count

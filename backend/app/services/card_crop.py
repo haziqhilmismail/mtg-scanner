@@ -3,9 +3,8 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
-# Scryfall's "normal" card image: the size the index builder embeds and the
-# scanner warps every detection to.
-CARD_SIZE = (488, 680)
+from .card_geometry import CARD_SIZE
+
 MIN_SIDE = 16
 CROP_VERSION = 1
 CROP_QUALITY = 95
@@ -49,7 +48,7 @@ def _boxed(photo: Image.Image, card: dict) -> Image.Image | None:
 
 
 # By `bbox_source`. A source that is not here has no crop: "user" boxes are a
-# placeholder in the middle of the photo (Scanner.tsx addMissingCard), so a
+# placeholder in the middle of the photo (PhotoPage.tsx addMissingCard), so a
 # crop of one shows no card.
 _CUTS = {"detector": _warped, "classical": _boxed, "gemini": _boxed}
 

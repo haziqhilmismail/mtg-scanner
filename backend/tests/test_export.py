@@ -35,6 +35,18 @@ def test_export_is_a_jpeg_and_the_zip_keeps_the_post_order_names(client):
         assert all(Image.open(BytesIO(zf.read(n))).format == "JPEG" for n in zf.namelist())
 
 
+def test_only_the_owner_can_export_a_photo(client):
+    _, mine = sign_in()
+    _, theirs = sign_in()
+    sid = str(_scan(client, mine["Authorization"][7:]).json()["scan_id"])
+    export = lambda headers, payload: client.post(f"/api/{payload[0]}", headers=headers,
+                                                  data={"payload": json.dumps(payload[1])}).status_code
+    single = ("export", {"image_id": sid, "cards": []})
+    every = ("export-all", {"images": [{"image_id": sid, "cards": []}]})
+    assert (export(mine, single), export(mine, every)) == (200, 200)
+    assert (export(theirs, single), export(theirs, every)) == (404, 404)
+
+
 def test_a_sold_card_is_blurred_and_darkened_and_the_rest_of_the_photo_is_not():
     from PIL import ImageStat
 

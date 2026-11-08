@@ -1,24 +1,11 @@
-"""
-classical_detector.py
----------------------
-Pure PIL + numpy + scipy.ndimage card-bbox detector.
+"""Pure PIL + numpy + scipy.ndimage card detector. The Gemini scanner uses it
+to tighten Gemini's boxes, and takes each card's corner quad from it so the
+outline follows a tilted card.
 
-Pipeline:
-    grayscale -> Gaussian blur -> Sobel edges -> adaptive threshold ->
-    morphological closing -> fill holes -> connected components ->
-    filter by area + MTG card aspect ratio (~488:680).
-
-`detect_card_quads` returns an axis-aligned (x, y, w, h) box per kept blob plus
-its smallest enclosing quadrilateral (4 corner points) via convex hull →
-polygon simplification → all-C(n, 4) edge-combination search. The quad is
-what the frontend uses to draw a tight outline on tilted/skewed cards and
-what `price_overlay.py` uses to draw a 4-point polygon instead of a rectangle.
-
-No neural model is loaded — this is a bbox-refinement pass over Gemini's
-detections. It works well on clean photos (uniform background, well-separated
-cards) and degrades gracefully (returns fewer boxes) when the scene gets
-noisy; callers should treat the absence of a matching classical box as
-"trust Gemini's bbox instead."
+No neural model is loaded. It works well on clean photos (uniform background,
+well-separated cards) and returns fewer boxes when the scene gets noisy;
+callers should treat the absence of a matching classical box as "trust
+Gemini's bbox instead."
 """
 
 from io import BytesIO
@@ -29,10 +16,10 @@ from PIL import Image, ImageFilter
 from scipy import ndimage as ndi
 from scipy.spatial import ConvexHull, QhullError
 
-# MTG card pixel aspect: 488 wide / 680 tall ≈ 0.7176. Accept boxes within
-# ±0.25 of this (covers slight perspective skew) and treat rotated cards
-# (aspect ≈ 1/0.7176 = 1.39) as valid too.
-CARD_W_OVER_H = 488.0 / 680.0
+from .card_geometry import CARD_ASPECT, iou
+
+# Accept boxes within ±0.25 of the card aspect (covers slight perspective
+# skew) and treat rotated cards (aspect ≈ 1/0.7176 = 1.39) as valid too.
 AR_TOLERANCE = 0.25
 
 # Minimum blob area as a fraction of the image — anything smaller is noise
@@ -75,7 +62,6 @@ def detect_card_quads(
     gray = pil.convert("L").filter(ImageFilter.GaussianBlur(radius=3))
     g = np.asarray(gray, dtype=np.float32)
 
-    # Sobel magnitude
     gx = ndi.sobel(g, axis=1)
     gy = ndi.sobel(g, axis=0)
     mag = np.hypot(gx, gy)
@@ -95,8 +81,6 @@ def detect_card_quads(
 
     min_area = (W * H) * MIN_AREA_FRAC
 
-    # First pass: collect candidate blobs that pass the bbox-level gates.
-    # We need the slice (sl) to extract the boundary for the quad step.
     raw: list[tuple[int, int, int, int, int, tuple[slice, slice], int]] = []
     for i, sl in enumerate(ndi.find_objects(labels), start=1):
         if sl is None:
@@ -111,7 +95,7 @@ def detect_card_quads(
         if area < min_area:
             continue
         ar = w / h
-        ar_score = min(abs(ar - CARD_W_OVER_H), abs(ar - 1.0 / CARD_W_OVER_H))
+        ar_score = min(abs(ar - CARD_ASPECT), abs(ar - 1.0 / CARD_ASPECT))
         if ar_score > AR_TOLERANCE:
             continue
         pixel_count = int((labels[sl] == i).sum())
@@ -120,62 +104,22 @@ def detect_card_quads(
             continue
         raw.append((x1, y1, x2, y2, area, sl, i))
 
-    # Sort by area desc, dedupe by IoU > 0.3.
     raw.sort(key=lambda b: -b[4])
     kept: list[tuple[int, int, int, int, int, tuple[slice, slice], int]] = []
     for b in raw:
-        if any(_iou_xyxy(b[:4], k[:4]) > 0.3 for k in kept):
+        if any(iou(b[:4], k[:4]) > 0.3 for k in kept):
             continue
         kept.append(b)
 
-    # Second pass: compute the min-area quadrilateral for each kept blob.
-    # If the quad search fails for some reason, fall back to the rectangle.
     out: list[tuple[tuple[int, int, int, int], list[list[int]]]] = []
     for x1, y1, x2, y2, _area, sl, label_id in kept:
         bbox = (x1, y1, x2 - x1, y2 - y1)
         quad = _min_area_quad_for_blob(labels, sl, label_id, W, H)
         if quad is None:
-            # Axis-aligned 4 corners — keeps the response shape stable
-            # so downstream code can always treat 'corners' as a polygon.
             quad = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
         out.append((bbox, quad))
 
     return out
-
-
-def _iou_xyxy(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
-    """IoU between two (x1, y1, x2, y2) boxes."""
-    ix1 = max(a[0], b[0]); iy1 = max(a[1], b[1])
-    ix2 = min(a[2], b[2]); iy2 = min(a[3], b[3])
-    iw = max(0, ix2 - ix1); ih = max(0, iy2 - iy1)
-    inter = iw * ih
-    if inter == 0:
-        return 0.0
-    ua = (a[2] - a[0]) * (a[3] - a[1])
-    ub = (b[2] - b[0]) * (b[3] - b[1])
-    return inter / (ua + ub - inter)
-
-
-def iou_xywh(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
-    """IoU between two (x, y, w, h) boxes. Used by the box matcher in gemini_scanner.py."""
-    ax1, ay1, aw, ah = a
-    bx1, by1, bw, bh = b
-    ax2, ay2 = ax1 + aw, ay1 + ah
-    bx2, by2 = bx1 + bw, by1 + bh
-    ix1 = max(ax1, bx1); iy1 = max(ay1, by1)
-    ix2 = min(ax2, bx2); iy2 = min(ay2, by2)
-    iw = max(0, ix2 - ix1); ih = max(0, iy2 - iy1)
-    inter = iw * ih
-    if inter == 0:
-        return 0.0
-    return inter / (aw * ah + bw * bh - inter)
-
-
-# ---------- min-area quadrilateral helpers ----------
-# Geometry ported from notebook §25. The quad search reduces each blob's
-# convex hull to a 5–8 vertex polygon by dropping its shortest segments,
-# then brute-forces all 4-subsets of edges to find the smallest enclosing
-# quadrilateral. C(8, 4) = 70 candidates — cheap.
 
 
 def _line_intersection(
@@ -276,11 +220,7 @@ def _order_quad_corners(q: np.ndarray) -> np.ndarray:
     """Sort 4 corners to (TL, TR, BR, BL) by position. Robust for cards with
     mild skew (<45°). For sideways cards we rotate by 90° CCW so the long
     edge is vertical (portrait), matching the orientation the frontend
-    overlay expects.
-
-    Earlier draft used angle-around-centroid + chirality flip; that swapped
-    TL ↔ TR on some cyclic inputs of `_min_area_quad`, which would mirror
-    the polygon outline in the rendered overlay."""
+    overlay expects."""
     q = np.asarray(q, dtype=float)
     by_y = q[np.argsort(q[:, 1])]
     top, bot = by_y[:2], by_y[2:]
@@ -324,7 +264,6 @@ def _min_area_quad_for_blob(
     if quad is None:
         return None
     ordered = _order_quad_corners(quad)
-    # Clamp to image bounds; cast to int for the response.
     out: list[list[int]] = []
     for x, y in ordered:
         out.append([int(np.clip(round(x), 0, W - 1)),

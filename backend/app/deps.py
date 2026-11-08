@@ -1,20 +1,30 @@
 """Common FastAPI dependencies: DB session + current user."""
 
 import json
-from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
 from .db import get_session
 from .models import User
 from .services.auth_service import decode_image_token, decode_session_token
+
+
+async def owned[T](db: AsyncSession, model: type[T], row_id: int, user_id: int, *options) -> T:
+    """This user's row of `model`; 404 when it does not exist or is someone
+    else's, so a stranger learns nothing about other users' ids."""
+    row = await db.scalar(
+        select(model).where(model.id == row_id, model.user_id == user_id).options(*options)
+    )
+    if row is None:
+        raise HTTPException(404, f"{model.__name__} not found")
+    return row
 
 
 def json_payload(payload: str) -> dict:
@@ -25,12 +35,8 @@ def json_payload(payload: str) -> dict:
         raise HTTPException(400, "Invalid JSON in 'payload'")
 
 
-async def get_db() -> AsyncIterator[AsyncSession]:
-    async for session in get_session():
-        yield session
-
-
-DbSession = Annotated[AsyncSession, Depends(get_db)]
+# scope="function" commits before the reply is sent, so a failed commit is a 500.
+DbSession = Annotated[AsyncSession, Depends(get_session, scope="function")]
 
 
 def bearer_user_id(authorization: str | None) -> int | None:
@@ -53,13 +59,11 @@ def get_optional_user_id(authorization: str | None = Header(default=None)) -> in
 OptionalUserId = Annotated[int | None, Depends(get_optional_user_id)]
 
 
-async def get_current_user_id(user_id: OptionalUserId, db: DbSession) -> int:
-    """The signed-in user (an `Authorization: Bearer <jwt>` header issued by
-    `/api/auth/google`); 401 without one. Solo user when auth is off."""
+async def get_current_user(user_id: OptionalUserId, db: DbSession) -> User:
+    """The signed-in user's row (an `Authorization: Bearer <jwt>` header issued
+    by `/api/auth/google`); 401 without one. Solo user when auth is off."""
     if user_id is None:
         raise HTTPException(401, "Missing, invalid or expired token")
-    if not settings.auth_enabled:
-        return user_id
     user = await db.get(User, user_id)
     # A deleted account's token stays valid for days; its user row is gone.
     if user is None:
@@ -71,7 +75,14 @@ async def get_current_user_id(user_id: OptionalUserId, db: DbSession) -> int:
     if user.last_seen_at is None or now - user.last_seen_at > timedelta(hours=1):
         await db.execute(update(User).where(User.id == user_id).values(last_seen_at=now, updated_at=User.updated_at))
         await db.commit()
-    return user_id
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_current_user_id(user: CurrentUser) -> int:
+    return user.id
 
 
 CurrentUserId = Annotated[int, Depends(get_current_user_id)]
@@ -102,8 +113,3 @@ def _rate_limit_key(request: Request) -> str:
 # The one limiter every route decorates with; main.py registers it on the app.
 limiter = Limiter(key_func=_rate_limit_key)
 
-
-def check_pricing_size(pricing: dict | None) -> None:
-    """Pricing settings are a small opaque object; cap what a client may store."""
-    if pricing is not None and len(json.dumps(pricing)) > 8 * 1024:
-        raise HTTPException(413, "Pricing too large (max 8 KB)")

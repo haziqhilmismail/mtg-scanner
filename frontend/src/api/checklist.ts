@@ -19,7 +19,6 @@ export interface Buyer {
   notes: string | null;
   created_at: string;
   updated_at: string;
-  open_orders_count?: number;
   total_orders_count?: number;
 }
 
@@ -190,14 +189,12 @@ export const salesApi = {
 export const ordersApi = {
   list: (includeArchived = false) =>
     json<Order[]>('GET', `/api/orders${includeArchived ? '?include_archived=true' : ''}`),
-  update: (id: number, payload: { status?: OrderStatus; paid_at?: string | null; delivered_at?: string | null; dropoff_method?: string | null; dropoff_address?: string | null; notes?: string | null }) =>
+  update: (id: number, payload: { paid_at?: string | null; delivered_at?: string | null; dropoff_method?: string | null; dropoff_address?: string | null; notes?: string | null }) =>
     json<Order>('PATCH', `/api/orders/${id}`, payload),
-  markPaid: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-paid`),
   // Live-price posts: today's prices on an order not sent yet; `sent` fixes them.
   setPrices: (id: number, items: Array<{ id: number; unit_price_myr: string }>, sent = false) =>
     json<Order>('PUT', `/api/orders/${id}/prices`, { items, sent }),
   unsendPrices: (id: number) => json<Order>('DELETE', `/api/orders/${id}/prices-sent`),
-  markDelivered: (id: number) => json<Order>('POST', `/api/orders/${id}/mark-delivered`),
   cancel: (id: number) => json<Order>('POST', `/api/orders/${id}/cancel`),
   // Undoes cancel; the paid and dropped-off times are kept.
   restore: (id: number) => json<Order>('POST', `/api/orders/${id}/restore`),

@@ -5,13 +5,17 @@ them back.
 SQLite here doesn't enforce foreign keys, so nothing cascades by itself: each
 table is cleared in code, children before parents."""
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import (
     BugEvent, Buyer, CardCorrection, Listing, Order, OrderItem, Payment, Post, SaleRecord, Scan,
     ScanCreditEvent, User, Voucher, VoucherRedemption, listing_post_links,
 )
+
+
+async def user_by_email(db: AsyncSession, email: str) -> User | None:
+    return await db.scalar(select(User).where(func.lower(User.email) == email.strip().lower()))
 
 
 async def delete_account(db: AsyncSession, user_id: int) -> tuple[dict[str, int], list[str]]:

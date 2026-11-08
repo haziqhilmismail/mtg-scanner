@@ -1,5 +1,5 @@
-"""Order from a buyer. paid_at and delivered_at are independent — buyers can drop off
-before paying ("on credit") or pay before pickup; the model handles both naturally."""
+"""Order from a buyer. paid_at and delivered_at are independent: buyers can drop
+off before paying ("on credit") or pay before pickup."""
 
 import enum
 from datetime import datetime
@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Text
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
@@ -19,8 +20,6 @@ if TYPE_CHECKING:
 
 
 class OrderStatus(str, enum.Enum):
-    """Top-level lifecycle. paid_at + delivered_at are tracked separately."""
-
     claimed = "claimed"      # buyer has agreed to take these cards
     cancelled = "cancelled"  # cancelled by either party
 
@@ -40,8 +39,6 @@ class Order(Base, TimestampMixin):
         Enum(OrderStatus), default=OrderStatus.claimed, index=True
     )
 
-    # Independent flags — either may be set without the other.
-    # delivered_at without paid_at = "took on credit, hasn't paid yet"
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Live-price posts: when the seller sent the buyer their prices. Until then
     # the prices are an estimate the seller may refresh from CK; after, they
@@ -78,3 +75,9 @@ class Order(Base, TimestampMixin):
     payments: Mapped[list["Payment"]] = relationship(
         back_populates="order", cascade="all, delete-orphan"
     )
+
+    @hybrid_property
+    def holds_stock(self) -> bool:
+        """Not cancelled: its cards are spoken for. Works on a loaded order
+        and in a query (`.where(Order.holds_stock)`)."""
+        return self.status != OrderStatus.cancelled

@@ -25,8 +25,7 @@ class ScanCreditEvent(Base):
 
 class Voucher(Base):
     """A code that grants extra credits and/or unlimited scanning.
-    Created with scripts/make_voucher.py; a payment will later grant credits
-    through the same service function a voucher does."""
+    Created by credits.create_voucher (scripts/make_voucher.py)."""
 
     __tablename__ = "vouchers"
 

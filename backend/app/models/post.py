@@ -1,6 +1,6 @@
 """A Facebook post — the unit the user actually advertises. One post groups
 the N cards sold under it. The FB URL is stored for reference; we never query
-Facebook. The image (if any) lives on disk at data/posts/{id}.bin.
+Facebook.
 
 A card can live in many posts (e.g. it was re-listed in a follow-up drop), so
 the listings relationship goes through the listing_post_links join table."""

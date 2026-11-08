@@ -1,4 +1,4 @@
-"""Users — solo today, multi-user later. Carries each owner's payment + pricing defaults."""
+"""A seller's account, with their payment and pricing defaults."""
 
 from typing import TYPE_CHECKING, Any
 
@@ -57,7 +57,7 @@ class User(Base, TimestampMixin):
     # means forever).
     bonus_scan_credits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     unlimited_scans_until: Mapped[datetime | None] = mapped_column(DateTime)
-    # The last API call, to the hour; deps.get_current_user_id keeps it.
+    # The last API call, to the hour; deps.get_current_user keeps it.
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     @property
@@ -66,7 +66,6 @@ class User(Base, TimestampMixin):
         comments from buyers'."""
         return self.fb_name or self.name or ""
 
-    # Relationships — back-populates so we can navigate from any side
     scans: Mapped[list["Scan"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     listings: Mapped[list["Listing"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     buyers: Mapped[list["Buyer"]] = relationship(back_populates="user", cascade="all, delete-orphan")

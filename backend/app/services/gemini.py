@@ -29,7 +29,6 @@ def _log_usage(response) -> None:
     output_t = getattr(usage, "candidates_token_count", 0) or 0
     thinking_t = getattr(usage, "thoughts_token_count", 0) or 0
     total_t = getattr(usage, "total_token_count", 0) or 0
-    # Rough USD cost estimate at advertised Gemini 3 Flash rates.
     cost_usd = (prompt_t * 0.5 + (output_t + thinking_t) * 3.0) / 1_000_000
     print(
         f"[gemini-usage] prompt={prompt_t} thinking={thinking_t} "

@@ -1,19 +1,19 @@
 """Claims: read a Facebook comment thread, draft who claimed what, confirm into orders."""
 
 import asyncio
-from decimal import Decimal
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..deps import CurrentUserId, DbSession, limiter
-from ..models import Listing, ListingStatus, Post, Scan, User
-from ..schemas import OrderCreate, OrderItemCreate, OrderRead
-from ..services import claims, credits
+from ..deps import CurrentUser, CurrentUserId, DbSession, limiter, owned
+from ..models import Listing, ListingStatus, Post, Scan
+from ..schemas import OrderRead
+from ..schemas.listing import ListingBase
+from ..schemas.types import Id, as_id
+from ..services import claims, credits, orders
 from ..services.listings import locked_prices
-from . import orders as orders_router
 
 router = APIRouter(prefix="/api/claims", tags=["claims"])
 
@@ -35,11 +35,10 @@ async def read_screenshots(
     seller checks both first."""
     if len(images) > MAX_SCREENSHOTS:
         raise HTTPException(400, f"Too many screenshots (max {MAX_SCREENSHOTS})")
-    ids = [int(x) for x in scan_ids.split(",") if x.strip().isdigit()][:MAX_PHOTOS]
+    ids = [i for x in scan_ids.split(",") if (i := as_id(x.strip())) is not None][:MAX_PHOTOS]
     photos = {}
     if ids:
         rows = (await db.scalars(select(Scan).where(Scan.id.in_(ids), Scan.user_id == user_id))).all()
-        # Up to 60 previews to decode: off the event loop.
         photos = await asyncio.to_thread(
             claims.decode_photos, {s.id: (s.gemini_raw or {}).get("image_b64", "") for s in rows})
     pages = []
@@ -48,7 +47,6 @@ async def read_screenshots(
         if len(raw) > MAX_SCREENSHOT_BYTES:
             raise HTTPException(413, "Screenshot too large (max 15 MB)")
         try:
-            # Matching + Tesseract take a few seconds per screenshot; keep the loop free.
             text, scan_id, sure = await asyncio.to_thread(claims.read_screenshot, raw, photos)
         except ValueError as e:
             raise HTTPException(400, str(e))
@@ -66,38 +64,26 @@ class ParseRequest(BaseModel):
 
 @router.post("/parse")
 @limiter.limit("20/minute")
-async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user_id: CurrentUserId):
+async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user: CurrentUser):
     """Draft claims from thread text (typed, pasted or OCR'd) against the cards
     the client says are on sale, and list the comments read as no claim.
     Saves nothing. Costs one scan credit (it is a Gemini call), handed back if
     the call fails."""
-    user = await db.get(User, user_id)
-    seller = user.seller_name if user else ""
-    async with credits.spend(db, user_id):
+    async with credits.spend(db, user.id):
         try:
-            result = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, seller)
+            result = await asyncio.to_thread(claims.parse_claims, body.text, body.photos, user.seller_name)
         except Exception as e:
             raise HTTPException(502, f"Could not work out the claims: {e}")
     return {"claims": [d.model_dump() for d in result.claims], "skipped": result.skipped,
-            "credits": await credits.status(db, user_id)}
+            "credits": await credits.status(db, user.id)}
 
 
-class ConfirmItem(BaseModel):
-    scan_id: int
+class ConfirmItem(ListingBase):
+    """A claimed card: the listing it becomes, where it is in which photo,
+    and how many this buyer wants (qty_total is how many the seller has)."""
+    scan_id: Id
     card_id: int
     bbox: list[int] = Field(..., min_length=4, max_length=4)
-    name: str
-    scryfall_id: str | None = None
-    set_code: str | None = None
-    set_name: str | None = None
-    collector_number: str | None = None
-    rarity: str | None = None
-    is_foil: bool = False
-    image_url: str | None = None
-    ck_url: str | None = None
-    unit_price_myr: Decimal = Field(..., ge=0, decimal_places=2)
-    # How many of this card the seller has (from the scan), and how many this buyer wants.
-    qty_total: int = Field(1, ge=1)
     qty: int = Field(1, ge=1)
 
 
@@ -108,7 +94,7 @@ class ConfirmClaim(BaseModel):
 
 
 class ConfirmRequest(BaseModel):
-    post_id: int | None = None
+    post_id: Id | None = None
     claims: list[ConfirmClaim] = Field(..., min_length=1, max_length=200)
 
 
@@ -123,12 +109,7 @@ async def _listing_for(db, user_id: int, post: Post | None, item: ConfirmItem) -
     listing = next((l for l in rows if l.bbox == item.bbox and l.is_foil == item.is_foil), None)
     if listing is None:
         listing = Listing(
-            user_id=user_id, scan_id=item.scan_id, bbox=item.bbox,
-            name=item.name, scryfall_id=item.scryfall_id, set_code=item.set_code,
-            set_name=item.set_name, collector_number=item.collector_number, rarity=item.rarity,
-            is_foil=item.is_foil, image_url=item.image_url, ck_url=item.ck_url,
-            unit_price_myr=item.unit_price_myr, qty_total=item.qty_total,
-            status=ListingStatus.active,
+            **item.model_dump(exclude={"card_id", "qty"}), user_id=user_id, status=ListingStatus.active,
         )
         listing.posts = [post] if post else []
         db.add(listing)
@@ -146,11 +127,7 @@ async def _listing_for(db, user_id: int, post: Post | None, item: ConfirmItem) -
 async def confirm_claims(body: ConfirmRequest, db: DbSession, user_id: CurrentUserId):
     """Turn confirmed drafts into orders: one per buyer, in the order given.
     All or nothing — a bad item rolls the whole batch back."""
-    post = None
-    if body.post_id is not None:
-        post = await db.get(Post, body.post_id)
-        if not post or post.user_id != user_id:
-            raise HTTPException(404, "Post not found")
+    post = None if body.post_id is None else await owned(db, Post, body.post_id, user_id)
     scan_ids = {i.scan_id for c in body.claims for i in c.items}
     scans = {s.id: s for s in (await db.scalars(
         select(Scan).where(Scan.id.in_(scan_ids), Scan.user_id == user_id)
@@ -160,16 +137,15 @@ async def confirm_claims(body: ConfirmRequest, db: DbSession, user_id: CurrentUs
     # A card of a finished photo sells at the price it was posted with.
     locked = {sid: locked_prices(s.ui_state, s.gemini_raw) for sid, s in scans.items()}
 
-    orders = []
+    out = []
     for claim in body.claims:
-        lines: list[OrderItemCreate] = []
+        lines = []
         for item in claim.items:
             if (price := locked[item.scan_id].get(tuple(item.bbox))) is not None:
                 item = item.model_copy(update={"unit_price_myr": price})
-            listing = await _listing_for(db, user_id, post, item)
-            lines.append(OrderItemCreate(listing_id=listing.id, qty=item.qty, unit_price_myr=item.unit_price_myr))
-        orders.append(await orders_router.create_order(
-            OrderCreate(buyer_fb_name=claim.buyer.strip(), items=lines, notes=claim.note),
-            db, user_id,
-        ))
-    return orders
+            lines.append((await _listing_for(db, user_id, post, item), item.qty, item.unit_price_myr))
+        try:
+            out.append(await orders.create_order(db, user_id, claim.buyer, lines, notes=claim.note))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    return out

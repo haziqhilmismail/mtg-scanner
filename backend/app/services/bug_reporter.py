@@ -1,14 +1,8 @@
-"""Centralised bug capture: write a row to `bug_events`, push to Telegram.
+"""Bug capture: each report is a row in `bug_events` and a Telegram push.
 
-Two entry points:
-  * `report_exception(request, exc)` — called by main.py's global
-    exception handler when an uncaught backend exception bubbles up.
-  * `report_frontend(payload, ...)` — called by the POST /api/bug route
-    when the React error boundary / window.onerror handler reports.
-
-Telegram is throttled by an in-memory fingerprint cache so a single bad
-deploy doesn't fire 100 notifications. DB writes are NOT throttled — the
-audit log stays complete.
+The push is throttled per fingerprint by an in-memory cache, so one bad deploy
+doesn't fire 100 notifications. The rows are not throttled: the log stays
+complete.
 """
 
 from __future__ import annotations
@@ -25,12 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import async_session_factory
 from ..models import BugEvent
+from ..schemas import BugReportCreate
 
 if TYPE_CHECKING:
     from fastapi import Request
 
 
-# fingerprint → start of its window (UTC)
 _DEDUP: dict[str, datetime] = {}
 
 # The event loop only holds weak references to tasks; keep pending pushes
@@ -62,7 +56,6 @@ def _top_frame(stack: str | None) -> str:
         s = line.strip()
         if s.startswith(("File ", "at ")):
             return s[:200]
-    # Fall back to first non-empty line.
     for line in stack.splitlines():
         s = line.strip()
         if s:
@@ -97,8 +90,6 @@ async def _persist(db: AsyncSession | None, event: BugEvent) -> None:
         db.add(event)
         await db.flush()
         return
-    # No active session (e.g. exception happened before DbSession was bound) —
-    # open a fresh one.
     async with async_session_factory() as s:
         s.add(event)
         await s.commit()
@@ -196,35 +187,30 @@ async def report_exception(
         print(f"[bug-reporter] DB write failed: {e}", flush=True)
 
     if _should_notify(fp):
-        # Fire-and-forget — never block the response on Telegram I/O.
         _push(event)
 
 
 async def report_frontend(
+    report: BugReportCreate,
     *,
-    message: str,
-    exception_type: str,
-    stack: str | None,
-    route: str | None,
     user_agent: str | None,
     user_id: int | None,
     db: AsyncSession | None = None,
 ) -> BugEvent:
-    """Capture a frontend report. Returns the persisted event so the route
-    handler can echo back an id if it wants."""
-    head = _top_frame(stack)
-    fp = _fingerprint("frontend", route, exception_type, head)
+    """Capture a frontend report. Returns the stored event."""
+    head = _top_frame(report.stack)
+    fp = _fingerprint("frontend", report.route, report.exception_type, head)
 
     event = BugEvent(
         user_id=user_id,
         source="frontend",
         fingerprint=fp,
-        route=_truncate(route, 512),
+        route=_truncate(report.route, 512),
         method=None,
         status_code=None,
-        exception_type=exception_type[:128] or "Error",
-        message=message[:2000] or exception_type or "Error",
-        stack=_truncate(stack, 20_000),
+        exception_type=report.exception_type[:128] or "Error",
+        message=report.message[:2000] or report.exception_type or "Error",
+        stack=_truncate(report.stack, 20_000),
         user_agent=_truncate(user_agent, 512) if user_agent else None,
     )
     await _persist(db, event)

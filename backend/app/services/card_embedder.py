@@ -1,7 +1,4 @@
-"""
-card_embedder.py
-----------------
-Offline card identification via image embeddings.
+"""Offline card identification via image embeddings.
 
 A perspective-warped card crop is embedded with a DINOv3 ViT-S/16 model
 fine-tuned for card retrieval (ONNX, CPU) and matched by cosine similarity
