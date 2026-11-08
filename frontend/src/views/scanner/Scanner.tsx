@@ -1,50 +1,95 @@
+import { useState } from 'react';
+import type { T } from '../../hooks/useLang.ts';
+import type { NavStore } from '../../hooks/useNav.ts';
+import type { PricingStore } from '../../hooks/usePricing.ts';
+import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { POSTS } from '../../routes.ts';
+import type { PhotoSort } from '../../utils.ts';
 import { Claims, type ClaimsProps } from '../Claims.tsx';
 import { PricingPage } from '../PricingPage.tsx';
-import { useScannerArea, type Area, type ScannerProps } from './area.tsx';
 import { PhotoPage } from './PhotoPage.tsx';
 import { PostHead } from './PostHead.tsx';
 import { PostPage } from './PostPage.tsx';
 import { PostsPage } from './PostsPage.tsx';
+import { usePhotoActions } from './usePhotoActions.ts';
+import { usePosts } from './usePosts.ts';
 
-type Props = ScannerProps & { claims: Omit<ClaimsProps, 'folder' | 'area'> };
+interface Props {
+  // A post page is showing, not Profile (both stay mounted, so going back doesn't reload).
+  active: boolean;
+  scanner: ScannerStore;
+  // Which post, photo or pricing page is open: the URL (see useNav).
+  nav: NavStore;
+  // Pricing per post and the default; pricingFor() prices every photo.
+  pricing: PricingStore;
+  t: T;
+  lang: string;
+  claims: Pick<ClaimsProps, 'credits' | 'onCredits' | 'onEnterVoucher' | 'payment'>;
+}
 
 // Posts, and under each post its Photos and Claims parts, a photo or its
 // pricing, by URL.
-export function Scanner({ claims, ...props }: Props) {
-  const area = useScannerArea(props);
-  const { route, openFolder } = area;
-  const claimsFolder = props.active && route.page === 'claims' && openFolder?.postId != null ? openFolder : null;
+export function Scanner({ active, scanner, nav, pricing, t, lang, claims }: Props) {
+  const { pricingFor } = pricing;
+  const posts = usePosts({ scanner, nav, pricing, t, lang });
+  const photos = usePhotoActions({ scanner, pricingFor, folderTitle: posts.folderTitle, t });
+  // The photos Prev/Next step through, fixed when a photo is opened so the
+  // order doesn't shift under you as you fix things.
+  const [navIds, setNavIds] = useState<string[]>([]);
+  // The photo order of the post page; kept from one post to the next.
+  const [sort, setSort] = useState<PhotoSort>('post');
+
+  const { route } = nav;
+  const { openFolder, activeBatch } = posts;
+  const claimsFolder = active && route.page === 'claims' && openFolder?.postId != null ? openFolder : null;
   // The post's two parts share its head; keyed so a rename draft stays with its post.
-  const onPart = props.active && openFolder && (route.page === 'post' || claimsFolder);
+  const onPart = active && openFolder && (route.page === 'post' || claimsFolder);
+
+  const page = () => {
+    if (activeBatch) {
+      return (
+        <PhotoPage
+          batch={activeBatch} scanner={scanner} pricingFor={pricingFor} nav={nav} t={t} lang={lang}
+          posts={posts} photos={photos} navIds={navIds}
+        />
+      );
+    }
+    if (route.page === 'pricing' && openFolder) {
+      // The unfiled photos (postId null) are priced with the default.
+      return (
+        <PricingPage
+          postId={openFolder.postId}
+          postTitle={openFolder.title}
+          crumbs={[{ label: t('scans_title'), to: POSTS }, { label: openFolder.title, to: { page: 'post', folder: openFolder.key } }, { label: t('crumbs_pricing') }]}
+          parent={{ page: 'post', folder: openFolder.key }}
+          pricing={pricing}
+          t={t}
+        />
+      );
+    }
+    // Keyed by post, so the search, the selection and a rename draft start
+    // fresh on another post.
+    if (openFolder) {
+      return (
+        <PostPage
+          key={openFolder.key} folder={openFolder} scanner={scanner} pricing={pricing} go={nav.go} t={t}
+          posts={posts} photos={photos} sort={sort} setSort={setSort}
+          onOpenPhoto={ids => { setNavIds(ids); window.scrollTo({ top: 0 }); }}
+        />
+      );
+    }
+    return <PostsPage posts={posts} scanner={scanner} pricingFor={pricingFor} t={t} />;
+  };
+
   return (
     <>
-      {onPart ? <PostHead key={openFolder.key} area={area} folder={openFolder} part={claimsFolder ? 'claims' : 'photos'} /> : null}
+      {onPart ? <PostHead key={openFolder.key} posts={posts} folder={openFolder} part={claimsFolder ? 'claims' : 'photos'} t={t} /> : null}
       {/* Always mounted: back on Claims, it shows at once instead of loading again. */}
-      <Claims folder={claimsFolder} area={area} {...claims} />
-      {props.active && !claimsFolder ? <ScannerPage area={area} /> : null}
+      <Claims
+        folder={claimsFolder} scanner={scanner} pricingFor={pricingFor} refreshPosts={posts.refreshPosts} t={t} lang={lang}
+        {...claims}
+      />
+      {active && !claimsFolder ? page() : null}
     </>
   );
-}
-
-function ScannerPage({ area }: { area: Area }) {
-  const { route, openFolder, activeBatch, t } = area;
-  if (activeBatch) return <PhotoPage area={area} batch={activeBatch} />;
-  if (route.page === 'pricing' && openFolder) {
-    // The unfiled photos (postId null) are priced with the default.
-    return (
-      <PricingPage
-        postId={openFolder.postId}
-        postTitle={openFolder.title}
-        crumbs={[{ label: t('scans_title'), to: POSTS }, { label: openFolder.title, to: { page: 'post', folder: openFolder.key } }, { label: t('crumbs_pricing') }]}
-        parent={{ page: 'post', folder: openFolder.key }}
-        pricing={area.pricing}
-        t={t}
-      />
-    );
-  }
-  // Keyed by post, so the search, the selection and a rename draft start
-  // fresh on another post.
-  if (openFolder) return <PostPage key={openFolder.key} area={area} folder={openFolder} />;
-  return <PostsPage area={area} />;
 }

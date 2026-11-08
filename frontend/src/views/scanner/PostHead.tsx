@@ -4,7 +4,8 @@ import { Icon } from '../../components/Icon.tsx';
 import { Link } from '../../components/Link.tsx';
 import { Menu } from '../../components/ui/Menu.tsx';
 import { POSTS } from '../../routes.ts';
-import type { Area, Folder } from './area.tsx';
+import type { T } from '../../hooks/useLang.ts';
+import type { Folder, Posts } from './usePosts.ts';
 import { RenamePostDialog } from './RenamePostDialog.tsx';
 import { RepostDialog } from './RepostDialog.tsx';
 
@@ -13,8 +14,8 @@ export type PostPart = 'photos' | 'claims';
 // The top of a post, the same on its two parts: the breadcrumbs, the name
 // with Rename and Manage post, then the Photos and Claims tabs. The photos
 // in no post get the name only: they are not a post, so they have no claims.
-export function PostHead({ area, folder, part }: { area: Area; folder: Folder; part: PostPart }) {
-  const { t, renamePost, setArchived, deletePost } = area;
+export function PostHead({ posts, folder, part, t }: { posts: Posts; folder: Folder; part: PostPart; t: T }) {
+  const { renamePost, setArchived, deletePost, repost } = posts;
   const [renaming, setRenaming] = useState(false);
   const [reposting, setReposting] = useState(false);
   const isPost = folder.postId != null;
@@ -67,7 +68,7 @@ export function PostHead({ area, folder, part }: { area: Area; folder: Folder; p
         </nav>
       ) : <p className="post-note"><Icon name="folder" size={18} /><span>{t('unfiled_note')}</span></p>}
       <RenamePostDialog open={renaming} title={folder.title} onClose={() => setRenaming(false)} onSave={title => renamePost(folder, title)} t={t} />
-      {isPost ? <RepostDialog open={reposting} onClose={() => setReposting(false)} area={area} folder={folder} /> : null}
+      {isPost ? <RepostDialog open={reposting} onClose={() => setReposting(false)} repost={repost} folder={folder} t={t} /> : null}
     </>
   );
 }

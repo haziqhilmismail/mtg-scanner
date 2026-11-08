@@ -141,7 +141,6 @@ function Workspace({ auth, lang, setLang, t, appearance, setAppearance }: Worksp
         scanner={scanner}
         nav={navStore}
         pricing={pricing}
-        health={health}
         t={t}
         lang={lang}
         claims={{ credits, onCredits: setCredits, payment: payments.payment, onEnterVoucher: () => setVoucherOpen(true) }}

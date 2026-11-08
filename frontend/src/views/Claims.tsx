@@ -37,13 +37,21 @@ import {
 } from './claims/model.ts';
 import { ClaimSteps, HowDialog } from './claims/parts.tsx';
 import { useScreenshotDrop } from './claims/useScreenshotDrop.ts';
-import type { Area, Folder } from './scanner/area.tsx';
+import type { T } from '../hooks/useLang.ts';
+import type { PricingStore } from '../hooks/usePricing.ts';
+import type { ScannerStore } from '../hooks/useScanner.ts';
+import type { Folder } from './scanner/usePosts.ts';
 
 export interface ClaimsProps {
   // The open post, from the URL; null while another page shows. Claims
   // stays mounted then, so coming back to it doesn't load again.
   folder: Folder | null;
-  area: Area;
+  scanner: ScannerStore;
+  pricingFor: PricingStore['pricingFor'];
+  // Reads the posts again, for their claim counts.
+  refreshPosts: () => Promise<void>;
+  t: T;
+  lang: string;
   // Claim-read balance; null until loaded. onCredits takes the new one after each read.
   credits: Credits | null;
   onCredits: (credits: Credits) => void;
@@ -86,8 +94,7 @@ function describePositions(cards: CardRowData[]): Map<number, string> {
   return out;
 }
 
-export function Claims({ folder, area, credits, onCredits, onEnterVoucher, payment }: ClaimsProps) {
-  const { scanner, pricingFor, refreshPosts, t, lang } = area;
+export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, credits, onCredits, onEnterVoucher, payment }: ClaimsProps) {
   const active = folder != null;
   const toast = useToast();
   const [listings, setListings] = useState<Listing[]>([]);
