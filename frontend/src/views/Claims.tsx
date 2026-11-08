@@ -27,7 +27,7 @@ import { KEY } from '../lib/storage.ts';
 import { plural } from '../i18n/index.ts';
 import type { Credits } from '../api/credits.ts';
 import { canShareFiles, dateLocale, fetchQrFile, isPhone, popupOpen, useFileDrop } from '../lib/browser.ts';
-import { byPostOrder, dueForSupportAsk, paymentLines, photoNumbers } from '../utils.ts';
+import { dueForSupportAsk, paymentLines } from '../utils.ts';
 import { AddComments } from './claims/AddComments.tsx';
 import { BuyerCard } from './claims/BuyerCard.tsx';
 import { BuyerDialog } from './claims/BuyerDialog.tsx';
@@ -43,6 +43,7 @@ import type { Folder } from './scanner/usePosts.ts';
 import { computeCardData, type CardRowData } from '../lib/scanState.ts';
 import { isLive } from '../lib/pricing.ts';
 import { approxText } from '../lib/money.ts';
+import { byPostOrder, photoNumbers } from './scanner/photos.ts';
 
 export interface ClaimsProps {
   // The open post, from the URL; null while another page shows. Claims

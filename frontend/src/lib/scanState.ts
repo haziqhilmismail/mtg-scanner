@@ -5,6 +5,7 @@
 // (rev, lockedAt, locked[].price, picks), so renaming one needs a data migration.
 
 import type { Batch, Candidate, Correction, DetectedCard, PriceSource, Settings } from '../types.ts';
+import type { T } from '../i18n/index.ts';
 import { applyRounding, parseOverride } from './money.ts';
 
 // Per-card draggable pill offset. The pill default position is derived from
@@ -202,4 +203,44 @@ export function correctionFor(batch: Batch, idx: number, picked?: Candidate): Co
 export function lockPrices(cards: CardRowData[]): (LockedPrice | null)[] {
   return cards.map(cd => (cd.removed || !(cd.unitPrice > 0) ? null
     : { price: cd.unitPrice, usd: cd.usd, mult: cd.mult, manual: cd.hasOverride }));
+}
+
+export const cardName = (cd: CardRowData, t: T) => cd.sel.name || t('unknown_card');
+
+// A card's identity on its photo: listings record the bbox they came from.
+export const bboxKey = (bbox: number[]) => bbox.join(',');
+
+export function notAdded(batch: Batch, cards: CardRowData[]): CardRowData[] {
+  return cards.filter(cd => !cd.removed && cd.unitPrice > 0 && !batch.listed.includes(bboxKey(cd.card.bbox)));
+}
+
+// CK's working search URL — matches what their site emits when you submit the
+// top search bar. `?search=header` is CK's "search context" param;
+// `filter[name]=...` is the actual query. Brackets are pre-encoded so any
+// intermediate proxy/normalization sees a stable URL.
+export function ckSearchUrl(name: string): string {
+  if (!name) return '';
+  return `https://www.cardkingdom.com/catalog/search?search=header&filter%5Bname%5D=${encodeURIComponent(name)}`;
+}
+
+// What a scanned card becomes on the checklist. One function for adding a
+// card, adding a whole photo and saving claims, so they can't drift apart.
+// With no direct CK product URL the listing gets a CK search-by-name link.
+export function listingFields(cd: CardRowData) {
+  const sel = cd.sel;
+  const ck = (cd.isFoil ? (sel.ck_url_foil || sel.ck_url_normal) : (sel.ck_url_normal || sel.ck_url_foil))
+    || ckSearchUrl(sel.name || '');
+  return {
+    name: sel.name || '(unknown)',
+    scryfall_id: sel.scryfall_id || null,
+    set_code: sel.set || null,
+    set_name: sel.set_name || null,
+    collector_number: sel.collector_number || null,
+    rarity: sel.rarity || null,
+    is_foil: cd.isFoil,
+    image_url: sel.image_url || null,
+    ck_url: ck || null,
+    unit_price_myr: cd.unitPrice.toFixed(2),
+    qty_total: cd.qty,
+  };
 }

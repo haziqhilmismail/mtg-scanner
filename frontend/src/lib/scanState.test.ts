@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { Candidate, DetectedCard } from '../types.ts';
-import { editCardState, freshState, normalizeUiState, uiStateOf, withCard } from './scanState.ts';
+import { DEFAULT_SETTINGS, type Batch, type Candidate, type DetectedCard } from '../types.ts';
+import { computeCardData, editCardState, freshState, normalizeUiState, notAdded, uiStateOf, withCard } from './scanState.ts';
 
 const card = (is_foil: boolean, quantity?: number) => ({ gemini: { is_foil, quantity } } as DetectedCard);
 
@@ -71,4 +71,17 @@ test('a fresh state follows the scan, a framed card joins it fresh, and an edit 
   assert.deepEqual([more.isFoil, more.quantity, more.picks, more.extra], [[true, false, true], [3, 1, 1], [null, null, null], 1]);
   const edited = editCardState(more, 1, { quantity: 4, removed: true });
   assert.deepEqual([edited.quantity, edited.removed, more.quantity], [[3, 4, 1], [false, true, false], [3, 1, 1]]);
+});
+
+test('a photo still has to add its priced, kept cards that are not listed', () => {
+  const sel = { name: 'X', usd: 10, price_source_normal: 'cardkingdom' } as Candidate;
+  const card = (x: number) => ({ candidates: [sel], bbox: [x, 0, 5, 5] } as DetectedCard);
+  const cards = [card(0), card(10), card(20), card(30)];
+  const batch: Batch = {
+    id: 'b', scanId: 1, postId: 7, position: null, listed: ['0,0,5,5'], filename: '', status: 'done',
+    response: { image_id: '', image_b64: '', width: 0, height: 0, cards },
+    ...freshState(cards), priceOverride: [null, null, null, '0'], removed: [false, false, true, false],
+  };
+  // Listed, not added, removed, priced at zero.
+  assert.deepEqual(notAdded(batch, computeCardData(cards, batch, DEFAULT_SETTINGS)).map(cd => cd.origIdx), [1]);
 });

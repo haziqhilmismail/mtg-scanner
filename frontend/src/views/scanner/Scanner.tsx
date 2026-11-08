@@ -4,7 +4,6 @@ import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
 import type { ScannerStore } from '../../hooks/useScanner.ts';
 import { POSTS } from '../../routes.ts';
-import type { PhotoSort } from '../../utils.ts';
 import { Claims, type ClaimsProps } from '../Claims.tsx';
 import { PricingPage } from '../PricingPage.tsx';
 import { PhotoPage } from './PhotoPage.tsx';
@@ -13,6 +12,7 @@ import { PostPage } from './PostPage.tsx';
 import { PostsPage } from './PostsPage.tsx';
 import { usePhotoActions } from './usePhotoActions.ts';
 import { usePosts } from './usePosts.ts';
+import type { PhotoSort } from './photos.ts';
 
 interface Props {
   // A post page is showing, not Profile (both stay mounted, so going back doesn't reload).
