@@ -190,15 +190,15 @@ async def repost(post_id: Id, body: Repost, db: DbSession, user_id: CurrentUserI
     try:
         for photo in body.photos:
             src = found[photo.scan_id]
-            payload = copy.deepcopy(src.gemini_raw) or {}
-            state, picks = split_state(photo.state, len(payload.get("cards", [])))
-            apply_picks(payload, picks)
-            if ck_index:
-                refresh_prices(payload, ck_index)
+            state, picks = split_state(photo.state, len(src.cards))
             dup = Scan(
                 user_id=user_id, post_id=new_post.id, position=src.position, filename=src.filename,
-                width=src.width, height=src.height, gemini_raw=payload, ui_state=state,
+                width=src.width, height=src.height, gemini_raw=copy.deepcopy(src.gemini_raw), ui_state=state,
             )
+            with dup.edit_payload() as payload:
+                apply_picks(payload, picks)
+                if ck_index:
+                    refresh_prices(payload, ck_index)
             db.add(dup)
             await db.flush()
             dst = settings.scans_dir / f"{dup.id}.bin"
