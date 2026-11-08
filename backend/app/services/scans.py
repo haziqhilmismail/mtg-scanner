@@ -7,18 +7,24 @@ card record itself is `schemas.scan.ScannedCard`."""
 
 import asyncio
 import base64
+import copy
+import os
+import shutil
 from io import BytesIO
+from pathlib import Path
 from typing import Protocol
 
 from PIL import Image, ImageOps
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..models import Scan
+from ..models import Listing, Order, OrderItem, Scan
 from ..schemas.scan import Detection, Guess, ScannedCard
 from ..schemas.types import PICKS_ERROR
 from . import catalogue, gemini_scanner, local_scan
 from .catalogue import CKPriceIndex
+from .listings import drop_listing
 
 
 class Scanner(Protocol):
@@ -198,11 +204,76 @@ async def store(
     # The normalized JPEG (downscaled + EXIF-corrected), not the raw upload:
     # its pixels match the W/H and polygon coords of the response, so the
     # frontend and /api/export agree, and export never re-decodes HEIC.
-    image_path = settings.scans_dir / f"{scan_row.id}.bin"
+    image_path = photo_path(scan_row.id)
     image_path.write_bytes(jpeg)
     scan_row.image_path = str(image_path)
     await db.flush()
     return scan_out(scan_row, [], lite=False)
+
+
+def photo_path(scan_id: int) -> Path:
+    """Where a scan's photo is stored."""
+    return settings.scans_dir / f"{scan_id}.bin"
+
+
+async def copy_scans(
+    db: AsyncSession, sources: list[tuple[Scan, dict]], post_id: int, ck: CKPriceIndex | None,
+) -> list[Scan]:
+    """A copy of each scan under `post_id`, its picture on disk too, with the
+    per-card edits given beside it (see split_state), and today's prices when
+    `ck` is given. ValueError when edits do not fit their scan; then no copied
+    picture is left on disk."""
+    copies: list[Scan] = []
+    try:
+        for src, edits in sources:
+            state, picks = split_state(edits, len(src.cards))
+            dup = Scan(
+                user_id=src.user_id, post_id=post_id, position=src.position, filename=src.filename,
+                width=src.width, height=src.height, gemini_raw=copy.deepcopy(src.gemini_raw), ui_state=state,
+            )
+            with dup.edit_payload() as payload:
+                apply_picks(payload, picks)
+                if ck:
+                    refresh_prices(payload, ck)
+            db.add(dup)
+            await db.flush()
+            dst = photo_path(dup.id)
+            # A scan's picture never changes once saved, so a hard link is a
+            # full copy that takes no time and no space.
+            try:
+                os.link(src.image_path, dst)
+            except OSError:
+                await asyncio.to_thread(shutil.copyfile, src.image_path, dst)
+            dup.image_path = str(dst)
+            copies.append(dup)
+        await db.flush()
+    except BaseException:
+        # The rows roll back with the request; their pictures go too.
+        for dup in copies:
+            photo_path(dup.id).unlink(missing_ok=True)
+        raise
+    return copies
+
+
+async def delete(db: AsyncSession, scan: Scan) -> None:
+    """Delete a scan, its photo on disk, and the listings added from it. A
+    listing in an open order stays (unlinked from the scan), so no buyer's
+    claim is lost."""
+    claimed = (
+        select(OrderItem.listing_id)
+        .join(Order, Order.id == OrderItem.order_id)
+        .where(Order.holds_stock)
+    )
+    for listing in (await db.scalars(
+        select(Listing).where(Listing.scan_id == scan.id, Listing.id.not_in(claimed))
+    )).all():
+        await drop_listing(db, listing)
+    if scan.image_path:
+        try:
+            Path(scan.image_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+    await db.delete(scan)
 
 
 def scan_out(s: Scan, listed: list[list[int]], lite: bool) -> dict:

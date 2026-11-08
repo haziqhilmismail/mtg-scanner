@@ -5,15 +5,13 @@ import asyncio
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUser, CurrentUserId, DbSession, limiter, owned, owned_many
-from ..models import Listing, ListingStatus, Post, Scan
+from ..models import Post, Scan
 from ..schemas import OrderRead
-from ..schemas.listing import ListingBase
+from ..schemas.order import ConfirmClaim
 from ..schemas.types import Id, as_id
 from ..services import claims, credits, orders
-from ..services.listings import locked_prices
 
 router = APIRouter(prefix="/api/claims", tags=["claims"])
 
@@ -79,49 +77,9 @@ async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user
             "credits": await credits.status(db, user.id)}
 
 
-class ConfirmItem(ListingBase):
-    """A claimed card: the listing it becomes, where it is in which photo,
-    and how many this buyer wants (qty_total is how many the seller has)."""
-    scan_id: Id
-    card_id: int
-    bbox: list[int] = Field(..., min_length=4, max_length=4)
-    qty: int = Field(1, ge=1)
-
-
-class ConfirmClaim(BaseModel):
-    buyer: str = Field(..., min_length=1, max_length=255)
-    note: str | None = None
-    items: list[ConfirmItem] = Field(..., min_length=1)
-
-
 class ConfirmRequest(BaseModel):
     post_id: Id | None = None
     claims: list[ConfirmClaim] = Field(..., min_length=1, max_length=200)
-
-
-async def _listing_for(db, user_id: int, post: Post | None, item: ConfirmItem) -> Listing:
-    """The stock listing behind a scanned card, created the first time the
-    card is claimed. A card is recognised by its scan and its box in the photo."""
-    rows = (await db.execute(
-        select(Listing)
-        .where(Listing.user_id == user_id, Listing.scan_id == item.scan_id)
-        .options(selectinload(Listing.posts))
-    )).scalars().all()
-    listing = next((l for l in rows if l.bbox == item.bbox and l.is_foil == item.is_foil), None)
-    if listing is None:
-        listing = Listing(
-            **item.model_dump(exclude={"card_id", "qty"}), user_id=user_id, status=ListingStatus.active,
-        )
-        listing.posts = [post] if post else []
-        db.add(listing)
-        await db.flush()
-        return listing
-    # Seen before: keep it in step with what the seller is showing now.
-    listing.unit_price_myr = item.unit_price_myr
-    listing.qty_total = max(listing.qty_total or 1, item.qty_total)
-    if post and post not in listing.posts:
-        listing.posts.append(post)
-    return listing
 
 
 @router.post("/confirm", response_model=list[OrderRead], status_code=201)
@@ -129,20 +87,8 @@ async def confirm_claims(body: ConfirmRequest, db: DbSession, user_id: CurrentUs
     """Turn confirmed drafts into orders: one per buyer, in the order given.
     All or nothing — a bad item rolls the whole batch back."""
     post = None if body.post_id is None else await owned(db, Post, body.post_id, user_id)
-    scan_ids = {i.scan_id for c in body.claims for i in c.items}
-    scans = await owned_many(db, Scan, scan_ids, user_id)
-    # A card of a finished photo sells at the price it was posted with.
-    locked = {sid: locked_prices(s.ui_state, s.cards) for sid, s in scans.items()}
-
-    out = []
-    for claim in body.claims:
-        lines = []
-        for item in claim.items:
-            if (price := locked[item.scan_id].get(tuple(item.bbox))) is not None:
-                item = item.model_copy(update={"unit_price_myr": price})
-            lines.append((await _listing_for(db, user_id, post, item), item.qty, item.unit_price_myr))
-        try:
-            out.append(await orders.create_order(db, user_id, claim.buyer, lines, notes=claim.note))
-        except ValueError as e:
-            raise HTTPException(400, str(e))
-    return out
+    scans = await owned_many(db, Scan, {i.scan_id for c in body.claims for i in c.items}, user_id)
+    try:
+        return await orders.confirm_claims(db, user_id, post, scans, body.claims)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
