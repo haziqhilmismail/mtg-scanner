@@ -1,10 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useT, type Key } from '../../hooks/useLang.ts';
 import { dateLocale } from '../../lib/browser.ts';
-import type { ScannerStore } from '../../hooks/useScanner.ts';
+import { type ScannerStore, canRetry } from '../../hooks/useScanner.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { bboxKey, canRetry, cardName } from '../../utils.ts';
 import { photoStatus } from './status.ts';
 import { AdjustPanel, type PriceEdit } from './AdjustPanel.tsx';
 import { BatchPreview } from './BatchPreview.tsx';
@@ -14,7 +13,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { useToast } from '../../components/ui/Toast.tsx';
-import { computeCardData, type CardRowData } from '../../lib/scanState.ts';
+import { computeCardData, type CardRowData, bboxKey, cardName } from '../../lib/scanState.ts';
 import { formatMyr } from '../../lib/money.ts';
 
 interface Props {

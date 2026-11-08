@@ -6,10 +6,10 @@ import { Checkbox } from '../../components/ui/Checkbox.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
 import { plural } from '../../i18n/index.ts';
 import { repostPlan, type RepostPhoto } from '../../lib/repost.ts';
-import { byPostOrder } from '../../utils.ts';
 import { thumbOf } from './PostRow.tsx';
 import { useT } from '../../hooks/useLang.ts';
 import type { Folder, Posts } from './usePosts.ts';
+import { byPostOrder } from './photos.ts';
 
 interface Props {
   open: boolean;

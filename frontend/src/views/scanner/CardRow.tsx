@@ -1,14 +1,21 @@
 import { useState, type ReactNode } from 'react';
 import { useT, type T } from '../../hooks/useLang.ts';
 import type { Settings } from '../../types.ts';
-import { cardName, ckSearchUrl, rarityKey, smallScryfallImage } from '../../utils.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Money } from '../../components/Money.tsx';
 import { PhotoViewer } from '../../components/ui/PhotoViewer.tsx';
 import { Stepper } from '../../components/ui/Stepper.tsx';
 import { printingText, VersionLine } from '../../components/VersionLine.tsx';
-import type { CardRowData } from '../../lib/scanState.ts';
+import { type CardRowData, cardName, ckSearchUrl } from '../../lib/scanState.ts';
 import { fmt2, formatMyr, approxText } from '../../lib/money.ts';
+import { smallScryfallImage } from './photos.ts';
+
+function rarityKey(rarity: string | undefined | null): string {
+  const r = (rarity || '').toLowerCase();
+  if (r === 'common' || r === 'uncommon' || r === 'rare' || r === 'mythic') return r;
+  if (r) return 'special';
+  return '';
+}
 
 interface Props {
   cd: CardRowData;

@@ -7,10 +7,10 @@ import { useT } from '../../hooks/useLang.ts';
 import { plural } from '../../i18n/index.ts';
 import type { Route } from '../../routes.ts';
 import type { Settings } from '../../types.ts';
-import { canRetry } from '../../utils.ts';
 import type { PhotoStatus } from './status.ts';
 import { formatMyr } from '../../lib/money.ts';
 import { isLive } from '../../lib/pricing.ts';
+import { canRetry } from '../../hooks/useScanner.ts';
 
 // What a row of the list does: open its photo, be ticked, or move up and down.
 export type PhotoListMode =

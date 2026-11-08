@@ -10,7 +10,6 @@ import { photosOf } from '../../lib/photoFiles.ts';
 import { pricingSummary, isLive } from '../../lib/pricing.ts';
 import { POSTS, UNFILED, type Route } from '../../routes.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { byPostOrder, PHOTO_SORTS, sortPhotos, type PhotoSort } from '../../utils.ts';
 import { useT } from '../../hooks/useLang.ts';
 import type { NavStore } from '../../hooks/useNav.ts';
 import type { PricingStore } from '../../hooks/usePricing.ts';
@@ -22,6 +21,7 @@ import type { Folder, Posts } from './usePosts.ts';
 import { PhotoList } from './PhotoList.tsx';
 import { PostSummary } from './PostSummary.tsx';
 import { usePostExport } from './usePostExport.ts';
+import { byPostOrder, PHOTO_SORTS, sortPhotos, type PhotoSort } from './photos.ts';
 
 // What the photo list is doing: showing the photos, ticking some, or
 // moving them into a new order that is saved in one go.

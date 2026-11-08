@@ -5,8 +5,7 @@
 
 import type { Listing, Order } from '../api/checklist.ts';
 import type { Batch } from '../types.ts';
-import { bboxKey } from '../utils.ts';
-import { uiStateOf, type ScanUiState } from './scanState.ts';
+import { uiStateOf, type ScanUiState, bboxKey } from './scanState.ts';
 
 export interface RepostPhoto {
   scanId: number;

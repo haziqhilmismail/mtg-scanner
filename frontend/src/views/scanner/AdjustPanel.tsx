@@ -1,8 +1,7 @@
 import { useId, useState } from 'react';
 import { useT, type T } from '../../hooks/useLang.ts';
-import { computeCardData, editCardState, type CardRowData, type CardState } from '../../lib/scanState.ts';
+import { computeCardData, editCardState, type CardRowData, type CardState, cardName } from '../../lib/scanState.ts';
 import type { Batch, Settings } from '../../types.ts';
-import { cardName } from '../../utils.ts';
 import { Money } from '../../components/Money.tsx';
 import { Dialog } from '../../components/ui/Dialog.tsx';
 import { TextField } from '../../components/ui/Field.tsx';
