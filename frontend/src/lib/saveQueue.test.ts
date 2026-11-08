@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from '../api/http.ts';
-import { createSaveQueue } from './saveQueue.ts';
+import { createSaveQueue, MAX_IN_FLIGHT } from './saveQueue.ts';
 
 // A value told apart by its quantity.
 const st = (q: number) => ({ quantity: [q] });
@@ -94,17 +94,18 @@ test('a failed save is retried, a refused one is dropped and reported', async ()
   assert.deepEqual(refused, [3]);
 });
 
-test('at most 4 saves are in flight outside a final flush; each one ending sends the next', async () => {
+test('at most MAX_IN_FLIGHT saves are in flight outside a final flush; each one ending sends the next', async () => {
   const { q, sends } = harness();
-  for (let id = 1; id <= 6; id++) { q.update(id, st(1), LOADED); q.update(id, st(2)); }
+  const ids = Array.from({ length: MAX_IN_FLIGHT + 2 }, (_, i) => i + 1);
+  for (const id of ids) { q.update(id, st(1), LOADED); q.update(id, st(2)); }
   q.flush();
   q.flush();
-  assert.deepEqual(sends.map(s => s.scanId), [1, 2, 3, 4]);
+  assert.deepEqual(sends.map(s => s.scanId), ids.slice(0, MAX_IN_FLIGHT));
   sends[0].ok();
   await tick();
-  assert.deepEqual(sends.map(s => s.scanId), [1, 2, 3, 4, 5]);
+  assert.deepEqual(sends.map(s => s.scanId), ids.slice(0, MAX_IN_FLIGHT + 1));
   q.flush(true);
-  assert.deepEqual(sends.slice(5).map(s => [s.scanId, s.final]), [[2, true], [3, true], [4, true], [5, true], [6, true]]);
+  assert.deepEqual(sends.slice(MAX_IN_FLIGHT + 1).map(s => [s.scanId, s.final]), ids.slice(1).map(id => [id, true]));
 });
 
 test('a state already sent with keepalive is not sent again by the next final flush', () => {

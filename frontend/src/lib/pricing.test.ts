@@ -51,7 +51,7 @@ test('the pricing summary and the formula follow the settings, in both languages
 
 test('the Rounding dropdown offers every rounding the price code does, each with its own key', () => {
   const keys = ROUNDINGS.map(roundingKey);
-  assert.equal(new Set(keys).size, 10);
+  assert.equal(new Set(keys).size, ROUNDINGS.length);
   assert.equal(keys[0], roundingKey(DEFAULT_SETTINGS));
   assert.deepEqual(ROUNDINGS.map(r => roundingText(r, DEFAULT_SETTINGS, en, 'option')).slice(0, 4), ['Up to RM 1', 'Up to RM 0.50', 'Up to RM 0.10', 'Nearest RM 1']);
   assert.equal(roundingKey({ roundDirection: 'none', roundStep: 0.5 }), 'none');
