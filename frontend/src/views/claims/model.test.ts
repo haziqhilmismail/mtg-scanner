@@ -4,7 +4,7 @@ import type { Payment } from '../../api/payment.ts';
 import type { Buyer, Order, OrderItem } from '../../api/checklist.ts';
 import { translate, type T } from '../../i18n/index.ts';
 import {
-  buyerGroups, buyerMessage, claimedCounts, claimTotals, payState, priceFormula, rm, sortGroups, stampsFor,
+  buyerGroups, buyerMessage, claimedCounts, claimTotals, priceFormula, rm, sortGroups, stampsFor,
   type BuyerGroup, type Line,
 } from './model.ts';
 
@@ -75,16 +75,6 @@ test('RM has no space, commas for thousands and cents only when they count', () 
   assert.deepEqual([rm(13), rm(1240), rm(15.5), rm(13, true), rm(12.999), rm(0)], ['RM13', 'RM1,240', 'RM15.50', 'RM13.00', 'RM13', 'RM0']);
 });
 
-test('a buyer stays Unpaid until paid, cards handed over on credit included', () => {
-  const o = (paid_at: string | null, delivered_at: string | null) => ({ paid_at, delivered_at });
-  assert.equal(payState([o(null, null)]), 'unpaid');
-  assert.equal(payState([o(null, AT)]), 'unpaid');                   // on credit
-  assert.equal(payState([o(AT, null)]), 'paid');
-  assert.equal(payState([o(AT, AT)]), 'done');
-  assert.equal(payState([o(AT, AT), o(AT, null)]), 'paid');
-  assert.equal(payState([o(AT, AT), o(null, null)]), 'unpaid');
-});
-
 test('Mark paid keeps a drop-off already made; picking a status sets it outright', () => {
   const credit = { paid_at: null, delivered_at: AT };
   assert.deepEqual(stampsFor(credit, 'markPaid', NOW), { paid_at: NOW, delivered_at: AT });
@@ -133,6 +123,20 @@ test('buyers come in claim order with their cards in claim order; cancelled, arc
     ['Tan Wei Jie', '0123456789', [11, 16], [110, 160], 20, 2, 'unpaid', false],
     ['K', '', [12], [120], 30, 3, 'unpaid', true],
   ]);
+});
+
+test('a buyer stays Unpaid until paid, cards handed over on credit included', () => {
+  const stateOf = (...stamps: Array<[string | null, string | null]>) => {
+    const orders = stamps.map(([paid_at, delivered_at], k) => order(20 + k, 1, [item(200 + k, 1)], { paid_at, delivered_at }));
+    const [g] = buyerGroups(orders, BUYERS, inPost, lineOf);
+    return [g.state, g.droppedOff];
+  };
+  assert.deepEqual(stateOf([null, null]), ['unpaid', false]);
+  assert.deepEqual(stateOf([null, AT]), ['unpaid', true]);
+  assert.deepEqual(stateOf([AT, null]), ['paid', false]);
+  assert.deepEqual(stateOf([AT, AT]), ['done', false]);
+  assert.deepEqual(stateOf([AT, AT], [AT, null]), ['paid', false]);
+  assert.deepEqual(stateOf([AT, AT], [null, null]), ['unpaid', true]);
 });
 
 test('an archived claim still holds its card; a cancelled one frees it', () => {

@@ -13,7 +13,7 @@ export const PAY_STATES: readonly PayState[] = ['unpaid', 'paid', 'done'];
 
 // Unpaid while any order is unpaid (cards handed over on credit included),
 // Done once every order is paid and dropped off, else Paid.
-export function payState(orders: ReadonlyArray<Pick<Order, 'paid_at' | 'delivered_at'>>): PayState {
+function payState(orders: ReadonlyArray<Pick<Order, 'paid_at' | 'delivered_at'>>): PayState {
   if (orders.some(o => !o.paid_at)) return 'unpaid';
   return orders.every(o => o.delivered_at) ? 'done' : 'paid';
 }
