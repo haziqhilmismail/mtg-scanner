@@ -75,7 +75,6 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle, t }: Props) 
     scanner.markListed(batch.id, cd.card.bbox);
   }, [scanner.markListed]);
 
-  // Takes a card off its post's checklist, unless a buyer's claim holds it.
   const takeOutCard = useCallback(async (batch: Batch, cd: CardRowData): Promise<'claimed' | 'taken out'> => {
     const key = bboxKey(cd.card.bbox);
     // shortcut: reads every listing of the seller to find the card's own; ask the server for one scan's if that grows slow.
@@ -181,7 +180,6 @@ export function usePhotoActions({ scanner, pricingFor, folderTitle, t }: Props) 
     if (ok) scanner.unlockBatch(batch.id);
   }, [dialog, t, scanner.unlockBatch]);
 
-  // Finish (or, on a live post, add) all of a post's photos.
   const runFinishAll = useCallback(async (key: string, targets: Batch[], postId: number | null) => {
     if (finishing || targets.length === 0) return;
     setFinishing(key);

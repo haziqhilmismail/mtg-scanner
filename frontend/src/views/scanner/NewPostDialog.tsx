@@ -22,8 +22,6 @@ interface Props {
   t: T;
 }
 
-// New post: what kind of post, then its photos (chosen, taken, or dropped
-// onto the dialog on a computer).
 export function NewPostDialog({ open, onClose, defaults, onStart, t }: Props) {
   const defaultKind = defaults.priceMode;
   const [picked, setPicked] = useState<PriceMode | null>(null);

@@ -12,7 +12,6 @@ import { Link } from '../../components/Link.tsx';
 import type { T } from '../../hooks/useLang.ts';
 import { Money } from '../../components/Money.tsx';
 
-// The small picture of a photo, once it has one.
 export const thumbOf = (b: Batch) => (b.response ? b.response.thumb_url ?? b.response.image_b64 : null);
 
 // A picture that won't load leaves its plain cell, not a broken-image icon.

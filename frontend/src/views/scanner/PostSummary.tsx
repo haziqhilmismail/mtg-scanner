@@ -12,7 +12,6 @@ import type { usePostExport } from './usePostExport.ts';
 
 interface Props {
   photos: PhotoActions;
-  // The post's pricing.
   settings: Settings;
   t: T;
   folder: Folder;

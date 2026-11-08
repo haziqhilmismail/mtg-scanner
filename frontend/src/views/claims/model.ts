@@ -37,7 +37,6 @@ export function priceFormula(cd: Pick<CardRowData, 'hasOverride' | 'usd' | 'mult
   return { usd: cd.usd, mult: cd.mult };
 }
 
-// One claimed card, as the page and the message show it.
 export interface Line {
   id: number;            // the order item
   name: string;

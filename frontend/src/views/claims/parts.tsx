@@ -1,5 +1,3 @@
-// Small pieces the Claims page and its dialogs share.
-
 import { hideBroken } from './ClaimPickers.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { useImageZoom } from '../../components/ImageZoomProvider.tsx';

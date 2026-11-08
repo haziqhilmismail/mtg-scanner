@@ -30,8 +30,6 @@ type Mode =
   | { kind: 'reorder'; draft: string[] };
 const NORMAL: Mode = { kind: 'normal' };
 
-// A post's Photos part: its total and actions, then its photos to search,
-// sort, select and reorder.
 interface Props {
   folder: Folder;
   scanner: ScannerStore;

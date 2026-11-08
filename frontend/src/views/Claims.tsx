@@ -64,8 +64,7 @@ const ORDINALS = ['1st', '2nd', '3rd'];
 const ordinal = (n: number) => ORDINALS[n - 1] ?? `${n}th`;
 
 // Where each card sits, in words a comment might use ("top left", "the third
-// one"), for Find claims. Cards are put into rows by their vertical centres,
-// then ordered left to right; the count goes row by row, the way people read.
+// one"), for Find claims.
 function describePositions(cards: CardRowData[]): Map<number, string> {
   const out = new Map<number, string>();
   if (!cards.length) return out;
@@ -124,7 +123,6 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
   const cents = settings.showCents;
   const live = isLive(settings);
 
-  // ---------- what can be claimed ----------
   const photos = useMemo<Photo[]>(() => {
     if (!activeKey) return [];
     const numbers = photoNumbers(scanner.batches);
@@ -145,10 +143,8 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
       });
   }, [scanner.batches, activeKey, postId, settings]);
 
-  // ---------- the claims on this post ----------
   const scanIds = useMemo(() => new Set(photos.map(p => p.batch.scanId as number)), [photos]);
   const listingsById = useMemo(() => new Map(listings.map(l => [l.id, l])), [listings]);
-  // The scanned card a listing stands for: same photo, same box.
   const cardOf = useCallback((i: OrderItem): CardRef | undefined => {
     const l = listingsById.get(i.listing_id);
     if (!l || l.scan_id == null || !l.bbox) return undefined;
@@ -171,7 +167,6 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
   }, [cardOf, live]);
   const groups = useMemo(() => buyerGroups(orders, buyers, inPost, lineOf), [orders, buyers, inPost, lineOf]);
   const claimedBy = useMemo(() => claimedCounts(orders, buyers, i => cardOf(i)?.key), [orders, buyers, cardOf]);
-  // Suggested as a buyer's name is typed: this post's buyers first.
   const buyerNames = useMemo(() => [...new Set([...groups.map(g => g.name), ...buyers.map(b => b.fb_name)].map(n => n.trim()))], [groups, buyers]);
   const totals = claimTotals(groups);
 
@@ -180,7 +175,6 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
   const [filter, setFilter] = useState<'all' | PayState>('all');
   const shown = useMemo(() => sortGroups(groups, sort).filter(g => filter === 'all' || g.state === filter), [groups, sort, filter]);
 
-  // ---------- dialogs ----------
   const [howOpen, setHowOpen] = useState(false);
   const [slipsOpen, setSlipsOpen] = useState(false);
   const [buyerId, setBuyerId] = useState<number | null>(null);
@@ -198,7 +192,6 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
     setShownKey(activeKey); setFilter('all'); setCopiedId(null); setNewSince(null); setSession(s => s + 1); setAddOpen(false);
   }
 
-  // Add claims, from screenshots, or with a claim typed by hand for a buyer.
   const startAdd = useCallback((files?: File[], hand: string | null = null) => {
     setHowOpen(false);
     setSession(s => s + 1);
@@ -225,7 +218,6 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
     if (ask) setSupportOpen(true);
   };
 
-  // ---------- acting on a buyer ----------
   // Changes show at once; their requests run one after another, so an Undo
   // can't overtake the change it undoes. A failed one reloads the truth.
   const writes = useRef<Promise<unknown>>(Promise.resolve());
@@ -334,7 +326,6 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
       .then(file => { if (current) setQrFile(file); }, () => { /* no QR button */ });
     return () => { current = false; };
   }, [payment?.qr_version]);
-  // Phones share the image; elsewhere it goes on the clipboard.
   const shareQr = !!qrFile && isPhone() && canShareFiles([qrFile]);
   const qrAction = shareQr ? 'share' : qrFile && typeof ClipboardItem !== 'undefined' ? 'copy' : null;
   const sendQr = async () => {
@@ -377,8 +368,6 @@ export function Claims({ folder, scanner, pricingFor, refreshPosts, t, lang, cre
     }
   };
 
-  // ---------- render ----------
-  // Another page is showing: keep the state, render nothing.
   if (!folder) return null;
   if (!loaded || (scanner.loadingSaved && scanner.batches.length === 0)) return <Spinner label={t('ck_loading')} />;
 

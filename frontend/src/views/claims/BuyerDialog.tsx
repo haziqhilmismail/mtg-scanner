@@ -18,7 +18,7 @@ interface Props {
   showPhotos: boolean;        // the post has several photos, so each line names its photo
   hasPayment: boolean;
   qrLabel: string | null;     // null: no DuitNow QR to send
-  live: boolean;              // a live-price post
+  live: boolean;
   sentOn: string | null;      // live post: when this buyer was sent their prices
   onCopy: () => void;
   onQr: () => void;
@@ -30,9 +30,6 @@ interface Props {
   onAddCard: () => void;      // a claim typed by hand, for this buyer
 }
 
-// Everything about one buyer: every card they claimed (with Add a card), the
-// exact message, the status, their name, the number for the drop-off slip,
-// and Remove buyer (with Undo on the page).
 export function BuyerDialog({ open, onClose, group: g, message, cents, showPhotos, hasPayment, qrLabel, live, sentOn, onCopy, onQr, onStatus, onSaveName, onSavePhone, onRemove, onResend, onAddCard }: Props) {
   const t = useT();
   return (
