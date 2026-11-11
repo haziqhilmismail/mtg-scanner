@@ -22,7 +22,8 @@ alert() {
   chat=$(env_value TELEGRAM_CHAT_ID)
   if [ -z "$token" ] || [ -z "$chat" ]; then echo "[backup] no TELEGRAM_* in .env: the alert was not sent"; return 0; fi
   curl -fsS -m 20 "https://api.telegram.org/bot$token/sendMessage" -d chat_id="$chat" \
-    --data-urlencode text="$1" >/dev/null || echo "[backup] the Telegram alert was not sent"
+    --data-urlencode text="[MTG BACKUP]
+$1" >/dev/null || echo "[backup] the Telegram alert was not sent"
 }
 # EXIT, not ERR: it runs once per run, also for a failure inside a function or $(...).
 trap 'rc=$?; rm -f "$tmp" "$tmp.gz"
