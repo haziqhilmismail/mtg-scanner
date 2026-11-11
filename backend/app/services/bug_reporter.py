@@ -124,6 +124,8 @@ def _esc(text: str) -> str:
 
 
 def _format_push(event: BugEvent) -> str:
+    # The bot is shared with other home server jobs; the label says which app sent this.
+    label = f"<b>[MTG {_esc(event.source.upper())}]</b>"
     where = []
     if event.method and event.route:
         where.append(f"{_esc(event.method)} {_esc(event.route)}")
@@ -138,13 +140,15 @@ def _format_push(event: BugEvent) -> str:
     # reads like "someone said this" instead of "the app exploded".
     if event.exception_type == "UserFeedback":
         return "\n".join([
+            label,
             f"💬 <b>Feedback</b> · <i>{location}</i> · {user_line}",
             f"<pre>{_esc(body)}</pre>",
         ])
 
     head_frame = _top_frame(event.stack)
     lines = [
-        f"🚨 <b>[{event.source}]</b> <code>{_esc(event.exception_type)}</code>",
+        label,
+        f"🚨 <code>{_esc(event.exception_type)}</code>",
         f"<i>{location}</i> · {user_line}",
         f"<pre>{_esc(body)}</pre>",
     ]
