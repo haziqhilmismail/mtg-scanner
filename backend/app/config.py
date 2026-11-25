@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     embedder_model_path: Path | None = None
     card_index_path: Path | None = None
 
+    # The claims parser (services/claude_cli.py): a `claude -p --model` value.
+    claude_model: str = "sonnet"
+
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3-flash-preview"
     # Gemini 3 Flash bills "thinking" tokens at the output rate ($3/M), and for
@@ -72,7 +75,7 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
 
     # Free credits each signed-in user gets in any rolling 30-day window. One
-    # credit pays for one Gemini call: a claims parse, or a photo scan when the
+    # credit pays for one model call: a claims parse (Claude), or a photo scan when the
     # Gemini scanner is on (local scans are free). Solo mode (no Google auth)
     # is never limited. See services/credits.py.
     free_scans_per_window: int = 50

@@ -8,7 +8,7 @@ apart on purpose:
      shows (image matching, no AI), then plain OCR (Tesseract) of the thread
      beside or below it. The seller can see and correct both before anything
      is inferred from them.
-  2. parse_claims()    — Gemini, on the *text only*, matches each comment to
+  2. parse_claims()    — Claude, on the *text only*, matches each comment to
      the cards on sale and says what it could not work out.
 
 Nothing here saves anything; the seller confirms the drafts first.
@@ -24,7 +24,7 @@ from PIL import Image, ImageOps, ImageStat
 from pydantic import BaseModel
 from scipy.signal import fftconvolve
 
-from . import gemini
+from . import claude_cli
 from .scans import decode_upright
 
 # English + Malay: threads mix both ("nak no 3", "mine", "kiri atas").
@@ -189,7 +189,7 @@ class CataloguePhoto(BaseModel):
     cards: list[CatalogueCard]
 
 
-# Gemini structured output has no Optional: 0 / "" stand for "unknown".
+# No Optional fields: 0 / "" stand for "unknown".
 
 class ClaimItemDraft(BaseModel):
     scan_id: int      # which photo; 0 if it could not tell
@@ -270,7 +270,7 @@ def _catalogue_text(photos: list[CataloguePhoto]) -> str:
 
 
 def parse_claims(thread: str, photos: list[CataloguePhoto], seller: str) -> ParseResult:
-    """Ask Gemini (text only) who claimed what, and which comments it read as
+    """Ask Claude (text only) who claimed what, and which comments it read as
     no claim. Synchronous — call it in a thread."""
     if len(photos) == 1:
         scope = f"All of these comments are about one photo: {photos[0].label}. Positions refer to it."
@@ -281,7 +281,7 @@ def parse_claims(thread: str, photos: list[CataloguePhoto], seller: str) -> Pars
         catalogue=_catalogue_text(photos), scope=scope,
         seller=seller or "(unknown)", thread=thread,
     )
-    result = gemini.generate_json([prompt], ParseResult, temperature=0.0) or ParseResult(claims=[], skipped=[])
+    result = claude_cli.generate_json(prompt, ParseResult)
     drafts = result.claims
     # Never trust ids we did not offer: anything else becomes "unclear".
     valid = {(p.scan_id, c.card_id) for p in photos for c in p.cards}

@@ -49,7 +49,7 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     # Secrets + config come from a .env file on the host (NOT committed):
-    # GEMINI_API_KEY, GOOGLE_CLIENT_ID, ALLOWED_EMAILS, JWT_SECRET, etc.
+    # ANTHROPIC_API_KEY, GEMINI_API_KEY, GOOGLE_CLIENT_ID, ALLOWED_EMAILS, JWT_SECRET, etc.
     env_file:
       - .env
     volumes:

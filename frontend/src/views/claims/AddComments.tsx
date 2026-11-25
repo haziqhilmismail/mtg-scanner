@@ -100,7 +100,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
   }, [incoming, readFiles]);
   const dragging = useFileDrop(open, () => step === 'shots' && pickerFor == null && !viewing && !busy, readFiles);
 
-  // What Gemini is told is on sale; prices as the photo shows them.
+  // What Claude is told is on sale; prices as the photo shows them.
   const catalogue = (subset: Photo[]): CataloguePhoto[] => subset.map(p => ({
     scan_id: p.batch.scanId as number,
     label: `Photo ${p.index} (${p.batch.filename})`,
@@ -140,7 +140,7 @@ export function AddComments({ open, onClose, onSaved, incoming, photos, postId, 
       // Claims typed by hand stay; the ones read before are read again.
       setDrafts(prev => [...found, ...prev.filter(d => d.byHand)]); setSkipped(skip); setStep('check');
     } catch (e) {
-      // Each call works out claims with Gemini and costs a credit.
+      // Each call works out claims with Claude and costs a credit.
       if (e instanceof OutOfCreditsError && e.credits) onCredits(e.credits);
       setError(e instanceof OutOfCreditsError
         ? t('credits_out_title') + (e.credits ? `. ${creditsOutText(e.credits, t, lang)}` : '')

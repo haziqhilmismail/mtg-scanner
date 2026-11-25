@@ -49,7 +49,7 @@ everything belongs to user `SOLO_USER_ID`.
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-cp .env.example .env          # then fill in GEMINI_API_KEY
+cp .env.example .env          # then fill in ANTHROPIC_API_KEY (GEMINI_API_KEY for the Gemini scanner)
 uvicorn app.main:app --reload
 python -m pytest tests
 ```

@@ -1,15 +1,18 @@
-"""Claims: OCR a thread, draft claims (Gemini mocked), confirm into orders."""
+"""Claims: OCR a thread, draft claims (Claude mocked), confirm into orders."""
 
+import json
 import os
 import shutil
+import subprocess
 import sys
 from io import BytesIO
+from types import SimpleNamespace
 
 import pytest
 from conftest import LIMIT, _photo, run, sign_in
 from PIL import Image, ImageDraw, ImageFont
 
-from app.services import claims, credits, gemini
+from app.services import claims, claude_cli, credits
 
 
 def _thread_png(lines, dark=False) -> bytes:
@@ -95,8 +98,8 @@ def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
     C, P, D, I = claims.CatalogueCard, claims.CataloguePhoto, claims.ClaimDraft, claims.ClaimItemDraft
     photo = P(scan_id=7, label="Photo 1", cards=[C(card_id=0, name="Sol Ring"), C(card_id=1, name="Island")])
 
-    def answer(contents, schema, temperature):
-        assert "Sol Ring" in contents[0] and "nak no 1" in contents[0] and "Nurul Izzah" in contents[0]
+    def answer(prompt, schema):
+        assert "Sol Ring" in prompt and "nak no 1" in prompt and "Nurul Izzah" in prompt
         return claims.ParseResult(claims=[
             D(buyer="Aiman", comment="nak no 1", unclear="", items=[
                 I(scan_id=7, card_id=0, qty=0, said="no 1", unclear=""),      # qty 0 → 1
@@ -105,7 +108,7 @@ def test_parse_only_accepts_cards_that_were_offered(monkeypatch):
             ]),
             D(buyer="Nobody", comment="pm", unclear="", items=[]),           # nothing claimed → skipped
         ], skipped=["Farah: ada lagi?"])
-    monkeypatch.setattr(gemini, "generate_json", answer)
+    monkeypatch.setattr(claude_cli, "generate_json", answer)
 
     result = claims.parse_claims("Aiman\nnak no 1", [photo], "Nurul Izzah")
     assert [d.buyer for d in result.claims] == ["Aiman"]
@@ -197,7 +200,7 @@ def test_parse_spends_a_credit_and_refuses_when_out(client, monkeypatch):
     def fake_parse(text, photos, seller):
         calls.append(text)
         if text == "fail":
-            raise RuntimeError("gemini is down")
+            raise RuntimeError("claude is down")
         return claims.ParseResult(claims=[], skipped=[])
     monkeypatch.setattr(claims, "parse_claims", fake_parse)
     remaining = lambda: client.get("/api/credits", headers=me).json()["remaining"]
@@ -213,7 +216,7 @@ def test_parse_spends_a_credit_and_refuses_when_out(client, monkeypatch):
     out = client.post("/api/claims/parse", headers=me, json=body)
     assert out.status_code == 402 and out.json()["detail"]["code"] == "out_of_credits"
     assert out.json()["detail"]["credits"]["remaining"] == 0
-    assert calls == []                                   # refused before any Gemini call
+    assert calls == []                                   # refused before any Claude call
 
 
 # The seller's own Facebook post, as OCR hands it over. Replies start with a
@@ -260,10 +263,9 @@ TAGGED_PHOTO = claims.CataloguePhoto(scan_id=3, label="Photo 1", cards=[
 ])
 
 
-@pytest.mark.skipif(not os.environ.get("GEMINI_LIVE_API_KEY"), reason="set GEMINI_LIVE_API_KEY to run against Gemini")
+@pytest.mark.skipif(not os.environ.get("CLAUDE_LIVE"), reason="set CLAUDE_LIVE=1 to run against the real claude CLI")
 @pytest.mark.parametrize("thread", [DESKTOP_THREAD, MOBILE_THREAD])
-def test_live_gemini_reads_tagged_replies_as_the_buyers_claims(monkeypatch, thread):
-    monkeypatch.setattr(claims.settings, "gemini_api_key", os.environ["GEMINI_LIVE_API_KEY"])
+def test_live_claude_reads_tagged_replies_as_the_buyers_claims(thread):
     drafts = claims.parse_claims(thread, [TAGGED_PHOTO], "Haziq Hilmi").claims
     got = {d.buyer: [(i.card_id, i.qty) for i in d.items] for d in drafts}
     assert got == {"Amir Rahman": [(1, 1)], "Daniel Tan": [(2, 1)]}, drafts
@@ -332,3 +334,27 @@ def test_each_post_counts_its_buyers_who_still_has_to_pay_and_what_was_paid(clie
 
     counts = {p["id"]: (p["buyer_count"], p["unpaid_buyer_count"], p["paid_myr"]) for p in client.get("/api/posts", headers=me).json()}
     assert counts == {post: (2, 1, "9.00"), quiet: (0, 0, "0.00")}
+
+
+def test_claude_cli_parses_the_answer_and_raises_on_failure(monkeypatch):
+    reply = {}
+    def fake_run(cmd, **kw):
+        assert cmd[:2] == ["claude", "-p"] and kw["input"] == "who claimed?"
+        return SimpleNamespace(**reply)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    reply.update(returncode=0, stderr="", stdout=json.dumps(
+        {"is_error": False, "total_cost_usd": 0.02, "structured_output": {"claims": [], "skipped": ["Farah: pm"]}}))
+    assert claude_cli.generate_json("who claimed?", claims.ParseResult).skipped == ["Farah: pm"]
+
+    reply.update(returncode=1, stdout=json.dumps({"is_error": True, "result": "Invalid API key"}))
+    with pytest.raises(RuntimeError, match="Invalid API key"):
+        claude_cli.generate_json("who claimed?", claims.ParseResult)
+
+    reply.update(returncode=0, stdout="not json")
+    with pytest.raises(RuntimeError, match="not json"):
+        claude_cli.generate_json("who claimed?", claims.ParseResult)
+
+    reply.update(stdout=json.dumps({"structured_output": {"claims": "none"}}))
+    with pytest.raises(RuntimeError, match="did not fit"):
+        claude_cli.generate_json("who claimed?", claims.ParseResult)

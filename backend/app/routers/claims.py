@@ -66,7 +66,7 @@ class ParseRequest(BaseModel):
 async def parse_thread(request: Request, body: ParseRequest, db: DbSession, user: CurrentUser):
     """Draft claims from thread text (typed, pasted or OCR'd) against the cards
     the client says are on sale, and list the comments read as no claim.
-    Saves nothing. Costs one scan credit (it is a Gemini call), handed back if
+    Saves nothing. Costs one scan credit (it is a Claude call), handed back if
     the call fails."""
     async with credits.spend(db, user.id):
         try:

@@ -25,6 +25,14 @@ COPY requirements.txt requirements-local-scanner.txt ./
 # OCR models, so nothing is downloaded at runtime.
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-local-scanner.txt
 
+# The claude CLI works out the claims on the Claims page
+# (services/claude_cli.py). After the pip layer, so that layer stays cached.
+# The version is pinned: the flags and the JSON answer were tested on it.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL https://claude.ai/install.sh | bash -s 2.1.328 \
+    && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+ENV PATH="/root/.local/bin:$PATH"
+
 # Copy the rest of the backend (alembic.ini, migrations/, app/).
 COPY . .
 

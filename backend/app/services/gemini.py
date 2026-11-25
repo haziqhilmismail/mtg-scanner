@@ -1,6 +1,5 @@
 """The one way to Gemini: a JSON answer parsed into a pydantic schema, with each
-call's token use and cost logged. The scanner and the claims parser use it;
-tests replace `generate_json`."""
+call's token use and cost logged. The Gemini scanner uses it."""
 
 from google import genai
 from google.genai import types

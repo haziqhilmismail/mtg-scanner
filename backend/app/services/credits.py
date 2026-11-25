@@ -2,10 +2,10 @@
 photo scans in any rolling 30-day window; a voucher (and later a payment) can
 add extra credits that don't expire, or switch the limit off.
 
-A scan *reserves* a credit before the Gemini call and hands it back if the
+A scan *reserves* a credit before the model call and hands it back if the
 scan fails (`async with spend(...)` does both), so three photos sent at once can't overshoot the limit and a
 failed scan costs nothing. Reserve/refund use their own short transactions:
-the request's session stays open across the multi-second Gemini call, and
+the request's session stays open across the multi-second model call, and
 holding SQLite's write lock that long would stall every other writer.
 """
 

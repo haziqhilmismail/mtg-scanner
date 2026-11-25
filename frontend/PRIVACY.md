@@ -2,7 +2,7 @@
 
 Pasar Malam MTG (mtg.haziqhilmi.com)
 
-Last updated: 24 October 2026
+Last updated: 19 November 2026
 
 Pasar Malam MTG is run by one person, Muhammad Haziq bin Hilmi, in Malaysia. If you have a question about your data, or want a copy of it or want it deleted, email muhd.haziq.b.hilmi@gmail.com.
 
@@ -22,7 +22,7 @@ Comment screenshots you add on the Claims page are read on the server to get the
 
 ## Who else gets data
 
-- **Google Gemini** reads the comment text and the card list of a post, to find who claimed which card. Your name as the seller goes with it, so the app can tell your replies from buyers' comments.
+- **Anthropic Claude** reads the comment text and the card list of a post, to find who claimed which card. Your name as the seller goes with it, so the app can tell your replies from buyers' comments.
 - **Scryfall and Card Kingdom** get card names and set numbers, to find card pictures and prices. They get no personal data.
 - **Telegram** delivers error reports and feedback to the developer.
 - **Vercel** serves the web page, and **Cloudflare** carries the traffic to the server. The server is in Malaysia and only the developer has access to it.

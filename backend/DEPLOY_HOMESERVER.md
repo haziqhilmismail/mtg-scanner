@@ -44,7 +44,7 @@ git clone https://github.com/haziqhilmismail/mtg-scanner.git
 cd mtg-scanner/backend
 
 # Create .env from your existing production secrets (NOT committed to git).
-# At minimum: GEMINI_API_KEY, GOOGLE_CLIENT_ID, CORS_ORIGINS, REFRESH_CK_TOKEN,
+# At minimum: ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID, CORS_ORIGINS, REFRESH_CK_TOKEN,
 # ALLOWED_EMAILS (optional), JWT_SECRET (see step 3 about reusing the existing
 # one), and SCANNER_BACKEND=local with the local scanner's files in data/
 # (README "Local scanner").
